@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { describe, expect, it, vi } from "vitest";
 
 import type { ReviewIdentity } from "../api/generated";
-import type { DispatchRunView, DispatchStateView } from "../api/types";
+import type { DispatchRunView, DispatchStateView, QueuedDispatchState } from "../api/types";
 import {
   DispatchPanel,
   DispatchSettings,
@@ -1384,5 +1384,71 @@ describe("the pull mode while it is armed", () => {
     );
 
     expect(screen.queryByTestId("pull-mode")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * A dispatch of this task that is already waiting for a free slot (task-476).
+ *
+ * The panel used to offer Dispatch here, which the server answers `already_queued` to.
+ * These assert on the sentence and on the id the click sends, never on an attribute.
+ */
+describe("a dispatch already waiting for a slot", () => {
+  function queued(overrides: Partial<QueuedDispatchState> = {}): QueuedDispatchState {
+    return {
+      queue_id: "q_e1aeca49780f",
+      position: 1,
+      queued_at: "2026-09-19T15:29:00Z",
+      queued_by: "Jeff Posey",
+      source: "manual",
+      status: "queued",
+      detail: "",
+      paused_by: "",
+      ...overrides,
+    };
+  }
+
+  it("says a dispatch is waiting instead of offering a second one", () => {
+    renderPanel({ queuedDispatch: queued() });
+
+    expect(screen.getByText(/waiting for the next free slot/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing has started yet/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^dispatch/i })).toBeNull();
+  });
+
+  it("names the place in line when the entry is not next", () => {
+    renderPanel({ queuedDispatch: queued({ position: 3 }) });
+
+    expect(screen.getByText(/place 3 in line/i)).toBeInTheDocument();
+  });
+
+  it("cancels the queue entry, by the id the cancel route takes", () => {
+    const { onCancel } = renderPanel({ queuedDispatch: queued() });
+
+    fireEvent.click(screen.getByRole("button", { name: /cancel the queued dispatch/i }));
+
+    expect(onCancel).toHaveBeenCalledWith("q_e1aeca49780f");
+  });
+
+  it("says why nothing is being tried when an incident is holding the start off", () => {
+    renderPanel({ queuedDispatch: queued({ paused_by: "inc_7ffcc0210a984e39" }) });
+
+    expect(screen.getByText(/inc_7ffcc0210a984e39 is open/i)).toBeInTheDocument();
+    expect(screen.getByText(/keeps its place in line/i)).toBeInTheDocument();
+  });
+
+  it("withholds the cancel once a tick has taken the entry", () => {
+    renderPanel({ queuedDispatch: queued({ status: "starting" }) });
+
+    expect(screen.getByText(/is starting now/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /cancel the queued dispatch/i })).toBeDisabled();
+    expect(screen.getByText(/too late to take it out of the queue/i)).toBeInTheDocument();
+  });
+
+  it("leaves a task with no waiting entry exactly as it was", () => {
+    renderPanel({ queuedDispatch: null });
+
+    expect(screen.getByRole("button", { name: /dispatch/i })).toBeEnabled();
+    expect(screen.queryByText(/waiting for the next free slot/i)).toBeNull();
   });
 });

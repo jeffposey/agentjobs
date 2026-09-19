@@ -219,6 +219,48 @@ class SelfClearingWait(BaseModel):
     recovery still probes, so the wait is no less self-clearing for it."""
 
 
+class QueuedDispatchState(BaseModel):
+    """A dispatch of this task waiting for a free slot on this machine (task-459).
+
+    Derived on read from the machine's execution store and never stored on the task, for
+    the reason ``enqueue()`` deliberately does not claim the task: every dispatch gate is
+    judged when a slot frees, so the task genuinely is ``ready``/``agent``/``available``
+    until something starts. A flag written onto the record would be a second copy of a
+    fact the queue owns, and it would go stale the moment an entry is cancelled, refused
+    at start, or started -- none of which writes a counterpart to the record.
+
+    The fields are the queued rail's, minus the ones a task already knows about itself
+    (its id, its project, its own URL), so the slot board and a task page cannot disagree
+    about what a waiting dispatch is called.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    queue_id: str
+    """The entry's id. It is what the cancel route takes while the dispatch is waiting --
+    a queued entry cancels through the same route as the run it has not become."""
+    position: int
+    """1-based place in line, counted over the machine's whole queue rather than over
+    this project's share of it. A position numbered within one project would be a lie
+    about when the entry starts."""
+    queued_at: str
+    """When it joined the queue, UTC, as the store wrote it."""
+    queued_by: str = ""
+    """Who asked for it. Empty for a dispatch nobody signed."""
+    source: str = "manual"
+    """``manual`` today; ``pull`` is reserved."""
+    status: str = "queued"
+    """``queued``, or ``starting`` for the seconds a tick is putting it through the
+    dispatch gates. A ``starting`` entry is not yet a run and may still be refused."""
+    detail: str = ""
+    """Why it is still waiting, when a start has been tried and refused for a condition
+    that clears on its own."""
+    paused_by: str = ""
+    """The incident id holding this entry off (task-463), or empty when nothing is. An
+    entry with this set is not being tried at all, which is why it does not read the same
+    as one that is next in line."""
+
+
 class Outcome(ValueEnum):
     """How a task ended. Set if and only if lifecycle is closed."""
 
@@ -1348,51 +1390,7 @@ class Task(StrictModel):
         storage excludes it on write, and a file that contains it is rejected by
         name (extra="forbid") rather than silently round-tripped.
         """
-        if self.lifecycle is Lifecycle.CLOSED:
-            label = (self.outcome or Outcome.COMPLETED).value.capitalize()
-            return f"{label} (archived)" if self.archived else label
-        if self.ball is Ball.HUMAN:
-            human_labels: Dict[BallReason, str] = {
-                BallReason.SPEC: "Needs spec",
-                BallReason.REVIEW: "Needs review",
-                BallReason.DECISION: "Needs decision",
-                BallReason.APPROVAL: "Needs approval",
-                BallReason.INPUT: "Needs input",
-            }
-            return human_labels.get(self.ball_reason or BallReason.REVIEW, "Waiting on human")
-        if self.ball is Ball.EXTERNAL:
-            if self.ball_reason is BallReason.DEPENDENCY:
-                blockers = [d.task for d in self.dependencies if d.type is DependencyType.NEEDS]
-                return f"Blocked on {blockers[0]}" if blockers else "Blocked"
-            wait = self_clearing_wait(self)
-            if wait is not None:
-                # UTC because a label derived on the server cannot know the reader's
-                # zone, and an unmarked local-looking time is the worse failure: the
-                # question this answers is whether to do anything, and an hour's
-                # ambiguity either way changes that answer. The full timestamp is in
-                # `ball_prompt`, which every surface draws beside this.
-                if wait.resets_at is not None:
-                    return f"Waiting on quota reset ({wait.resets_at.astimezone(timezone.utc):%H:%M} UTC)"
-                return "Waiting on quota reset"
-            return "Blocked on a service"
-        if self.ball is Ball.AGENT:
-            if self.ball_reason is BallReason.AVAILABLE:
-                return "Ready"
-            owner = self.assignment.owner
-            # `hold` is the one agent-side reason that does not mean "an agent is on
-            # this", so it reads as a stop rather than as a flavour of progress. The
-            # owner is still named: a held task is still somebody's, and knowing whose
-            # is the first thing a reader wants when deciding whether to release it.
-            agent_verbs: Dict[BallReason, str] = {
-                BallReason.REVISE: "Revising",
-                BallReason.ANSWER: "In progress",
-                BallReason.REDIRECT: "In progress",
-                BallReason.HOLD: "On hold",
-            }
-            verb = agent_verbs.get(self.ball_reason or BallReason.WORK, "In progress")
-            return f"{verb} ({owner})" if owner else verb
-        # str() because mypy types Enum.value as Any, and this returns str.
-        return str(self.lifecycle.value).capitalize()
+        return display_status(self)
 
     @property
     def is_open(self) -> bool:
@@ -1455,6 +1453,95 @@ class Task(StrictModel):
         # sortable behind the known bands rather than making a list or dashboard fail
         # with KeyError.
         return PRIORITY_RANK.get(self.priority, len(PRIORITY_RANK))
+
+
+def display_status(task: "Task") -> str:
+    """``task``'s one human-readable label.
+
+    A module function with the property delegating to it, rather than the other way
+    round, because ``TaskRead`` overrides the label for a fact only a read surface can
+    see -- a dispatch of the task waiting for a machine slot -- and has to be able to
+    fall back to this. Reaching a parent model's ``computed_field`` from a subclass
+    override goes through a Pydantic descriptor proxy; a function does not.
+    """
+    if task.lifecycle is Lifecycle.CLOSED:
+        label = (task.outcome or Outcome.COMPLETED).value.capitalize()
+        return f"{label} (archived)" if task.archived else label
+    if task.ball is Ball.HUMAN:
+        human_labels: Dict[BallReason, str] = {
+            BallReason.SPEC: "Needs spec",
+            BallReason.REVIEW: "Needs review",
+            BallReason.DECISION: "Needs decision",
+            BallReason.APPROVAL: "Needs approval",
+            BallReason.INPUT: "Needs input",
+        }
+        return human_labels.get(task.ball_reason or BallReason.REVIEW, "Waiting on human")
+    if task.ball is Ball.EXTERNAL:
+        if task.ball_reason is BallReason.DEPENDENCY:
+            blockers = [d.task for d in task.dependencies if d.type is DependencyType.NEEDS]
+            return f"Blocked on {blockers[0]}" if blockers else "Blocked"
+        wait = self_clearing_wait(task)
+        if wait is not None:
+            # UTC because a label derived on the server cannot know the reader's
+            # zone, and an unmarked local-looking time is the worse failure: the
+            # question this answers is whether to do anything, and an hour's
+            # ambiguity either way changes that answer. The full timestamp is in
+            # `ball_prompt`, which every surface draws beside this.
+            if wait.resets_at is not None:
+                return (
+                    f"Waiting on quota reset ({wait.resets_at.astimezone(timezone.utc):%H:%M} UTC)"
+                )
+            return "Waiting on quota reset"
+        return "Blocked on a service"
+    if task.ball is Ball.AGENT:
+        if task.ball_reason is BallReason.AVAILABLE:
+            return "Ready"
+        owner = task.assignment.owner
+        # `hold` is the one agent-side reason that does not mean "an agent is on
+        # this", so it reads as a stop rather than as a flavour of progress. The
+        # owner is still named: a held task is still somebody's, and knowing whose
+        # is the first thing a reader wants when deciding whether to release it.
+        agent_verbs: Dict[BallReason, str] = {
+            BallReason.REVISE: "Revising",
+            BallReason.ANSWER: "In progress",
+            BallReason.REDIRECT: "In progress",
+            BallReason.HOLD: "On hold",
+        }
+        verb = agent_verbs.get(task.ball_reason or BallReason.WORK, "In progress")
+        return f"{verb} ({owner})" if owner else verb
+    # str() because mypy types Enum.value as Any, and this returns str.
+    return str(task.lifecycle.value).capitalize()
+
+
+def queued_display_status(task: "Task", queued: Optional[QueuedDispatchState]) -> str:
+    """``task``'s label, saying so when a dispatch of it is waiting for a slot.
+
+    The one place the queued label is decided, so the prose a reader sees and the
+    ``queued_dispatch`` structure a client filters on cannot disagree -- the same rule
+    ``self_clearing_wait`` follows, for the same reason.
+
+    **It replaces "Ready" and nothing else.** A queued dispatch is a promise to start an
+    agent, which is a fact about a task nobody is holding; a task parked on a review or
+    blocked on a dependency has something more urgent to say, and saying "Queued" there
+    would hide it. Those tasks still carry the structure, so a surface that wants to draw
+    the entry can -- it just does not get to overwrite the sentence.
+
+    **One word, deliberately.** This first shipped as four labels -- ``Queued (place 2)``
+    and ``Queued (start paused)`` among them -- and the owner rejected the parentheses on
+    sight (2026-09-19): a status chip is read at a glance in a 194px column, and a
+    qualifier there is read as noise rather than as detail. The qualifiers were never
+    lost, only moved: ``position`` and ``paused_by`` are fields on ``queued_dispatch``,
+    and the task page's dispatch panel says the place in line and names the incident in
+    prose, where there is room to read it.
+
+    ``Starting`` is the one distinction kept in the label, because it is a different
+    answer to "is anything going to happen": a tick is putting the entry through the
+    dispatch gates right now. It is one word, so it costs the chip nothing.
+    """
+    label = display_status(task)
+    if queued is None or label != "Ready":
+        return label
+    return "Starting" if queued.status == "starting" else "Queued"
 
 
 def self_clearing_wait(task: "Task") -> Optional[SelfClearingWait]:

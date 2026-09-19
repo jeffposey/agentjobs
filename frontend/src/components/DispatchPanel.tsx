@@ -1,7 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import type { ReviewIdentity } from "../api/generated";
-import type { DispatchPosture, DispatchRunView, DispatchStateView } from "../api/types";
+import type {
+  DispatchPosture,
+  DispatchRunView,
+  DispatchStateView,
+  QueuedDispatchState,
+} from "../api/types";
 
 /**
  * Dispatch, in the browser: the button that starts an agent, the runs it produces,
@@ -263,6 +268,15 @@ export type DispatchPanelProps = {
    * dispatch failed at the moment it succeeded.
    */
   queuedNotice?: string | null;
+  /**
+   * The dispatch of this task that is already waiting for a free slot (task-476).
+   *
+   * Read off the task record rather than from the slot board, so the panel and the
+   * page's own status chip come from one answer. It is the standing fact -- a dispatch
+   * is waiting, whoever queued it and whenever -- where `queuedNotice` is what *this*
+   * click did; the notice goes when the page is reloaded and this does not.
+   */
+  queuedDispatch?: QueuedDispatchState | null;
   /** The last refusal from pressing Dispatch, which the state endpoint cannot predict. */
   dispatchRefusal?: DispatchRefusal | null;
   /**
@@ -312,6 +326,7 @@ export function DispatchPanel({
   cancellingRunId = null,
   dispatchRefusal = null,
   queuedNotice = null,
+  queuedDispatch = null,
   onDispatch,
   onCancel,
   renderOutput,
@@ -357,7 +372,12 @@ export function DispatchPanel({
   // `live_run_exists` (task-354). Withheld rather than pressable-into-a-refusal, for
   // the same reason `finishLive` is: the reader can see what holds it, right above.
   const liveRun = runs.find((run) => run.live) ?? null;
-  const offerButton = taskIsDispatchable && Boolean(state?.can_dispatch) && !liveRun;
+  // A dispatch of this task is already waiting for a slot, so the server would refuse a
+  // second one with `already_queued` (task-476). Withheld for the same reason `liveRun`
+  // is: the answer the button would get back is already known, and what the reader
+  // actually wants at this point is the entry and a way to call it off.
+  const offerButton =
+    taskIsDispatchable && Boolean(state?.can_dispatch) && !liveRun && !queuedDispatch;
   const user = identity.ok ? identity.user : null;
   // The special occasion, from either direction: the record looks insufficient here, or
   // the server said so when the button was pressed. Honouring the server's answer as
@@ -437,6 +457,14 @@ export function DispatchPanel({
               : "Watch it below. Cancel it there if you want to start a different one."}
           </p>
         </div>
+      )}
+
+      {taskIsDispatchable && !liveRun && queuedDispatch && (
+        <QueuedEntryNote
+          entry={queuedDispatch}
+          busy={cancellingRunId === queuedDispatch.queue_id}
+          onCancel={() => onCancel(queuedDispatch.queue_id)}
+        />
       )}
 
       {offerButton && finishLive && (
@@ -627,6 +655,82 @@ export function DispatchPanel({
         renderOutput={renderOutput}
       />
     </section>
+  );
+}
+
+/**
+ * A dispatch of this task waiting for a free slot, and the one act left to take on it.
+ *
+ * The state task-476 was filed for, from the other end: the task page used to read
+ * `Ready` and offer to start an agent, while the machine had already promised to start
+ * one. Two dispatches on one task is the thing the queue's own `already_queued` rule
+ * exists to prevent, so the button that would ask for a second one is replaced by the
+ * button that calls the first one off.
+ *
+ * `role="status"` rather than `alert`: it describes the world, not something the reader
+ * just did. The same distinction the live-run note draws, and for the same reason -- a
+ * screen reader must not interrupt on every poll.
+ *
+ * Cancelling goes through `onCancel` with the *queue* id, which is not a mistake: a
+ * queued entry cancels through the same route as the run it has not become, because it
+ * is the same act from where the person is standing.
+ */
+function QueuedEntryNote({
+  entry,
+  busy,
+  onCancel,
+}: {
+  entry: QueuedDispatchState;
+  busy: boolean;
+  onCancel: () => void;
+}) {
+  const paused = Boolean(entry.paused_by);
+  const starting = entry.status === "starting";
+  return (
+    <div
+      role="status"
+      data-refusal-reason="already_queued"
+      data-testid="dispatch-queued-entry"
+      data-queue-id={entry.queue_id}
+      data-queue-position={entry.position}
+      className="rounded-lg border border-amber-600/50 bg-amber-950/30 p-3 text-sm text-amber-100"
+    >
+      <p>
+        {starting
+          ? "A dispatch of this task is starting now — it is going through the dispatch gates."
+          : entry.position > 1
+            ? `A dispatch of this task is waiting for a free slot, place ${entry.position} in line.`
+            : "A dispatch of this task is waiting for the next free slot."}{" "}
+        Nothing has started yet.
+      </p>
+      <p className="mt-2 text-amber-200">
+        {paused
+          ? `Nothing is being tried on this credential while incident ${entry.paused_by} is open, and the entry keeps its place in line.`
+          : "Every dispatch gate is judged when it starts, not when it was queued, so a gate that refuses then writes onto this task."}
+      </p>
+      {/* No second Dispatch button, and deliberately no "dispatch anyway": the server
+          answers `already_queued` to that, and offering a click whose only outcome is a
+          refusal is what this note replaced. */}
+      <div className="mobile-action-row mt-3 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={busy || starting}
+          data-testid="dispatch-cancel-queued"
+          onClick={onCancel}
+          className="touch-target rounded-lg border border-amber-500/60 bg-amber-900/40 px-3 text-sm font-semibold text-amber-100 hover:bg-amber-900/60 disabled:opacity-60"
+        >
+          {busy ? "Cancelling…" : "Cancel the queued dispatch"}
+        </button>
+        {starting && (
+          // It is past the point where removing it from the queue does anything: the
+          // tick has claimed it, and what there is to stop in a second's time is a run,
+          // under a different id, in the list below.
+          <span className="text-xs text-amber-200">
+            Too late to take it out of the queue. If it starts, it appears below as a run.
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 

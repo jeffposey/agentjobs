@@ -4292,6 +4292,57 @@ export type QueueResponse = {
 };
 
 /**
+ * QueuedDispatchState
+ *
+ * A dispatch of this task waiting for a free slot on this machine (task-459).
+ *
+ * Derived on read from the machine's execution store and never stored on the task, for
+ * the reason ``enqueue()`` deliberately does not claim the task: every dispatch gate is
+ * judged when a slot frees, so the task genuinely is ``ready``/``agent``/``available``
+ * until something starts. A flag written onto the record would be a second copy of a
+ * fact the queue owns, and it would go stale the moment an entry is cancelled, refused
+ * at start, or started -- none of which writes a counterpart to the record.
+ *
+ * The fields are the queued rail's, minus the ones a task already knows about itself
+ * (its id, its project, its own URL), so the slot board and a task page cannot disagree
+ * about what a waiting dispatch is called.
+ */
+export type QueuedDispatchState = {
+    /**
+     * Detail
+     */
+    detail?: string;
+    /**
+     * Paused By
+     */
+    paused_by?: string;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Queue Id
+     */
+    queue_id: string;
+    /**
+     * Queued At
+     */
+    queued_at: string;
+    /**
+     * Queued By
+     */
+    queued_by?: string;
+    /**
+     * Source
+     */
+    source?: string;
+    /**
+     * Status
+     */
+    status?: string;
+};
+
+/**
  * QueuedDispatchView
  *
  * One authorised dispatch waiting for a slot (task-459).
@@ -5385,6 +5436,7 @@ export type TaskReadInput = {
      * Order within the priority band. Present if and only if the task is open.
      */
     queue_position?: number | null;
+    queued_dispatch?: QueuedDispatchState | null;
     /**
      * Schema
      *
@@ -5477,13 +5529,11 @@ export type TaskReadOutput = {
     /**
      * Display Status
      *
-     * One human-readable label, derived on read and never stored.
+     * The record's label, with a waiting dispatch named where there is one.
      *
-     * Storing it was rejected in design doc section 3: a denormalized copy of three
-     * fields is a drift bug waiting for its moment, and the derivation is this.
-     * A computed field rather than a plain property so API responses carry it;
-     * storage excludes it on write, and a file that contains it is rejected by
-     * name (extra="forbid") rather than silently round-tripped.
+     * Overridden here rather than on `Task`, which cannot see the machine's queue. The
+     * derivation itself stays in `models_v2` beside the one it falls back to, so the
+     * label and `queued_dispatch` cannot disagree about what is happening.
      */
     readonly display_status: string;
     /**
@@ -5536,6 +5586,7 @@ export type TaskReadOutput = {
      * Order within the priority band. Present if and only if the task is open.
      */
     queue_position?: number | null;
+    queued_dispatch?: QueuedDispatchState | null;
     /**
      * Schema
      *
@@ -6384,6 +6435,7 @@ export type TaskReadOutputWritable = {
      * Order within the priority band. Present if and only if the task is open.
      */
     queue_position?: number | null;
+    queued_dispatch?: QueuedDispatchState | null;
     /**
      * Schema
      *

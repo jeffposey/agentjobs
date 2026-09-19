@@ -76,7 +76,7 @@ def broken_task(record: Mapping[str, Any]) -> Dict[str, Any]:
 #: Derived values a read surface attaches that are not dependency facts. A task document
 #: must carry none of them: a caller cannot set any, and `display_status` looked settable
 #: inside one once already.
-_DERIVED_ONLY = frozenset({"display_status", "self_clearing_wait"})
+_DERIVED_ONLY = frozenset({"display_status", "self_clearing_wait", "queued_dispatch"})
 
 
 def dependency_facts(record: Mapping[str, Any]) -> Dict[str, Any]:

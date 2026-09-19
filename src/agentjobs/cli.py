@@ -8,7 +8,7 @@ import os
 import sys
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import typer
 import yaml
@@ -51,7 +51,15 @@ from .mcp.config import BASE_URL_ENV as MCP_BASE_URL_ENV
 from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
 from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
-from .models_v2 import Ball, DispatchMode, Lifecycle, Outcome, Priority
+from .models_v2 import (
+    Ball,
+    DispatchMode,
+    Lifecycle,
+    Outcome,
+    Priority,
+    QueuedDispatchState,
+    queued_display_status,
+)
 from .playbooks import (
     PLAYBOOK_SUFFIX,
     PlaybookError,
@@ -1005,6 +1013,40 @@ def create(
         )
 
 
+def _queued_dispatches(base_dir: Path) -> Dict[str, QueuedDispatchState]:
+    """This project's dispatches waiting for a machine slot, by task id (task-476).
+
+    The CLI reads the store directly rather than through the API, so it does not inherit
+    the read model's derived label the way the browser and MCP do -- it would print
+    ``Ready`` for a task the machine has already promised to start. This is the same
+    derivation, from the same queue, so the two surfaces cannot disagree.
+
+    Never raises and never blocks the listing: a machine with no dispatch configured, or
+    an execution store that will not open, costs the label rather than the command.
+    """
+    try:
+        from agentjobs.dispatch import queue as dispatch_queue
+
+        project_id = ProjectRegistry().resolve_default(base_dir).id
+        home = default_home()
+        entries = dispatch_queue.waiting(home)
+    except Exception:  # noqa: BLE001 - see the docstring
+        return {}
+    return {
+        entry.task_id: QueuedDispatchState(
+            queue_id=entry.queue_id,
+            position=position,
+            queued_at=entry.queued_at,
+            queued_by=entry.queued_by,
+            source=entry.source,
+            status=entry.status,
+            detail=entry.detail,
+        )
+        for position, entry in enumerate(entries, start=1)
+        if entry.project_id == project_id
+    }
+
+
 @app.command("list")
 def list_tasks(
     lifecycle: Optional[Lifecycle] = typer.Option(None),
@@ -1039,11 +1081,12 @@ def list_tasks(
         typer.echo("No tasks found.")
         return
 
+    # Read once for the whole listing rather than per row, which is the same shape the
+    # API's request-scoped binding has and for the same reason.
+    queued = _queued_dispatches(base_dir)
     for task in tasks:
-        typer.echo(
-            f"- {task.id} | {task.title} "
-            f"[{task.display_status}, priority={task.priority.value}]"
-        )
+        label = queued_display_status(task, queued.get(task.id))
+        typer.echo(f"- {task.id} | {task.title} " f"[{label}, priority={task.priority.value}]")
 
 
 @app.command("attachments")

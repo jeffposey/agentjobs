@@ -87,6 +87,25 @@ export function dependencyState(task: TaskRead) {
       ],
     };
   }
+  if (task.queued_dispatch) {
+    // A dispatch of this task is waiting for a free slot (task-476). Above the
+    // `actionable` branch because "Actionable now" is the same claim `Ready` was making
+    // on the task's own page: it invites a reader to start something the machine has
+    // already promised to start, and two agents on one repository is what the queue's
+    // `already_queued` rule exists to prevent. Drawn as a wait rather than in the green
+    // an open invitation gets, for the reason a self-clearing park is: nothing here
+    // needs anybody. `display_status` carries the place in line -- derive nothing here,
+    // show that.
+    return {
+      kind: "waiting" as const,
+      label: task.display_status,
+      reasons: [
+        task.queued_dispatch.paused_by
+          ? `A dispatch is waiting for a slot, and nothing is being tried on its credential while ${task.queued_dispatch.paused_by} is open.`
+          : "A dispatch of this task is waiting for a free slot. Nothing has started.",
+      ],
+    };
+  }
   if (task.actionable) {
     return { kind: "actionable" as const, label: "Actionable now", reasons: [] };
   }
