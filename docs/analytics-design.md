@@ -5,6 +5,12 @@ of task-212. The history contract in §6 landed as task-371 on 2026-09-08 (§6.4
 each item lives). The API, the page and its entry point — task-372, task-373, task-374 —
 are open and unstarted, so §7 onwards is still a proposal.
 
+**Pass two, 2026-09-19 (task-471): §16 onwards.** The first page shipped (task-372,
+task-373, task-465) and the owner found it thin. §16 says why, §17 defines the lifecycle
+segments, §18 is the metric catalogue, and §19 to §21 are what the page, the store and
+the API change. Where a section below is superseded or amended, a line at its head says
+by which.
+
 This document decides two things that have to be decided together: **where the history
 behind the numbers comes from**, and **what the page says**. They are one design because
 each constrains the other — a chart nobody can answer is a wish, and a column nobody
@@ -84,6 +90,10 @@ same split over time so a rising pile is visible before it is painful.
 A fifth question is deliberately **not** on the page: *"what should I do next?"* The
 Dashboard's next-action ladder answers that, it answers it well, and the parent's
 constraints forbid disturbing it.
+
+*Extended by §16.1 (task-471): Q5 to Q8 — where a task's time goes, whether the machine
+is keeping up, whether review is the bottleneck, whether questions get answered. Q2's
+cycle time is redefined there (§17); the "what should I do next" exclusion stands.*
 
 ---
 
@@ -657,6 +667,9 @@ acceptable here.
 
 ### 7.3 The response
 
+*Extended by §21 (task-471): new series, each with its own `SeriesCoverage`;
+`ThroughputPoint` loses its cycle fields there. Everything else below is unchanged.*
+
 ```python
 class AnalyticsRange(BaseModel):
     key: Literal["30d", "90d", "12m", "all"]
@@ -771,6 +784,9 @@ is a document that may legitimately scroll.
 
 ### 8.1 Order, and it is the order of §2
 
+*Superseded by §19.4 (task-471), which places the new panels and moves aging and stuck
+below the trends.*
+
 Top to bottom, one column on a phone, two on a wide screen. The order is the priority order
 of the questions, so the answer to "is this project OK" is above the fold on a phone.
 
@@ -782,6 +798,10 @@ of the questions, so the answer to "is this project OK" is above the fold on a p
 6. **Coverage footer** — one line saying what the page is allowed to claim (§9.3).
 
 ### 8.2 The summary row — what the strip should have been
+
+*Amended by §19.1 (task-471): the delta baseline is `max(range.start, native_from)`, the
+tile names the date, and the default range is `30d`. The suppression rule below fires on
+`native_from`, not `baseline_at`.*
 
 The five counts the Dashboard shed, **each with a delta against the start of the range**:
 *"125 open ▲ 9 in 90 days"*. The delta is the entire reason this page exists; a count
@@ -810,6 +830,11 @@ growing", the bars answer "why".
 
 ### 8.4 Throughput and cycle time (Q2)
 
+*Superseded by §19.2 (task-471). Cycle time as `created_at` → `closed_at` measured queue
+wait, not pace (§16.1); throughput becomes its own chart at the spine grain (T1) and
+where-the-time-goes (S1) takes cycle time's place. The two-axis argument below is
+withdrawn.*
+
 Bars for `tasks_completed` per bucket, with a line for `cycle_p50_days` on a second axis and
 a lighter band to `cycle_p90_days`.
 
@@ -835,6 +860,9 @@ Two panels side by side on a wide screen, stacked on a phone.
 
 ### 8.6 Stuck (Q4)
 
+*Amended by §19.3 (task-471): rows are ordered by who is being waited on — waiting on
+you, blocked, with an agent, then the queue, named as the queue — not by count.*
+
 - **Now**: one row per `(ball, ball_reason)` group with a count, the mean days held and the
   worst case, ordered by count. The ball vocabulary is already the app's language, so the
   rows read *"29 waiting on you — spec · longest 34 days"*.
@@ -851,10 +879,12 @@ Designed, not built, each with what would trigger it:
   bands being obviously the cause.
 - **Dispatch activity** — runs per day and agent-hours from `task_run` (0.11 ms). Trigger:
   a question about machine time. Excluded today because the parent forbids per-actor
-  analytics and this is one question away from it.
+  analytics and this is one question away from it. *Triggered on 2026-09-19: built as
+  R-1 to R-6 in §18.5, per project and never per runner (§16).*
 - **The board as it stood on a date** (0.67 ms). Trigger: wanting to explain a step in the
   level rather than see it.
-- **Reopenings** (0.32 ms, 2 in this corpus). Trigger: more than a handful.
+- **Reopenings** (0.32 ms, 2 in this corpus). Trigger: more than a handful. *Now a marker
+  on the throughput chart (T1) rather than a panel.*
 
 ---
 
@@ -1066,6 +1096,8 @@ nobody acts on.
 
 ## 13. Implementation children
 
+*Pass two's children — task-471 to task-474 — are in §23.*
+
 Four children under task-212, sequenced by `dependencies[]`. Each cites its sections here
 rather than restating them.
 
@@ -1128,7 +1160,10 @@ in the section named.
    §7.3.
 10. **Inline SVG, no charting dependency**, on measured jsdom behaviour. §10.1.
 11. **The entry point is a text link on an existing Dashboard heading row**, not a nav
-    destination and not an icon. §11.
+    destination and not an icon. §11. *Reversed 2026-09-18 by task-465: Analytics is a
+    `PrimaryNav` destination; §11 records why.*
+
+*Continued in §22 (task-471), decisions 12 to 24.*
 
 ---
 
@@ -1150,3 +1185,1190 @@ in the section named.
   the queue semantics §6.2 H refers to.
 - **docs/performance.md** — the measurement tooling. The endpoint figures in §5.1 use the
   `X-Task-Parses` instrumentation documented there.
+
+---
+
+# Pass two — the metric catalogue, and where each number comes from
+
+**Status: proposed 2026-09-19, task-471, the design child of the second round under
+task-212.** §1 to §15 above are the first pass and stand except where a section says it
+is superseded here. Everything from §16 down was measured on this machine on
+**2026-09-19** against a copy of the live `agentjobs` store (476 tasks, 2,522 events,
+259 runs) and the 212 finish records under the home directory's `.agentjobs/finishes`.
+The probes are throwaway and live in a job scratch directory; nothing from them is
+committed.
+
+**Binding on every section below: no series is split by runner.** The owner decided on
+2026-09-19, in answer to the supervisor's question on task-212, that run and finish
+metrics are not split by runner (Claude versus Codex). Every series here is per project,
+and the parent's out-of-scope line on per-actor scoring stands. A runner dimension stored
+and hidden behind a toggle was the rejected alternative: it is per-actor scoring with an
+extra click.
+
+---
+
+## 16. Why the first page is thin
+
+The owner's ask, paraphrased from task-212 on 2026-09-19: everything one might want to
+know as a trend, to see whether the process is getting better or worse — how long a task
+takes, how long a finish takes, and so on. The throughput chart made no sense to him; the
+backlog chart did something useful.
+
+The first pass answered four questions chosen before anybody had seen a chart. Looking at
+the shipped page against the store it reads, five things are wrong, and four of them are
+about the data rather than the drawing.
+
+**16.1 Cycle time measures the wrong thing.** §8.4's cycle time is `created_at` →
+`closed_at`. On a backlog worked from a queue, that is mostly how long a task sat
+*unclaimed*, which is a prioritisation decision and not how long work takes. Measured on
+the 78 tasks completed since the SQLite cutover on 7 Sep: creation to first claim is
+**p50 2.2 h, p90 281 h**; first claim to close is **p50 0.7 h**. The median-cycle line
+swung between 0.2 and 13.5 days from week to week depending on which old tasks got
+picked up, and nothing on the chart said so. That line is the reason the throughput
+panel reads as nonsense: it was never about pace.
+
+**16.2 Throughput is two charts forced into one.** Completed bars on an axis that one
+116-task week stretched to 200, sharing the plot with a p50 line on a second axis and a
+p50–p90 band that renders as a blob. §8.4 argued two axes were right "because the question
+is explicitly about the two together"; with 16.1 the two are not even about the same
+thing.
+
+**16.3 The summary deltas compare against a date before the project existed.** *"149
+open, 145 more since 22 Jun"* is the total restated. On the 90d default the range start
+lies inside the reconstructed span, and §8.2's suppression rule fires only when the range
+reaches back past `coverage.baseline_at` — which is the *backfilled* baseline of
+2025-10-25, not the first native event of 2026-09-07. Every tile did this.
+
+**16.4 "Stuck" is mostly the queue.** The first row of §8.6 read *113 tasks with an
+agent, available, longest 33 days*. Ready-and-unclaimed is not stuck; it is the backlog
+waiting its turn. Listing it first buried the rows that are stuck.
+
+**16.5 Nothing on the page is about the machine.** No runs, no finishes, no gates, no
+review latency, no questions, no usage-limit pauses. Those are the numbers that say
+whether the *process* is improving, because task counts move with how much was filed.
+
+### 16.1 The questions, extended
+
+§2's four questions stay. Four more justify the panels added below, and each entry in the
+catalogue (§18) names the question it serves.
+
+**Q5. Where does a task's time go?** Not "how long does a task take" — that number is
+dominated by queue wait — but which *segment* of its life is growing: waiting to be
+claimed, being worked, waiting for review, being finished.
+
+**Q6. Is the machine keeping up?** Runs per day and the hours they consume, how they end,
+how many it takes to complete a task, how long a finish and its gate take, and how much
+of the week was lost to usage limits.
+
+**Q7. Is review the bottleneck?** How long work sits in review, how often it is approved
+first time, and what is sitting there now.
+
+**Q8. Are questions getting answered?** How many are open, and how long an answer takes.
+
+### 16.2 What is recorded, and since when
+
+Every series below states its coverage the way §3.6 does, and the boundaries differ by
+source. Measured on 2026-09-19:
+
+| source | rows | native from | what came before |
+|---|---|---|---|
+| `task_event` | 2,522 (472 native, 1,604 reconstructed, 446 backfilled) | **2026-09-07T19:06Z** | replayed from the log (handoff, claim and close rows carry the log entry's own timestamp) and backfilled from git (priority, parent, position only — §4.4) |
+| `task_run` | 259 | 2026-09-07T19:06Z | **171 rows imported at the cutover carry the import instant as `started_at`** (§20.5) |
+| finish records on disk | 212 directories | 2026-08-23 (the scripted finish shipped, task-241) | nothing — before that a person merged by hand and no record was written |
+| `execution.db` · `run_attempt` | 53 | 2026-09-13 (durable execution) | `task_run` |
+| `execution.db` · `dispatch_queue` | 2 | 2026-09-18 (the machine queue) | nothing — a refused dispatch was refused, not queued |
+| `execution.db` · `auth_incident` / `auth_waiter` | 4 / 9 | 2026-09-18 (task-463) | nothing |
+| `log_entry` questions | 80, 53 with a threaded answer | whole history | the log is the record; nothing is reconstructed |
+
+Two consequences shape everything below. **Native task history is twelve days old**, so
+every "in 90 days" wording on the page is currently a claim about reconstructed rows and
+the tiles have to say so. And **the finish records predate native events by a fortnight**,
+so once imported they are the longest exact series the page has.
+
+---
+
+## 17. The lifecycle segments, defined exactly
+
+### 17.1 One rule: dwell time by ball holder
+
+The ball is the schema's answer to *who acts next* (§2, Q4), and every instant between a
+task's creation and its close is on exactly one holder. So the segments are **the time
+the ball spent with each holder**, grouped into five names, and they partition a task's
+open life exactly by construction — there is no residual and nothing to reconcile.
+
+| segment | holder | reads |
+|---|---|---|
+| **queue** | `agent` / `available` — ready and unclaimed, whether before the first claim or after a release | |
+| **work** | `agent` with any other reason — `work`, `revise`, `answer`, `redirect`, `hold` | |
+| **review** | `human` / `review` | |
+| **waiting** | `human` with any other reason — `spec`, `decision`, `input`, `approval` — and `external` / `dependency`, `external` / `service` | |
+| **finish** | carved out of *work*: the span from the last approval to the close (§17.3) | |
+
+Every definition reads the same columns of `task_event`, and nothing else: `task_id`,
+`ts`, `kind`, `source`, `ball_from`, `ball_reason_from`, `ball_to`, `ball_reason_to`,
+`lifecycle_from`, `lifecycle_to`. A row is a segment boundary when the holder changes —
+`ball_to IS NOT ball_from OR ball_reason_to IS NOT ball_reason_from` — or when `kind` is
+`create`, `claim`, `close`, `reopen` or `import`. `create` starts the clock with the ball
+the task was born holding; `close` stops it with `ball_to` null.
+
+**Total** is the sum of the five, which is `created_at` → `closed_at` for a task that was
+never reopened and the sum of its open intervals otherwise (§17.4).
+
+This is the definition because it is the only one whose parts add up. The alternatives
+each fail a reader in a way the chart cannot show:
+
+- *work = first claim → first review handoff* (the first-pass phrasing) leaves a task's
+  second review round, its wait on a decision and its finish all unaccounted for, and a
+  task with no review handoff has no end to its work at all.
+- *work = total − queue − review − finish* (a residual) credits the agent with the day
+  the task sat on `human/input` waiting for an answer. The owner asked for the work
+  number specifically; a residual is not it.
+- *four segments, folding waits into work or review* mis-states whichever one absorbs
+  them. **Five is the smallest number that keeps every holder honest**, and *waiting* is
+  the segment that tells the owner the process is blocked on him somewhere other than
+  review.
+
+### 17.2 Approval, defined
+
+**An approval is an event whose ball leaves `human`/`review` for `agent`/`work`, or a
+`close` whose ball was `human`/`review`.** Measured on this corpus, the ball leaves review
+for exactly five places, and only two of them mean *yes*:
+
+| `ball_to` / `ball_reason_to` | rows (native + reconstructed) | meaning |
+|---|---|---|
+| `agent` / `work` | 124 | **approval** — the Approve button, which then starts a finish |
+| *close* (`ball_to` null) | 16 | **approval** — approve-and-close in one act |
+| `agent` / `revise` | 28 | a second round: the work needs changing |
+| `agent` / `answer` | 7 | a question back to the agent |
+| `agent` / `redirect` | 1 | the ask changed |
+
+A handful of rows move the ball to another `human` reason, release it to the queue, or
+are an edit that happened to move it; none of those is an approval and none is a round
+trip.
+
+The actor column is deliberately **not** in the definition. A human is who normally
+approves, but the event is what the finisher acts on, and an approval routed through an
+API write on the owner's behalf is still an approval. What the definition does read is
+the *destination*: leaving review for `revise` or `answer` is a round trip, not an
+approval, and it is what makes the first-time approval rate (§18, R3) a real number.
+
+### 17.3 The finish segment
+
+**For a task with at least one approval, finish is the span from the last approval to the
+close**, and it is subtracted from *work* (the holder after an approval is `agent`/`work`
+until the finisher closes). Measured: 22 of the 78 completed tasks have one, **p50 5.4
+min**, which is the scripted finish's own duration plus the seconds around it.
+
+**For a task with no review handoff — an autonomous merge, 51 of the 78 — there is no
+approval event, and `task_event` alone cannot say when the finish began.** The finisher
+closes the task and the row before it is the claim. So:
+
+- **From `task_event` alone, such a task's finish is zero and its finish time is inside
+  *work*.** That is a true statement about what the store records today, and the segment
+  is reported that way with the task counted in the readout: *"51 of 78 merged without a
+  review; their finish time is inside work"*.
+- **Once the `finish` table exists (§20), the finish segment of an unreviewed task is the
+  span of the finish row that closed it** — the row with this `task_id`, `merged = 1`,
+  whose `finished_at` is within a minute of the close — subtracted from *work* the same
+  way. Coverage for that refinement is the finish table's, from 2026-08-23, which is older
+  than native events, so nothing in the native span is left estimated by it.
+
+A task closed by hand — actor other than the finisher, 11 of the 78 since the cutover —
+has no finish row and no finish segment, which is correct: no finish happened.
+
+### 17.4 The edge cases, decided
+
+Each of these was found in the corpus rather than imagined, and each is a test case for
+the API child.
+
+**No review handoff.** §17.3. Review is zero, not null: the task genuinely waited no time
+for review. It is a sample in every segment's percentile, and the readout says how many
+of the bucket's tasks it describes.
+
+**A second review round-trip.** Review is the **sum of every visit** to `human`/`review`
+(the corpus holds tasks with 2, 3 and 6 rounds). Time on `agent`/`revise` or
+`agent`/`answer` between visits is *work*. `review_rounds` — the number of entries into
+`human`/`review` — is counted per task and drives R3; it is not a segment.
+
+**A reopen.** The interval between a `close` and its `reopen` is on no holder and counts
+in **no segment and not in total**: a task reopened a week later was not being worked for
+that week. Total is the sum of its open intervals. The task is one sample with one total,
+attributed to the bucket of its *last* close, and the throughput chart marks it (T1).
+Three reopens exist in the corpus.
+
+**Claimed more than once.** A second `claim` after a `release` starts a second *queue* →
+*work* transition and needs no rule: the ball moved through `agent`/`available` in between
+and the dwell rule already counts it. A second `claim` with the ball already on
+`agent`/`work` (task-393: reopen, handoff to `agent`/`work`, then claim) moves nothing and
+contributes nothing. Two tasks in the corpus have two claims.
+
+**A `release`.** Ball to `agent`/`available`; queue time resumes. Nothing special.
+
+**Draft time.** A draft's ball is `human`/`spec` or `human`/`input`, so drafting is
+*waiting*, not *queue*: the task is waiting on a person to say what it is. Queue begins at
+promotion, when the ball first lands on `agent`/`available`.
+
+**Reconstructed rows.** The segments read every row regardless of `source`, for two
+reasons. The git backfill is restricted to priority, parent, position and archived
+(§4.4), so **no backfilled row is ever a segment boundary**. And a reconstructed
+`claim`, `handoff` or `close` carries the log entry's own timestamp, which was written at
+the moment of the change — it is exact in practice and *reconstructed* only in
+provenance. A task is `estimated` if any of its boundary rows is non-native, and a bucket
+is `estimated` if any task in it is, so the hatch still lands honestly; 27 of the 78
+completed tasks are.
+
+**The one reconstructed row that is not exact is the `import` reconciliation row** —
+57 in this corpus, 22 of them carrying `lifecycle_to = 'closed'` at the *import* instant.
+**A task whose last close is an `import` row is excluded from every segment sample**,
+because its close time is unknown; it still counts in throughput. Twenty completed tasks
+are excluded this way, the latest closed on 2026-08-13, none inside the native span.
+
+**A creation with no ball.** 118 reconstructed `create` rows carry no `ball_to` — the
+log entry they were replayed from predates the ball. Total starts at the creation; the
+segment is taken as *queue* when `lifecycle_to` is `ready`, `active` or null and
+*waiting* when it is `draft`, which is what 328 of the 336 creations that do carry a ball
+say, and the task is `estimated`. Every such row is pre-cutover.
+
+**Cancelled and superseded tasks** are not in the segment sample — the question is where
+a *completed* task's time went — but their count is on the throughput chart (T1).
+
+**A task still open** contributes nothing to the closed-in-bucket series; its current
+dwell is what the stuck panel (§19.3) and the in-review list (R1) show.
+
+### 17.5 The invariant, and what the corpus says
+
+`queue + work + waiting + review + finish = total` for every task, to the second. Measured
+on all 78 completed-since-cutover tasks: **zero tasks disagree and no segment is
+negative.** The API child asserts this on every task it emits, the way §3.2's invariant is
+asserted, because it is the one check that catches a boundary rule quietly changed.
+
+What the segments say today, in hours, over the 78 tasks — an illustration of the shape,
+not a number to quote:
+
+| segment | p50 | p90 | tasks with any |
+|---|---|---|---|
+| queue | 2.18 | 281 | 77 |
+| work | 0.65 | 2.4 | 78 |
+| waiting | 0 | 2.0 | 30 |
+| review | 0 | 0.5 | 27 |
+| finish | 0 | 0.12 | 22 |
+| **total** | **8.4** | **300** | 78 |
+
+The p50 of *review* and *finish* is zero because most tasks in the span merged
+autonomously, which is a fact about the fortnight and precisely what a stack of medians
+should show. It is also why the readout carries, per segment, the median *among the tasks
+that have it* and their count (§19.2).
+
+### 17.6 The query and its plan
+
+One query serves the whole panel: every boundary row of every task closed in the window,
+driven from the task table so the history side is an indexed lookup per task.
+
+```sql
+SELECT e.task_id, e.ts, e.kind, e.actor, e.source,
+       e.lifecycle_from, e.lifecycle_to,
+       e.ball_from, e.ball_reason_from, e.ball_to, e.ball_reason_to
+  FROM task AS t
+  JOIN task_event AS e ON e.project_id = t.project_id AND e.task_id = t.task_id
+ WHERE t.project_id = :p AND t.closed_at IS NOT NULL
+   AND t.closed_at >= :from AND t.closed_at < :to
+   AND (e.kind IN ('create', 'claim', 'close', 'reopen', 'import')
+        OR e.ball_to IS NOT e.ball_from OR e.ball_reason_to IS NOT e.ball_reason_from)
+ ORDER BY e.task_id, e.ts;
+```
+
+```
+SEARCH t USING INDEX ix_task_closed_at (project_id=? AND closed_at>? AND closed_at<?)
+SEARCH e USING INDEX ix_event_task_ts (project_id=? AND task_id=?)
+USE TEMP B-TREE FOR ORDER BY
+```
+
+**1.07 ms for 455 rows** over the cutover fortnight; **3.4 ms for 1,521 rows** over the
+whole history. The fold into segments is Python, like the day bucketing in §3.5, and for
+the same reason: the rules in §17.4 are a state machine over a task's rows, and SQL window
+functions were measured at 4.2 ms with a full scan for the simpler review-pairing case
+(§18, R2) against 0.13 ms for two indexed range reads.
+
+---
+
+## 18. The metric catalogue
+
+One entry per metric. Each states the **question** it serves (§2, §16.1), the
+**definition**, the **source** table and columns, the **bucket**, the **statistic**, the
+**chart shape** — one of §10.1's four unless argued — and the **coverage** rule: what the
+series reads as before its source existed. Where a number is quoted it was measured on
+2026-09-19 and is an illustration.
+
+The owner's note on task-212 named five things he wants; each maps to an entry by name:
+
+| owner's item | catalogue entry |
+|---|---|
+| task total time | **S2** total time, and the stack **S1** it is the height of |
+| dispatch to review handoff | **S3** time to first review |
+| time in full gates per task | **G4** gate minutes per completed task |
+| completed per day | **T1** throughput, at day grain on 30d and 90d (§19.2) |
+| added | **B1** backlog, the arrivals bar and the readout's *added this week* |
+| open | **B1** backlog, the level |
+
+### 18.1 Where the time goes (Q5)
+
+**S1 — Where the time goes.**
+*Question.* Which part of a task's life is growing.
+*Definition.* §17: per completed task, hours in queue, work, waiting, review and finish.
+*Source.* `task_event`, the columns in §17.1; the `finish` table for unreviewed tasks
+once it exists (§17.3).
+*Bucket.* Week, by the task's last close, in the reporting zone. Week on every range: a
+day rarely closes three tasks, and the percentile needs a sample (§8.4's
+`PERCENTILE_MIN_SAMPLE`, kept).
+*Statistic.* p50 per segment over the bucket's completed tasks, **p90 on tap**, `sample`
+per bucket, and per segment the count of tasks with a nonzero value and the p50 among
+them.
+*Shape.* **Stacked bars** — the `stackedBars` primitive that already draws cancellations
+on throughput. Stacked *area* was rejected: weekly buckets are discrete and an area
+implies a level between them. The stack's height is the sum of five medians, which is
+not the median total; S2 supplies that in the readout and the caption says so once.
+*Coverage.* Tasks whose boundary rows are all native are exact; a bucket holding any
+reconstructed task is `estimated` and hatched. The series is drawn over the whole range
+because reconstructed handoffs carry their log timestamps (§17.4). Tasks whose close is an
+`import` row are excluded and the readout counts them.
+
+**S2 — Total time per completed task.**
+*Question.* How long a task takes, all in.
+*Definition.* §17.1's total: the sum of the task's open intervals.
+*Source, bucket, coverage.* As S1.
+*Statistic.* p50 and p90.
+*Shape.* Not drawn; in S1's readout as *"total p50 8.4 h · p90 300 h · 22 tasks"*. This
+is the first pass's cycle time, correctly attributed, and it is deliberately not a line on
+its own: the swing the owner objected to is real and lives in *queue*, where S1 shows it.
+
+**S3 — Time to first review.**
+*Question.* The owner's *dispatch to review handoff*: how long from an agent picking a task
+up to that agent saying it is done.
+*Definition.* First `claim` → first entry into `human`/`review` (`ball_to = 'human' AND
+ball_reason_to = 'review'`), per task that has both. **Not the same as the work segment**:
+this includes any wait on a decision or an answer in between, because the owner's
+question is about elapsed time from dispatch to handoff.
+*Source.* `task_event`: `kind`, `ts`, `ball_to`, `ball_reason_to`.
+*Bucket.* Week, by the review entry.
+*Statistic.* p50, p90, sample.
+*Shape.* A line with p90 on tap, on the S1 panel's readout rather than its own chart:
+one number per week and the same axis as the stack.
+*Coverage.* As S1. A task with no review handoff has no value and is not in the sample.
+
+**S4 — Runs per completed task.**
+*Question.* How many dispatches it takes to finish something — retries, parks, resumes.
+*Definition.* `COUNT(task_run.run_id)` per task completed in the bucket, including zero
+for a task nobody dispatched (6 of 78 today: a decision recorded by hand).
+*Source.* `task` (`closed_at`, `outcome`) left-joined to `task_run` (`task_id`).
+*Bucket.* Week, by close.
+*Statistic.* Mean and the distribution's mode in the readout (*"1.4 runs per task; 52 of
+78 took one"*).
+*Shape.* Bars.
+*Coverage.* `task_run` is native from 2026-09-07; before that the count under-reports
+(§20.5) and the bucket is `estimated`.
+
+### 18.2 Throughput and backlog (Q1, Q2)
+
+**T1 — Throughput.** *Supersedes the throughput half of §8.4.*
+*Question.* How much is getting finished.
+*Definition.* §3.3, unchanged: `tasks_completed` as distinct tasks, `completion_events`,
+`cancelled` as closed-with-any-other-outcome, and now **`reopened`** — tasks reopened in
+the bucket — as a marker rather than a bar.
+*Source.* `task_event` via `SQL_CLOSE_EVENTS`, plus `kind = 'reopen'` rows in range from
+`ix_event_project_ts`.
+*Bucket.* **The spine grain: day on 30d and 90d, week on 12m and all.** The coarser
+grain existed only so the cycle-time percentile had a sample (`bucket_for`'s docstring);
+with cycle time gone from this chart, completed-per-day is the owner's ask and the bars
+are honest at any count.
+*Statistic.* Counts.
+*Shape.* Stacked bars, completed with cancelled on top, own axis, own chart. Reopenings
+as a small marker above the bar with the count in the readout.
+*Coverage.* As today.
+
+**B1 — Backlog.** *§8.3, kept, with one addition to the readout.*
+*Definition.* Level and flows, unchanged. The readout gains **net flow per bucket**:
+`opened − closed`, signed, so the week's answer to Q1 is a number and not a slope
+estimated by eye.
+*Everything else.* As §8.3.
+
+### 18.3 Finishes (Q6)
+
+All from the `finish` and `finish_step` tables §20 specifies. Coverage for every F entry:
+**native from the store child's merge; imported rows from 2026-08-23**, marked
+`source = 'imported'`. Before 2026-08-23 nothing existed to record, and the series says
+*"finishes are recorded from 23 Aug 2026"* rather than drawing zero.
+
+**F1 — Finishes per week by outcome.**
+*Question.* Is the scripted finish landing work, and when it does not, why.
+*Definition.* Count of `finish` rows by `started_at` bucket, split by `outcome`:
+`finished`, `escalated`, `declined`, `interrupted`. The readout names the escalation
+reasons (`gate_failed` 48, `rebase_conflict` 11, `base_moved` 9 in the corpus).
+*Source.* `finish`: `started_at`, `outcome`, `reason`.
+*Bucket.* Week.
+*Statistic.* Counts.
+*Shape.* Stacked bars, `finished` at the bottom.
+
+**F2 — Finish duration.**
+*Question.* How long an approval takes to become a merged, restarted, verified change.
+*Definition.* `finish.seconds` for rows with `outcome = 'finished'`; escalated rows
+separately in the readout, because a finish that stopped at the gate is measuring the
+gate. Today: finished **p50 4.8 min, p90 8.3 min**.
+*Source.* `finish`: `started_at`, `seconds`, `outcome`.
+*Bucket.* Week.
+*Statistic.* p50 and p90, sample.
+*Shape.* Line with p90 on tap, own axis; blank below `PERCENTILE_MIN_SAMPLE`.
+
+**F3 — Where a finish spends its time.**
+*Question.* Whether it is the gate (it is), and whether anything else is growing.
+*Definition.* p50 seconds per `finish_step.step` over the bucket's finishes: `preflight`,
+`runway`, `rebase`, `gate`, `catch_up`, `merge`, `rebuild`, `restart`, `verify`, `close`,
+`worktree`, `branch`. Skipped steps (`skipped = 1`) are excluded from their step's sample.
+*Source.* `finish_step` joined to `finish` on `finish_id`.
+*Bucket.* Week.
+*Statistic.* p50 per step.
+*Shape.* Not a chart. **On tap of an F2 bucket**, the readout lists the steps with a
+nonzero median; today that is `gate` 253 s and everything else under two seconds.
+
+**F4 — Runway wait.**
+*Question.* Whether finishes are queueing behind each other for the repository's one merge
+runway (task-223).
+*Definition.* `finish_step.seconds` where `step = 'runway'`; the count with any wait and
+the p90 among them. Today 14 of 161 waited, max 359 s.
+*Source, bucket.* As F3.
+*Shape.* In F1's readout: *"2 of 9 waited for the runway, longest 6 min"*. A chart of a
+value that is zero 91% of the time would be decoration.
+
+**F5 — Finishes per completed task.**
+*Question.* How often a task needs more than one finish — the cost of a red gate or a
+moved base.
+*Definition.* `COUNT(finish.finish_id)` per completed task, by the task's close bucket.
+Today: 43 of 78 took one, 19 took two, two took five.
+*Source.* `task` left-joined to `finish` on `task_id` (`ix_finish_task`).
+*Bucket.* Week. *Statistic.* Mean; distribution in the readout. *Shape.* Bars, beside S4.
+
+### 18.4 Gates (Q6)
+
+From `gate_run` and `gate_stage` (§20). Coverage: **finisher gates from 2026-08-23 by
+import; agent-side and manual gates only from the store child's merge**, and the series
+says which. A gate row with `origin = 'run'` before that date does not exist, so *"time
+in gates per task"* is a finisher-only figure for the imported span and the readout says
+so.
+
+**G1 — Gate duration.**
+*Question.* Whether the gate is getting slower.
+*Definition.* `gate_run.seconds` for `scope = 'full'` and `passed = 1`, by `started_at`.
+A red gate stops early and measures nothing about cost. Over every gate the finish
+records hold, green or red, **p50 4.0 min, p90 6.1 min**.
+*Source.* `gate_run`: `started_at`, `seconds`, `scope`, `passed`, `origin`.
+*Bucket.* Week. *Statistic.* p50, p90, sample. *Shape.* Line with p90 on tap, sharing
+F2's panel and axis (both are minutes; the gate is most of a finish).
+
+**G2 — The stage split.**
+*Definition.* p50 `gate_stage.seconds` per `stage` over the bucket's full green gates.
+Today `pytest` 125 s and `e2e` 107 s are the gate; the other eight stages sum to under
+20 s.
+*Source.* `gate_stage` joined to `gate_run`.
+*Shape.* On tap of a G1 bucket, in the readout — the same treatment as F3.
+
+**G3 — Green rate.**
+*Question.* How often a gate is red, which is how often a finish escalates for that
+reason.
+*Definition.* `passed` over full gates per bucket, with `failed_stage` counted in the
+readout.
+*Source, bucket.* As G1. *Statistic.* Fraction and counts. *Shape.* In F1's readout
+beside the escalation reasons; it is the same fact from the other side.
+
+**G4 — Gate minutes per completed task.** *The owner's "time in full gates per task".*
+*Definition.* `SUM(gate_run.seconds)` over gates with this `task_id` and `scope = 'full'`,
+whatever `origin` and whether green or red, per task completed in the bucket. Today
+**p50 4.4 min, p90 6.9 min**, 8 of 78 with no gate at all (hand closes and decisions).
+*Source.* `task` left-joined to `gate_run` on `task_id` (`ix_gate_task`).
+*Bucket.* Week, by close. *Statistic.* p50, p90. *Shape.* Bars, beside S4 and F5 in one
+"cost per completed task" panel.
+*Coverage.* Under-reports before agent-side gates are recorded (§20.3), and says so.
+
+### 18.5 Runs (Q6)
+
+From `task_run`. Coverage: **native from 2026-09-07T19:06Z**. The 171 rows imported at
+the cutover carry the import instant as `started_at` (§16.2) and would draw 177 runs on
+7 Sep; **until §20.5 re-stamps them, the series starts at the first native dispatch and
+the imported rows are excluded**, with the caption *"runs are recorded from 7 Sep 2026"*.
+
+**R-1 — Runs per day.**
+*Definition.* `COUNT(*)` of `task_run` by `started_at` bucket, `trigger` in the readout
+(`manual` 188, `child` 48, `auto` 23 today).
+*Source.* `task_run`: `started_at`, `trigger`. Needs `ix_run_started` (§20.5); today's
+plan is `SEARCH USING INDEX ix_run_task (project_id=?)` with a sort, which is a scan of
+the project's runs.
+*Bucket.* The spine grain. *Statistic.* Count. *Shape.* Bars.
+
+**R-2 — Agent-hours per day.**
+*Definition.* `SUM(duration_seconds) / 3600` by `started_at` bucket. A run is attributed
+whole to the bucket it started in; splitting a run across midnight was rejected as
+precision the question does not need.
+*Source.* `task_run`: `started_at`, `duration_seconds`. *Shape.* Bars, the same panel as
+R-1 on a second axis — the one case where §8.4's two-axis argument holds, because
+runs-and-their-hours is one question.
+
+**R-3 — Run outcome mix.**
+*Definition.* `COUNT(*)` by `outcome` per week: `completed`, `interrupted`, `cancelled`,
+`finished_without_handoff`, and null for runs still in the air (in the readout, not the
+bar).
+*Source.* `task_run`: `started_at`, `outcome`. *Shape.* Stacked bars, `completed` at the
+bottom.
+
+**R-4 — Run duration.**
+*Definition.* `duration_seconds` for ended runs; today **p50 27 min, p90 97 min**.
+*Statistic.* p50, p90, sample. *Shape.* Line with p90 on tap, own axis.
+
+**R-5 — Schedule-to-start latency.**
+*Question.* How long an admitted dispatch waits before its session is up.
+*Definition.* `launched_at − admitted_at` per `run_attempt`. Today it is a near-constant
+**2.2 s** — the launcher — because the queue only shipped on 2026-09-18 and a dispatch
+that could not start was refused rather than queued. **The number that will matter is
+`dispatch_queue.claimed_at − queued_at`**, the time a queued dispatch waited for a slot,
+and it is the same metric once a queue exists: the readout reports both, and the chart
+plots the queue wait when any row has one.
+*Source.* `execution.db`: `run_attempt` (`project_id`, `admitted_at`, `launched_at`) and
+`dispatch_queue` (`project_id`, `queued_at`, `claimed_at`, `status`), read through
+`execution_store_for(home).read(...)`, never a second connection composed by path.
+*Bucket.* Week. *Statistic.* p50, p90, and the count that waited at all. *Shape.* In
+R-1's readout until a week has three queued dispatches; then a line.
+*Coverage.* `run_attempt` from 2026-09-13, `dispatch_queue` from 2026-09-18. Machine-level
+tables filtered by `project_id`.
+
+**R-6 — Hours paused on usage limits.**
+*Question.* How much of the week the machine was stopped by a quota.
+*Definition.* Per project, the sum over `auth_waiter` rows with this `project_id` and an
+incident of `kind = 'usage_limit'` of `updated_at − stall_at` where `status =
+'recovered'`, by the bucket of `stall_at`. This is **run-hours lost**, not wall-clock:
+three runs stalled for the same 50-minute reset count 2.5 hours, which is what it cost.
+Today: 6.9 run-hours across five waiters in one day.
+*Source.* `execution.db`: `auth_waiter` (`project_id`, `stall_at`, `status`, `updated_at`)
+joined to `auth_incident` (`kind`). Both plan as a scan of a table with single-digit
+rows; an index is not requested until it has hundreds.
+*Bucket.* Week. *Shape.* Bars, on R-2's panel as a muted segment above the agent-hours
+bar — paused hours are machine hours that produced nothing.
+*Coverage.* From 2026-09-18 (task-463). Before that the series is absent, not zero.
+
+### 18.6 Review (Q7)
+
+**R1 — In review now.**
+*Definition.* Open, unarchived tasks with `ball = 'human' AND ball_reason = 'review'`,
+each with the hours since the ball landed there — `MAX(ts)` of the task's holder-changing
+rows, the same rule as §8.6's *days held*.
+*Source.* `task` and `task_event` via the in-review variant of `SQL_BALL_SINCE`. Plan:
+`SEARCH t USING INDEX sqlite_autoindex_task_1`, `SEARCH e USING INDEX ix_event_task_ts`,
+0.16 ms.
+*Shape.* A list, id, title and wait, each a link — this is the one panel that is a call
+to action, and it is the reason the review section is above the machine sections (§19.4).
+
+**R2 — Approval latency.**
+*Definition.* Per exit from `human`/`review` in the bucket, the hours since the matching
+entry; **all exits**, not only approvals, because a revise request is also the owner
+answering. Today **p50 4 min, p90 5.1 h** over 34 visits.
+*Source.* `task_event`: every entry into and exit from `human`/`review` for the project
+with `ts < :to` — one range read of 367 rows in 0.85 ms via `ix_event_task_ts`, paired
+in Python per task. The lower bound is deliberately absent: an exit in the window may
+have its entry before it. A window-function pairing in SQL was measured at 4.2 ms with a
+full scan and rejected.
+*Bucket.* Week, by exit. *Statistic.* p50, p90, sample. *Shape.* Line with p90 on tap.
+*Coverage.* Reconstructed rows carry log timestamps and are included, flagged
+`estimated` (§17.4).
+
+**R3 — First-time approval rate.**
+*Definition.* Of tasks approved in the bucket (§17.2), the fraction with `review_rounds
+= 1`. Today **14 of 24**.
+*Source.* The same rows as R2. *Bucket.* Week. *Statistic.* Fraction, with both counts.
+*Shape.* In R2's readout — a rate of a small count drawn as a line would be noise.
+
+### 18.7 Questions (Q8)
+
+**Q-1 — Open questions now.**
+*Definition.* `log_entry` rows of `type = 'question'` on open tasks with no `answer`
+entry whose `re` names them. **An answer is an entry of `type = 'answer'`**: the
+`handoff` entry the UI writes beside it also carries `re`, and counting both would count
+every answer twice. Today 2.
+*Source.* `log_entry` (`type`, `re`, `ts`, `task_id`) and `task` (`lifecycle`). Plan:
+`ix_log_type_ts` then `ix_log_thread`, 0.13 ms.
+*Shape.* A count in the review panel's header, linking to the task list filtered to
+open questions if that filter exists; a list of the questions if it does not.
+
+**Q-2 — Time to answer.**
+*Definition.* `MIN(answer.ts) − question.ts` per question asked in the bucket that has
+an answer; unanswered questions are counted, not averaged. Today **p50 16 min, p90 30 h**
+over 53.
+*Source.* As Q-1, `ix_log_type_ts` range on `ts` with a correlated `ix_log_thread` probe,
+0.09 ms.
+*Bucket.* Week, by the question. *Statistic.* p50, p90, sample, unanswered count.
+*Shape.* Line with p90 on tap, on R2's panel: both are "how long did a person take".
+
+---
+
+## 19. The page, second version
+
+### 19.1 The default range and the delta baseline
+
+**The delta baseline is `max(range.start, coverage.native_from)`, and the tile names the
+date it compares against.** Never `baseline_at`: that is the backfilled floor of October
+2025 and comparing against it is what produced *"145 more since 22 Jun"*. A tile reads
+*"149 open ▲ 4 since 7 Sep"* until native history is older than the range, and *"in 30
+days"* after. §8.2's suppression rule is amended to fire on `native_from` rather than
+`baseline_at`; §9.3's *"since <date>"* wording moves with it.
+
+**The default range becomes `30d`** (from `90d`). Not because 30 days sits inside native
+coverage — nothing offered does, for another eighteen days — but because the page is now
+mostly machine series at day grain, and thirty bars fit a phone without aggregating where
+ninety do not (§10.4's rule is aggregate rather than scroll, and week-grain runs-per-day
+would answer a different question). The week-grain series get four or five buckets at
+30d, which is thin, and `90d` is one tap away; the range control's caption says how many
+days of native history there are (§9.2), so the reader can see when a longer range
+becomes worth choosing.
+
+The `estimated` flag and the hatch are unchanged. The tiles are the only place that
+compared against a reconstructed instant without saying so.
+
+### 19.2 Throughput and cycle time become two charts
+
+*Supersedes §8.4.*
+
+- **Throughput (T1)** keeps the bars and loses the line, the band and the second axis.
+  It moves to the spine grain, so on 30d it is completed-per-day. Its readout carries
+  `completion_events` when it differs, `cancelled`, and reopenings.
+- **Where the time goes (S1)** takes cycle time's place, directly beneath throughput,
+  as a stack of five medians per week. Its readout line reads *"w/c 14 Sep · queue 1.1 h ·
+  work 0.6 h · waiting 0 · review 0 · finish 0 · total p50 4.8 h · 22 tasks"* and on tap
+  expands each segment to *p90* and *median among the n that had it*. Buckets under
+  `PERCENTILE_MIN_SAMPLE` are left blank, not interpolated.
+- No axis label sits inside the plot area. The first page's cycle-time axis did; the
+  geometry's `PADDING.left` is widened for the hour labels rather than the labels moved
+  in.
+
+### 19.3 Stuck, reordered
+
+*Amends §8.6.* Rows are ordered by **who is being waited on**, not by count:
+
+1. `human` / any reason — *waiting on you* — most-held first.
+2. `external` / `dependency`, `external` / `service` — *blocked*.
+3. `agent` / `work`, `revise`, `answer`, `redirect`, `hold` — *with an agent*, which is
+   not stuck but is where a parked run shows up.
+4. `agent` / `available` — **the queue**, last, labelled *"ready, unclaimed"*, with its
+   count and longest wait. It is the backlog waiting its turn and it says so.
+
+The over-time chart is unchanged. The `human` band is still the one that matters.
+
+### 19.4 Order, and why each panel sits where it does
+
+*Supersedes §8.1.* One column on a phone, two on a wide screen; the order is still "is
+this project OK" first, and the calls to action above the machine.
+
+1. **Summary row** — the five counts with deltas against the native baseline (§19.1).
+   First because it was always first; now it is honest.
+2. **Backlog (B1)** — Q1, the chart the owner said works. Unchanged.
+3. **Throughput (T1)** — Q2, its own chart. Beneath backlog because the two share a
+   day spine and the eye reads flows then completions.
+4. **Where the time goes (S1, S2, S3)** — Q5. Beneath throughput because it is what
+   cycle time was, and the reader who wanted "faster or slower" finds it where that
+   answer used to be, now split into the part that is the queue and the part that is
+   the work.
+5. **Review (R1, R2, R3, Q-1, Q-2)** — Q7 and Q8. Above the machine sections because
+   its first panel is a list of things waiting on the person reading it, and a call to
+   action belongs above a report. Questions share the panel: both are "how long did a
+   person take".
+6. **Finishes and gates (F1–F5, G1–G4)** — Q6. The scripted finish is the project's
+   delivery mechanism, and its duration and escalation rate are the most direct
+   "getting better or worse" the machine has.
+7. **Runs (R-1 to R-6)** — Q6. Machine capacity. Last of the trends because it is the
+   input the others are outputs of, and because its coverage is the youngest.
+8. **Cost per completed task (S4, F5, G4)** — three small bar charts side by side:
+   runs, finishes and gate minutes it took to complete a task. After runs because each
+   is a ratio over the panels above it.
+9. **Aging** — Q3, unchanged (§8.5).
+10. **Stuck** — Q4, reordered (§19.3). Aging and stuck move to the bottom: both are
+    "right now" lists rather than trends, and the owner's ask was trends.
+11. **Coverage footer** — now one line **per source family**: task history, finishes,
+    gates, runs, execution journal. One sentence cannot honestly cover five baselines.
+
+### 19.5 Shapes
+
+Every panel above draws with §10.1's four shapes plus the stacked bar that already exists
+in `analyticsGeometry.ts` (`stackedBars`, used since task-373 for cancellations). No new
+shape and no library. The "p90 on tap" treatment replaces the p50–p90 band everywhere: a
+band was the blob the owner could not read, and §10.4 already makes tap the primary
+input.
+
+---
+
+## 20. What the store child (task-472) must add
+
+Written the way §6 was written for task-273: columns, indexes and rules, nothing
+architectural. The tables below were created in the scratch copy of the live store, the
+212 finish records were imported into them, and every query in §18 and §21 was planned
+and timed against the result. The DDL is what was measured; the migration is the store
+child's to write in `src/agentjobs/sqlstore/migrations/`.
+
+### 20.1 The four tables
+
+```sql
+CREATE TABLE finish (
+  project_id        TEXT NOT NULL,
+  finish_id         TEXT NOT NULL,                -- fin_xxxxxxxx, from meta.yaml
+  task_id           TEXT NOT NULL,
+  started_at        TEXT NOT NULL,
+  finished_at       TEXT,                         -- NULL while running or interrupted
+  seconds           REAL,
+  outcome           TEXT NOT NULL CHECK (outcome IN
+                      ('finished', 'escalated', 'declined', 'interrupted', 'running')),
+  reason            TEXT,                         -- gate_failed, rebase_conflict, base_moved, ...
+  stopped_at        TEXT,                         -- the step an escalation stopped at
+  merged            INTEGER NOT NULL DEFAULT 0 CHECK (merged IN (0, 1)),
+  merge_commit      TEXT,
+  run_id            TEXT,                         -- the run that ran `finish --posture-release`
+  dispatched_run_id TEXT,                         -- the follow-on run an escalation started
+  authority         TEXT,
+  source            TEXT NOT NULL DEFAULT 'native' CHECK (source IN ('native', 'imported')),
+  PRIMARY KEY (project_id, finish_id),
+  FOREIGN KEY (project_id, task_id) REFERENCES task(project_id, task_id) ON DELETE CASCADE
+);
+CREATE INDEX ix_finish_started ON finish(project_id, started_at);
+CREATE INDEX ix_finish_task    ON finish(project_id, task_id, started_at DESC);
+
+CREATE TABLE finish_step (
+  project_id  TEXT NOT NULL,
+  finish_id   TEXT NOT NULL,
+  seq         INTEGER NOT NULL,                   -- order within the finish
+  step        TEXT NOT NULL,                      -- preflight, runway, rebase, gate, catch_up,
+                                                  -- merge, rebuild, restart, verify, close,
+                                                  -- worktree, branch, unexpected
+  ok          INTEGER NOT NULL CHECK (ok IN (0, 1)),
+  skipped     INTEGER NOT NULL DEFAULT 0 CHECK (skipped IN (0, 1)),
+  seconds     REAL NOT NULL DEFAULT 0,
+  detail      TEXT,
+  ts          TEXT NOT NULL,
+  PRIMARY KEY (project_id, finish_id, seq),
+  FOREIGN KEY (project_id, finish_id) REFERENCES finish(project_id, finish_id) ON DELETE CASCADE
+);
+
+CREATE TABLE gate_run (
+  project_id   TEXT NOT NULL,
+  gate_id      TEXT NOT NULL,                     -- <finish_id>:g<n> for a finisher gate;
+                                                  -- <run_id>:g<n> for an agent gate;
+                                                  -- man_<uuid> by hand
+  origin       TEXT NOT NULL CHECK (origin IN ('finish', 'run', 'manual')),
+  finish_id    TEXT,
+  run_id       TEXT,
+  task_id      TEXT,                              -- NULL for a manual gate with no run
+  scope        TEXT NOT NULL CHECK (scope IN ('full', 'partial', 'since_gate', 'concurrent')),
+  tree         TEXT,                              -- gate_scope.tree_fingerprint
+  checkout     TEXT,                              -- the path the gate ran in
+  branch       TEXT,
+  started_at   TEXT NOT NULL,
+  finished_at  TEXT,                              -- NULL: killed mid-gate (9 of 214 imported)
+  seconds      REAL,
+  passed       INTEGER CHECK (passed IN (0, 1)),
+  failed_stage TEXT,
+  stages_run   INTEGER,
+  stages_total INTEGER,
+  source       TEXT NOT NULL DEFAULT 'native' CHECK (source IN ('native', 'imported')),
+  PRIMARY KEY (project_id, gate_id)
+);
+CREATE INDEX ix_gate_started ON gate_run(project_id, started_at);
+CREATE INDEX ix_gate_task    ON gate_run(project_id, task_id, started_at) WHERE task_id IS NOT NULL;
+
+CREATE TABLE gate_stage (
+  project_id  TEXT NOT NULL,
+  gate_id     TEXT NOT NULL,
+  seq         INTEGER NOT NULL,
+  stage       TEXT NOT NULL,                      -- black, ruff, mypy, api, icons, oxlint,
+                                                  -- pytest, vitest, build, e2e, roadmap
+  seconds     REAL,                               -- NULL for the stage that failed
+  passed      INTEGER CHECK (passed IN (0, 1)),
+  started_at  TEXT NOT NULL,
+  finished_at TEXT,
+  PRIMARY KEY (project_id, gate_id, seq),
+  FOREIGN KEY (project_id, gate_id) REFERENCES gate_run(project_id, gate_id) ON DELETE CASCADE
+);
+CREATE INDEX ix_gate_stage_name ON gate_stage(project_id, stage, started_at);
+```
+
+Two shapes are deliberate. **`gate_run` has no foreign key to `finish` or `task_run`**,
+because an agent-side gate in a worktree must be writable when the run it belongs to is
+not yet a row in this store (§20.3), and a manual gate belongs to nothing. And **there is
+no `runner` column anywhere**; `task_run` already carries one for the dispatch UI, and
+adding it here would be the toggle §16 rejected.
+
+### 20.2 The plans these indexes serve
+
+Measured on the seeded scratch store, 212 finishes, 1,384 steps, 214 gates, 1,410 stages:
+
+| query (§18 entry) | rows | p50 (ms) | plan |
+|---|---|---|---|
+| finishes in range (F1, F2) | 212 | 0.30 | `SEARCH finish USING INDEX ix_finish_started` |
+| finish steps in range (F3, F4) | 1,384 | 1.28 | `ix_finish_started` → `SEARCH s USING INDEX sqlite_autoindex_finish_step_1` |
+| gate runs in range (G1, G3) | 214 | 0.30 | `SEARCH gate_run USING INDEX ix_gate_started` |
+| gate stages in range (G2) | 1,410 | 1.36 | `ix_gate_started` → `SEARCH s USING INDEX sqlite_autoindex_gate_stage_1` |
+| gate seconds per completed task (G4) | 193 | 0.46 | `ix_task_closed_at` → `SEARCH g USING INDEX ix_gate_task` LEFT-JOIN |
+| finishes per completed task (F5) | 193 | 0.38 | `ix_task_closed_at` → `SEARCH f USING INDEX ix_finish_task` LEFT-JOIN |
+| finish coverage | 1 | 0.11 | `SEARCH finish USING INDEX ix_finish_task (project_id=?)` |
+
+Every one is an indexed range read; none touches a JSON column or a task document. The
+step and stage queries return the whole detail set and fold in Python, like every series
+before them; they grow with the number of finishes in the window and would be the first
+to earn a `GROUP BY` in SQL, at the same ~50 ms trigger §3.5 sets.
+
+### 20.3 The writers
+
+**The finisher** writes a `finish` row when it opens its directory (`outcome =
+'running'`), a `finish_step` row at the moment it appends each `finish_step` line to
+`phases.jsonl`, and updates the `finish` row where it writes `meta.yaml`'s
+`finished_at`. The files stay: they are the human-readable log and `finish_status.py`
+reads them. Same moment, same process, one more `INSERT`; the write is inside the
+finisher's existing store access, so no new connection.
+
+**The gate** (`scripts/check.py`) writes a `gate_run` row at `gate_started`, a
+`gate_stage` row at each `gate_stage_finished`, and updates the `gate_run` row at
+`gate_finished` — with `passed`, `seconds`, and `failed_stage` when there is one, and
+**a partial run is a row with `scope = 'partial'`**, not an omitted row. It writes
+through the same swallow-everything wrapper `record_phase` uses: a gate that could not
+write a row runs, and the row is a gap in a chart rather than a lost gate.
+
+**The agent-side gate is the row nobody writes today.** A gate run in a worktree before
+handoff records itself only in `phases.jsonl` when the session is a dispatched run — 0 of
+214 imported gates have `origin = 'run'`, because the import reads finish directories and
+not run directories — and in the checkout's own receipt, which the next gate overwrites.
+So *time in gates per task* (G4) is finisher-only until this lands. What the gate should
+write:
+
+- `origin = 'run'` with `run_id` from `AGENTJOBS_RUN_ID` and `task_id` from the run's
+  registration, when the environment names a live run (`phases.current_run()` already
+  decides this); `origin = 'manual'`, `run_id` null, `task_id` from the branch name when
+  it matches `<type>/task-<nnn>-…`, otherwise null.
+- `checkout` as the absolute path of `ROOT`, `branch` from `git rev-parse
+  --abbrev-ref HEAD`, `tree` as the fingerprint the receipt already computes.
+- **Into the served project's store, through `store_factory.task_manager_for`** — the
+  safety rail in ENGINEERING.md — never a path composed from the checkout. A worktree's
+  gate imports the worktree's own `agentjobs` package, which resolves the same machine
+  home and the same database file; the migration is in the database, not in the code
+  reading it, so a worktree behind `main` reads the tables and simply lacks the writer.
+- Which project: the one whose `.agentjobs/config.yaml` the checkout carries. The gate
+  runs in this repository, so it is `agentjobs`; a gate in a checkout with no config
+  writes nothing.
+
+**What it costs**, measured: **one `gate_run` and ten `gate_stage` rows commit in 5.6 ms**
+on the scratch store, against a gate that takes four minutes. Opening the store from a
+cold process is expected to be the larger cost — it is the same import the CLI pays —
+and was not measured here; task-472 measures it in the gate's own timing table and
+records it, with under one second as its acceptance line.
+
+**Run directories are not imported.** The 289 run directories under `.agentjobs/runs`
+hold `phases.jsonl` with agent-side gate records back to 2026-08-19, and importing them
+would give G4 its history. It is not asked for here: a run's phase file also carries
+records from other processes (§dispatch/phases.py's docstring, task-249), a gate in it may
+have been written into the wrong run's directory before that fix, and the value is one
+metric's backfill. If G4's coverage note turns out to matter, that import is its own
+small task with the task-249 caveat as its first test.
+
+### 20.4 The one-time import
+
+`agentjobs storage import-finishes` (or a flag on the existing import), reading every
+`fin_*` directory under the home's `finishes/`, **idempotent on `finish_id`**, reporting
+what it skipped and why. Measured: **212 directories parse and load in 211 ms**, so it
+is not a job that needs progress output. The rules, each found in the corpus:
+
+- `meta.yaml` → `finish`, `source = 'imported'`. `merged` is absent on 138 of 212
+  records (it was added later); derive it as `outcome = 'finished' AND merge_commit IS
+  NOT NULL` when the key is missing.
+- **`outcome: running` with no `finished_at` and a `started_at` older than 24 hours is
+  imported as `interrupted`** — 11 such records, the oldest from 2026-08-25, each a finish
+  whose process died. A `running` record younger than that is skipped and reported: the
+  native writer owns it.
+- Each `finish_step` line → one `finish_step` row, `seq` in file order.
+- Each `gate_started` line opens a `gate_run` with `gate_id = <finish_id>:g<n>`, `origin
+  = 'finish'`, `task_id` from the finish; `gate_stage_finished` lines become `gate_stage`
+  rows; `gate_finished` closes the run, and a `failed_stage` gets a `gate_stage` row with
+  `passed = 0` and `seconds` null. A `gate_started` with no `gate_finished` (9 of 214)
+  stays open with `finished_at` null.
+- Unknown `kind` lines (`finish_gate_attempt`, `finish_gate_receipt`, `finish_merged`,
+  `finish_catch_up`, `finish_gate_retry`, `gate_stage_browser_gone`) are skipped without
+  comment; a torn line is counted and reported.
+- A finish whose `task_id` is not in the `task` table is refused and reported, not
+  inserted with the foreign key off. Zero in this corpus.
+
+Run it against this machine's store as part of task-472's delivery and record the counts
+on that task, the way §6.4 recorded where each item landed.
+
+### 20.5 Requested of `task_run`, found on the way
+
+**A. Re-stamp the 171 rows imported at the cutover, and stop stamping.** `_record_run`
+in `sqlstore/store.py` writes `started_at` as `_now()` — the instant the `dispatch`
+entry is written — and `ended_at` the same way on the `dispatch_result`. For a native
+dispatch that is the launch to within a second. For the cutover import it was the import:
+171 rows carry `2026-09-07T19:03:31Z` within one minute, `ended_at` a tenth of a
+millisecond later, and a `duration_seconds` that is nonetheless correct because it came
+from the payload. Two changes: the writer takes `started_at` and `ended_at` from the
+payload when the entry carries them and falls back to the clock only when it does not;
+and a one-pass re-stamp keyed on `run_id` from the run ledger on disk, which has the true
+`started_at` and `finished_at` for every one of them (289 `meta.yaml` files, back to
+2026-08-19). That fixes R-1 to R-4's history back to the first dispatch. Until it runs,
+§18.5's exclusion applies.
+
+**B. `CREATE INDEX ix_run_started ON task_run(project_id, started_at)`.** R-1 to R-4
+filter runs by `started_at` range; today's plan is `SEARCH USING INDEX ix_run_task
+(project_id=?)` followed by a sort over every run the project has. 0.36 ms either way at
+259 rows, so this is asked for on the plan and not on the time; `ix_run_live` is partial
+on `ended_at IS NULL` and cannot serve it.
+
+### 20.6 Not asked for
+
+- No rollup tables. The whole second set of series costs under 10 ms of storage at this
+  corpus (§21.4), and §3.5's trigger stands.
+- No change to `phases.jsonl` or `meta.yaml`. The files are the log; the rows are the
+  index.
+- No `task_event` change. The segments read what is there.
+
+---
+
+## 21. The API, second set
+
+*Extends §7.3.* The same endpoint, the same `range`, the same rule that every model is a
+named Pydantic class. One new convention: **a per-series coverage**, because the sources
+now have five different baselines and one `coverage` object cannot carry them.
+
+### 21.1 Per-series coverage
+
+```python
+class SeriesCoverage(BaseModel):
+    """What this series can honestly claim, independent of the page-level coverage."""
+    recorded_from: Optional[datetime]   # first row of any source; None => no rows at all
+    native_from: Optional[datetime]     # first row written as it happened
+    complete: bool                      # range.start >= native_from
+    note: Optional[str]                 # "finishes are recorded from 23 Aug 2026", or None
+```
+
+Every series below carries one. `estimated` stays per bucket (§7.3), and a bucket is
+estimated when any input row is non-native — `task_event.source`, `finish.source`,
+`gate_run.source`, or a `task_run` row §20.5 A has not yet re-stamped.
+
+### 21.2 The models
+
+```python
+class SegmentPoint(BaseModel):                   # S1, S2, S3
+    bucket: date
+    sample: int                                  # completed tasks in the bucket, in the sample
+    excluded: int                                # closed by an import row (§17.4)
+    unreviewed: int                              # tasks with no review handoff (§17.3)
+    queue_p50_hours: Optional[float];  queue_p90_hours: Optional[float]
+    work_p50_hours: Optional[float];   work_p90_hours: Optional[float]
+    waiting_p50_hours: Optional[float]; waiting_p90_hours: Optional[float]
+    review_p50_hours: Optional[float]; review_p90_hours: Optional[float]
+    finish_p50_hours: Optional[float]; finish_p90_hours: Optional[float]
+    total_p50_hours: Optional[float];  total_p90_hours: Optional[float]
+    first_review_p50_hours: Optional[float]      # S3
+    first_review_p90_hours: Optional[float]
+    first_review_sample: int
+    among: dict[str, SegmentAmong]               # per segment: tasks with a nonzero value
+    estimated: bool
+
+class SegmentAmong(BaseModel):
+    tasks: int
+    p50_hours: Optional[float]
+
+class ThroughputPoint(BaseModel):                # T1 — replaces §7.3's, cycle fields removed
+    bucket: date
+    tasks_completed: int
+    completion_events: int
+    cancelled: int
+    reopened: int
+    estimated: bool
+
+class CostPerTaskPoint(BaseModel):               # S4, F5, G4
+    bucket: date
+    sample: int
+    runs_mean: Optional[float];     runs_mode: Optional[int]
+    finishes_mean: Optional[float]
+    gate_minutes_p50: Optional[float]; gate_minutes_p90: Optional[float]
+    without_gate: int
+    estimated: bool
+
+class FinishPoint(BaseModel):                    # F1–F4
+    bucket: date
+    finished: int; escalated: int; declined: int; interrupted: int
+    reasons: dict[str, int]                      # escalation reasons
+    duration_p50_min: Optional[float]; duration_p90_min: Optional[float]; sample: int
+    steps_p50_s: dict[str, float]                # F3, nonzero medians only
+    runway_waited: int; runway_p90_s: Optional[float]
+    estimated: bool
+
+class GatePoint(BaseModel):                      # G1–G3
+    bucket: date
+    full: int; passed: int
+    failed_stages: dict[str, int]
+    duration_p50_min: Optional[float]; duration_p90_min: Optional[float]; sample: int
+    stages_p50_s: dict[str, float]               # G2
+    origins: dict[str, int]                      # finish / run / manual
+    estimated: bool
+
+class RunPoint(BaseModel):                       # R-1 to R-4
+    bucket: date
+    runs: int
+    triggers: dict[str, int]
+    agent_hours: float
+    outcomes: dict[str, int]
+    in_flight: int
+    duration_p50_min: Optional[float]; duration_p90_min: Optional[float]; sample: int
+    estimated: bool
+
+class MachinePoint(BaseModel):                   # R-5, R-6, from execution.db
+    bucket: date
+    admitted: int
+    start_latency_p50_s: Optional[float]; start_latency_p90_s: Optional[float]
+    queued: int; queue_wait_p50_s: Optional[float]; queue_wait_p90_s: Optional[float]
+    paused_run_hours: float; paused_waiters: int
+
+class ReviewPoint(BaseModel):                    # R2, R3, Q-2
+    bucket: date
+    exits: int; approvals: int
+    wait_p50_hours: Optional[float]; wait_p90_hours: Optional[float]
+    first_time_approvals: int                    # approvals with review_rounds == 1
+    questions: int; answered: int
+    answer_p50_hours: Optional[float]; answer_p90_hours: Optional[float]
+    estimated: bool
+
+class InReview(BaseModel):                       # R1
+    task_id: str; title: str; hours_waiting: float
+
+class OpenQuestion(BaseModel):                   # Q-1
+    task_id: str; entry_id: int; hours_open: float
+
+class AnalyticsResponse(BaseModel):              # §7.3's, extended
+    ...                                          # range, coverage, totals, backlog, holders,
+                                                 # aging, oldest, stuck: unchanged
+    throughput: list[ThroughputPoint]            # shape changed: no cycle fields
+    segments: list[SegmentPoint];      segments_coverage: SeriesCoverage
+    cost_per_task: list[CostPerTaskPoint]; cost_coverage: SeriesCoverage
+    finishes: list[FinishPoint];       finishes_coverage: SeriesCoverage
+    gates: list[GatePoint];            gates_coverage: SeriesCoverage
+    runs: list[RunPoint];              runs_coverage: SeriesCoverage
+    machine: list[MachinePoint];       machine_coverage: SeriesCoverage
+    review: list[ReviewPoint];         review_coverage: SeriesCoverage
+    in_review: list[InReview]
+    open_questions: list[OpenQuestion]
+```
+
+Decisions in the shape:
+
+- **`ThroughputPoint` loses its cycle fields** rather than keeping them deprecated. The
+  generated client is regenerated by the same task, and a field that means the wrong
+  thing (§16.1) is worse than a field that is gone.
+- **Segment percentiles are per segment on one point**, not five parallel arrays, for
+  §7.3's reason: a client cannot misalign them.
+- **`MachinePoint` is its own series** because its source is another database with its
+  own baseline; folding it into `RunPoint` would give one series two coverages.
+- **`dict[str, int]` for the small vocabularies** (reasons, stages, outcomes, triggers)
+  rather than a model per vocabulary: the keys are the store's own strings, a new gate
+  stage or escalation reason must not be a client regeneration, and the page renders
+  them as a list.
+- **Hours for task-scale durations, minutes for finishes and gates, seconds for
+  latencies.** Each unit is in the field name so a reader of the JSON never guesses.
+
+### 21.3 The queries, and their plans
+
+Recorded against the copy of the live store on 2026-09-19; the `QUERIES` map in
+`analytics.py` gains each, and `tests/test_analytics_api.py::TestQueryPlans` walks them
+as it does today. The execution-journal queries run through
+`execution_store_for(home).read(...)` and are planned against that file.
+
+| name | serves | rows | p50 (ms) | plan |
+|---|---|---|---|---|
+| segment events | S1–S3 | 455 | 1.07 | `SEARCH t USING INDEX ix_task_closed_at` → `SEARCH e USING INDEX ix_event_task_ts` |
+| review transitions | R2, R3 | 367 | 0.85 | `SEARCH task_event USING INDEX ix_event_task_ts (project_id=?)` |
+| in review now | R1 | 1 | 0.16 | `SEARCH t USING INDEX sqlite_autoindex_task_1` → `SEARCH e USING INDEX ix_event_task_ts` |
+| runs in range | R-1–R-4 | 259 | 0.35 | `SEARCH task_run USING INDEX ix_run_started` (§20.5 B; `ix_run_task` + sort without it) |
+| runs per completed task | S4 | 78 | 0.17 | `ix_task_closed_at` → `SEARCH r USING INDEX ix_run_task` LEFT-JOIN |
+| questions in range | Q-2 | 26 | 0.09 | `SEARCH q USING INDEX ix_log_type_ts` → correlated `SEARCH a USING INDEX ix_log_thread` |
+| open questions | Q-1 | 2 | 0.13 | `ix_log_type_ts` → `ix_log_thread` → `sqlite_autoindex_task_1` |
+| finishes, steps, gates, stages, per-task | F1–F5, G1–G4 | | 0.30–1.36 | §20.2 |
+| schedule-to-start (`execution.db`) | R-5 | 50 | 0.05 | `SEARCH run_attempt USING INDEX ix_attempt_admitted` |
+| dispatch queue waits (`execution.db`) | R-5 | 2 | 0.01 | `SCAN dispatch_queue` — single-digit rows, see R-5 |
+| usage-limit pauses (`execution.db`) | R-6 | 5 | 0.02 | `SCAN w` → `SEARCH i USING INDEX sqlite_autoindex_auth_incident_1` |
+
+The two scans are of machine-level tables with fewer rows than the plan line has
+characters; `test_the_query_is_answered_by_an_index` should exempt them by name with
+that reason rather than be weakened.
+
+### 21.4 What the second set costs
+
+Summing the medians above and §20.2: **about 8 ms of storage for every new series at this
+corpus**, on top of §5.2's 6.3 ms. The Python folds — segments over 455 rows, review
+pairing over 367, step and stage medians over 2,800 — are the same order. The
+`X-Task-Parses` header stays at zero; nothing here reads a task document, and task-473
+verifies that over HTTP the way task-372 did.
+
+### 21.5 Tests the API child carries
+
+- §17.5's invariant on every emitted task: the five segments sum to total within a second.
+- The seeded corpus covers each §17.4 case by name: no review handoff, two round trips,
+  a reopen, two claims, a release, an import close, a draft promoted late.
+- A series whose source is younger than the range reports `recorded_from` and draws
+  nothing before it — asserted on the payload, not on the page.
+- §5.3's reconciliation test is unchanged; `totals` did not move.
+- No field, model or query names a runner. A test greps the models for `runner` and
+  `agent` as field names and fails on either.
+
+---
+
+## 22. Decisions, pass two
+
+Numbered on from §14. Each binds task-472, task-473 and task-474; each has its rejected
+alternative in the section named.
+
+12. **No series is split by runner.** Owner's decision, 2026-09-19. §16.
+13. **Segments are dwell time by ball holder, five of them, partitioning a task's open
+    life exactly.** Rejected: work as first-claim-to-first-review, work as a residual,
+    four segments. §17.1.
+14. **An approval is the ball leaving `human`/`review` for `agent`/`work`, or a close from
+    review.** Destination, not actor. §17.2.
+15. **The finish segment is last approval to close; an unreviewed task's finish comes
+    from the `finish` table once it exists and is zero before that, counted in the
+    readout.** §17.3.
+16. **A closed interval before a reopen is in no segment; a task closed by an `import`
+    row is in no segment sample.** §17.4.
+17. **Segments read reconstructed rows and flag them; backfilled rows are never
+    boundaries.** §17.4.
+18. **Throughput and cycle time are two charts; throughput moves to the spine grain;
+    where-the-time-goes is a stack of per-segment medians with p90 and the
+    among-those-that-had-it median on tap.** Rejected: means (they swing with the one old
+    task, which is the complaint), a stacked area, a p50–p90 band. §18.1, §19.2.
+19. **The delta baseline is `max(range.start, native_from)` and the tile names the
+    date; the default range is `30d`.** §19.1.
+20. **Stuck lists waiting-on-you, then blocked, then with-an-agent, then the queue,
+    named as the queue.** §19.3.
+21. **Finishes and gates become rows — `finish`, `finish_step`, `gate_run`,
+    `gate_stage` — written at the moment the files are, imported once from disk, with
+    the agent-side gate writing its own row through `store_factory`.** Rejected: parsing
+    the finish directories per request (178 ms today and growing by every finish); a
+    `runner` column. §20.
+22. **Every new series carries its own coverage.** One page-level coverage cannot
+    describe five baselines. §21.1.
+23. **`execution.db` is read through `execution_store_for`, filtered by `project_id`,
+    and its series are their own model.** §18.5, §21.2.
+24. **Usage-limit pauses are run-hours lost per project, not machine wall-clock.** §18.5.
+
+---
+
+## 23. Implementation children, pass two
+
+Four children under task-212, chained by `needs`, filed on 2026-09-19 before this design
+was written and pointed at it by name.
+
+| task | title | `needs` | sections |
+|---|---|---|---|
+| **task-471** | this document | — | §16–§23 |
+| **task-472** | finish and gate history into the store | task-471 | §20 |
+| **task-473** | the analytics API, second set | task-472 | §17, §18, §21 |
+| **task-474** | the page, second version | task-473 | §18, §19 |
+
+Task-472 carries §20.5 A and B as well as the four tables: the re-stamp is what makes the
+run series honest before 7 Sep, and it is a one-pass fix over a ledger that already has
+the answer. Task-473 should not build R-1 to R-4 over the un-re-stamped rows and then
+exclude them; if task-472 has landed, the exclusion in §18.5 is dead code.
