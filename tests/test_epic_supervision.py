@@ -601,6 +601,17 @@ class TestADispatchedEpicHoldsNoSlot:
 
         assert handle.mode is DispatchMode.WALK
         assert len(journal(walk.machine.home).open_walks()) == 1
+        # **And not as an overage** (task-461 met task-458 here). The two exemptions from
+        # the slot check are not the same thing: an overage is a ceiling a person chose to
+        # cross for a run that really does occupy the machine, and a walk never occupies it
+        # at all. Recorded as one, every epic dispatched onto a busy machine would carry a
+        # claim about the machine that is not true -- and would say so in its own log entry.
+        record = read_run(runs_root(walk.machine.home) / handle.run_id)
+        assert not record.over_ceiling
+        parent = walk.machine.manager.get_task(walk.parent_id)
+        assert parent is not None
+        entry = epic.parent_dispatch_entry(parent)
+        assert entry is not None and "ceiling" not in (entry.body or "")
 
     def test_the_walk_fills_the_whole_ceiling(self, walk: Epic) -> None:
         """ac-1. Three independent children, ceiling three, and nothing supervising.
