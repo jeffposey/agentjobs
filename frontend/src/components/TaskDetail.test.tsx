@@ -602,3 +602,54 @@ describe("TaskDetail review panel offers only verbs that are true", () => {
     expect(actions.onSendBack).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * A dispatch of this task waiting for a free slot (task-476).
+ *
+ * The header's chip is the server's `display_status` verbatim, which is the point: the
+ * label is derived in one place and every surface draws the same words. These assert on
+ * what a reader sees, not on the field behind it.
+ */
+describe("a task whose dispatch is waiting for a slot", () => {
+  function waiting(status: string) {
+    return {
+      ...detail,
+      task: task("task-queued", {
+        lifecycle: "ready",
+        ball: "agent",
+        ball_reason: "available",
+        ball_prompt: null,
+        display_status: status,
+        queued_dispatch: {
+          queue_id: "q_e1aeca49780f",
+          position: status.includes("place") ? 2 : 1,
+          queued_at: "2026-09-19T15:29:00Z",
+          queued_by: "Jeff Posey",
+          source: "manual",
+          status: "queued",
+          detail: "",
+          paused_by: "",
+        },
+      }),
+      parent_task: null,
+      children: [],
+    };
+  }
+
+  it("reads Queued rather than Ready in the header", () => {
+    renderDetail(waiting("Queued"));
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Title of task-queued");
+    // Twice, and both are the server's own words: the header's chip and the dependency
+    // chip another task's page draws for this one. Neither derives a label of its own,
+    // which is what stops the two disagreeing.
+    expect(screen.getAllByText("Queued")).toHaveLength(2);
+    expect(screen.queryByText("Ready")).toBeNull();
+  });
+
+  it("names the place in line when the entry is not next", () => {
+    renderDetail(waiting("Queued (place 2)"));
+
+    expect(screen.getAllByText("Queued (place 2)").length).toBeGreaterThan(0);
+  });
+});

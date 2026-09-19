@@ -886,7 +886,9 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
       error={actionError ? "The action could not be recorded. Reload and try again." : null}
       promoteBusy={promote.isPending}
       promoteError={promoteError}
-      dispatch={dispatch}
+      // The waiting entry comes off the task record rather than the slot board, so the
+      // panel's offer and the status chip in the page header are one answer (task-476).
+      dispatch={{ ...dispatch, queuedDispatch: detailQuery.data.task.queued_dispatch ?? null }}
       finish={finish}
       onApprove={async (note) => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
       onResume={async (note) => { if (!user) return; await resume.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}

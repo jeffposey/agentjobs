@@ -370,6 +370,42 @@ class TestAnEntryThatLeavesTheQueue:
         assert refusals, "the refusal note was not kept on the record"
 
 
+# ----- what else reads a status (the spec's step 5) -----------------------------------
+
+
+class TestTheCommandLine:
+    """``agentjobs list`` reads the store directly, so it inherits nothing by itself.
+
+    Verified rather than assumed, which is what the spec asked for: the browser and MCP
+    both read the API and got this for free, and this one did not -- it opened the store
+    and printed ``Task.display_status``, which is ``Ready`` for a queued task by design.
+    """
+
+    def run_list(self, box: Machine) -> str:
+        from typer.testing import CliRunner
+
+        from agentjobs.cli import app
+
+        result = CliRunner().invoke(app, ["list"])
+        assert result.exit_code == 0, result.output
+        return result.output
+
+    def test_it_says_queued_for_a_waiting_dispatch_and_ready_for_the_rest(
+        self, machine: Machine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        queued, idle, _ = a_waiting_dispatch(machine)
+        monkeypatch.chdir(machine.root)
+
+        lines = {
+            line.split(" | ")[0].removeprefix("- "): line
+            for line in self.run_list(machine).splitlines()
+            if line.startswith("- ")
+        }
+
+        assert "[Queued," in lines[queued]
+        assert "[Ready," in lines[idle]
+
+
 # ----- what it costs (the task's cost note) -------------------------------------------
 
 
