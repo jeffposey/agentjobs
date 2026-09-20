@@ -8,13 +8,17 @@ import {
   DEVICE_STORAGE_KEY,
   PUSH_CONTEXT_CACHE,
   PUSH_CONTEXT_KEY,
+  PRIVACY_STORAGE_KEY,
   clearPushContext,
+  detailFor,
   deviceLabel,
   pushAvailability,
   readDeviceId,
   readEnvironment,
+  readPrivacy,
   subscribePayload,
   writeDeviceId,
+  writePrivacy,
   writePushContext,
   type PushEnvironment,
 } from "./push";
@@ -172,8 +176,18 @@ describe("what gets sent to the API", () => {
       endpoint: "https://fcm.example/send/1",
       keys: { p256dh: "pub", auth: "sec" },
       label: "Pixel",
-      detail: "count",
+      // Naming the task is the default since task-421; privacy is the opt-in.
+      detail: "task",
     });
+  });
+
+  it("carries the device's privacy choice when it has made one", () => {
+    expect(
+      subscribePayload(
+        { endpoint: "https://fcm.example/send/1", keys: { p256dh: "pub", auth: "sec" } },
+        { label: "Pixel", detail: detailFor(true) },
+      )?.detail,
+    ).toBe("count");
   });
 
   it("refuses a subscription with no keys rather than throwing", () => {
@@ -220,6 +234,17 @@ describe("what the service worker is left", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("agrees with the service worker about when a replacement interrupts", () => {
+    // The same rule as `shouldRenotify` in `shell.ts`, duplicated into the worker for
+    // the same reason as the cache constants above: on an installed desktop PWA both
+    // channels draw under one tag, so the two copies have to agree about which redraw
+    // is an update and which is a new run of attention (task-421).
+    const source = serviceWorkerSource;
+    expect(source).toContain("renotifyFor");
+    expect(source).toContain("data.episodeId === episodeId");
+    expect(source).toContain("renotify: renotifyFor(standing, note.episodeId)");
+  });
+
   it("agrees with the service worker about where it is", () => {
     // `service-worker.js` is plain JavaScript shipped whole and cannot import this
     // module, so the two copies of these constants are checked against each other
@@ -263,5 +288,53 @@ describe("remembering this device's row", () => {
     };
     expect(readDeviceId(hostile)).toBeNull();
     expect(() => writeDeviceId("x", hostile)).not.toThrow();
+  });
+});
+
+describe("this device's privacy choice", () => {
+  /**
+   * Off by default (task-421). The owner reversed task-423's default: a push names the
+   * task unless this device asks it not to. Kept per device because that is the shape
+   * of the question -- a tablet on a desk and a phone held up on a train are the same
+   * person with different bystanders.
+   */
+  function storage() {
+    const store = new Map<string, string>();
+    return {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => void store.set(key, value),
+      removeItem: (key: string) => void store.delete(key),
+      store,
+    };
+  }
+
+  it("is off until somebody turns it on", () => {
+    expect(readPrivacy(storage())).toBe(false);
+  });
+
+  it("round-trips, and maps to the subscription's detail", () => {
+    const store = storage();
+    writePrivacy(true, store);
+    expect(readPrivacy(store)).toBe(true);
+    expect(store.store.get(PRIVACY_STORAGE_KEY)).toBe("on");
+    expect(detailFor(readPrivacy(store))).toBe("count");
+
+    writePrivacy(false, store);
+    expect(readPrivacy(store)).toBe(false);
+    expect(detailFor(readPrivacy(store))).toBe("task");
+  });
+
+  it("answers off rather than throwing where storage is blocked", () => {
+    const blocked = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+      removeItem: () => undefined,
+    };
+    expect(readPrivacy(blocked)).toBe(false);
+    expect(() => writePrivacy(true, blocked)).not.toThrow();
   });
 });

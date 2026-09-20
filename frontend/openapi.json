@@ -5735,10 +5735,10 @@
         "type": "object"
       },
       "PushSubscribeRequest": {
-        "description": "A device asking to be woken.\n\nExactly the shape ``PushSubscription.toJSON()`` produces, plus two fields of ours,\nso the client can pass the browser's object through without reassembling it.\n\n``label`` is for the person -- \"Pixel 9\", \"iPad\" -- and is the only way to tell two\nrows apart in the UI, because the endpoint is never shown. ``detail`` is the\nlock-screen privacy setting for this device; it defaults to the quiet one.",
+        "description": "A device asking to be woken.\n\nExactly the shape ``PushSubscription.toJSON()`` produces, plus two fields of ours,\nso the client can pass the browser's object through without reassembling it.\n\n``label`` is for the person -- \"Pixel 9\", \"iPad\" -- and is the only way to tell two\nrows apart in the UI, because the endpoint is never shown. ``detail`` is the\nlock-screen privacy setting for this device: ``task`` names the waiting task and is\nthe default, ``count`` withholds the name for a device with bystanders. Re-posting\nan endpoint that is already registered is how a device changes it -- the row keeps\nits id and its episode, so a toggle is not a re-arm.",
         "properties": {
           "detail": {
-            "default": "count",
+            "default": "task",
             "title": "Detail",
             "type": "string"
           },

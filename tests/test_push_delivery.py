@@ -40,6 +40,8 @@ from agentjobs.models_v2 import (
 )
 from agentjobs.projects import ProjectRegistry
 from agentjobs.push import (
+    DETAIL_COUNT,
+    DETAIL_DEFAULT,
     DETAIL_TASK,
     Subscription,
     delivery,
@@ -215,6 +217,27 @@ class TestThePayload:
         assert payload is not None
         assert payload.title == "2 tasks are waiting on you"
         assert payload.body == "Needs review — task-001: Rotate the signing key — and 1 other."
+
+    def test_a_device_that_says_nothing_is_told_which_task(self, home: Path) -> None:
+        """The default, reversed on the owner's decision of 2026-09-20 (task-421).
+
+        task-423 shipped the quiet form as the default and the named form as an opt-in.
+        That reasoning was about bystanders on a lock screen and it is sound for a
+        product with users who are not the person who installed it; this installation
+        has one consumer, and "3 tasks are waiting on you" does not tell him whether to
+        get up. Privacy is now the per-device opt-in, and this asserts which way round
+        the two are.
+        """
+        assert DETAIL_DEFAULT == DETAIL_TASK
+        row = Subscription(id="dev_1", endpoint="https://push.example/a", p256dh="x", auth="y")
+        assert row.detail == DETAIL_TASK
+
+        state = self._state([waiting_task("task-001", title="Rotate the signing key")], home)
+        payload = payload_for(state, PROJECT, detail=row.detail)
+
+        assert payload is not None
+        assert payload.body == "Needs review — task-001: Rotate the signing key"
+        assert payload_for(state, PROJECT, detail=DETAIL_COUNT) is not None
 
     def test_it_deep_links_to_the_one_waiting_task(self, home: Path) -> None:
         state = self._state([waiting_task("task-007")], home)

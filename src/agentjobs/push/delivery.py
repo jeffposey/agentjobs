@@ -8,11 +8,15 @@ that id is kept -- ``localStorage`` there, the subscription row here. That is th
 of "do not invent a second acknowledgment policy": there is one episode, one
 acknowledgment, and two places that remember having drawn it.
 
-**The payload is a wake-up signal, and on a phone that is stricter than on a desk.**
-The desktop toast names the lead task, because a desktop toast appears on the screen
-you are already sitting in front of. A push appears on a lock screen, in a hallway, on
-a watch, over somebody's shoulder. So the default says the *number* and nothing else,
-and naming the task is an opt-in per device (:data:`~agentjobs.push.subscriptions.DETAIL_TASK`).
+**The payload is a wake-up signal, and it says enough to be worth receiving.** A push
+names the ask and the lead task, the same as the desktop toast
+(:data:`~agentjobs.push.subscriptions.DETAIL_TASK`, the default since task-421). A
+device that is read over somebody's shoulder -- a lock screen in a hallway, a watch --
+turns privacy on and gets :data:`~agentjobs.push.subscriptions.DETAIL_COUNT`, which
+withholds the task's id and title and keeps the ask. That is a per-device choice
+because the right answer differs per device, and it is a choice rather than a default
+because the quiet form does not tell a person whether to get up.
+
 The complete ask is in the task record either way; a person who has read a handoff in a
 bubble has read it in the one place they cannot act on it.
 
@@ -132,7 +136,8 @@ def payload_for(state: AttentionState, project_id: str, *, detail: str) -> Optio
         # says what is wanted, never what the work is. "Needs review" is what tells the
         # person whether to go and find a computer, which is the whole job of this line,
         # while telling someone reading over their shoulder nothing about the project.
-        # Only the id and title are withheld at ``count``.
+        # Only the id and title are withheld at ``count`` -- and a device in that mode
+        # chose it, so the ask is the minimum that makes a quiet push worth having.
         ask = ask_phrase(lead)
         named = f"{lead.id}: {lead.title}".strip() if detail == DETAIL_TASK else ""
         head = f"{ask} — {named}" if ask and named else ask or named

@@ -23,6 +23,46 @@ export const PUSH_CONTEXT_KEY = "/__agentjobs_push_context__";
 export const DEVICE_STORAGE_KEY = "agentjobs.push.device";
 /** The id of the device row this browser registered, for its own Remove button. */
 
+export const DETAIL_COUNT = "count";
+export const DETAIL_TASK = "task";
+
+export const PRIVACY_STORAGE_KEY = "agentjobs.push.privacy";
+
+/**
+ * Whether this device wants the quiet form of a push. **Off by default** (task-421).
+ *
+ * The server's `detail` on the subscription row is what delivery reads; this is the
+ * same answer kept where the question is asked, so the toggle can render before any
+ * round trip and so the preference survives a device being unregistered and registered
+ * again. The two are written together: turning the toggle re-posts the subscription,
+ * which is how a row changes `detail` without becoming a second row.
+ *
+ * Per device rather than per account, because that is the shape of the question. A
+ * tablet on a desk at home and a phone held up on a train are the same person with
+ * different bystanders.
+ */
+export function readPrivacy(storage?: StorageLike | null): boolean {
+  try {
+    return (storage ?? window.localStorage).getItem(PRIVACY_STORAGE_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+
+export function writePrivacy(on: boolean, storage?: StorageLike | null): void {
+  try {
+    (storage ?? window.localStorage).setItem(PRIVACY_STORAGE_KEY, on ? "on" : "off");
+  } catch {
+    // The cost is a toggle that forgets, not a push that leaks: the row on the server
+    // keeps whatever was last posted, and delivery reads that.
+  }
+}
+
+/** The subscription's `detail` for a device whose privacy toggle is *on* or *off*. */
+export function detailFor(privacy: boolean): string {
+  return privacy ? DETAIL_COUNT : DETAIL_TASK;
+}
+
 export type PushAvailability =
   | "available"
   | "blocked"
@@ -154,7 +194,7 @@ type SubscriptionJson = { endpoint: string; keys?: { p256dh?: string; auth?: str
  */
 export function subscribePayload(
   json: SubscriptionJson,
-  { label, detail = "count" }: { label: string; detail?: string },
+  { label, detail = DETAIL_TASK }: { label: string; detail?: string },
 ): { endpoint: string; keys: { p256dh: string; auth: string }; label: string; detail: string } | null {
   const p256dh = json.keys?.p256dh;
   const auth = json.keys?.auth;

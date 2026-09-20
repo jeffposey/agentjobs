@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { client } from "../../api/generated/client.gen";
 import { apiMockServer } from "../../test/api-mock";
 import { MobilePush } from "./MobilePush";
+import { PRIVACY_STORAGE_KEY } from "./push";
 
 /**
  * The notifications panel, asserted on what a person is told and what is registered.
@@ -128,10 +129,12 @@ function renderPanel() {
 
 beforeEach(() => {
   client.setConfig({ baseUrl: "http://localhost" });
+  window.localStorage.removeItem(PRIVACY_STORAGE_KEY);
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+  window.localStorage.removeItem(PRIVACY_STORAGE_KEY);
 });
 
 describe("which device the panel belongs on", () => {
@@ -269,8 +272,63 @@ describe("registering this device", () => {
     expect(posted).toMatchObject({
       endpoint: "https://fcm.example/send/this-device",
       keys: { p256dh: "pub", auth: "sec" },
+      // Naming the task is the default since task-421 -- a device with bystanders
+      // turns privacy on, and this one has not.
+      detail: "task",
+    });
+  });
+
+  it("registers the quiet form once privacy is on for this device", async () => {
+    installBrowser();
+    window.localStorage.setItem(PRIVACY_STORAGE_KEY, "on");
+    let posted: unknown = null;
+    apiMockServer.use(
+      http.get("*/api/projects/inbox/push", () => HttpResponse.json(statusBody())),
+      http.post("*/api/projects/inbox/push/subscribe", async ({ request }) => {
+        posted = await request.json();
+        return HttpResponse.json(statusBody([registeredDevice()]));
+      }),
+    );
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("enable-push")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("enable-push"));
+
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ detail: "count" });
+  });
+
+  it("re-posts the subscription when privacy is turned on, without re-arming it", async () => {
+    /**
+     * The toggle, end to end (task-421). `detail` lives on the device row the server
+     * delivers against, and re-posting a registered endpoint is what moves it: the row
+     * keeps its id and the episode it has already been told about, so changing what a
+     * push may say never costs the person a repeat notification.
+     */
+    installBrowser({ existing: { endpoint: "https://fcm.example/send/this-device" } });
+    const posts: unknown[] = [];
+    apiMockServer.use(
+      http.get("*/api/projects/inbox/push", () =>
+        HttpResponse.json(statusBody([registeredDevice({ detail: "task" })])),
+      ),
+      http.post("*/api/projects/inbox/push/subscribe", async ({ request }) => {
+        posts.push(await request.json());
+        return HttpResponse.json(statusBody([registeredDevice({ detail: "count" })]));
+      }),
+    );
+    renderPanel();
+
+    const toggle = await screen.findByTestId("push-privacy-toggle");
+    expect(toggle).not.toBeChecked();
+
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      endpoint: "https://fcm.example/send/this-device",
       detail: "count",
     });
+    expect(window.localStorage.getItem(PRIVACY_STORAGE_KEY)).toBe("on");
   });
 
   it("explains a refused prompt instead of registering nothing silently", async () => {

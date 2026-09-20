@@ -34,6 +34,7 @@ from .delivery import (
 from .keys import VapidKey, load_or_create, vapid_path
 from .subscriptions import (
     DETAIL_COUNT,
+    DETAIL_DEFAULT,
     DETAIL_MODES,
     DETAIL_TASK,
     Subscription,
@@ -46,6 +47,7 @@ from .subscriptions import (
 
 __all__ = [
     "DETAIL_COUNT",
+    "DETAIL_DEFAULT",
     "DETAIL_MODES",
     "DETAIL_TASK",
     "PushPayload",

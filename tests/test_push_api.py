@@ -133,7 +133,9 @@ class TestSubscribing:
         assert len(devices) == 1
         assert devices[0]["service"] == "fcm.googleapis.com"
         assert devices[0]["label"] == "Pixel"
-        assert devices[0]["detail"] == "count"
+        # Naming the task is the default since task-421; a device with bystanders
+        # turns privacy on and gets "count".
+        assert devices[0]["detail"] == "task"
         assert load("inbox", home=home)[0].endpoint == ENDPOINT
 
     def test_subscribing_twice_is_one_device(self, client_for) -> None:
@@ -156,6 +158,28 @@ class TestSubscribing:
         answer = client.post("/api/projects/inbox/push/subscribe", json=payload)
         assert answer.status_code == 400
         assert "https" in answer.json()["detail"]
+
+    def test_turning_privacy_on_changes_the_row_without_re_arming_it(self, client_for) -> None:
+        """The phone panel's toggle, as the server sees it (task-421).
+
+        Re-posting the endpoint is how a device changes what its pushes may say. It has
+        to replace the row rather than add one, and it has to keep the episode the
+        device has already been told about -- a toggle that cost the person a repeat
+        notification would be a toggle nobody touches.
+        """
+        client, home = client_for([waiting_task("task-001")])
+        client.post("/api/projects/inbox/push/subscribe", json=browser_subscription())
+        before = load("inbox", home=home)[0]
+        assert before.detail == "task"
+
+        quiet = {**browser_subscription(), "detail": "count"}
+        answer = client.post("/api/projects/inbox/push/subscribe", json=quiet)
+
+        assert len(answer.json()["devices"]) == 1
+        after = load("inbox", home=home)[0]
+        assert after.detail == "count"
+        assert after.id == before.id
+        assert after.last_episode_id == before.last_episode_id
 
     def test_an_unknown_detail_mode_is_refused(self, client_for) -> None:
         client, _home = client_for([])

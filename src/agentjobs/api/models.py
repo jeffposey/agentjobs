@@ -386,13 +386,16 @@ class PushSubscribeRequest(BaseModel):
 
     ``label`` is for the person -- "Pixel 9", "iPad" -- and is the only way to tell two
     rows apart in the UI, because the endpoint is never shown. ``detail`` is the
-    lock-screen privacy setting for this device; it defaults to the quiet one.
+    lock-screen privacy setting for this device: ``task`` names the waiting task and is
+    the default, ``count`` withholds the name for a device with bystanders. Re-posting
+    an endpoint that is already registered is how a device changes it -- the row keeps
+    its id and its episode, so a toggle is not a re-arm.
     """
 
     endpoint: str
     keys: PushSubscriptionKeys
     label: str = ""
-    detail: str = "count"
+    detail: str = "task"
 
 
 class PushUnsubscribeRequest(BaseModel):

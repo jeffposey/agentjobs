@@ -37,12 +37,28 @@ from ..projects import default_home
 from .keys import PUSH_DIRNAME
 
 DETAIL_COUNT = "count"
-"""Default. The push says how many tasks are waiting and nothing about which."""
+"""Privacy mode, opt-in per device. The push withholds the task's id and title.
+
+It still carries the *ask* -- "Needs review" -- because that is what is wanted rather
+than what the work is, and a push that says only a number does not tell a person
+whether to get up. See :mod:`agentjobs.push.delivery`.
+"""
 
 DETAIL_TASK = "task"
-"""Opt-in. The push also names the lead task. See :mod:`agentjobs.push.delivery`."""
+"""Default. The push names the lead task as well as the ask.
+
+**This reverses the default task-423 shipped**, on the owner's decision of 2026-09-20
+(task-421). That default withheld the name because a push lands on a lock screen, in a
+hallway, on a watch -- sound reasoning, and it belongs to a product whose users are not
+the person who installed it. This one is a single consumer on his own phone over his
+own tailnet, and the cautious default cost him the usefulness of every notification he
+received. A device with bystanders turns privacy on.
+"""
 
 DETAIL_MODES = (DETAIL_COUNT, DETAIL_TASK)
+
+DETAIL_DEFAULT = DETAIL_TASK
+"""What a device gets when it says nothing, and what an unreadable value falls back to."""
 
 UNHEALTHY_AFTER = 10
 """Consecutive failures before a device is reported as unhealthy.
@@ -78,7 +94,7 @@ class Subscription:
     p256dh: str
     auth: str
     label: str = ""
-    detail: str = DETAIL_COUNT
+    detail: str = DETAIL_DEFAULT
     created_at: datetime = field(default_factory=_now)
     last_episode_id: Optional[str] = None
     last_attempt_at: Optional[datetime] = None
@@ -158,7 +174,7 @@ def _from_document(document: Any) -> Optional[Subscription]:
         p256dh=p256dh,
         auth=auth,
         label=str(document.get("label") or ""),
-        detail=detail if detail in DETAIL_MODES else DETAIL_COUNT,
+        detail=detail if detail in DETAIL_MODES else DETAIL_DEFAULT,
         created_at=created or _now(),
         last_episode_id=(
             str(document["last_episode_id"]) if document.get("last_episode_id") else None
