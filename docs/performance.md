@@ -345,10 +345,16 @@ endpoints and did not own them.
 
 **It costs 5.2 seconds**, from 9.4s to 14.6s for the module run alone and serially,
 measured on 2026-09-20 — and it is eight times the corpus and fourteen more tests for
-that. Under the gate's `-n auto` the module's tests are distributed, so the `pytest`
-stage moves by much less than the module does. Most of the 5.2s is one payment: the
-corpus generator's `yaml.safe_dump` is 6ms a record and the module now caches it, and
-caches a built database to copy rather than re-importing 480 records per test.
+that. Most of the 5.2s is one payment: the corpus generator's `yaml.safe_dump` is 6ms a
+record and the module now caches it, and caches a built database to copy rather than
+re-importing 480 records per test.
+
+**At the stage it does not show up at all.** `check.py --only pytest` on the same
+checkout and the same environment, immediately before and after the commit: **185.0s for
+5,162 tests and 175.0s for 5,176**. The stage got *faster* with more tests in it, which
+is the point — both runs shared the machine with two other gates at `-n 16`, and that
+contention moves a run by more than this module does. Quote the 5.2s, which is
+attributable; the stage pair is only evidence that nothing stage-sized happened.
 
 Three things the budgets do **not** catch, established by deliberately breaking the code
 and watching what stayed green:

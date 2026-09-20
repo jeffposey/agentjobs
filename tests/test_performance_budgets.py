@@ -43,6 +43,7 @@ so a budget and a benchmark run cannot drift apart.
 
 from __future__ import annotations
 
+import atexit
 import importlib.util
 import shutil
 import sqlite3
@@ -184,6 +185,10 @@ def _template_database(count: int) -> Path:
     # file, and rows still sitting in the WAL would not be in it.
     store.database.writer.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     _DATABASE_TEMPLATES[count] = path
+    # It is outside pytest's temporary root, because it outlives the test that built it.
+    # Nothing else would remove it, and a full suite builds one per size per xdist
+    # worker -- five megabytes each, on a machine that runs three gates at once.
+    atexit.register(shutil.rmtree, directory, True)
     return path
 
 
