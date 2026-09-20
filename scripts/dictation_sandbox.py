@@ -1,9 +1,16 @@
 """Stand up the dictation control on its own port, with throwaway data.
 
-task-172 puts a microphone beside every free-text field the capture surfaces have. The
-only instrument that can settle whether it works is a person speaking into a device, so
-this sandbox exists to be that person's page: the fields are real, the data is
-disposable, and both halves of the change are on screen at once.
+task-172 puts a microphone beside every free-text field the capture form has. The only
+instrument that can settle whether it works is a person speaking into a device, so this
+sandbox exists to be that person's page: the fields are real, the data is disposable,
+and both halves of the change are on screen at once.
+
+**Separate from ``capture_control_sandbox.py`` for one reason**, and it is not that the
+two review different screens -- they review the same form. The speech API and the
+microphone both require a secure context, and that sandbox's ``--tailnet`` mode is plain
+HTTP, so dictation cannot run on it from a phone at all. This one is served through an
+HTTPS proxy instead, and carries the two shims below, which have no business in a
+sandbox about gesture and proportion.
 
     python scripts/dictation_sandbox.py [port] [host]
 
@@ -291,9 +298,9 @@ def main() -> None:
 
     base = f"http://{host}:{port}"
     print(f"[review] dictation sandbox at {base}/app/", flush=True)
-    print("[review] the two surfaces the microphone is on:", flush=True)
-    print(f"[review]   Create task   {base}/app/p/{project_id}/tasks/new", flush=True)
-    print(f"[review]   Report issue  {base}/app/ - the button at the bottom right", flush=True)
+    print("[review] the two ways into the form the microphone is on:", flush=True)
+    print(f"[review]   as a page     {base}/app/p/{project_id}/tasks/new", flush=True)
+    print(f"[review]   as a dialog   {base}/app/ - the + beside the header's kebab", flush=True)
     print(f"[review] the no-recogniser half: {base}/app/?dictation=off", flush=True)
     print(f"[review] a scripted recogniser:   {base}/app/?dictation=fake", flush=True)
     print("[review] on a phone it must be HTTPS -- see the docstring for the proxy.", flush=True)

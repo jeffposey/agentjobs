@@ -293,9 +293,9 @@ digital silence.
 ### What was built (task-172)
 
 One control, `frontend/src/components/DictationControl.tsx`, beside every free-text
-field on the capture surfaces: the issue reporter's title and details and its drafted
-spec fields, the create form's title, summary, description, intent, constraints, out of
-scope and acceptance criteria, and the dispatch brief. The recogniser's lifecycle is
+field the capture form has — title, what happened, summary, intent, constraints, out of
+scope and acceptance criteria — and beside the dispatch brief, which is the only place a
+person writes a prompt for a run today. The recogniser's lifecycle is
 `frontend/src/voice/useDictation.ts`; the browser's API is wrapped once in
 `frontend/src/voice/speech.ts`.
 
@@ -320,8 +320,9 @@ sentences about privacy. For the same reason the download is offered once per fo
 rather than once per field, and only where `available({processLocally:true})` reported
 `downloadable`.
 
-**`scripts/dictation_sandbox.py` is how this gets looked at.** It serves both halves in
-one browser: `?dictation=off` deletes both constructors before the bundle runs, so the
+**`scripts/dictation_sandbox.py` is how this gets looked at**, separately from
+`capture_control_sandbox.py` because that one's `--tailnet` mode is plain HTTP and
+dictation needs a secure context. It serves both halves in one browser: `?dictation=off` deletes both constructors before the bundle runs, so the
 Firefox path can be seen without Firefox, and `?dictation=fake` drives a scripted
 recogniser that ends its session the way Android does, so the restart-and-stitch
 behaviour can be seen on a machine with no usable microphone. Both shims are in the

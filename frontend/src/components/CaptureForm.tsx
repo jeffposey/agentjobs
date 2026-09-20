@@ -23,6 +23,7 @@ import {
 } from "../report/specDraft";
 import type { DispatchStateView } from "../api/types";
 import { AttachmentPicker } from "./AttachmentPicker";
+import { DictationControl, DictationNote } from "./DictationControl";
 import {
   StartOnFileCheckbox,
   fileAndMaybeStart,
@@ -159,6 +160,9 @@ export function CaptureForm({
   onStart,
 }: CaptureFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  // The attachment picker owns its own textarea, so the microphone beside it needs a
+  // handle on the element. Every other field is reached through `fieldElement`.
+  const detailsRef = useRef<HTMLTextAreaElement>(null);
   const specHeadingId = useId();
 
   const [title, setTitle] = useState("");
@@ -367,6 +371,7 @@ export function CaptureForm({
           placeholder="Task list filters match nothing"
         />
       </label>
+      <DictationControl label="Title" target={() => fieldElement("title")} />
 
       <AttachmentPicker
         label="What happened"
@@ -379,7 +384,11 @@ export function CaptureForm({
         name="details"
         required
         textareaClassName={`${inputClass} min-h-28`}
+        textareaRef={detailsRef}
+        under={<DictationControl label="What happened" target={() => detailsRef.current} />}
       />
+
+      <DictationNote />
 
       <label className="block font-medium">
         File into project
@@ -443,6 +452,7 @@ export function CaptureForm({
             </span>
             <textarea name="summary" className={textareaClass} />
           </label>
+          <DictationControl label="Summary" target={() => fieldElement("summary")} />
           <label className="block font-medium">
             Intent
             <textarea
@@ -451,6 +461,7 @@ export function CaptureForm({
               placeholder="Why does this task exist?"
             />
           </label>
+          <DictationControl label="Intent" target={() => fieldElement("intent")} />
           <label className="block font-medium">
             Constraints
             <textarea
@@ -459,6 +470,7 @@ export function CaptureForm({
               placeholder="Hard requirements and prohibitions"
             />
           </label>
+          <DictationControl label="Constraints" target={() => fieldElement("constraints")} />
           <label className="block font-medium">
             Out of scope
             <textarea
@@ -467,6 +479,7 @@ export function CaptureForm({
               placeholder="Explicit non-goals"
             />
           </label>
+          <DictationControl label="Out of scope" target={() => fieldElement("out_of_scope")} />
           <label className="block font-medium">
             Read-first context
             <span className="mt-1 block text-xs font-normal text-dark-muted">
@@ -483,6 +496,7 @@ export function CaptureForm({
             <span className="mt-1 block text-xs font-normal text-dark-muted">One per line.</span>
             <textarea name="acceptance" className={textareaClass} />
           </label>
+          <DictationControl label="Acceptance criteria" target={() => fieldElement("acceptance")} />
         </section>
 
         <section className={sectionClass} aria-label="Planning and relationships">
