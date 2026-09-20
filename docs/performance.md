@@ -223,8 +223,11 @@ Two things about what it can and cannot see:
   fixed, where a single request walked the corpus — which at sixty records would cost a
   few milliseconds and hide inside the threshold.
 - **So the spec asserts a byte count alongside the clock.** Bytes per task in the list
-  response mean the same thing on every machine and at any corpus size, and that is
-  where the per-record class is caught.
+  response are exact — the same fixtures produce the same payload on every machine and
+  under any load — so that assertion is held *close* rather than loose, and it is where
+  the per-record class is caught. It currently guards task-484's listing projection:
+  601 bytes per row against a ceiling of 1,500, where a list answering with whole
+  records again measures 3,735.
 
 **It costs the `e2e` stage about 5.5 seconds** — 1.7s seeding the sixty fixtures, 1.9s
 timing the clicks, 0.4s on the payload, 1.5s closing the fixtures again, measured on

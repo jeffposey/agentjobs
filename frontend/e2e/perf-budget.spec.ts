@@ -87,25 +87,30 @@ const CLICK_TO_RENDERED_MS = 2_500;
 /**
  * Bytes of list payload per task, before the list can paint.
  *
- * A counter rather than a clock: it means the same thing on every machine and under
- * any load, which is what makes it the half of this pair that can be held to a number
- * at all. It is here because the clock above cannot see a *per-row* cost at sixty
- * rows, and per-row is the shape of every regression this application has actually
- * had -- task-131's defect was one request walking the corpus 476 times.
+ * A counter rather than a clock, and the difference decides how tightly it is set.
+ * Bytes are exact: the same fixtures produce the same payload on every machine and
+ * under any load, so nothing here can fail for being slightly unlucky and the
+ * loose-or-be-disabled reasoning above does not apply. **This one is held close on
+ * purpose.**
  *
- * What it would catch: the list response growing an order of magnitude per row.
- * `GET /api/projects/{id}/tasks` already returns whole `TaskRead` records, so the
- * page pays for every task's specification before it can paint anything -- 206,092
- * bytes for these sixty fixtures, and the `bench.py` report of 2026-09-19 records
- * 1,209,921 bytes for a 112-task corpus. Something attached to each row -- children,
- * run history, a detail payload inlined -- would add hundreds of milliseconds to a
- * real backlog while staying invisible in the timing above.
+ * It exists because the clock cannot see a *per-row* cost at sixty rows, and per-row
+ * is the shape of the regressions this application has actually had. Both of them:
+ * task-131's defect was one request walking the corpus 476 times, and task-484's was
+ * `GET /tasks` answering with whole records -- spec prose, acceptance criteria and the
+ * entire log of every task -- to draw a column of titles, which on the real backlog
+ * was 10.4 MB. That route now answers with `TaskSummaryRead`, a listing row, and
+ * whole records moved to `/tasks/full`.
  *
- * Measured at 3,435 bytes per task on 2026-09-19. The ceiling is an order of
- * magnitude above that, and it is a ceiling rather than a target: the same rule as
- * the clock. Do not tighten it into a test that fails for being slightly wrong.
+ * So what this guards is task-484's win, which otherwise has exactly as little behind
+ * it as task-135's did. Measured at **601 bytes per task** on 2026-09-19 against these
+ * fixtures; it was 3,435 before the projection landed. The ceiling is 1,500 -- room
+ * for a field or two to be added to a listing row deliberately, and low enough that
+ * the projection quietly coming undone fires it.
+ *
+ * A legitimate growth past this is a one-line change with a re-measured number beside
+ * it. That is the point: the alternative is a ceiling so high it notices nothing.
  */
-const LIST_BYTES_PER_TASK = 30_000;
+const LIST_BYTES_PER_TASK = 1_500;
 
 /** Timed iterations. Five, because the assertion is on the median of them. */
 const ITERATIONS = 5;
@@ -143,15 +148,16 @@ const LIST_ENDPOINT = "/api/projects/_local/tasks";
 /**
  * A description of realistic weight.
  *
- * A fixture with a one-line spec would make the payload budget vacuous: a regression
- * that started shipping every record's prose would ship almost nothing, because these
- * records would have almost nothing to ship. Real tasks in this repository carry
- * several kilobytes of specification, so these do too.
+ * A fixture with a one-line spec would make the payload budget vacuous: a list that
+ * went back to shipping every record's prose would ship almost nothing, because these
+ * records would have almost nothing to ship, and the budget would sit green through
+ * exactly the regression task-484 fixed. Real tasks in this repository carry several
+ * kilobytes of specification, so these do too.
  */
 const DESCRIPTION = (
   "A seeded fixture with a specification of realistic weight, so that a payload " +
-  "measured against it means something. The list endpoint returns whole records, so " +
-  "what this text costs is what one row costs. "
+  "measured against it means something. A listing row does not carry this text; a " +
+  "whole record does, which is the difference the budget is watching for. "
 ).repeat(12);
 
 /** The ids this spec put in the list, so `afterAll` can take them back out. */
@@ -307,8 +313,10 @@ test.describe("the front-end interaction has a budget", () => {
     expect(
       perTask,
       `the list view fetched ${bytes} bytes for ${tasks} tasks (${perTask} bytes each) ` +
-        `before it could paint, against an order-of-magnitude budget of ` +
-        `${LIST_BYTES_PER_TASK} bytes per task.`,
+        `before it could paint, against a budget of ${LIST_BYTES_PER_TASK} bytes per ` +
+        "task. A listing row is not a record: if the list is answering with whole " +
+        "tasks again, that is task-484 coming undone. If a field was added to the row " +
+        "deliberately, re-measure and move the constant in the same commit.",
     ).toBeLessThanOrEqual(LIST_BYTES_PER_TASK);
   });
 });
