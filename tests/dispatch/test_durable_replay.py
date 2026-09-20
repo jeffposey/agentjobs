@@ -46,7 +46,12 @@ from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
 from agentjobs.dispatch.journal import journal
 from agentjobs.dispatch.ledger import DispatchLedger, find_run
 from agentjobs.dispatch.poller import poll_live_sessions
-from agentjobs.dispatch.runner import DispatchRunner, RunDirectory, runs_root
+from agentjobs.dispatch.runner import (
+    SESSION_NAME_PATTERN,
+    DispatchRunner,
+    RunDirectory,
+    runs_root,
+)
 from agentjobs.execution.factory import close_execution_stores
 from agentjobs.manager import TaskManager
 from agentjobs.dispatch.config import Posture
@@ -187,6 +192,17 @@ def stamp(moment: datetime) -> str:
 
 
 # ----- who touched what ---------------------------------------------------------------
+
+
+def task_of(name: Any) -> str:
+    """The task id inside a dispatched session's name, read with the production grammar.
+
+    The sibling of ``test_execution_controller.task_of``; this harness is standalone and
+    imports nothing from it.
+    """
+    match = SESSION_NAME_PATTERN.match(str(name or ""))
+    assert match is not None, f"not a dispatched session name: {name!r}"
+    return match.group("task")
 
 
 @dataclass
@@ -399,15 +415,14 @@ class World:
     def live_sessions(self, task_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Sessions the fake CLI still lists, optionally only one task's.
 
-        The name is ``<project>/<task>``, with ``#<n>`` appended only when a session of
-        that name was already live (task-452), so the task is everything up to the first
-        ``#``. Matched on the whole trailing segment rather than a substring: ``task-1``
-        is a prefix of ``task-10``.
+        Read with the production grammar rather than by hand: the name has carried a run
+        stub, an ordinal, a conditional project prefix and now a slug, and a test that
+        re-derives the task id from it goes red every time one of those changes.
         """
         rows = [r for r in self.rows() if r.get("state") != "stopped"]
         if task_id is None:
             return rows
-        return [r for r in rows if str(r["name"]).partition("#")[0].endswith(f"/{task_id}")]
+        return [r for r in rows if task_of(r["name"]) == task_id]
 
     def calls(self, name: str) -> List[Any]:
         path = self.cli_dir / name

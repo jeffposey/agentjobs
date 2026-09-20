@@ -43,7 +43,7 @@ from agentjobs.models_v2 import (
     Outcome,
 )
 from agentjobs.projects import ProjectRegistry
-from test_execution_controller import TESTS, Machine, environment
+from test_execution_controller import TESTS, Machine, environment, task_of
 
 WALK_CHILD = r"""
 import os, pathlib, sys
@@ -239,16 +239,11 @@ class Epic:
     def sessions_named(self, child_id: str) -> List[Dict[str, object]]:
         """Every listed session working one child.
 
-        A name is ``<project>/<task>``, and carries ``#<n>`` only when a session of that
-        name was already live (task-452) -- so the task is everything before the first
-        ``#``, matched as a whole trailing segment because ``task-1`` is a prefix of
-        ``task-10``.
+        The task id comes out of the name with the production grammar rather than by
+        hand: the name has carried a run stub, an ordinal, a conditional project prefix
+        and now a slug, and each of those broke a hand-rolled split.
         """
-        return [
-            row
-            for row in self.machine.rows()
-            if str(row.get("name")).partition("#")[0].endswith(f"/{child_id}")
-        ]
+        return [row for row in self.machine.rows() if task_of(row.get("name")) == child_id]
 
     def epic_attempts(self, child_id: str) -> int:
         task = self.machine.manager.get_task(child_id)
@@ -696,9 +691,7 @@ class TestWhatHappensWhenTheWalkLands:
         assert parent is not None and parent.is_open
         assert parent.ball is Ball.AGENT, "nobody was asked to read it"
         evaluations = [
-            row
-            for row in walk.machine.rows()
-            if str(row.get("name")).partition("#")[0].endswith(f"/{walk.parent_id}")
+            row for row in walk.machine.rows() if task_of(row.get("name")) == walk.parent_id
         ]
         assert len(evaluations) == 1, walk.machine.rows()
         entry = epic.parent_dispatch_entry(parent)

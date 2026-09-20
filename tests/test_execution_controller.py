@@ -35,7 +35,7 @@ from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
 from agentjobs.dispatch.journal import journal
 from agentjobs.dispatch.ledger import DispatchLedger, read_run
 from agentjobs.dispatch.poller import poll_live_sessions
-from agentjobs.dispatch.runner import runs_root
+from agentjobs.dispatch.runner import SESSION_NAME_PATTERN, runs_root
 from agentjobs.execution import reducer
 from agentjobs.execution.store import CONTROLLED_BY_CONTROLLER
 from agentjobs.manager import TaskManager
@@ -337,6 +337,19 @@ def _last_dispatch_result(manager: TaskManager, task_id: str) -> Optional[str]:
     return outcomes[-1] if outcomes else None
 
 
+def task_of(name: Any) -> str:
+    """The task id inside a dispatched session's name, read with the production grammar.
+
+    Five test files used to recover it by hand -- ``rsplit("/", 1)[-1]``,
+    ``endswith(f"/{task_id}")``, ``partition("#")[0]`` -- which is one grammar written
+    five more times, and every copy broke together when task-500 put a slug in the name.
+    There is one pattern in ``runner`` now, and this is what the suite reads it with.
+    """
+    match = SESSION_NAME_PATTERN.match(str(name or ""))
+    assert match is not None, f"not a dispatched session name: {name!r}"
+    return match.group("task")
+
+
 # ----- the fixture is only evidence if it matches the real driver -------------------
 
 
@@ -345,8 +358,10 @@ def test_the_fake_listing_is_shaped_like_the_real_one(machine: Machine) -> None:
     machine.dispatch(task_id)
     [row] = machine.rows()
     assert set(row) >= {"id", "sessionId", "cwd", "kind", "name", "state"}
-    # No run stub since task-452: one live run of a task is named for the task alone.
-    assert row["name"] == f"sandbox/{task_id}"
+    # No run stub since task-452, no project prefix and a slug from the title since
+    # task-500: one live run of a task, in the only project holding one, is named for
+    # the task and what it is about.
+    assert row["name"] == f"{task_id} recoverable"
 
 
 def test_capabilities_claim_nothing_the_drivers_do_not_offer() -> None:

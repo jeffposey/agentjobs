@@ -41,7 +41,7 @@ from agentjobs.dispatch.queue import dispatch_or_queue
 from agentjobs.execution.store import BOUND_OPEN, BOUND_STARTS, PULL_ARMED
 from agentjobs.projects import ProjectRegistry
 
-from test_execution_controller import Machine, machine
+from test_execution_controller import Machine, machine, task_of
 
 __all__ = ["machine"]  # a fixture, imported by name -- the harness is task-416's
 
@@ -221,7 +221,7 @@ class TestTheQueuePauses:
 
         lines = machine.tick(3)
 
-        assert waiting not in [row["name"].rsplit("/", 1)[-1] for row in machine.rows()]
+        assert waiting not in [task_of(row["name"]) for row in machine.rows()]
         still = journal(machine.home).queued_dispatch(entry.queue_id)
         assert still is not None and still.waiting
         assert still.attempts == 0, "the entry was put through no gate, so it spent no attempt"
@@ -305,12 +305,12 @@ class TestResume:
         incident = seed_incident(machine, claude_profile(machine))
         free_one_slot(machine, holding[0])
         machine.tick(2)
-        assert waiting not in [row["name"].rsplit("/", 1)[-1] for row in machine.rows()]
+        assert waiting not in [task_of(row["name"]) for row in machine.rows()]
 
         close_incident(machine, incident)
         machine.tick()
 
-        assert waiting in [row["name"].rsplit("/", 1)[-1] for row in machine.rows()]
+        assert waiting in [task_of(row["name"]) for row in machine.rows()]
 
     def test_the_pull_mode_starts_on_the_first_tick_after_the_incident_closes(
         self, machine: Machine
@@ -324,7 +324,7 @@ class TestResume:
         close_incident(machine, incident)
         machine.tick()
 
-        assert [row["name"].rsplit("/", 1)[-1] for row in machine.rows()] == [task_id]
+        assert [task_of(row["name"]) for row in machine.rows()] == [task_id]
         assert arming_row(machine, armed.arming_id).started == 1
 
     def test_nothing_here_probes(self, machine: Machine) -> None:
@@ -353,7 +353,7 @@ class TestResume:
         close_incident(machine, incident)
         machine.controller().tick()
 
-        assert [row["name"].rsplit("/", 1)[-1] for row in machine.rows()] == [task_id]
+        assert [task_of(row["name"]) for row in machine.rows()] == [task_id]
 
 
 # ----- ac-3: one credential's incident is not another's ---------------------------
@@ -367,7 +367,7 @@ class TestPerCredential:
 
         machine.tick()
 
-        assert [row["name"].rsplit("/", 1)[-1] for row in machine.rows()] == [task_id]
+        assert [task_of(row["name"]) for row in machine.rows()] == [task_id]
 
     def test_an_entry_on_an_unaffected_runner_starts_beside_a_held_one(
         self, machine: Machine
@@ -400,7 +400,7 @@ class TestPerCredential:
 
         machine.tick(2)
 
-        started = [row["name"].rsplit("/", 1)[-1] for row in machine.rows()]
+        started = [task_of(row["name"]) for row in machine.rows()]
         assert starts in started
         assert held not in started
 
@@ -464,7 +464,7 @@ class TestAManualClickIsUnchanged:
 
         machine.dispatch(task_id)
 
-        assert [row["name"].rsplit("/", 1)[-1] for row in machine.rows()] == [task_id]
+        assert [task_of(row["name"]) for row in machine.rows()] == [task_id]
 
 
 # ----- ac-4: what the board is given ---------------------------------------------
