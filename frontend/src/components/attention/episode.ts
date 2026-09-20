@@ -48,9 +48,15 @@ export type AttentionNotification = {
  * Where a person should land from the notification.
  *
  * One waiting task goes straight to it; several go to the filtered list, which is the
- * same `status=human` view the Dashboard's alarm links to when it has more than three.
- * Not the Dashboard itself: the notification already said the number, and the thing it
- * is for is getting to the work.
+ * same view the Dashboard's alarm links to when it has more than three. Not the
+ * Dashboard itself: the notification already said the number, and the thing it is for
+ * is getting to the work.
+ *
+ * `status=attention` rather than `status=human` since task-499: the waiting set now
+ * holds claimed tasks nobody is working, whose ball reads `agent`, so the older filter
+ * would land a person on a list shorter than the number they were just told. This
+ * mirrors `agentjobs.attention.waiting_path`, which is the authority; the server
+ * publishes the result as `deep_link` and this exists for a client computing it itself.
  *
  * The episode rides along as {@link ACK_PARAM} because activating the notification is
  * one of the three acts that acknowledge an episode, and the click may arrive at a tab
@@ -65,7 +71,7 @@ export function waitingPath(
   if (episode.tasks.length === 1 && episode.lead_task_id) {
     return `${base}/tasks/${encodeURIComponent(episode.lead_task_id)}?${ack}`;
   }
-  return `${base}/tasks?status=human&${ack}`;
+  return `${base}/tasks?status=attention&${ack}`;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import type { DashboardResponse, TaskCardRead } from "../api/types";
+import { stallBadge, stallExplanation, stallsByTask } from "./attention/stalled";
 import { BrokenFiles } from "./BrokenFiles";
 import { DependencyState } from "./DependencyState";
 import { QueueBroken } from "./QueueBroken";
@@ -175,6 +176,11 @@ const BACKLOG_PREVIEW = 5;
 
 function NextAction({ dashboard, projectId }: DashboardProps) {
   const base = projectPath(projectId);
+  // Which of the rows below are here because nobody is working them, rather than
+  // because a person has something to do (task-499). Both are "blocked on you" -- only
+  // the owner can re-dispatch an abandoned task -- but a stalled row's own badge reads
+  // *In progress*, so without this it reads as work in flight filed in the wrong panel.
+  const stalls = stallsByTask(dashboard.stalled);
 
   switch (dashboard.next_action) {
     case "blocked":
@@ -191,10 +197,13 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
               </h2>
               <p className="mb-4 text-dark-muted">Work has stopped on these until you act.</p>
               <div className="space-y-2">
-                {dashboard.waiting_tasks.slice(0, 3).map((task) => (
+                {dashboard.waiting_tasks.slice(0, 3).map((task) => {
+                  const stall = stalls.get(task.id);
+                  return (
                   <Link
                     key={task.id}
                     to={`${base}/tasks/${encodeURIComponent(task.id)}`}
+                    data-testid={stall ? `stalled-${task.id}` : undefined}
                     className="block rounded-lg border border-dark-border bg-dark-surface p-4 transition hover:bg-dark-border"
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -202,15 +211,20 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
                         <div className="font-mono text-xs text-blue-400">{task.id}</div>
                         <h3 className="font-medium text-dark-text">{task.title}</h3>
                         <p className="mt-1 text-sm text-dark-muted">
-                          {truncate(task.ball_prompt ?? task.summary, 160)}
+                          {stall
+                            ? stallExplanation(stall)
+                            : truncate(task.ball_prompt ?? task.summary, 160)}
                         </p>
                       </div>
-                      <Badge className="bg-red-900 text-red-200">{task.display_status}</Badge>
+                      <Badge className="bg-red-900 text-red-200">
+                        {stall ? stallBadge(stall) : task.display_status}
+                      </Badge>
                     </div>
                   </Link>
-                ))}
+                  );
+                })}
                 {dashboard.waiting_tasks.length > 3 && (
-                  <Link to={`${base}/tasks?status=human`} className="block pt-2 text-center text-sm text-blue-400 hover:text-blue-300">
+                  <Link to={`${base}/tasks?status=attention`} className="block pt-2 text-center text-sm text-blue-400 hover:text-blue-300">
                     View all {dashboard.waiting_tasks.length} waiting tasks →
                   </Link>
                 )}

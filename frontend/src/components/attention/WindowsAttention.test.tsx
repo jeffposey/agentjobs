@@ -251,7 +251,7 @@ describe("acknowledging from a notification click", () => {
     const acknowledge = vi.fn();
 
     render(
-      <MemoryRouter initialEntries={["/p/agentjobs/tasks?status=human&attention_ack=att_one"]}>
+      <MemoryRouter initialEntries={["/p/agentjobs/tasks?status=attention&attention_ack=att_one"]}>
         <Routes>
           <Route path="/p/:projectId/tasks" element={<AckFromUrlHarness onAcknowledge={acknowledge} />} />
         </Routes>
@@ -259,7 +259,7 @@ describe("acknowledging from a notification click", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByTestId("url")).toHaveTextContent("/p/agentjobs/tasks?status=human"),
+      expect(screen.getByTestId("url")).toHaveTextContent("/p/agentjobs/tasks?status=attention"),
     );
     expect(screen.getByTestId("url").textContent).not.toContain("attention_ack");
   });

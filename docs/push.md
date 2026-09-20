@@ -69,7 +69,7 @@ The complete ask is on the task record, as it is for every other channel. A pers
 has read a handoff in a bubble has read it in the one place they cannot act on it.
 
 **Tapping it opens the work**: the waiting task when there is exactly one, the
-`status=human` list when there are several. The link carries the episode id, because
+`status=attention` list when there are several. The link carries the episode id, because
 activating a notification is one of the three acts that acknowledge an episode and the
 tap may arrive at a window that did not exist a moment ago.
 

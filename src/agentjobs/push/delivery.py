@@ -394,7 +394,7 @@ def send_test(
         blocking=0,
         title="AgentJobs push is working",
         body="This device will be woken when work stops on you.",
-        url=f"/app/p/{project_id}/tasks?status=human",
+        url=f"/app/p/{project_id}/tasks?status=attention",
         tag=notification_tag(project_id),
     )
     vapid = key or load_or_create(home=home)

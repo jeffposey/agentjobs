@@ -5,7 +5,7 @@ from __future__ import annotations
 import heapq
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Sequence, TypedDict
+from typing import Any, Callable, Collection, Dict, List, Optional, Sequence, TypedDict
 
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, Lifecycle, Outcome, Task
@@ -113,6 +113,33 @@ def human_waiting(
             if blocks_human(task) and deferred_to_child(task, children_of(task.id)) is None
         ]
     )
+
+
+def attention_waiting(
+    tasks: Sequence[Task],
+    children_of: Callable[[str], Sequence[Task]],
+    stalled_ids: Collection[str] = (),
+) -> List[Task]:
+    """The whole waiting set: what a person holds, plus what nobody is working.
+
+    The second half is task-499's. A claimed task whose agent died reads ``agent`` on
+    every surface AgentJobs has, so it looks exactly like a task being worked; only the
+    owner can re-dispatch it, take it over or let it sit, which makes it work waiting on
+    a person in the same sense a review is. ``stalled_ids`` is decided by
+    :mod:`agentjobs.stalled` and passed in, because it needs the machine's run ledger and
+    this module is a projection over task records -- the same line
+    :func:`build_dashboard_snapshot` draws around ``preview_limit``.
+
+    One function, because the badge, the notification, the phone and the dashboard's own
+    panel all render this set and a surface that disagreed with the page it links to is
+    the defect ``tests/test_attention_tiers.py`` was written about. A task that is both
+    human-held and stalled appears once.
+    """
+    waiting = {task.id: task for task in human_waiting(tasks, children_of)}
+    for task in tasks:
+        if task.id in stalled_ids:
+            waiting.setdefault(task.id, task)
+    return _inbox_order(list(waiting.values()))
 
 
 def human_waiting_tasks(manager: TaskManager) -> List[Task]:
@@ -233,9 +260,18 @@ def _next_action(
 
 
 def build_dashboard_snapshot(
-    manager: TaskManager, *, preview_limit: Optional[int] = None
+    manager: TaskManager,
+    *,
+    preview_limit: Optional[int] = None,
+    stalled_ids: Collection[str] = (),
 ) -> DashboardSnapshot:
     """Compute every dashboard value once for all presentation clients.
+
+    ``stalled_ids`` is the same kind of caller-supplied machine fact as
+    ``preview_limit``: which claimed tasks have nobody on them is read off the run
+    ledger in the user's home, and a projection over task records must not reach for
+    that itself. The route computes it and passes it, so the panel this page draws and
+    the badge in its header count the same set.
 
     ``preview_limit`` is how many claimable tasks the caller can put in front of a
     person. It is a machine fact rather than a project one -- the slot board offers one
@@ -251,7 +287,9 @@ def build_dashboard_snapshot(
     for task in tasks:
         if task.parent:
             children_by_parent[task.parent].append(task)
-    waiting_tasks = human_waiting(tasks, lambda task_id: children_by_parent.get(task_id, ()))
+    waiting_tasks = attention_waiting(
+        tasks, lambda task_id: children_by_parent.get(task_id, ()), stalled_ids
+    )
     backlog_tasks = _inbox_order([task for task in tasks if awaits_human_input(task)])
     # Selection refuses to guess an order it cannot justify (design section 8), and
     # that refusal is a RuntimeError which no route handler catches -- so before

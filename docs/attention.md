@@ -12,16 +12,91 @@ episode, and [Mobile push](push.md) is how it is registered and what it is sent.
 
 ## What is being tracked
 
-**The waiting set** is exactly what the badge counts: open tasks whose ball is on a
-human, whose lifecycle is not `draft`, and which are not merely waiting on an open child
-that a person already holds (`agentjobs.dashboard.human_waiting_tasks`). A parked draft
+**The waiting set** is exactly what the badge counts, and it has two halves
+(`agentjobs.dashboard.attention_waiting`). One predicate, so a notification can never
+disagree with the page it links to.
+
+The first half: open tasks whose ball is on a human, whose lifecycle is not `draft`, and
+which are not merely waiting on an open child that a person already holds. A parked draft
 is backlog, not a blockage — `tests/test_attention_tiers.py` records what counting them
-cost. One predicate, so a notification can never disagree with the page it links to.
+cost.
+
+The second half is **tasks nobody is working** (task-499), and it is here because only
+the owner can do anything about one: re-dispatch it, take it over, or let it sit. See
+[Work that stopped without anyone saying so](#work-that-stopped-without-anyone-saying-so).
 
 **One click is one ask** (task-467). An epic parent whose child sits at `human`/`review`
 is not a second thing to do: the person has one button, on the child, and the parent is
 waiting for the consequence of pressing it. Counting both made one approval read as two
 asks on 2026-09-18, and the person read the second row as a gate in front of the first.
+
+## Work that stopped without anyone saying so
+
+task-421, 2026-09-19. An interactive session supervising it hit its usage limit with a
+gate running in the background, never handed off, and the task read `agent`/`revise` for
+**twenty-two hours**. That state says an agent is on this. No agent was, nothing on any
+surface said otherwise, and the owner found it by asking why his notifications had gone
+quiet.
+
+**Nothing caught it because every stall detector in `dispatch/` is keyed on a run
+record.** `auth.read_limit_stall` reads a run's transcript, `auth_recovery` polls run
+handles, `idle_sessions` walks processes, the poller iterates runs. A holder that
+registered nothing is not a stalled run to any of them — it is nothing at all. task-320
+closed this class by *requiring* `agentjobs run register` from any session AgentJobs did
+not start, and that is a convention; this session did not follow it. Tightening the rule
+could not fix this, because the rule is what failed.
+
+So the signal is read off the **task record**, the one thing that always exists:
+
+> An open task, `lifecycle: active`, ball on an agent, whose newest log entry is older
+> than the threshold, with no live run against it.
+
+That query needs no process inspection, no transcript and no cooperation from whatever
+was working it — so it catches the interactive session that died, the dispatched run
+that was orphaned, the agent that forgot to register and the agent that simply wandered
+off, without distinguishing between them. It should not need to.
+
+**It is derived on read, never written.** Nothing sets a ball, a `ball_prompt` or a
+handoff. A log entry landing on a stalled task takes it out of the set on the next
+reconcile, with nothing to retract — which is the defect the section below is about, not
+repeated.
+
+Two states are deliberately not stalls. `lifecycle: ready` with the ball on an agent is
+the **backlog**: every unclaimed task in the queue reads `agent`/`available`, and the
+oldest of them have been quiet for weeks. `agent`/`hold` is a **deliberate park** with a
+release condition on the record, and the one agent-side reason no dispatch path will act
+on.
+
+A second reason shares the mechanism. A live run carrying an **undelivered handback** —
+feedback a click queued for it that it has never been given, while neither it nor the
+task has moved — is reported on a shorter threshold. That case is task-176's, on
+2026-09-20: every run-side signal stayed healthy, the status was `running` and the health
+was `working`, so asking the run whether it was alive got yes and learned nothing. The
+record already names the run the feedback is addressed to, which is what makes the
+shorter threshold safe to state.
+
+### The thresholds
+
+```yaml
+# ~/.agentjobs/dispatch.yaml
+stalled_tasks:
+  enabled: true          # a report, so on by default
+  minutes: 60            # no live run at all
+  handback_minutes: 30   # a live run holding feedback it never delivered
+```
+
+Sixty minutes was measured rather than chosen. Across 3,101 quiet stretches on tasks that
+were `active` and agent-held in this repository's own corpus on 2026-09-20, the 95th
+percentile is 29.5 minutes, the 98th is 50.5 and the 99th is 85.5. An hour reports 1.55%
+of them — 48 stretches across two months — and the longest of those are the outages
+themselves, with task-421's twenty-two hours at the top of the list. It has to sit above a
+full gate and a long refactor, which p98 says it does, and below the point where a person
+has stopped expecting an answer.
+
+**Ninety minutes was rejected.** It halves the report rate to 0.94%, which sounds like a
+gain and is not: the reports it removes are almost all real, and it adds half an hour to
+every detection. **Thirty was rejected** the other way — p98 of genuine working silence is
+50 minutes, so thirty would report ordinary long gates.
 
 ## A demand has to be withdrawn, not only raised
 
@@ -161,7 +236,7 @@ a toast is the only copy of anything.
 | Taskbar icon | `navigator.setAppBadge()` / `clearAppBadge()` | The supported Windows mechanism for an installed PWA. Chrome draws the overlay and Windows keeps drawing it while the app is closed. In an ordinary tab the call resolves and does nothing. |
 | Tab icon | a red SVG data URL swapped into `<link rel="icon">` | The colour AgentJobs actually controls. The taskbar badge is painted by Chrome, so its colour is the browser's; this one is `#ef4444`, the same red as the header badge and the Dashboard alarm. |
 | Bottom-right notification | `ServiceWorkerRegistration.showNotification()` | Through the worker, not the page: the case this exists for is a window that is minimised, behind something, or closed, and a page's notification dies with the page. One `tag` per project, so the Action Center holds one entry that updates rather than a stack of stale numbers. A tagged replacement is silent unless `renotify` asks otherwise, so that is asked of what is already on screen: an entry for *this* episode means a number is being updated and stays quiet, anything else is a new run of attention and draws the banner. Falls back to a page `Notification` where there is no worker. |
-| The click | `notificationclick` in `service-worker.js` | Focuses an existing AgentJobs window and navigates it, or opens one. One waiting task goes to the task; several go to the `status=human` list. The episode rides in an `attention_ack` query parameter, which the app acts on and then strips — a bookmarked URL must not acknowledge an episode every time it is opened. |
+| The click | `notificationclick` in `service-worker.js` | Focuses an existing AgentJobs window and navigates it, or opens one. One waiting task goes to the task; several go to the `status=attention` list. The episode rides in an `attention_ack` query parameter, which the app acts on and then strips — a bookmarked URL must not acknowledge an episode every time it is opened. |
 
 **For the badge to appear on the taskbar, AgentJobs has to be installed as an app**
 (Chrome's install button, or ⋮ → Cast, save and share → Install page as app). In a
@@ -173,12 +248,14 @@ works either way.
 | | |
 |---|---|
 | The rule, as a pure function | `src/agentjobs/attention.py` — `advance()` |
+| Whether nobody is working a task | `src/agentjobs/stalled.py` — `stall_for()`, `stalled_in()` |
 | Persistence and reconciliation | `src/agentjobs/attention.py` — `reconcile()`, `acknowledge()` |
 | The endpoints | `GET /api/projects/{id}/attention`, `POST /api/projects/{id}/attention/ack` |
 | What a client does with an episode | `frontend/src/components/attention/episode.ts` |
 | The three shell affordances | `frontend/src/components/attention/shell.ts` |
 | The wiring | `frontend/src/components/attention/WindowsAttention.tsx` |
-| Tests | `tests/test_attention_episodes.py`, and the three suites beside the modules above |
+| How a stalled row is said | `frontend/src/components/attention/stalled.ts` |
+| Tests | `tests/test_attention_episodes.py`, `tests/test_stalled_tasks.py`, and the suites beside the modules above |
 
 `GET /attention` **reconciles** — the episode is a fact about the waiting set, so it is
 brought up to date on the read the header was making anyway rather than on a clock of

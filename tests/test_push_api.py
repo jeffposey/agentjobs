@@ -290,11 +290,17 @@ class TestTheDeepLink:
         )
 
     def test_several_waiting_tasks_link_to_the_filtered_list(self, client_for) -> None:
+        """`status=attention` rather than `status=human` since task-499.
+
+        The waiting set now holds claimed tasks nobody is working, whose ball reads
+        `agent`, so the older filter would land a person on a list shorter than the
+        number the notification had just told them.
+        """
         client, _home = client_for([waiting_task("task-001"), waiting_task("task-002")])
         episode = client.get("/api/projects/inbox/attention").json()["episode"]
 
         assert episode["deep_link"] == (
-            f"/app/p/inbox/tasks?status=human&attention_ack={episode['id']}"
+            f"/app/p/inbox/tasks?status=attention&attention_ack={episode['id']}"
         )
 
 

@@ -134,7 +134,7 @@ describe("waitingPath", () => {
     const many = { ...episode, tasks: ["task-001", "task-002"] };
 
     expect(waitingPath("agentjobs", many)).toBe(
-      `/app/p/agentjobs/tasks?status=human&${ACK_PARAM}=att_one`,
+      `/app/p/agentjobs/tasks?status=attention&${ACK_PARAM}=att_one`,
     );
   });
 

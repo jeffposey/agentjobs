@@ -177,6 +177,60 @@ describe("Dashboard next-action ladder", () => {
   );
 });
 
+describe("a stalled task in the blocked panel (task-499)", () => {
+  /**
+   * A claimed task nobody is working sits in this panel beside tasks at the merge gate,
+   * because only the owner can re-dispatch it. Its own record says `agent`/`work`
+   * throughout -- that is the whole reason nothing noticed for twenty-two hours on
+   * 2026-09-19 -- so the row has to say why it is here, or it reads as work in flight
+   * that somebody filed in the wrong panel.
+   */
+  const stalled = task("task-421", {
+    lifecycle: "active",
+    ball: "agent",
+    ball_reason: "revise",
+    ball_prompt: "Address the review feedback.",
+    display_status: "In progress (claude)",
+  });
+  const panel = dashboard({
+    next_action: "blocked",
+    waiting_tasks: [stalled],
+    stalled: [
+      {
+        task_id: "task-421",
+        reason: "no_agent",
+        quiet_since: "2026-09-19T21:05:00Z",
+        quiet_seconds: 22 * 3600,
+        threshold_seconds: 3600,
+        run_id: "",
+      },
+    ],
+  });
+
+  it("says nobody is on it rather than that it is in progress", () => {
+    renderDashboard(panel);
+
+    const row = screen.getByTestId("stalled-task-421");
+    expect(within(row).getByText("No agent for 22h 0m")).toBeInTheDocument();
+    expect(within(row).queryByText("In progress (claude)")).not.toBeInTheDocument();
+  });
+
+  it("replaces the ball prompt, which is addressed to an agent that is gone", () => {
+    renderDashboard(panel);
+
+    const row = screen.getByTestId("stalled-task-421");
+    expect(within(row).queryByText(/Address the review feedback/)).not.toBeInTheDocument();
+    expect(within(row).getByText(/Re-dispatch it, take it over/)).toBeInTheDocument();
+  });
+
+  it("leaves an ordinary human-held row alone", () => {
+    renderDashboard(dashboard({ next_action: "blocked", waiting_tasks: [blocked] }));
+
+    expect(screen.queryByTestId("stalled-task-blocked")).not.toBeInTheDocument();
+    expect(screen.getByText("Waiting for review")).toBeInTheDocument();
+  });
+});
+
 describe("Dashboard supporting sections", () => {
   it("keeps review actions off the dashboard", () => {
     renderDashboard(dashboard({ waiting_tasks: [blocked], next_action: "blocked" }));
