@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useMatch } from "react-router-dom";
@@ -12,8 +12,18 @@ import {
   listTasksApiProjectsProjectIdTasksGetOptions,
 } from "../api/generated/@tanstack/react-query.gen";
 import { readRefusal } from "../api/mutation-error";
+import { newOperationId } from "../api/operationId";
 import { readReportContext } from "../report/issueReport";
+import {
+  inCollectedOrder,
+  nextOrder,
+  trayRequest,
+  type TrayFiling,
+  type TrayItem,
+} from "../report/tray";
+import { trayStore } from "../report/trayStore";
 import { CaptureForm, type CaptureDestination } from "./CaptureForm";
+import { CaptureTray } from "./CaptureTray";
 import { FiledNotice, type FiledOutcome } from "./DispatchOnCreate";
 
 /**
@@ -61,6 +71,72 @@ function PlusIcon() {
   );
 }
 
+/** What the form hands over when a finding goes on the list. */
+type Collected = Omit<TrayItem, "id" | "order">;
+
+export type CaptureTrayHandle = {
+  items: ReadonlyArray<TrayItem>;
+  add: (collected: Collected) => void;
+  remove: (itemId: string) => void;
+  durable: boolean;
+};
+
+/**
+ * The collected findings, loaded from this device and written back as they change
+ * (task-121).
+ *
+ * **Held here rather than in the dialog**, because the count has to be visible on the
+ * trigger. A tray that only exists while a modal is open is a tray nobody can tell they
+ * still have -- which is the same leak as not persisting it, arriving one step later.
+ *
+ * React state is what renders; the store is a write-through copy. A refused write
+ * therefore costs durability and not the capture, which is why nothing here awaits one.
+ */
+function useCaptureTray(): CaptureTrayHandle {
+  const store = useMemo(() => trayStore(), []);
+  const [items, setItems] = useState<Array<TrayItem>>([]);
+
+  useEffect(() => {
+    let alive = true;
+    void store.load().then((stored) => {
+      // Merged in front of whatever has been collected since the load was asked for,
+      // rather than assigned over it: the load is asynchronous and a fast Ctrl+Enter can
+      // land first. Two items can then hold the same `order`, which `inCollectedOrder`
+      // resolves by array position -- `sort` is stable -- so the stored ones stay first.
+      if (alive)
+        setItems((was) => [
+          ...stored.filter((item) => !was.some((seen) => seen.id === item.id)),
+          ...was,
+        ]);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [store]);
+
+  // `items` is a dependency rather than read inside the updater: React double-invokes an
+  // updater in development, and minting an id in there would store two records for one
+  // collect.
+  const add = useCallback(
+    (collected: Collected) => {
+      const item: TrayItem = { id: newOperationId(), order: nextOrder(items), ...collected };
+      setItems((was) => [...was, item]);
+      void store.put(item);
+    },
+    [items, store],
+  );
+
+  const remove = useCallback(
+    (itemId: string) => {
+      setItems((was) => was.filter((item) => item.id !== itemId));
+      void store.remove([itemId]);
+    },
+    [store],
+  );
+
+  return { items, add, remove, durable: store.durable };
+}
+
 /**
  * The trigger, and the dialog it opens.
  *
@@ -71,6 +147,8 @@ function PlusIcon() {
 export function CaptureControl({ className = "" }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const tray = useCaptureTray();
+  const waiting = tray.items.length;
 
   // By hand, because the overlay is not a browser dialog: the node holding focus is
   // about to leave the document, and the browser would otherwise leave focus on
@@ -81,15 +159,20 @@ export function CaptureControl({ className = "" }: { className?: string }) {
   };
 
   return (
-    <div className={`shrink-0 ${className}`}>
+    <div className={`relative shrink-0 ${className}`}>
       <button
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label="New task or issue"
-        title="New task or issue"
+        // The count is in the name, not only in the badge. A list waiting to be filed is
+        // the one thing about this control that is not obvious from its glyph, and a
+        // screen reader gets nothing from a coloured dot.
+        aria-label={
+          waiting > 0 ? `New task or issue (${waiting} collected)` : "New task or issue"
+        }
+        title={waiting > 0 ? `New task or issue — ${waiting} collected` : "New task or issue"}
         // No accent, and that is task-336 rather than a style preference: blue in
         // this bar means "you are here" and nothing else, which is what stopped a
         // coloured Create link reading as the selected tab. The glyph and the corner
@@ -99,14 +182,22 @@ export function CaptureControl({ className = "" }: { className?: string }) {
       >
         <PlusIcon />
       </button>
-      {open && createPortal(<CaptureDialog onClose={close} />, document.body)}
+      {waiting > 0 && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-blue-500 px-1 text-center text-[10px] font-bold leading-4 text-white"
+        >
+          {waiting}
+        </span>
+      )}
+      {open && createPortal(<CaptureDialog onClose={close} tray={tray} />, document.body)}
     </div>
   );
 }
 
 type Filed = { projectId: string; outcome: FiledOutcome };
 
-function CaptureDialog({ onClose }: { onClose: () => void }) {
+function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTrayHandle }) {
   const location = useLocation();
   const queryClient = useQueryClient();
   const projectsQuery = useQuery(getProjectsApiProjectsGetOptions());
@@ -164,6 +255,65 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
     enabled: wantsTaskIds && Boolean(context.projectId),
   });
 
+  /** Every task this dialog has created, so a batch and a retry both leave a link. */
+  const [filedInSession, setFiledInSession] = useState<Array<TrayFiling>>([]);
+  /** The last batch's outcomes: each card's error, and the sentence under the list. */
+  const [lastBatch, setLastBatch] = useState<Array<TrayFiling>>([]);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  /**
+   * File the whole tray: one user action, N ordinary creates, one outcome per card.
+   *
+   * **Sequential on purpose.** Creation takes the project's creation and queue locks to
+   * decide the next id and the bottom of the band, so fifteen parallel posts would
+   * queue on the server anyway -- and would report their failures in an order nobody can
+   * map back to the list. One at a time also means a card is removed the moment its own
+   * task exists, so a batch interrupted half way through has left exactly the half it
+   * confirmed.
+   *
+   * **Nothing is removed that was not confirmed**, and nothing is retried that was.
+   * Those are the two halves of retry safety; the third is the `operation_id` each item
+   * has carried since it was collected, which is what covers a create that succeeded on
+   * a request whose answer never arrived.
+   */
+  const submitTray = async () => {
+    const queue = inCollectedOrder(tray.items);
+    if (queue.length === 0 || progress !== null) return;
+    setLastBatch([]);
+    setProgress({ done: 0, total: queue.length });
+    const outcomes: Array<TrayFiling> = [];
+    for (const item of queue) {
+      const shared = {
+        itemId: item.id,
+        title: item.request.title,
+        projectId: item.projectId,
+      };
+      try {
+        const task = await create.mutateAsync({
+          path: { project_id: item.projectId },
+          body: trayRequest(item),
+        });
+        outcomes.push({ ...shared, taskId: task.id, error: null });
+        setFiledInSession((was) => [...was, { ...shared, taskId: task.id, error: null }]);
+        // Confirmed, so it stops being unsent composition state -- here and on disk.
+        tray.remove(item.id);
+      } catch (caught) {
+        const refusal = readRefusal(caught);
+        outcomes.push({
+          ...shared,
+          taskId: null,
+          error: refusal
+            ? refusal.message
+            : "It could not be filed. Check the server, then press the button again.",
+        });
+      }
+      setLastBatch([...outcomes]);
+      setProgress({ done: outcomes.length, total: queue.length });
+    }
+    setProgress(null);
+    void queryClient.invalidateQueries();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
       <section
@@ -177,7 +327,8 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
         </h2>
         <p className="mt-1 text-sm text-dark-muted">
           Two sentences files what you just noticed, tagged <code>reported-issue</code> and
-          carrying where you were. Add the full specification when it deserves one.
+          carrying where you were. Add the full specification when it deserves one, or add
+          this to the list and keep going.
         </p>
 
         {filed ? (
@@ -248,6 +399,14 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
                 void queryClient.invalidateQueries();
                 setFiled({ projectId, outcome });
               }}
+              // Collect and stay: the form remounts empty with focus back in Title, so a
+              // review pass adds a finding without the dialog closing and without a hand
+              // leaving the keyboard. The remount is the same mechanism "File another"
+              // uses, rather than a reset that has to track the form's state.
+              onCollect={(collected) => {
+                tray.add(collected);
+                setAttempt((count) => count + 1);
+              }}
               cancel={
                 <button
                   type="button"
@@ -260,6 +419,28 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
             />
           </div>
         )}
+
+        {/*
+          Below the form, not above it: the reading order of a review pass is compose,
+          then see what you have built, then file the lot. It stays on screen through the
+          single-capture receipt too, so a tray collected earlier cannot be lost behind a
+          "Filed as" card.
+        */}
+        <div className="mt-5">
+          <CaptureTray
+            items={tray.items}
+            filedInSession={filedInSession}
+            lastBatch={lastBatch}
+            progress={progress}
+            durable={tray.durable}
+            projectName={(projectId) =>
+              destinations.find((entry) => entry.id === projectId)?.name ?? projectId
+            }
+            onSubmit={() => void submitTray()}
+            onRemove={tray.remove}
+            onNavigate={onClose}
+          />
+        </div>
       </section>
     </div>
   );
