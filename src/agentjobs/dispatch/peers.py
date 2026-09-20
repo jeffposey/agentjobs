@@ -197,7 +197,8 @@ def _row(path: Path) -> Optional[LiveSession]:
     design decision in this module with two callers pulling on it. This is an undocumented
     file layout that an unrelated CLI release may change, and the two things read off it
     want different fields: a wake needs ``sessionId`` to find one conversation, and
-    ``idle_sessions.live_session_names`` needs only ``name`` to know a name is taken.
+    ``runner.choose_session_name`` needs ``name`` to know a name is taken and ``cwd`` to
+    know which project an unprefixed ``task-499`` belongs to (task-500).
     Demanding both here would make a registration missing one invisible to the other --
     for naming, that means a name silently treated as free and a session Claude Code then
     renames out from under the record.

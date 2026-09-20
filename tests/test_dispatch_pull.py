@@ -61,7 +61,7 @@ from agentjobs.models_v2 import DispatchTrigger, Lifecycle, LogEntryType
 from agentjobs.projects import ProjectRegistry
 
 from test_epic_supervision import Epic
-from test_execution_controller import Machine, machine
+from test_execution_controller import Machine, machine, task_of
 
 __all__ = ["machine"]  # a fixture, imported by name -- the harness is task-416's
 
@@ -100,7 +100,7 @@ def free_slot(box: Machine, task_id: str) -> None:
 
 def started_tasks(box: Machine) -> List[str]:
     """Every task a run was started on, in the order the fake runner saw them."""
-    return [str(row["name"]).rsplit("/", 1)[-1] for row in box.rows()]
+    return [task_of(row["name"]) for row in box.rows()]
 
 
 def pulled_entry(box: Machine, task_id: str) -> Any:

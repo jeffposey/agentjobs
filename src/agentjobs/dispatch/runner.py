@@ -695,29 +695,128 @@ as the project and the task. ``#2`` reads as "the second one", which is the only
 means.
 """
 
+SESSION_NAME_SLUG_WORDS = 4
+SESSION_NAME_SLUG_CHARS = 32
+"""How much of a task's title a session name carries: whole words, up to a length.
 
-def session_name(project_id: str, task_id: str, ordinal: int = 1) -> str:
+Both bounds, because either alone misbehaves on the titles this repository actually has.
+Words alone let four long ones run past forty characters; characters alone cut a word in
+half, and half a word reads as a typo rather than as an abbreviation.
+
+The figures are chosen against the row the owner reads, not against a limit -- there is
+none; a 127-character name came back from ``claude agents --json`` verbatim (task-324).
+``task-500 dispatched sessions name`` is 34 characters, against the 37 of
+``agentjobs/task-176-dispatch-on-create``, a row he already reads without opening it.
+"""
+
+SESSION_NAME_ARTICLES = frozenset({"a", "an", "the"})
+"""Leading words a slug drops, because they spend a word of the budget on nothing.
+
+Only *leading* ones, and only these three. Task titles here are sentences -- "A dispatched
+session's name says nothing..." -- so the article is common enough to be worth a line and
+carries no more information in a name than it does in an index entry. Dropping articles
+anywhere else would mangle the middle of a phrase.
+"""
+
+SESSION_NAME_PATTERN = re.compile(
+    r"^(?:(?P<project>[^/\s]+)/)?(?P<task>task-\d+)"
+    r"(?:[@/][0-9a-f]{8}|#(?P<ordinal>\d+))?(?:\s+(?P<slug>.*))?$"
+)
+"""Every shape :func:`session_name` has produced, read back.
+
+The project is optional because since task-500 it is emitted only when it discriminates,
+and the ``@``/``/`` hex forms are here because this is used against *live* sessions and a
+long-running one outlives the release that named it (the same reason
+``idle_sessions.AGENTJOBS_SESSION_NAME`` matches them).
+
+It exists so the cross-project check can ask a live row "which task, and does it say which
+project" rather than string-matching a prefix, and so a test can assert the shipped
+grammar rather than one worked example of it.
+"""
+
+
+def session_slug(
+    title: str,
+    *,
+    words: int = SESSION_NAME_SLUG_WORDS,
+    chars: int = SESSION_NAME_SLUG_CHARS,
+) -> str:
+    """A few words of ``title``, safe to put in a session name.
+
+    **Everything outside ``a-z0-9-`` and the single space becomes a separator**, which is
+    the whole of the safety argument and is deliberately a whitelist rather than a list of
+    characters to strip. ``@`` makes a name unaddressable (:data:`peers.UNADDRESSABLE`),
+    ``#`` is the ordinal separator and ``/`` is the project separator, so a title
+    containing any of them must not be able to forge a discriminator it does not have --
+    and a whitelist keeps that true of the next character someone gives a meaning to.
+
+    Apostrophes close up rather than separating, so "session's" yields ``sessions`` and not
+    ``session s``. Hyphens survive, because "re-measure" is one word and breaking it wastes
+    the budget on the half nobody needed.
+
+    **A word that is exactly eight hex characters is dropped**, which looks arbitrary and
+    is not. The launcher prints ``backgrounded - <session id> - <name>`` on one line, and
+    ``DispatchRunner.capture_session_id`` scans that line for an 8-hex token; it rejects
+    the run's own stub by name, and its docstring is explicit that "the current format puts
+    nothing capturable on the line" is exactly the assumption that was true before task-324
+    and false afterwards. Today the id precedes the name, so a ``deadbeef`` in a title
+    would be found second and never returned -- but that is a property of the launcher's
+    output order, not of anything this repository controls. One line here keeps the format
+    itself incapable of contributing a token, at the cost of a word nobody will miss.
+
+    Returns ``""`` for a title with nothing left in it, which is a name with no slug rather
+    than an error: a cosmetic string is never a precondition for a run.
+    """
+    lowered = re.sub(r"['’]", "", (title or "").lower())
+    collapsed = re.sub(r"[^a-z0-9-]+", " ", lowered)
+    candidates = [word.strip("-") for word in collapsed.split()]
+    kept = [word for word in candidates if word and not re.fullmatch(r"[0-9a-f]{8}", word)]
+    while kept and kept[0] in SESSION_NAME_ARTICLES:
+        kept.pop(0)
+    slug = ""
+    for word in kept[:words]:
+        extended = f"{slug} {word}" if slug else word
+        if len(extended) > chars:
+            break
+        slug = extended
+    return slug
+
+
+def session_name(
+    project_id: str,
+    task_id: str,
+    ordinal: int = 1,
+    *,
+    slug: str = "",
+    project_prefix: bool = True,
+) -> str:
     """The display name AgentJobs gives a session it starts.
 
-    ``agentjobs/task-324``: the project and the task, and **nothing else** unless
-    something else is needed. This string is read in two places that want different
-    things, and the ids are what both of them want.
+    ``task-499 nav breakpoint re-measure``: **the key, then what the work is.** The id
+    leads, unabbreviated, because it is what every other surface uses and what is typed at
+    the peer channel; the slug follows and is allowed to be ambiguous, because it is not
+    what disambiguates. Two discriminators are appended only when there is something to
+    discriminate -- ``task-499#2 nav breakpoint...`` for a second live run of one task,
+    ``agentjobs/task-499 nav breakpoint...`` when another project has a live session for
+    the same number. :func:`choose_session_name` is what decides both.
 
-    * A **picker** listing every session on the machine is *scanned*, so the task id goes
-      where the eye lands and a name stays short enough that the rest of the row survives.
-      There is no length cap to respect -- a 127-character name came back from ``claude
-      agents --json`` verbatim -- so brevity here is a choice, not a constraint.
+    This string is read in two places that want different things:
+
+    * A **picker** listing every session on the machine is *scanned*, in a column the
+      owner groups by project. The id goes where the eye lands and the slug says what the
+      row is without being opened. There is no length cap to respect -- a 127-character
+      name came back from ``claude agents --json`` verbatim -- so brevity is a choice.
     * The **peer channel** addresses a session *by this name*, so it is typed, and it has
       to distinguish two runs of one task.
 
-    **Only the second reader ever needs more than the two ids, and only rarely.** Until
-    task-452 every name carried ``@`` plus the run id's first eight hex characters, so the
-    ordinary case -- one live run of a task -- paid a suffix that discriminated nothing
-    against a reader who could not read it. The suffix is now an ``ordinal`` the caller
-    supplies, and ``choose_session_name`` supplies one above 1 only when a live session is
-    already using the name below it: ``agentjobs/task-324``, then ``agentjobs/task-324#2``.
-    A sequence rather than a hash, because "the second run of this task" is what the
-    reader who needs the discriminator is trying to learn.
+    **The ordinal.** Until task-452 every name carried ``@`` plus the run id's first eight
+    hex characters, so the ordinary case -- one live run of a task -- paid a suffix that
+    discriminated nothing against a reader who could not read it. The suffix is now an
+    ``ordinal`` the caller supplies, and ``choose_session_name`` supplies one above 1 only
+    when a live session is already using the name below it. A sequence rather than a hash,
+    because "the second run of this task" is what the reader who needs the discriminator
+    is trying to learn. It sits against the id rather than at the end, because it
+    discriminates the id and not the prose.
 
     **Uniqueness among live sessions is the requirement, not global uniqueness.** Claude
     Code renames a session whose name collides with a live one to a variant of its own
@@ -725,56 +824,126 @@ def session_name(project_id: str, task_id: str, ordinal: int = 1) -> str:
     name AgentJobs recorded would not be the name the session has. The live roster is what
     ``choose_session_name`` consults, and a name freed by a finished run is reused.
 
-    **A name containing ``@`` is unusable by the second reader**, which is why neither
-    form above has one (task-451, task-452). ``SendMessage`` validates its ``to`` argument
-    *before* looking anything up and rejects an ``@`` outright, wherever it sits; no
-    quoting gets past it and no session id or bracketed ref is accepted in its place. Runs
-    dispatched before task-452 carry one in their own ``meta["session_name"]``, which the
-    controller's correlation prefers over regenerating a name, and
-    ``peers.send_peer_message`` reports such a name as unaddressable so its caller wakes
-    them the old way.
+    **A name containing ``@`` is unusable by the second reader** (task-451, task-452).
+    ``SendMessage`` validates its ``to`` argument *before* looking anything up and rejects
+    an ``@`` outright, wherever it sits; no quoting gets past it and no session id or
+    bracketed ref is accepted in its place. No shape here has one, and
+    :func:`session_slug` cannot introduce one. Runs dispatched before task-452 carry one
+    in their own ``meta["session_name"]``, which the controller's correlation prefers over
+    regenerating a name, and ``peers.send_peer_message`` reports such a name as
+    unaddressable so its caller wakes them the old way.
 
-    The project is included because both surfaces are machine-wide while a task id is
-    only unique within its project: ``task-042`` names a different piece of work in every
-    project on this machine.
+    **``project_prefix`` defaults on, and the dispatch path turns it off.** The default
+    serves the two callers that regenerate a name for a record too old to have recorded
+    one (``controller._correlate_session`` and its Stop counterpart): those runs were named
+    before task-500 and the prefixed form is what they answer to. Every new dispatch goes
+    through :func:`choose_session_name`, which decides the prefix from the roster.
 
-    **The title is deliberately absent.** It is the one candidate that reads well and it
-    was rejected on two grounds. A title is editable, so two runs of one task could be
-    named after two different descriptions of it, which is the instability task-324 set
-    out to remove. And truncating one rarely distinguishes: the tasks that need telling
-    apart are neighbours in the same area, whose titles share a prefix -- task-324 and
-    task-296 both begin "Dispatch does not". The id is the key every other surface already
-    uses, and it is the key here.
+    **The title used to be deliberately absent, and the owner has overruled that.**
+    task-324 rejected it on two grounds, and both are answered rather than denied:
+
+    * *A title is editable, so two runs of one task could be named after two different
+      descriptions of it.* The slug is frozen into the run's ``meta["session_name"]``
+      before the launcher runs, and every later reader prefers that recorded string over
+      regenerating one, so a title edited afterwards renames nothing. Two runs carrying
+      two slugs is in any case no worse than two runs carrying two ordinals, which already
+      happens.
+    * *Truncating a title rarely distinguishes, because neighbouring tasks share a
+      prefix.* True, and it is not the slug's job: the name leads with the id, which
+      disambiguates completely. The slug carries meaning, not identity.
+
+    What the two grounds did not weigh is the surface the name is actually read on. Rows
+    are grouped by project there, so the prefix was repetition on every one of them, and
+    an id alone has to be looked up before it says anything. The owner reads that column
+    daily and overruled the earlier reasoning on it (task-500).
 
     The name is built from the dispatcher's own identity -- resolved project, claimed
-    task, and an ordinal read off the machine's own session roster -- and there is no
-    parameter through which a dispatch request could supply any part of it. That is the
-    same rule ``validate_argv`` enforces for the template: nothing a caller sends becomes
-    an argv element.
+    task, that task's stored title, and an ordinal read off the machine's own session
+    roster -- and there is no parameter through which a dispatch *request* could supply
+    any part of it. That is the same rule ``validate_argv`` enforces for the template:
+    nothing a caller sends becomes an argv element.
     """
-    if ordinal <= 1:
-        return f"{project_id}/{task_id}"
-    return f"{project_id}/{task_id}{SESSION_NAME_ORDINAL}{ordinal}"
+    key = f"{project_id}/{task_id}" if project_prefix else task_id
+    if ordinal > 1:
+        key = f"{key}{SESSION_NAME_ORDINAL}{ordinal}"
+    return f"{key} {slug}" if slug else key
+
+
+def foreign_task_session(
+    row: "peers.LiveSession",
+    *,
+    project_id: str,
+    task_id: str,
+    project_root: Optional[Path],
+) -> bool:
+    """Does this live session hold ``task_id`` for a project that is not ``project_id``?
+
+    The question the project prefix exists to answer, asked of one roster row. A task id is
+    only unique within its project while the session picker is machine-wide, so
+    ``task-042`` names different work in every project on this machine -- but that only
+    *bites* when two of them have a live session on the same number, which is what this
+    detects.
+
+    Rows that are not about this task id at all answer ``False`` and cost nothing.
+
+    A row whose name still carries a prefix answers from the prefix. A row named in the
+    shape task-500 ships has no project in it, so the only evidence left is the directory
+    the session registered itself in, and the answer is "ours" when that is
+    ``project_root`` or something inside it.
+
+    **Everything it cannot establish answers ``True``**, which is the direction the spec
+    asked for: a row with no readable cwd, or a call with no ``project_root`` to compare
+    against, keeps the prefix rather than guessing it away. The cost of a wrong ``True`` is
+    a longer name on a row; the cost of a wrong ``False`` is two live sessions with one
+    name, which Claude Code resolves by renaming one out from under the record.
+
+    One consequence is worth naming: a session that registered from a **worktree** reads as
+    another project's, because a worktree is not inside the clone. That is the safe
+    direction and it costs a prefix. Dispatched sessions are launched with the project root
+    as their cwd, so this is not the ordinary case.
+    """
+    parsed = SESSION_NAME_PATTERN.match(row.name or "")
+    if parsed is None or parsed.group("task") != task_id:
+        return False
+    named_project = parsed.group("project")
+    if named_project:
+        return named_project != project_id
+    if project_root is None or not row.cwd:
+        return True
+    try:
+        return not Path(row.cwd).resolve().is_relative_to(Path(project_root).resolve())
+    except (OSError, ValueError):
+        return True
 
 
 def choose_session_name(
     project_id: str,
     task_id: str,
     *,
+    slug: str = "",
+    project_root: Optional[Path] = None,
+    rows: Optional[Sequence["peers.LiveSession"]] = None,
     taken: Optional[Collection[str]] = None,
 ) -> str:
-    """``session_name`` with the lowest ordinal no live session is already using.
+    """``session_name`` with the discriminators the live roster says are needed, and no others.
 
-    ``taken`` is the set of names in use; it defaults to the live-session roster, which
-    is :func:`idle_sessions.live_session_names` -- a directory of small JSON files the
-    same OS user can read with no Claude process in the loop (task-449). Imported inside
-    the function because ``idle_sessions`` imports this module.
+    Two decisions, **one roster read**: whether another project holds a live session for
+    this task id (the project prefix), and the lowest ordinal no live session is already
+    using. ``rows`` defaults to :func:`peers.roster` -- a directory of small JSON files the
+    same OS user can read with no Claude process in the loop (task-449).
+
+    ``taken`` overrides the names derived from ``rows`` and is for tests that care only
+    about the ordinal; it says nothing about the prefix, so a test exercising the
+    cross-project rule passes ``rows``.
 
     **A roster that cannot be read yields the base name**, and that is the right failure.
-    The cost of a collision is a name Claude Code picks instead of this one, which is the
-    situation every run before task-452 was already in every time; the cost of raising
-    would be a dispatch that does not start because a cosmetic string could not be
-    chosen. The suffix is an improvement to a name, never a precondition for a run.
+    ``peers.roster`` reports an unreadable directory as no rows, so both discriminators
+    fall away together. The cost of a collision is a name Claude Code picks instead of this
+    one, which is the situation every run before task-452 was already in every time; the
+    cost of raising would be a dispatch that does not start because a cosmetic string could
+    not be chosen. A discriminator is an improvement to a name, never a precondition for a
+    run. That is distinct from a row this *can* read but cannot place, which keeps the
+    prefix -- see :func:`foreign_task_session`.
 
     The search is bounded only by the roster's size -- the first ordinal not in ``taken``
     wins, so it terminates after at most ``len(taken) + 1`` steps.
@@ -786,14 +955,18 @@ def choose_session_name(
     task-452 was in permanently. Closing it would mean holding a lock across a subprocess
     launch, for a cosmetic string.
     """
+    if rows is None:
+        rows = peers.roster()
     if taken is None:
-        from agentjobs.dispatch.idle_sessions import live_session_names
-
-        taken = live_session_names()
+        taken = {row.name for row in rows if row.name}
+    prefix = any(
+        foreign_task_session(row, project_id=project_id, task_id=task_id, project_root=project_root)
+        for row in rows
+    )
     ordinal = 1
-    while session_name(project_id, task_id, ordinal) in taken:
+    while session_name(project_id, task_id, ordinal, slug=slug, project_prefix=prefix) in taken:
         ordinal += 1
-    return session_name(project_id, task_id, ordinal)
+    return session_name(project_id, task_id, ordinal, slug=slug, project_prefix=prefix)
 
 
 def short_run_id(run_id: str) -> str:
@@ -1591,7 +1764,7 @@ class DispatchRunner:
             evaluation=self.evaluation,
         )
 
-    def session_name_for(self, task_id: str, run_id: str) -> str:
+    def session_name_for(self, task_id: str, run_id: str, title: str = "") -> str:
         """This run's session name, picked once and remembered.
 
         Memoised on the run id because :func:`choose_session_name` reads the live-session
@@ -1600,18 +1773,36 @@ class DispatchRunner:
         run's meta -- the string the controller correlates a launch by and the one
         ``stop`` matches sessions against. One read, one answer, for the life of the
         object that launched it.
+
+        **The memo is the first half of freezing the slug; the run's meta is the second.**
+        The name goes onto ``meta["session_name"]`` before the launcher runs (task-416),
+        and every later reader -- the controller's correlation, the Stop that has no
+        session id, the peer channel -- prefers that recorded string to regenerating one.
+        So a title edited after dispatch renames nothing that is already in the air.
+
+        ``title`` is passed in rather than read from the store because naming must not
+        depend on a store read at launch time: the caller already holds the claimed task.
+        Absent, the name is the id alone, which is the correct degradation and what
+        ``build_argv`` gives a caller that has only an id.
         """
         cached = self._session_names.get(run_id)
         if cached is None:
-            cached = choose_session_name(self.resolution.project_id, task_id)
+            cached = choose_session_name(
+                self.resolution.project_id,
+                task_id,
+                slug=session_slug(title),
+                project_root=self.project_root,
+            )
             self._session_names[run_id] = cached
         return cached
 
-    def build_argv(self, task_id: str, run_id: str) -> List[str]:
+    def build_argv(self, task_id: str, run_id: str, title: str = "") -> List[str]:
         """The full argv for a run, posture flags included."""
-        return self.build_argv_and_prompt(task_id, run_id)[0]
+        return self.build_argv_and_prompt(task_id, run_id, title)[0]
 
-    def build_argv_and_prompt(self, task_id: str, run_id: str) -> tuple[List[str], str]:
+    def build_argv_and_prompt(
+        self, task_id: str, run_id: str, title: str = ""
+    ) -> tuple[List[str], str]:
         """The full argv, and the prompt string that is inside it.
 
         The prompt is returned alongside rather than recovered from the argv afterwards
@@ -1642,7 +1833,7 @@ class DispatchRunner:
             *session_name_flags(
                 self.runner.argv,
                 driver=self.runner.driver,
-                name=self.session_name_for(task_id, run_id),
+                name=self.session_name_for(task_id, run_id, title),
             ),
         ]
         argv = compose_argv(self.runner.argv, values, flags)
@@ -1701,7 +1892,7 @@ class DispatchRunner:
     ) -> RunHandle:
         """Start a persisted Codex App Server thread and its first turn."""
         run_id = run_id or new_run_id()
-        argv, prompt = self.build_argv_and_prompt(task.id, run_id)
+        argv, prompt = self.build_argv_and_prompt(task.id, run_id, task.title)
         wake, resume_refused = self._codex_wake_plan(task.id)
         if wake is not None:
             prompt = build_wake_prompt(
@@ -1838,7 +2029,7 @@ class DispatchRunner:
                 }:
                     raise
                 app_server = new_app_server()
-                prompt = self.build_argv_and_prompt(task.id, run_id)[1]
+                prompt = self.build_argv_and_prompt(task.id, run_id, task.title)[1]
                 started = app_server.start(prompt)
                 resumed = False
                 resume_replacement = True
@@ -2793,7 +2984,7 @@ class DispatchRunner:
                 task, actor=actor, caused_by=caused_by, trigger=trigger, run_id=run_id
             )
         run_id = run_id or new_run_id()
-        argv, prompt = self.build_argv_and_prompt(task.id, run_id)
+        argv, prompt = self.build_argv_and_prompt(task.id, run_id, task.title)
         # Before `_plan_wake`, so a resumed session gets the flag too: `wake_argv`
         # rewrites only the element carrying the prompt and preserves everything else.
         # The directory is named here and created a few lines below; `deliver_identity`
@@ -2883,7 +3074,7 @@ class DispatchRunner:
         # own listing can answer. The run's session name is the attempt token it searches.
         directory.update_meta(
             launch_attempted_at=self.clock().isoformat(),
-            session_name=self.session_name_for(task.id, run_id),
+            session_name=self.session_name_for(task.id, run_id, task.title),
         )
         try:
             completed = subprocess.run(
@@ -3105,10 +3296,12 @@ class DispatchRunner:
         The stub is still passed as ``reject`` and both halves stay: ``strip_ansi`` is
         what makes the real id visible at all, and ``reject`` is what makes the guard
         independent of whatever the name happens to contain. A name is now typically
-        ``agentjobs/task-452``, which offers the scan no 8-hex token to mistake -- but
-        "the current format puts nothing capturable on the line" is exactly the assumption
-        that was true before task-324 and false afterwards, and it is not the one this
-        guard rests on.
+        ``task-452 nav breakpoint`` (task-500), which offers the scan no 8-hex token to
+        mistake -- but "the current format puts nothing capturable on the line" is exactly
+        the assumption that was true before task-324 and false afterwards, and it is not
+        the one this guard rests on. ``session_slug`` declines to emit an 8-hex word for
+        the same reason, from the other end: two cheap defences, neither relying on the
+        other.
         """
         for line in stdout.splitlines():
             for match in cls._SHORT_ID.finditer(strip_ansi(line)):
@@ -4135,7 +4328,7 @@ class DispatchRunner:
     ) -> RunHandle:
         """Spawn a batch run and supervise it from a dedicated blocking thread."""
         run_id = run_id or new_run_id()
-        argv, prompt = self.build_argv_and_prompt(task.id, run_id)
+        argv, prompt = self.build_argv_and_prompt(task.id, run_id, task.title)
         directory = RunDirectory.create(
             self.home,
             run_id,

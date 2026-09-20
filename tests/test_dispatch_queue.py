@@ -38,7 +38,7 @@ from agentjobs.execution.store import QueuedDispatch
 from agentjobs.models_v2 import Ball, BallReason, LogEntryType, Outcome
 from agentjobs.projects import ProjectRegistry
 
-from test_execution_controller import Machine, machine
+from test_execution_controller import Machine, machine, task_of
 
 __all__ = ["machine"]  # a fixture, imported by name -- the harness is task-416's
 
@@ -165,7 +165,7 @@ class TestQueueing:
         entry = dispatch_queue.find(machine.home, waiting_id(machine, second))
         assert entry is not None and entry.status == "started"
         assert entry.run_id
-        assert any(row["name"].endswith(second) for row in machine.live_sessions())
+        assert any(task_of(row["name"]) == second for row in machine.live_sessions())
 
     def test_it_survives_every_process_that_wrote_it(self, machine: Machine) -> None:
         """ac-1's restart: the queue is on disk, not in anybody's memory."""
@@ -208,7 +208,7 @@ class TestGatesRunAtStartTime:
         assert settled is not None and settled.status == "refused"
         assert "dirty_tree" in settled.detail
         assert waiting(machine) == []
-        assert not any(row["name"].endswith(second) for row in machine.live_sessions())
+        assert not any(task_of(row["name"]) == second for row in machine.live_sessions())
 
         [refusal] = [body for body in task_notes(machine, second) if "refused" in body]
         assert "dirty_tree" in refusal
@@ -252,7 +252,7 @@ class TestGatesRunAtStartTime:
         still = dispatch_queue.find(machine.home, entry.queue_id)
         assert still is not None and still.status == "queued", lines
         assert "task_on_hold" in still.detail
-        assert not any(row["name"].endswith(second) for row in machine.live_sessions())
+        assert not any(task_of(row["name"]) == second for row in machine.live_sessions())
 
 
 # ----- the bound, and one entry per task (ac-5) ---------------------------------------
@@ -311,7 +311,7 @@ class TestBounds:
         # reported once for the machine rather than written onto every waiting task.
         assert still.status == "queued"
         assert any("last hour" in line or "dispatches_per_hour" in line for line in lines), lines
-        assert not any(row["name"].endswith(second) for row in machine.live_sessions())
+        assert not any(task_of(row["name"]) == second for row in machine.live_sessions())
 
 
 # ----- order, and what a blocked entry does to the rest -------------------------------
@@ -397,7 +397,7 @@ class TestCancel:
         free_slot(machine, handle.run_id)
         machine.tick()
 
-        assert not any(row["name"].endswith(second) for row in machine.live_sessions())
+        assert not any(task_of(row["name"]) == second for row in machine.live_sessions())
 
 
 # ----- the request survives the round trip ----------------------------------------------

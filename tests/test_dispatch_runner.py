@@ -67,8 +67,11 @@ from agentjobs.dispatch.runner import (
     readable_tail,
     codex_desktop_executable,
     resolve_executable,
+    SESSION_NAME_SLUG_CHARS,
     choose_session_name,
+    foreign_task_session,
     session_name,
+    session_slug,
     session_name_flags,
     settings_json,
     strip_ansi,
@@ -646,15 +649,114 @@ class TestMcpApproval:
         assert without_session_name(argv)[2:-1] == today[posture], posture
 
 
+class TestSessionSlug:
+    """task-500: a few words of the task's title, safe to put in a session name."""
+
+    def test_a_title_becomes_the_words_that_carry_it(self) -> None:
+        assert session_slug("Nav breakpoint re-measure") == "nav breakpoint re-measure"
+
+    def test_a_leading_article_is_dropped_rather_than_spending_a_word(self) -> None:
+        """Task titles here are sentences, so the article is common and carries nothing."""
+        assert session_slug("A dispatched session's name says nothing about the work") == (
+            "dispatched sessions name says"
+        )
+        assert session_slug("The queue is not a sort") == "queue is not a"
+
+    def test_an_apostrophe_closes_up_rather_than_splitting_a_word(self) -> None:
+        assert session_slug("Dispatch's own naming") == "dispatchs own naming"
+
+    def test_a_hyphenated_word_survives_whole(self) -> None:
+        """ "re-measure" is one word; breaking it spends the budget on the half nobody
+        needed."""
+        assert session_slug("Re-measure the project-grouped sidebar") == (
+            "re-measure the project-grouped"
+        )
+
+    @pytest.mark.parametrize(
+        "title",
+        [
+            "Fix jeff@example.com handling",
+            "Support #tags and a/b paths",
+            "task@#/ ---",
+            "Ünïcödé ✅ titles",
+        ],
+    )
+    def test_no_title_can_introduce_a_separator_or_an_at_sign(self, title: str) -> None:
+        """ac-5, at the source. ``@`` makes a name unaddressable, ``#`` is the ordinal
+        separator and ``/`` is the project separator, so a title must not be able to forge
+        a discriminator it does not have. The whitelist is what guarantees it, rather than
+        a list of characters to strip that the next separator would not be on.
+        """
+        slug = session_slug(title)
+        assert not set(slug) - set("abcdefghijklmnopqrstuvwxyz0123456789- ")
+
+    def test_an_eight_hex_word_is_dropped_so_the_name_cannot_look_like_a_session_id(
+        self,
+    ) -> None:
+        """The launcher prints the session id and the name on one line, and
+        ``capture_session_id`` scans that line for an 8-hex token. Today the id comes
+        first and would win, but that is the launcher's output order rather than anything
+        here; this keeps the *format* incapable of contributing a token at all.
+        """
+        assert session_slug("Fix deadbeef in the parser") == "fix in the parser"
+        assert session_slug("deadbeef") == ""
+        assert session_slug("Fix deadbeefs in the parser") == "fix deadbeefs in the"
+
+    def test_a_title_with_nothing_left_in_it_is_no_slug_rather_than_an_error(self) -> None:
+        """A cosmetic string is never a precondition for a run."""
+        assert session_slug("### @@@ ///") == ""
+        assert session_slug("") == ""
+        assert session_slug("The") == ""
+
+    def test_the_budget_is_words_and_length_together(self) -> None:
+        """Either bound alone misbehaves: words alone let four long ones run past forty
+        characters, and characters alone cut a word in half, which reads as a typo."""
+        assert session_slug("one two three four five") == "one two three four"
+        assert session_slug("extraordinarily circumlocutory nomenclature") == (
+            "extraordinarily circumlocutory"
+        )
+        assert len(session_slug("a" * 80)) <= SESSION_NAME_SLUG_CHARS
+
+
 class TestSessionName:
-    """task-324: a dispatched session says which run it is, from outside AgentJobs.
+    """task-324, revised by task-500: a dispatched session says what it is working on.
 
     The observed behaviour these tests stand on is recorded on ``SESSION_NAME_FLAG``:
     ``--name`` is the flag the session picker and the peer channel both read, and it
     survives the rename Claude Code otherwise performs from the prompt.
     """
 
-    def test_the_name_is_the_project_and_the_task(self) -> None:
+    def test_the_name_leads_with_the_task_id_and_then_says_what_the_work_is(self) -> None:
+        """ac-2. The id unabbreviated, because it is the key every other surface uses and
+        the string typed at the peer channel; the slug follows and may be ambiguous."""
+        assert session_name("agentjobs", "task-499", project_prefix=False) == "task-499"
+        assert (
+            session_name("agentjobs", "task-499", slug="nav breakpoint", project_prefix=False)
+            == "task-499 nav breakpoint"
+        )
+
+    def test_the_ordinal_sits_against_the_id_and_not_at_the_end(self) -> None:
+        """It discriminates the id, not the prose, and a reader scanning the column finds
+        both discriminators in the same place."""
+        assert (
+            session_name("agentjobs", "task-499", 2, slug="nav breakpoint", project_prefix=False)
+            == "task-499#2 nav breakpoint"
+        )
+
+    def test_the_project_prefix_still_composes_with_both(self) -> None:
+        assert (
+            session_name("agentjobs", "task-499", 2, slug="nav breakpoint")
+            == "agentjobs/task-499#2 nav breakpoint"
+        )
+
+    def test_the_prefixed_form_is_the_default_for_the_callers_that_regenerate_one(
+        self,
+    ) -> None:
+        """``controller._correlate_session`` and its Stop counterpart rebuild a name for a
+        record too old to have recorded one. Those runs were named before task-500, so the
+        prefixed form is the one they answer to; every new dispatch goes through
+        ``choose_session_name``, which decides the prefix from the roster instead.
+        """
         assert session_name("agentjobs", "task-324") == "agentjobs/task-324"
 
     def test_an_ordinal_above_one_is_what_tells_two_runs_apart(self) -> None:
@@ -686,29 +788,38 @@ class TestSessionName:
         """ac-2 in the unit; the live half ran against two real sessions and is on the
         task log. A name freed by a finished run is reused rather than skipped, because
         uniqueness among *live* sessions is the whole requirement."""
-        assert choose_session_name("agentjobs", "task-324", taken=set()) == "agentjobs/task-324"
+        assert choose_session_name("agentjobs", "task-324", taken=set()) == "task-324"
+        assert choose_session_name("agentjobs", "task-324", taken={"task-324"}) == "task-324#2"
         assert (
-            choose_session_name("agentjobs", "task-324", taken={"agentjobs/task-324"})
-            == "agentjobs/task-324#2"
+            choose_session_name("agentjobs", "task-324", taken={"task-324", "task-324#2"})
+            == "task-324#3"
+        )
+        assert choose_session_name("agentjobs", "task-324", taken={"task-324#2"}) == "task-324"
+
+    def test_the_ordinal_is_searched_against_the_slug_the_name_will_carry(self) -> None:
+        """The candidate the roster is asked about has to be the name that will be used.
+
+        Searching the bare id instead would find a live ``task-324`` free, hand back
+        ``task-324 nav breakpoint``, and leave the ordinal permanently at 1 for every run
+        of the task -- the collision task-452 exists to avoid, reintroduced by comparing
+        one string and shipping another.
+        """
+        assert (
+            choose_session_name("agentjobs", "task-324", slug="nav breakpoint", taken={"task-324"})
+            == "task-324 nav breakpoint"
         )
         assert (
             choose_session_name(
-                "agentjobs",
-                "task-324",
-                taken={"agentjobs/task-324", "agentjobs/task-324#2"},
+                "agentjobs", "task-324", slug="nav breakpoint", taken={"task-324 nav breakpoint"}
             )
-            == "agentjobs/task-324#3"
-        )
-        assert (
-            choose_session_name("agentjobs", "task-324", taken={"agentjobs/task-324#2"})
-            == "agentjobs/task-324"
+            == "task-324#2 nav breakpoint"
         )
 
     def test_another_task_s_live_session_does_not_push_this_one_along(self) -> None:
         """The roster is machine-wide, so it holds every project's and every task's
         names. Only this task's own are in the way."""
-        taken = {"agentjobs/task-999", "other/task-324", "Aorus Engine startup issue"}
-        assert choose_session_name("agentjobs", "task-324", taken=taken) == "agentjobs/task-324"
+        taken = {"agentjobs/task-999", "task-999", "Aorus Engine startup issue"}
+        assert choose_session_name("agentjobs", "task-324", taken=taken) == "task-324"
 
     def test_an_unreadable_roster_yields_the_ordinary_name(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -722,17 +833,21 @@ class TestSessionName:
         from agentjobs.dispatch.peers import SESSIONS_DIR_ENV
 
         monkeypatch.setenv(SESSIONS_DIR_ENV, str(tmp_path / "absent"))
-        assert choose_session_name("agentjobs", "task-324") == "agentjobs/task-324"
+        assert choose_session_name("agentjobs", "task-324") == "task-324"
 
         roster = tmp_path / "sessions"
         roster.mkdir()
         (roster / "1.json").write_text("{not json", encoding="utf-8")
         (roster / "2.json").write_text("[]", encoding="utf-8")
         (roster / "3.json").write_text('{"pid": 3}', encoding="utf-8")
-        (roster / "4.json").write_text('{"name": "agentjobs/task-324"}', encoding="utf-8")
+        (roster / "4.json").write_text('{"name": "task-324"}', encoding="utf-8")
         monkeypatch.setenv(SESSIONS_DIR_ENV, str(roster))
 
-        assert choose_session_name("agentjobs", "task-324") == "agentjobs/task-324#2"
+        # The four bad files cost only themselves, and the readable one still moves the
+        # answer -- which is what says the roster was read at all. It is a live session
+        # on this task id that this cannot place (no ``cwd``, and no ``project_root`` to
+        # compare one against), so it keeps the prefix rather than guessing it away.
+        assert choose_session_name("agentjobs", "task-324") == "agentjobs/task-324"
 
     def test_two_runs_on_one_task_are_told_apart_by_the_name_alone(
         self, workspace: Path, manager: TaskManager, isolate_session_roster: Path
@@ -748,16 +863,161 @@ class TestSessionName:
             make_resolution(["claude", "--bg", "--remote-control", "{prompt}"]),
         )
 
-        first = runner.build_argv("task-324-example", "run_aaaa1111")
+        first = runner.build_argv("task-324-example", "run_aaaa1111", "Nav breakpoint re-measure")
         (isolate_session_roster / "4242.json").write_text(
-            json.dumps({"pid": 4242, "name": "sandbox/task-324-example", "status": "busy"}),
+            json.dumps(
+                {
+                    "pid": 4242,
+                    "name": first[first.index(SESSION_NAME_FLAG) + 1],
+                    "cwd": str(workspace / "project"),
+                    "status": "busy",
+                }
+            ),
             encoding="utf-8",
         )
-        second = runner.build_argv("task-324-example", "run_bbbb2222")
+        second = runner.build_argv("task-324-example", "run_bbbb2222", "Nav breakpoint re-measure")
 
         names = [argv[argv.index(SESSION_NAME_FLAG) + 1] for argv in (first, second)]
-        assert names == ["sandbox/task-324-example", "sandbox/task-324-example#2"]
+        assert names == [
+            "task-324-example nav breakpoint re-measure",
+            "task-324-example#2 nav breakpoint re-measure",
+        ]
         assert names[0] != names[1]
+
+    def test_only_another_project_s_live_session_brings_the_prefix_back(
+        self, tmp_path: Path
+    ) -> None:
+        """ac-3. The prefix follows the rule the ordinal already followed: a discriminator
+        appears when there is something to discriminate.
+
+        A live row's project comes from its own prefix when it still has one, and
+        otherwise from the directory it registered itself in.
+        """
+        from agentjobs.dispatch.peers import LiveSession
+
+        def row(name: str, cwd: str = "") -> LiveSession:
+            return LiveSession(1, "uuid", "job", name, "busy", cwd, "2.1.278")
+
+        ours = str(tmp_path / "agentjobs")
+        theirs = str(tmp_path / "other-project")
+
+        def chosen(*rows: LiveSession) -> str:
+            return choose_session_name(
+                "agentjobs",
+                "task-499",
+                slug="nav breakpoint",
+                project_root=Path(ours),
+                rows=list(rows),
+            )
+
+        assert chosen() == "task-499 nav breakpoint"
+        assert chosen(row("task-499 nav breakpoint", ours)) == "task-499#2 nav breakpoint"
+        assert chosen(row("task-42 something else", theirs)) == "task-499 nav breakpoint"
+        assert chosen(row("task-499 their words", theirs)) == "agentjobs/task-499 nav breakpoint"
+        assert chosen(row("other/task-499")) == "agentjobs/task-499 nav breakpoint"
+        assert chosen(row("agentjobs/task-499")) == "task-499 nav breakpoint"
+
+    def test_a_row_whose_project_cannot_be_established_keeps_the_prefix(
+        self, tmp_path: Path
+    ) -> None:
+        """ac-3's other half, and the direction it fails in.
+
+        A wrong "no prefix" is two live sessions with one name, which Claude Code resolves
+        by renaming one out from under the record; a wrong "prefix" is a longer name on a
+        row. So a row with no readable ``cwd``, and a call with no ``project_root`` to
+        compare one against, both keep it.
+
+        This is distinct from a roster that cannot be read at all, which yields the base
+        name -- ``peers.roster`` reports that as no rows, so there is nothing to keep a
+        prefix for.
+        """
+        from agentjobs.dispatch.peers import LiveSession
+
+        homeless = LiveSession(1, "uuid", "job", "task-499 their words", "busy", "", "2.1.278")
+        placed = LiveSession(
+            1, "uuid", "job", "task-499 their words", "busy", str(tmp_path), "2.1.278"
+        )
+
+        assert foreign_task_session(
+            homeless, project_id="agentjobs", task_id="task-499", project_root=tmp_path
+        )
+        assert foreign_task_session(
+            placed, project_id="agentjobs", task_id="task-499", project_root=None
+        )
+        assert not foreign_task_session(
+            placed, project_id="agentjobs", task_id="task-499", project_root=tmp_path
+        )
+
+    def test_a_worktree_reads_as_another_project_and_costs_only_a_prefix(
+        self, tmp_path: Path
+    ) -> None:
+        """Named rather than discovered. A worktree is not inside the clone, so a session
+        that registered from one is not placed in this project and keeps the prefix. That
+        is the safe direction; dispatched sessions launch with the project root as their
+        cwd, so it is not the ordinary case.
+        """
+        from agentjobs.dispatch.peers import LiveSession
+
+        clone = tmp_path / "agentjobs"
+        worktree = tmp_path / "worktrees" / "agentjobs-499"
+        row = LiveSession(1, "uuid", "job", "task-499 slug", "busy", str(worktree), "2.1.278")
+
+        assert foreign_task_session(
+            row, project_id="agentjobs", task_id="task-499", project_root=clone
+        )
+
+    def test_a_name_from_any_path_is_one_the_peer_channel_will_accept(self) -> None:
+        """ac-5 through the whole builder, not just the slug.
+
+        Verified live on Claude Code 2.1.278, 2026-09-20 (task-500): sandbox sessions
+        named ``task-996 spaced slug probe`` and ``agentjobs/task-996#2 spaced slug probe``
+        were each sent a message through ``peers.send_peer_message`` -- a ``claude -p``
+        sender calling ``SendMessage`` with the name copied verbatim into ``to`` -- and
+        both were delivered. This is the unit that keeps it true.
+        """
+        from agentjobs.dispatch.peers import UNADDRESSABLE, LiveSession
+
+        titles = ["Fix jeff@example.com handling", "Support #tags and a/b paths", ""]
+        for title in titles:
+            for ordinal in (1, 2, 17):
+                for prefix in (True, False):
+                    name = session_name(
+                        "agentjobs",
+                        "task-324",
+                        ordinal,
+                        slug=session_slug(title),
+                        project_prefix=prefix,
+                    )
+                    assert UNADDRESSABLE not in name
+                    assert LiveSession(1, "u", "j", name, "idle", ".", "2.1.278").addressable
+
+    def test_a_title_edited_after_dispatch_does_not_rename_the_run(
+        self, workspace: Path, manager: TaskManager, isolate_session_roster: Path
+    ) -> None:
+        """ac-4. The slug is frozen at dispatch, not recomputed from the task on each read.
+
+        The memo is the first half and the run's meta is the second: the name goes onto
+        ``meta["session_name"]`` before the launcher runs, and every later reader prefers
+        that recorded string. So the same run asked again after a re-title answers the
+        same way, and a *new* run is free to carry the new words.
+        """
+        runner = build(
+            workspace,
+            manager,
+            make_resolution(["claude", "--bg", "--remote-control", "{prompt}"]),
+        )
+
+        first = runner.session_name_for("task-324-example", "run_aaaa1111", "Nav breakpoint")
+        assert first == "task-324-example nav breakpoint"
+
+        assert (
+            runner.session_name_for("task-324-example", "run_aaaa1111", "Something else entirely")
+            == first
+        )
+        assert (
+            runner.session_name_for("task-324-example", "run_bbbb2222", "Something else entirely")
+            == "task-324-example something else entirely"
+        )
 
     def test_a_run_s_name_is_chosen_once_however_often_it_is_asked_for(
         self, workspace: Path, manager: TaskManager, isolate_session_roster: Path
@@ -811,7 +1071,7 @@ class TestSessionName:
             "--permission-mode",
             "bypassPermissions",
             SESSION_NAME_FLAG,
-            "sandbox/task-324-example",
+            "task-324-example",
             runner.build_prompt("task-324-example", "run_aaaa1111"),
         ]
 
@@ -831,7 +1091,7 @@ class TestSessionName:
         argv = runner.build_argv("task-324-example", "run_aaaa1111")
 
         assert argv[1:5] == ["--bg", "--remote-control", "--model", "haiku"]
-        assert argv[-3:-1] == [SESSION_NAME_FLAG, "sandbox/task-324-example"]
+        assert argv[-3:-1] == [SESSION_NAME_FLAG, "task-324-example"]
 
     @pytest.mark.parametrize("flag", ["--name", "-n"])
     def test_a_template_that_names_itself_is_not_given_a_second_name(self, flag: str) -> None:
@@ -899,7 +1159,7 @@ class TestSessionName:
             )
         ]
 
-        assert names == ["sandbox/task-324-example"] * 2
+        assert names == ["task-324-example"] * 2
         assert "pwned" not in names[0]
 
 

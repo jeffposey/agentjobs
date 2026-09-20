@@ -1038,8 +1038,8 @@ variant of its own choosing, so shipping a collidable name is worse than shippin
 suffix, because the name AgentJobs recorded would not be the name the session has. And the
 roster at `~/.claude/sessions/<pid>.json` is **plain-readable by the same OS user with no
 Claude process in the loop** (task-449), so the dispatcher can ask "is a session for this
-task already live" before it picks: `idle_sessions.live_session_names`, a directory of
-small JSON files rather than a `claude agents --json` subprocess on the dispatch path.
+task already live" before it picks: `peers.roster`, a directory of small JSON files rather
+than a `claude agents --json` subprocess on the dispatch path.
 
 `#` was chosen over `/` after checking the property that is not obvious: `SendMessage`
 validates its `to` argument *before* it looks anything up, and task-451 found it rejects
@@ -1077,6 +1077,54 @@ descriptions of it, which is the instability this change exists to remove; and
 truncating one rarely distinguishes, because the tasks that need telling apart are
 neighbours whose titles share a prefix. The project is included because both surfaces
 are machine-wide while a task id is only unique within its project.
+
+#### The title is back, and the prefix is conditional (task-500, 2026-09-20)
+
+The owner overruled the paragraph above on the strength of the surface he actually reads
+it on. He groups the desktop sidebar **by project**, so `agentjobs/` was repetition on
+every row of the AgentJobs group, in a column narrow enough that the repetition cost the
+characters that would have carried meaning — and `agentjobs/task-499` has to be opened
+before it says anything, while an older row of his reading
+`agentjobs/task-176-dispatch-on-create` does not. The shipped shape:
+
+```text
+task-499 nav breakpoint re-measure       one live session, no cross-project clash
+task-499#2 nav breakpoint re-measure     a second live run of the same task
+agentjobs/task-499 nav breakpoint ...    another project has a live task-499
+```
+
+Both of task-324's grounds are answered rather than denied. **Editability**: the slug is
+frozen into the run's `meta["session_name"]` before the launcher runs, and every later
+reader prefers that recorded string, so a title edited afterwards renames no live session;
+two runs of one task carrying two slugs is in any case no worse than two carrying two
+ordinals, which already happens. **Ambiguity**: the name still leads with the
+unabbreviated id, which is what disambiguates, so the slug is free to be ambiguous.
+
+**The prefix follows exactly the rule the ordinal already followed** — a discriminator
+appears when there is something to discriminate — and `choose_session_name` decides both
+from one roster read. A live row's project comes from its own prefix when it still has
+one, and otherwise from the directory it registered itself in; a row this cannot place
+keeps the prefix rather than guessing it away, which is why a session registered from a
+*worktree* reads as another project's and costs a prefix. An unreadable roster is
+different and yields the base name, as it always has: a discriminator improves a name and
+is never a precondition for a run.
+
+**Where the prefix comes from, established rather than assumed.** Two candidates produce
+an `agentjobs/`, and a fix aimed at the wrong one changes nothing the owner can see.
+`C:/ai/shared/launchers/open-terminal-tool.ps1` starts this machine's Remote Control host
+with `--remote-control-session-name-prefix agentjobs`, which labels the sessions *Remote
+Control* creates. It does not touch a session the dispatcher starts: run `run_3c85a39d`
+recorded `session_name: agentjobs/task-500` on its own meta, and the registration Claude
+Code wrote for it held `"name":"agentjobs/task-500"` byte-for-byte, with no doubling. The
+prefix is AgentJobs' own, and the launcher needs no edit.
+
+**A space in a name is addressable**, checked the way task-452 checked `#`, on Claude Code
+2.1.278, Windows 11, 2026-09-20. Two sandbox sessions named `task-996 spaced slug probe`
+and `agentjobs/task-996#2 spaced slug probe` were each sent a message through
+`peers.send_peer_message` — the real path, a `claude -p` sender calling `SendMessage` with
+the name copied verbatim into `to` — and both were delivered. `session_slug` is a
+whitelist of `a-z0-9-` and the single space precisely so a title can never introduce the
+one character that is not addressable.
 
 **Two deliberate no-ops.** A template that already carries its own `--name` or `-n` keeps
 it — the single opt-out, and an explicit act. And a **Codex** runner is left unnamed:
