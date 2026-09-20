@@ -48,13 +48,24 @@ export type DictationRecognition = {
   continuous: boolean;
   interimResults: boolean;
   maxAlternatives?: number;
-  start: () => void;
+  /**
+   * Chrome 153 accepts a `MediaStreamTrack` here and recognises from that device
+   * instead of the system default. Measured, not assumed: passing a webcam
+   * microphone's track on a machine whose default input delivers digital silence
+   * produced `soundstart`, `speechstart` and a real transcript.
+   *
+   * A browser without the overload ignores the argument and uses the default, which
+   * is exactly the behaviour of passing nothing -- so this degrades to today.
+   */
+  start: (track?: MediaStreamTrack) => void;
   stop: () => void;
   abort: () => void;
   onresult: ((event: RecognitionEvent) => void) | null;
   onerror: ((event: RecognitionErrorEvent) => void) | null;
   onend: (() => void) | null;
   onstart: (() => void) | null;
+  /** Fires when *any* sound arrives, which is how a dead device is told from a quiet room. */
+  onsoundstart: (() => void) | null;
 };
 
 /**
@@ -226,6 +237,93 @@ export function modeBadge(mode: DictationMode): string {
 }
 
 /**
+ * **Which microphone AgentJobs dictates from, remembered for this origin only.**
+ *
+ * The Web Speech API has no device selector, so for years the answer was "whatever
+ * the operating system's default input is" -- and that default is shared with every
+ * other application on the machine. Changing it to fix dictation changes it for the
+ * video call too, which is not a trade anybody should be asked to make.
+ *
+ * Chrome 153 takes a `MediaStreamTrack` in `start()`, so the choice can be ours
+ * instead: open the device we were told to use and hand the recogniser its track.
+ * The preference lives in this origin's `localStorage`, so it is per browser profile
+ * and per site, and touches no operating system setting at all.
+ *
+ * Storage is wrapped because it throws in a private window and in a page with site
+ * data blocked, where the right answer is simply "no preference".
+ */
+const DEVICE_KEY = "agentjobs.dictation.deviceId";
+
+export function chosenDeviceId(): string | null {
+  try {
+    return window.localStorage.getItem(DEVICE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function chooseDeviceId(deviceId: string | null): void {
+  try {
+    if (deviceId) window.localStorage.setItem(DEVICE_KEY, deviceId);
+    else window.localStorage.removeItem(DEVICE_KEY);
+  } catch {
+    // A browser that will not remember it still dictates; it just forgets the choice.
+  }
+}
+
+export type Microphone = { deviceId: string; label: string };
+
+/**
+ * The microphones this browser will name.
+ *
+ * Labels are empty until the microphone permission has been granted, which is why
+ * this is only ever called after a dictation has already asked for it -- an
+ * unlabelled list of opaque ids is not a thing anybody can choose from. The synthetic
+ * `default` and `communications` entries are dropped: they are aliases for whatever
+ * the system points at, which is the thing being worked around.
+ */
+export async function listMicrophones(): Promise<Array<Microphone>> {
+  if (!navigator.mediaDevices?.enumerateDevices) return [];
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices
+      .filter(
+        (device) =>
+          device.kind === "audioinput" &&
+          device.deviceId &&
+          device.deviceId !== "default" &&
+          device.deviceId !== "communications" &&
+          device.label,
+      )
+      .map((device) => ({ deviceId: device.deviceId, label: device.label }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The track for the chosen microphone, or null to let the recogniser use the default.
+ *
+ * Null is the ordinary path and costs nothing: no second capture, no extra permission
+ * surface, no battery. A stream is opened only for somebody who has said that the
+ * default is not the one they want.
+ */
+export async function openChosenTrack(): Promise<MediaStreamTrack | null> {
+  const deviceId = chosenDeviceId();
+  if (!deviceId || !navigator.mediaDevices?.getUserMedia) return null;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: { exact: deviceId } },
+    });
+    return stream.getAudioTracks()[0] ?? null;
+  } catch {
+    // The device was unplugged, or is in use elsewhere. Fall back to the default
+    // rather than refusing to dictate at all.
+    return null;
+  }
+}
+
+/**
  * The transcript so far, rebuilt from the whole list.
  *
  * Deliberately not incremental. See the note at the top of this file: on Android each
@@ -268,6 +366,11 @@ export function errorSentence(code: string): string | null {
       return "Microphone access was refused. Allow it for this site in your browser's settings — or use the microphone key on your keyboard, which works either way.";
     case "audio-capture":
       return "No microphone was found, so nothing was recorded.";
+    case "agentjobs-no-sound":
+      // Not a browser code: ours, for the state the browser has no code for. The
+      // stream opened and `soundstart` never fired, so the device delivered silence
+      // rather than the person staying quiet -- a muted headset, or a dead endpoint.
+      return "That microphone sent no sound at all. Pick a different one below, or check it is not muted.";
     case "no-speech":
       // Two causes, and the sentence used to name only the flattering one. On the
       // machine this was built on the default input device delivers exact digital

@@ -320,6 +320,38 @@ sentences about privacy. For the same reason the download is offered once per fo
 rather than once per field, and only where `available({processLocally:true})` reported
 `downloadable`.
 
+**AgentJobs picks its own microphone, and nothing else on the machine notices.** The
+Web Speech API has no device selector, so the recogniser has always used the operating
+system's default input -- which is shared with every other application, so "fix
+dictation by changing your default" also changes it for the video call. Chrome 153
+takes a `MediaStreamTrack` in `start()`, which makes the choice ours instead: the
+chosen device is opened with `getUserMedia` and its track handed to the recogniser.
+The preference is this origin's `localStorage`, so it is per browser profile and per
+site and touches no system setting.
+
+Three things about it were measured rather than assumed, on 2026-09-20:
+
+*   **It works.** On a machine whose default input delivers digital silence (peak
+    0.000000), passing the webcam microphone's track produced `soundstart`,
+    `speechstart` and the transcript `the task list filters match nothing after you
+    reorder the high` from speech played into the room.
+*   **The argument must be absent, not `undefined`.** `start(undefined)` and
+    `start(null)` both throw `TypeError: parameter 1 is not of type
+    'MediaStreamTrack'`, because the track is a required parameter of a second
+    overload. A hand-written fake accepts `undefined` happily, so this failed only in
+    a real browser -- as "Dictation could not be started" on an ordinary press.
+*   **Nobody pays for it who does not use it.** With no device chosen, `start()` is
+    called with no argument in the same tick as the press, no second capture is
+    opened, and the permission prompt keeps the user activation it has always had.
+
+**The chooser lives inside the failure, not on the form.** Device labels are hidden
+until the microphone permission has been granted, so before a dictation there is
+nothing anybody could choose between; and a permanent picker under every field is the
+row the microphone button stopped being. It appears beside the complaint, at the
+moment it is the answer. Where the stream opened and `soundstart` never fired we can
+say more than the browser does -- the device sent nothing, which is a muted headset
+rather than a quiet person -- and that is the sentence the picker sits under.
+
 **`scripts/dictation_sandbox.py` is how this gets looked at**, separately from
 `capture_control_sandbox.py` because that one's `--tailnet` mode is plain HTTP and
 dictation needs a secure context. It serves both halves in one browser: `?dictation=off` deletes both constructors before the bundle runs, so the

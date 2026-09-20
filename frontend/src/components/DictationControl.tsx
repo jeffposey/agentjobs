@@ -1,5 +1,7 @@
+import { useId } from "react";
+
 import { useDictation, type DictationTarget } from "../voice/useDictation";
-import { modeBadge, modeSentence } from "../voice/speech";
+import { modeBadge, modeSentence, type Microphone } from "../voice/speech";
 
 /**
  * The microphone beside a field. One of these, used everywhere (ac-1).
@@ -97,8 +99,62 @@ export function DictationControl({ label, target }: DictationControlProps) {
           : ""}
       </p>
 
-      <DictationError message={dictation.error} onDismiss={dictation.dismissError} />
+      <DictationError
+        message={dictation.error}
+        onDismiss={dictation.dismissError}
+        microphones={dictation.microphones}
+        deviceId={dictation.deviceId}
+        onChoose={dictation.chooseMicrophone}
+      />
     </>
+  );
+}
+
+/**
+ * Which microphone AgentJobs dictates from, offered at the moment it is the answer.
+ *
+ * **It is inside the failure, not on the form.** A device chooser sitting permanently
+ * under every box would be the row the microphone button just stopped being; and until
+ * a dictation has failed there is nothing to choose between, because the browser hides
+ * device labels until the microphone has been used. So it costs nothing until the day
+ * the default device turns out to be the wrong one, and on that day it is already on
+ * screen with the complaint.
+ *
+ * The choice is this origin's alone -- `localStorage`, per browser profile, per site.
+ * It changes no operating system setting, so the video call keeps the microphone it
+ * had. That is the whole reason this exists rather than a line of advice telling
+ * somebody to go and change their default input.
+ */
+function MicrophoneChoice({
+  microphones,
+  deviceId,
+  onChoose,
+}: {
+  microphones: Array<Microphone>;
+  deviceId: string | null;
+  onChoose: (deviceId: string | null) => void;
+}) {
+  const selectId = useId();
+  if (microphones.length < 2) return null;
+  return (
+    <span className="mt-2 flex flex-wrap items-center gap-2">
+      <label htmlFor={selectId} className="text-xs">
+        Use this microphone for AgentJobs:
+      </label>
+      <select
+        id={selectId}
+        value={deviceId ?? ""}
+        onChange={(event) => onChoose(event.target.value || null)}
+        className="rounded border border-amber-500/60 bg-dark-bg px-2 py-1 text-xs text-dark-text"
+      >
+        <option value="">This computer's default</option>
+        {microphones.map((microphone) => (
+          <option key={microphone.deviceId} value={microphone.deviceId}>
+            {microphone.label}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 
@@ -138,21 +194,32 @@ function StopGlyph() {
 function DictationError({
   message,
   onDismiss,
+  microphones = [],
+  deviceId = null,
+  onChoose,
 }: {
   message: string | null;
   onDismiss: () => void;
+  microphones?: Array<Microphone>;
+  deviceId?: string | null;
+  onChoose?: (deviceId: string | null) => void;
 }) {
   if (!message) return null;
   return (
-    <p
+    <div
       role="alert"
       className="mt-1 rounded-lg border border-amber-500/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200"
     >
-      {message}{" "}
-      <button type="button" onClick={onDismiss} className="underline hover:text-amber-100">
-        Dismiss
-      </button>
-    </p>
+      <span>
+        {message}{" "}
+        <button type="button" onClick={onDismiss} className="underline hover:text-amber-100">
+          Dismiss
+        </button>
+      </span>
+      {onChoose && (
+        <MicrophoneChoice microphones={microphones} deviceId={deviceId} onChoose={onChoose} />
+      )}
+    </div>
   );
 }
 

@@ -30,14 +30,32 @@ class FakeRecognition {
   onerror: ((event: { error: string }) => void) | null = null;
   onend: (() => void) | null = null;
   onstart: (() => void) | null = null;
+  onsoundstart: (() => void) | null = null;
+  /** The track it was started with, so a test can prove the chosen device was used. */
+  startedWith: MediaStreamTrack | undefined | null = null;
+  /**
+   * How many arguments the last `start()` got. Chrome throws on `start(undefined)` --
+   * the parameter is a required `MediaStreamTrack` on its second overload -- so
+   * "passed nothing" and "passed undefined" are different calls and only one of them
+   * works. A fake that cannot tell them apart would have shipped the broken one.
+   */
+  startArgs = -1;
 
   constructor() {
     FakeRecognition.instances.push(this);
   }
 
-  start() {
+  start(track?: MediaStreamTrack) {
     this.started += 1;
+    // eslint-disable-next-line prefer-rest-params
+    this.startArgs = arguments.length;
+    this.startedWith = track;
     this.onstart?.();
+  }
+
+  /** Any sound at all reaching the recogniser -- not speech, just not silence. */
+  hearSound() {
+    this.onsoundstart?.();
   }
 
   stop() {
@@ -354,14 +372,32 @@ describe("failures are stated, never silent", () => {
     expect(screen.getByRole("button", { name: /stop dictating/i })).toBeInTheDocument();
   });
 
-  it("says nothing was heard once the dictation is over with nothing to show", async () => {
+  it("says nothing was heard once a quiet room's dictation is over", async () => {
+    installRecogniser();
+    render(<ControlledField />);
+    press(screen.getByRole("button", { name: /dictate/i }));
+    // Sound arrived and none of it was speech: the microphone is working and the
+    // person did not say anything the recogniser could use.
+    act(() => {
+      latest().hearSound();
+      latest().fail("no-speech");
+    });
+    press(screen.getByRole("button", { name: /stop dictating/i }));
+    act(() => latest().end());
+    expect(await screen.findByRole("alert")).toHaveTextContent(/No speech reached the browser/i);
+  });
+
+  it("blames the microphone, not the person, when no sound ever arrived", async () => {
+    // The owner's case, and the distinction the browser's own error code cannot make:
+    // a muted or dead device opens cleanly and then sends zeros, so `no-speech` is
+    // reported for a microphone that was never going to work.
     installRecogniser();
     render(<ControlledField />);
     press(screen.getByRole("button", { name: /dictate/i }));
     act(() => latest().fail("no-speech"));
     press(screen.getByRole("button", { name: /stop dictating/i }));
     act(() => latest().end());
-    expect(await screen.findByRole("alert")).toHaveTextContent(/No speech reached the browser/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/sent no sound at all/i);
   });
 
   it("never mentions a silence that words arrived after", async () => {
@@ -382,6 +418,97 @@ describe("failures are stated, never silent", () => {
       expect(screen.getByTestId("mirror")).toHaveTextContent("and then I spoke"),
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("choosing which microphone AgentJobs uses", () => {
+  const TWO_MICS = [
+    { deviceId: "dead-headset", kind: "audioinput", label: "Headset Microphone" },
+    { deviceId: "live-webcam", kind: "audioinput", label: "HD Pro Webcam C920" },
+    // The synthetic aliases, which must never be offered: they point at the system
+    // default, which is the thing the chooser exists to route around.
+    { deviceId: "default", kind: "audioinput", label: "Default - Headset Microphone" },
+    { deviceId: "communications", kind: "audioinput", label: "Communications - Headset" },
+  ];
+
+  function withMediaDevices(tracks: Array<{ stop: () => void }> = []) {
+    const opened: Array<unknown> = [];
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        enumerateDevices: async () => TWO_MICS,
+        getUserMedia: async (constraints: unknown) => {
+          opened.push(constraints);
+          return { getAudioTracks: () => tracks };
+        },
+      },
+    });
+    return opened;
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "mediaDevices");
+    window.localStorage.clear();
+  });
+
+  it("offers the real microphones, and never the synthetic default aliases", async () => {
+    installRecogniser();
+    withMediaDevices();
+    render(<ControlledField />);
+    press(screen.getByRole("button", { name: /dictate/i }));
+    act(() => latest().fail("no-speech"));
+    press(screen.getByRole("button", { name: /stop dictating/i }));
+    act(() => latest().end());
+
+    const select = await screen.findByLabelText(/use this microphone for agentjobs/i);
+    const options = [...(select as HTMLSelectElement).options].map((option) => option.value);
+    expect(options).toEqual(["", "dead-headset", "live-webcam"]);
+  });
+
+  it("opens the chosen device and recognises from its track, not the default", async () => {
+    const track = { stop: () => undefined } as unknown as MediaStreamTrack;
+    installRecogniser();
+    const opened = withMediaDevices([track]);
+    render(<ControlledField />);
+
+    // Fail once, so the chooser is on screen, then choose the webcam.
+    press(screen.getByRole("button", { name: /dictate/i }));
+    act(() => latest().fail("no-speech"));
+    press(screen.getByRole("button", { name: /stop dictating/i }));
+    act(() => latest().end());
+    const select = await screen.findByLabelText(/use this microphone for agentjobs/i);
+    fireEvent.change(select, { target: { value: "live-webcam" } });
+
+    press(screen.getByRole("button", { name: /dictate/i }));
+    await waitFor(() => expect(FakeRecognition.instances).toHaveLength(2));
+    expect(opened).toEqual([{ audio: { deviceId: { exact: "live-webcam" } } }]);
+    expect(latest().startArgs).toBe(1);
+    expect(latest().startedWith).toBe(track);
+  });
+
+  it("opens nothing at all for somebody who never chose a device", async () => {
+    installRecogniser();
+    const opened = withMediaDevices();
+    render(<ControlledField />);
+    press(screen.getByRole("button", { name: /dictate/i }));
+    expect(latest().started).toBe(1);
+    // Nothing passed at all -- not `undefined`, which Chrome rejects outright.
+    expect(latest().startArgs).toBe(0);
+    expect(opened).toEqual([]);
+  });
+
+  it("remembers the choice for this site, in this browser, and nowhere else", async () => {
+    installRecogniser();
+    withMediaDevices();
+    render(<ControlledField />);
+    press(screen.getByRole("button", { name: /dictate/i }));
+    act(() => latest().fail("no-speech"));
+    press(screen.getByRole("button", { name: /stop dictating/i }));
+    act(() => latest().end());
+    fireEvent.change(await screen.findByLabelText(/use this microphone for agentjobs/i), {
+      target: { value: "live-webcam" },
+    });
+    expect(window.localStorage.getItem("agentjobs.dictation.deviceId")).toBe("live-webcam");
   });
 });
 

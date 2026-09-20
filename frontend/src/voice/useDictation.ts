@@ -2,16 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 
 import { insertDictated } from "./insertText";
 import {
+  chooseDeviceId,
+  chosenDeviceId,
   currentMode,
   errorSentence,
   installPack,
   isTerminalError,
+  listMicrophones,
+  openChosenTrack,
   readMode,
   readTranscript,
   recognitionCtor,
   watchModes,
   type DictationMode,
   type DictationRecognition,
+  type Microphone,
 } from "./speech";
 
 /**
@@ -58,9 +63,35 @@ export type Dictation = {
   install: () => void;
   toggle: () => void;
   dismissError: () => void;
+  /**
+   * The microphones this browser will name, and which one AgentJobs is told to use.
+   *
+   * Empty until a dictation has been attempted: labels are hidden before the
+   * microphone permission is granted, and a list of opaque ids is not something
+   * anybody can choose from. `null` means the system default, which is what everybody
+   * gets until they say otherwise.
+   */
+  microphones: Array<Microphone>;
+  deviceId: string | null;
+  chooseMicrophone: (deviceId: string | null) => void;
 };
 
 export type DictationTarget = () => HTMLInputElement | HTMLTextAreaElement | null;
+
+/**
+ * Start it, passing a track only when there is one.
+ *
+ * **The argument has to be absent, not `undefined`.** Chrome 153 declares the
+ * parameter as a required `MediaStreamTrack` on a second overload, so `start(undefined)`
+ * and `start(null)` both throw `TypeError: parameter 1 is not of type
+ * 'MediaStreamTrack'` -- measured in the browser, where an ordinary press then failed
+ * with "Dictation could not be started". A hand-written fake accepts `undefined`
+ * happily, which is exactly why this is verified against the real thing.
+ */
+function startRecognition(active: DictationRecognition, track: MediaStreamTrack | null): void {
+  if (track) active.start(track);
+  else active.start();
+}
 
 export function useDictation(target: DictationTarget): Dictation {
   const ctor = useMemo(() => recognitionCtor(), []);
@@ -92,6 +123,16 @@ export function useDictation(target: DictationTarget): Dictation {
   // anything at all. See `onerror` for why a recoverable failure waits.
   const pendingError = useRef<string | null>(null);
   const heardAnything = useRef(false);
+  // Whether any sound at all reached the recogniser this dictation. A device that is
+  // muted or dead opens cleanly and then sends zeros, so `soundstart` never firing is
+  // the difference between "your microphone is not working" and "you said nothing" --
+  // and it is the only place that difference is observable.
+  const sawSound = useRef(false);
+  // The track we opened for a chosen device, kept so it can be stopped: an open
+  // capture that outlives the dictation is a recording light nobody asked for.
+  const openTrack = useRef<MediaStreamTrack | null>(null);
+  const [microphones, setMicrophones] = useState<Array<Microphone>>([]);
+  const [deviceId, setDeviceId] = useState<string | null>(() => chosenDeviceId());
   const targetRef = useRef(target);
   targetRef.current = target;
 
@@ -111,10 +152,16 @@ export function useDictation(target: DictationTarget): Dictation {
     return insertDictated(element, phrase);
   }, []);
 
+  const releaseTrack = useCallback(() => {
+    openTrack.current?.stop();
+    openTrack.current = null;
+  }, []);
+
   const stopEverything = useCallback(() => {
     wanted.current = false;
     setListening(false);
     setInterim("");
+    releaseTrack();
     const active = recognition.current;
     recognition.current = null;
     if (active) {
@@ -122,16 +169,27 @@ export function useDictation(target: DictationTarget): Dictation {
       active.onerror = null;
       active.onend = null;
       active.onstart = null;
+      active.onsoundstart = null;
       try {
         active.stop();
       } catch {
         // Stopping something already stopped is not a failure worth reporting.
       }
     }
-  }, []);
+  }, [releaseTrack]);
 
-  const begin = useCallback(() => {
+  /**
+   * Start recognising, optionally from a track we opened for a chosen device.
+   *
+   * **Synchronous on purpose.** The microphone permission is asked for inside the
+   * handler for the press, and a prompt raised after an `await` is a prompt the
+   * browser may no longer consider user-activated. So the default path -- everybody
+   * who has not chosen a device -- reaches `start()` in the same tick as the click,
+   * exactly as it did before there was a chooser.
+   */
+  const begin = useCallback((track: MediaStreamTrack | null) => {
     if (!ctor) return;
+    openTrack.current = track;
     const active = new ctor();
     active.lang = lang;
     // Asked for, not relied on: honoured on desktop Chrome, ignored on Android. The
@@ -141,6 +199,10 @@ export function useDictation(target: DictationTarget): Dictation {
 
     active.onstart = () => {
       startedAt.current = Date.now();
+    };
+
+    active.onsoundstart = () => {
+      sawSound.current = true;
     };
 
     active.onresult = (event) => {
@@ -167,7 +229,13 @@ export function useDictation(target: DictationTarget): Dictation {
       // the button, waited, read that, and reported that dictation did not work; on
       // the evidence available to him it did not. It is said only once the dictation
       // is really over with nothing to show for it.
-      pendingError.current = sentence;
+      // Where the browser says `no-speech` and no sound ever arrived, we know more
+      // than the browser is telling us: the device delivered nothing. Say that
+      // instead, because it is the one the person can act on.
+      pendingError.current =
+        event.error === "no-speech" && !sawSound.current
+          ? (errorSentence("agentjobs-no-sound") ?? sentence)
+          : sentence;
     };
 
     active.onend = () => {
@@ -182,11 +250,17 @@ export function useDictation(target: DictationTarget): Dictation {
 
       if (!wanted.current) {
         recognition.current = null;
+        releaseTrack();
         setListening(false);
         // The held complaint, now that it is news: the dictation is over and nothing
         // ever arrived. A dictation that produced words keeps quiet about the silences
         // in between.
-        if (pendingError.current && !heardAnything.current) setError(pendingError.current);
+        if (pendingError.current && !heardAnything.current) {
+          setError(pendingError.current);
+          // Labels are readable now that the microphone has been used, so the choice
+          // can be offered beside the complaint rather than as a setting nobody finds.
+          void listMicrophones().then(setMicrophones);
+        }
         pendingError.current = null;
         return;
       }
@@ -198,7 +272,7 @@ export function useDictation(target: DictationTarget): Dictation {
       // Stitch: the person has not pressed stop, so this was the recogniser giving up
       // rather than the dictation ending.
       try {
-        active.start();
+        startRecognition(active, openTrack.current);
       } catch {
         setError("Dictation could not be restarted. Press the microphone to try again.");
         stopEverything();
@@ -207,14 +281,15 @@ export function useDictation(target: DictationTarget): Dictation {
 
     recognition.current = active;
     try {
-      active.start();
+      startRecognition(active, track);
       setListening(true);
     } catch {
       recognition.current = null;
       wanted.current = false;
+      releaseTrack();
       setError("Dictation could not be started. Press the microphone to try again.");
     }
-  }, [ctor, flush, lang, stopEverything]);
+  }, [ctor, flush, lang, releaseTrack, stopEverything]);
 
   const toggle = useCallback(() => {
     setError(null);
@@ -239,8 +314,25 @@ export function useDictation(target: DictationTarget): Dictation {
     sessionText.current = "";
     pendingError.current = null;
     heardAnything.current = false;
+    sawSound.current = false;
     wanted.current = true;
-    begin();
+    if (!chosenDeviceId()) {
+      // The ordinary path: no second capture, no await, no change to what the browser
+      // sees as the gesture that asked for the microphone.
+      begin(null);
+      return;
+    }
+    // Only somebody who has chosen a device pays for opening it. They have already
+    // granted the permission -- that is how the labels they chose from were readable.
+    setListening(true);
+    void openChosenTrack().then((track) => {
+      if (!wanted.current) {
+        track?.stop();
+        setListening(false);
+        return;
+      }
+      begin(track);
+    });
   }, [begin, stopEverything]);
 
   useEffect(() => stopEverything, [stopEverything]);
@@ -255,6 +347,13 @@ export function useDictation(target: DictationTarget): Dictation {
     });
   }, [ctor, lang]);
 
+  const chooseMicrophone = useCallback((next: string | null) => {
+    chooseDeviceId(next);
+    setDeviceId(next);
+    setError(null);
+    void listMicrophones().then(setMicrophones);
+  }, []);
+
   return {
     supported: ctor !== null,
     listening,
@@ -265,5 +364,8 @@ export function useDictation(target: DictationTarget): Dictation {
     install,
     toggle,
     dismissError: () => setError(null),
+    microphones,
+    deviceId,
+    chooseMicrophone,
   };
 }
