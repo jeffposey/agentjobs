@@ -16,14 +16,15 @@ tailnet, which is the surface this bar is actually read on.
 Then compare the two states this change is about, without constructing either by hand:
 
 * the destination you are on -- brighter text, a blue tint, a hairline ring
-* the ones you are not -- muted, and identical to each other, Create included
+* the ones you are not -- muted, and identical to each other
 
 Narrow the window below ``NAV_INLINE_MIN_PX`` and the same marking appears inside the
 burger panel, which is where this app is read on a phone.
 
 **task-345 added a third state to compare, and it is the interesting one.** The bar now
-carries navigation only: Analytics, Dispatch settings, Playbooks and the API docs moved
-into the kebab menu at the right-hand end. So there are now routes the bar has no entry
+carries navigation only -- Dashboard, Tasks, Runs: Analytics, Dispatch settings,
+Playbooks and the API docs moved into the kebab menu at the right-hand end, and Create
+left with task-346, whose capture trigger sits beside that kebab. So there are now routes the bar has no entry
 for, and standing on one of them the honest answer to "where am I" is *nothing marked*.
 Walk from Dashboard (marked) to Dispatch settings (nothing marked) and back; before this
 change the second of those lit up Dashboard, which was a confident wrong answer. Both
@@ -120,7 +121,6 @@ def main() -> None:
     for suffix, label in [
         ("", "Dashboard"),
         ("/tasks", "Tasks"),
-        ("/tasks/new", "Create"),
         ("/runs", "Runs"),
     ]:
         print(f"[nav]   {label:<18} {base}{suffix}", flush=True)

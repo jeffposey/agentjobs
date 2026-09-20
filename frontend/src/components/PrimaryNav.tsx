@@ -75,12 +75,11 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * row's gap went from `gap-6` to `gap-4` (56px back across seven gaps) and the number
  * moved less than it otherwise would have.
  *
- * **Not re-measured for task-346's capture trigger, deliberately.** That swap is a net
- * *narrowing* -- a 44px icon button and a 4px gap replacing a `Create` link that cost
- * roughly 70px plus the inline group's 16px gap -- so the number below stays correct
- * and merely stops being tight. task-345 owns the re-measurement for the row's final
- * contents, and re-deriving it here would have collided with that branch for no gain.
- * Verified in Chromium at 1256 after the swap: the row still fits on one line.
+ * **task-346's capture trigger was deliberately not measured on its own branch**, on
+ * the argument that swapping a `Create` link for a 44px icon button is a net narrowing
+ * and leaves the number merely untight. That was right, and the measurement below is
+ * the one that settles it: this task owns the row's final contents, and re-deriving it
+ * twice would have collided for no gain.
  *
  * **Re-measured for task-168's actions menu**, which adds a 44px trigger plus a
  * gap at the right end -- and unlike a destination it is there at *every* width, since
@@ -97,9 +96,10 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  *
  * **Re-measured for task-345, the first change that subtracts from this row.**
  * Dispatch, Playbooks, API Docs and -- on the owner's call at review -- Analytics all
- * left it for the actions menu. Four entries remain and the bar last overflows at
- * **842px**, so the constant is **854**: the same 12px of margin over the last overflow
- * that 1256 kept over 1244, and 402px below the number it replaces.
+ * left it for the actions menu, and Create left with task-346. Three destinations
+ * remain, beside the capture trigger and the kebab, and the bar last overflows at
+ * **810px**, so the constant is **822**: the same 12px of margin over the last overflow
+ * that 1256 kept over 1244, and 434px below the number it replaces.
  *
  * Measured in Chromium against the `e2e/run_server.py` sandbox on 2026-09-20, with the
  * project switcher pinned to the 224px (`max-w-56`) it reaches for a long project name,
@@ -108,32 +108,26 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * swept in 1px steps. The switcher is pinned because that is the case this constant has
  * to hold for, not the four-character project a sandbox happens to have.
  *
- * **The prize the task hoped for is not there, and the same sweep says why.** A row
- * this short was expected to fit a phone, which would have retired the burger. It does
- * not, and nor will task-346's three-entry row: with Create hidden as well the last
- * overflow is **762**, still nearly twice a 390px phone. That figure came out identical
- * on two independent sweeps, one taken while Analytics was still in the row and one
- * after it left -- which is the cross-check that this instrument measures the row
- * rather than itself.
+ * **The interim figure of 762 was a floor and the sweep says by how much.** Taken
+ * before task-346 merged, it laid out these same three destinations with no capture
+ * control in the bar; adding that control costs 48px, which is the 44px trigger and its
+ * gap almost exactly. The number quoted as a floor came out 48px below the answer, in
+ * the direction it was predicted to -- which is the cross-check that this instrument
+ * measures the row rather than itself.
  *
+ * **The prize the task hoped for is still not there.** A row this short was expected to
+ * fit a phone, which would have retired the burger; 810 is more than twice a 390px one.
  * What this row costs is mostly not its destinations. The wordmark, the 224px switcher,
- * the badge and the kebab are some 500px of fixed furniture before the first link is
- * drawn, so deleting links has a floor well above a phone. Shrinking *those* is the only
- * lever that would reach one, and it is nobody's task yet.
- *
- * **762 is recorded, but task-346 must not simply adopt it.** That branch takes Create
- * out of this row *and puts a capture control into the bar*, so its row is these three
- * destinations plus a control this sweep never laid out -- roughly another 44px and a
- * gap, and "roughly" is exactly the word this constant's history warns about. 762 is
- * the floor its measurement should come out above, and a starting point for the sweep
- * rather than an answer. Re-measure; the method is four paragraphs up.
+ * the badge, the capture trigger and the kebab are some 500px of fixed furniture before
+ * the first link is drawn, so deleting links has a floor well above a phone. Shrinking
+ * *those* is the only lever that would reach one, and it is nobody's task yet.
  *
  * **The badge is why this first moved and it is also why the move is cheap.** It
  * renders only when work has actually stopped on you, so the 34px is spent on the rare
  * screen rather than every screen -- but the constant has to hold for the screen that
  * spends it, since that is the one a person is being asked to read.
  *
- * The cost is now the 842-853 band rather than the 960-1255 one task-168 left behind:
+ * The cost is now the 810-821 band rather than the 960-1255 one task-168 left behind:
  * landscape tablets, portrait tablets and split-screen desktop windows are all back to
  * an inline row. The burger is still the phone's experience, and still keeps every
  * destination one tap away.
@@ -142,7 +136,7 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * at once; Tailwind needs the literal in the class, so the two are checked against
  * each other by a test rather than by the compiler.
  */
-export const NAV_INLINE_MIN_PX = 854;
+export const NAV_INLINE_MIN_PX = 822;
 
 /** Shown inline above the breakpoint, and inside the panel below it. */
 const DESTINATIONS: ReadonlyArray<{
@@ -362,18 +356,18 @@ export function PrimaryNav({
       className="sticky top-0 z-30 border-b border-dark-border bg-dark-surface"
     >
       <nav
-        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[854px]:gap-4 sm:px-6 lg:px-8"
+        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[822px]:gap-4 sm:px-6 lg:px-8"
         aria-label="Primary navigation"
       >
         {/*
           The breakpoint lives on this wrapper rather than on the button, and that is
           not a stylistic choice. `styles.css` carries `.touch-target:not(.block) {
           display: inline-flex }`, whose specificity (0,2,0) beats a Tailwind utility's
-          (0,1,0) -- so `min-[854px]:hidden` on a `touch-target` element loses, and the
+          (0,1,0) -- so `min-[822px]:hidden` on a `touch-target` element loses, and the
           burger stays visible at every width. Caught in a browser at 1280px; jsdom
           would never have shown it.
         */}
-        <div className="shrink-0 min-[854px]:hidden">
+        <div className="shrink-0 min-[822px]:hidden">
           <button
             ref={triggerRef}
             type="button"
@@ -404,7 +398,7 @@ export function PrimaryNav({
           point of shortening the row was to move that number down. The task's
           constraint is not to restyle the bar, and reverting this would be one.
         */}
-        <div className="hidden items-center gap-4 min-[854px]:flex">{destinations}</div>
+        <div className="hidden items-center gap-4 min-[822px]:flex">{destinations}</div>
         {/*
           The actions end: the capture trigger (task-346) and the actions menu
           (task-168), at the opposite end from the burger and present at every width.
@@ -425,7 +419,7 @@ export function PrimaryNav({
           // Absolute rather than in flow, so opening the panel overlays the page
           // instead of pushing it down under a bar that is already pinned. `sticky`
           // is a positioned value, so the header is the containing block already.
-          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[854px]:hidden"
+          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[822px]:hidden"
         >
           <div
             className="mx-auto flex max-w-7xl flex-col px-4 py-2 sm:px-6"

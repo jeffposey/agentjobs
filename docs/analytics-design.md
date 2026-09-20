@@ -1060,7 +1060,8 @@ section established still holds: Analytics needs an entry point of its own at th
 top level. Which of the two top-level containers holds it — the row or the menu — was
 never this section's claim.
 
-The row it left is now four entries, and `NAV_INLINE_MIN_PX` fell from 1256 to **854**.
+The row it left is now three entries — Create went with task-346 — and
+`NAV_INLINE_MIN_PX` fell from 1256 to **822**.
 
 **Still rejected: an icon.** An unlabelled glyph for a page nobody has seen before is a
 guess, and the nav's other entries are words.
