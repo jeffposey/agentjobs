@@ -306,6 +306,20 @@ def _synthetic_task(index: int, *, total: int) -> Dict[str, Any]:
     return task
 
 
+def synthetic_documents(count: int) -> List[Dict[str, Any]]:
+    """The generated corpus as documents, before anything writes them anywhere.
+
+    ``build_corpus`` dumps these to YAML; ``tests/test_performance_budgets.py`` validates
+    them into records and saves them straight into a store. Both reach the corpus through
+    this one function so a budget and a benchmark cannot come to measure different
+    records -- which is the property the budget module's docstring claims, and it used to
+    rest on the budgets going through the YAML round trip that the benchmark goes
+    through. That round trip costs about 6ms a record, all of it in ``yaml.safe_dump``,
+    and at a corpus near the real backlog's size it dominated the budget module.
+    """
+    return [_synthetic_task(index, total=count) for index in range(1, count + 1)]
+
+
 def build_corpus(destination: Path, *, kind: str, count: int, source: Optional[Path]) -> None:
     """Populate ``destination`` with the corpus to measure."""
     destination.mkdir(parents=True, exist_ok=True)
@@ -330,8 +344,7 @@ def build_corpus(destination: Path, *, kind: str, count: int, source: Optional[P
         if attachments.is_dir():
             shutil.copytree(attachments, destination / "attachments", dirs_exist_ok=True)
         return
-    for index in range(1, count + 1):
-        task = _synthetic_task(index, total=count)
+    for task in synthetic_documents(count):
         (destination / f"{task['id']}.yaml").write_text(
             yaml.safe_dump(task, sort_keys=False, allow_unicode=False), encoding="utf-8"
         )
