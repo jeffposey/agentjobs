@@ -302,9 +302,7 @@ class RemoteTaskManager:
 
     def list_task_summaries(self, **filters: Any) -> List[TaskSummary]:
         """Listing rows, optionally filtered the way the REST listing filters them."""
-        return [
-            TaskSummary.model_validate(row) for row in self.client.read_tasks(**filters)
-        ]
+        return [TaskSummary.model_validate(row) for row in self.client.read_tasks(**filters)]
 
     def search_tasks(self, query: str) -> List[Task]:
         """Free-text search, most relevant first."""
