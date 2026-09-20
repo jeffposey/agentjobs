@@ -300,7 +300,10 @@ def add_trace_route(app: Any) -> None:
     is not an instrument. Here the panel is the terminal that started the sandbox.
     """
 
-    @app.post("/review/dictation-trace")
+    # Out of the schema: the contract digest the page checks itself against is
+    # computed from the running app, so a sandbox-only route would otherwise make
+    # every page in this sandbox report a version skew against its own server.
+    @app.post("/review/dictation-trace", include_in_schema=False)
     async def record(request: Request) -> dict[str, bool]:
         line = (await request.body()).decode("utf-8", "replace").strip()
         if line:
