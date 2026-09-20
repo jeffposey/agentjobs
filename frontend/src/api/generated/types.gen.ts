@@ -5866,10 +5866,11 @@ export type Task = {
  * surface gets the fields it draws, which is the whole of task-483's argument, and
  * "one more field, everywhere" is how a projection grows back into a record.
  *
- * Built from whole records rather than from rows, because the dashboard has them in
- * hand: its recent-updates panel is the ten newest log entries in the project, so the
- * snapshot behind this reads logs whatever the cards need. See
- * :func:`agentjobs.dashboard.build_dashboard_snapshot`.
+ * Built from rows, not from records. It used to say the opposite -- that the dashboard
+ * had whole records in hand anyway, because the recent-updates panel needed logs -- and
+ * that was the last thing holding the whole-corpus read in place: the panel asks the
+ * store for the ten entries it draws now, and nothing else in the snapshot wants a log
+ * (task-498). See :func:`agentjobs.dashboard.build_dashboard_snapshot`.
  */
 export type TaskCardReadInput = {
     /**
@@ -6010,10 +6011,11 @@ export type TaskCardReadInput = {
  * surface gets the fields it draws, which is the whole of task-483's argument, and
  * "one more field, everywhere" is how a projection grows back into a record.
  *
- * Built from whole records rather than from rows, because the dashboard has them in
- * hand: its recent-updates panel is the ten newest log entries in the project, so the
- * snapshot behind this reads logs whatever the cards need. See
- * :func:`agentjobs.dashboard.build_dashboard_snapshot`.
+ * Built from rows, not from records. It used to say the opposite -- that the dashboard
+ * had whole records in hand anyway, because the recent-updates panel needed logs -- and
+ * that was the last thing holding the whole-corpus read in place: the panel asks the
+ * store for the ten entries it draws now, and nothing else in the snapshot wants a log
+ * (task-498). See :func:`agentjobs.dashboard.build_dashboard_snapshot`.
  */
 export type TaskCardReadOutput = {
     /**
@@ -7698,10 +7700,11 @@ export type TaskWritable = {
  * surface gets the fields it draws, which is the whole of task-483's argument, and
  * "one more field, everywhere" is how a projection grows back into a record.
  *
- * Built from whole records rather than from rows, because the dashboard has them in
- * hand: its recent-updates panel is the ten newest log entries in the project, so the
- * snapshot behind this reads logs whatever the cards need. See
- * :func:`agentjobs.dashboard.build_dashboard_snapshot`.
+ * Built from rows, not from records. It used to say the opposite -- that the dashboard
+ * had whole records in hand anyway, because the recent-updates panel needed logs -- and
+ * that was the last thing holding the whole-corpus read in place: the panel asks the
+ * store for the ten entries it draws now, and nothing else in the snapshot wants a log
+ * (task-498). See :func:`agentjobs.dashboard.build_dashboard_snapshot`.
  */
 export type TaskCardReadOutputWritable = {
     /**

@@ -28,7 +28,7 @@ What a SQL backend is not asked for, and why:
     read. The file backend keeps its own raw readers; nothing in this Protocol requires
     the SQL one to be able to return an invalid task.
 
-What every backend must do is below. It is deliberately small: eight reads, five
+What every backend must do is below. It is deliberately small: eleven reads, five
 writes, the redaction primitive, and a transaction.
 """
 
@@ -42,11 +42,14 @@ from typing import (
     List,
     Optional,
     Protocol,
+    Sequence,
     Tuple,
     runtime_checkable,
 )
 
-from .models_v2 import Task, TaskSummary
+from datetime import datetime
+
+from .models_v2 import RecentLogEntry, Task, TaskCard, TaskSummary
 
 
 @runtime_checkable
@@ -69,6 +72,47 @@ class TaskStore(Protocol):
         in the manager -- must not have to know which store they are talking to. A
         backend with no cheaper path answers it by projecting whole records with
         ``summary_of``; a backend with columns reads the columns (task-484).
+        """
+
+    def list_task_cards(self) -> List[TaskCard]:
+        """:meth:`list_task_summaries` plus the two columns a dashboard card draws.
+
+        On the boundary for the reason the two methods above are: the dashboard is a
+        page of cards, it must not have to know which backend answered, and the extra
+        two fields are a text column and a boolean expression over a second rather than
+        a reason to fetch a record (task-498). A backend with no cheaper path answers it
+        by projecting whole records with ``card_of``, exactly as the summary methods
+        degrade.
+        """
+
+    def recent_log_entries(self, limit: int) -> List[RecentLogEntry]:
+        """The newest ``limit`` log entries in the project, newest first.
+
+        The first read on this boundary that is about log entries rather than about
+        tasks, and it is here for the same reason the projections above are: the
+        dashboard's recent-updates panel is a product surface, and it was answering it
+        by loading every record in the project and discarding all but ten entries
+        (task-498). A backend with an index on ``(project, ts)`` reads ten rows; one
+        with no cheaper path flattens ``list_tasks()``.
+
+        **The order is not ``ts`` alone.** Entries tie, and the tie is broken by the
+        task's place in :meth:`list_tasks` order and then by entry id -- which is what
+        the whole-record form produced, because a stable ``nlargest`` over that walk
+        produces exactly that. A backend answering this some other way changes what the
+        panel shows.
+        """
+
+    def newest_log_ts(self, task_ids: Sequence[str]) -> Dict[str, datetime]:
+        """The newest log timestamp for each of ``task_ids`` that has one.
+
+        The second log-shaped read on this boundary, and it exists for the same reason
+        the first does: the stalled-task detector reads six things off a task and five of
+        them are on a listing row, so without this the dashboard loads every record in
+        the project to take one timestamp from each (task-498). Bounded by the caller's
+        list, which is the handful of tasks an agent is supposed to be working.
+
+        A task with no log rows is absent from the answer rather than present with a
+        default: the caller's fallback is ``created``, which a store need not know about.
         """
 
     def search_tasks(self, query: str) -> List[Task]:

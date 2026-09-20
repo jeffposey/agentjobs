@@ -21,6 +21,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TypeVar,
     Union,
     cast,
 )
@@ -63,7 +64,9 @@ from .models_v2 import (
     QuestionData,
     QuestionDraft,
     LabelledTask,
+    RecentLogEntry,
     Task,
+    TaskCard,
     TaskSummary,
     utcnow,
 )
@@ -437,6 +440,15 @@ class TaskNotFoundError(ValueError):
     """
 
 
+RecordT = TypeVar("RecordT", bound=LabelledTask)
+"""Whichever shape of record a caller handed in, returned unchanged.
+
+The selection rules read only fields both shapes carry, so the frontier they produce is
+in whatever shape the corpus was. A plain ``LabelledTask`` return would give a caller
+holding cards a list it could no longer draw a card from.
+"""
+
+
 class TaskManager:
     """Core task management logic."""
 
@@ -509,6 +521,23 @@ class TaskManager:
         seven joined child tables, and the projection has already left those behind.
         """
         return self._filtered(self.storage.list_task_summaries(), lifecycle, ball, priority, parent)
+
+    def list_task_cards(self) -> List[TaskCard]:
+        """:meth:`list_task_summaries` plus the two fields a dashboard card draws.
+
+        Unfiltered, unlike the listing above it: the dashboard's own panels each apply a
+        predicate of their own to the whole corpus, and the facts beside them are
+        corpus-wide by definition.
+        """
+        return self.storage.list_task_cards()
+
+    def recent_log_entries(self, limit: int) -> List[RecentLogEntry]:
+        """The newest ``limit`` log entries in the project, newest first."""
+        return self.storage.recent_log_entries(limit)
+
+    def newest_log_ts(self, task_ids: Sequence[str]) -> Dict[str, datetime]:
+        """The newest log timestamp for each of ``task_ids`` that has one."""
+        return self.storage.newest_log_ts(task_ids)
 
     def listing_rows(
         self,
@@ -790,7 +819,7 @@ class TaskManager:
 
     def _skip_reason(
         self,
-        task: Task,
+        task: LabelledTask,
         priority: Optional[Priority],
         agent: Optional[str],
         states: Dict[str, bool],
@@ -801,6 +830,10 @@ class TaskManager:
         One string per rule, in a fixed order, because a task usually breaks more than
         one and "active *and* has four open children" answers a question nobody asked.
         Lifecycle first: it is the reason a reader can act on.
+
+        Every rule reads a field a ``TaskSummary`` carries, which is what lets the
+        dashboard ask for the claimable frontier over the projection it has already read
+        rather than over the records (task-498).
         """
         if task.lifecycle is not Lifecycle.READY:
             holder = task.ball.value if task.ball else "nobody"
@@ -820,18 +853,52 @@ class TaskManager:
 
     def _claimable(
         self,
-        tasks: Sequence[Task],
+        tasks: Sequence[RecordT],
         priority: Optional[Priority],
         agent: Optional[str],
         states: Dict[str, bool],
         open_children: Dict[str, List[str]],
-    ) -> List[Task]:
+    ) -> List[RecordT]:
         """The claimability filter, unchanged by the queue. It decides *whether*."""
         return [
             task
             for task in tasks
             if self._skip_reason(task, priority, agent, states, open_children) is None
         ]
+
+    def claimable_over(
+        self,
+        corpus: Sequence[RecordT],
+        priority: Optional[Priority] = None,
+        *,
+        agent: Optional[str] = None,
+        parent: Optional[str] = None,
+    ) -> List[RecordT]:
+        """:meth:`claimable_tasks`, over a corpus the caller has already read.
+
+        The shape of every other "over" method here, and for the same reason: the
+        dashboard has just read the project as cards, and asking it to pay for a second
+        reading in a second shape is what task-485 removed from the endpoint beside this
+        one. The answer is in whatever shape the corpus was, so a caller holding cards
+        gets cards back.
+
+        ``corpus`` must be the **whole** project: ``parent`` narrows which tasks may
+        win, and must not narrow what "has an open child" is computed over.
+        """
+        tasks = [task for task in corpus if task.parent == parent] if parent is not None else corpus
+        candidates = self._claimable(
+            tasks,
+            priority,
+            agent,
+            self._states_over(corpus),
+            self._open_children_over(corpus),
+        )
+        if not candidates:
+            return []
+        winning_rank = min(task.priority_rank() for task in candidates)
+        self.assert_queue_integrity(bands_at_or_above(winning_rank), corpus=corpus)
+        candidates.sort(key=order_key)
+        return candidates
 
     def claimable_tasks(
         self,
@@ -853,31 +920,14 @@ class TaskManager:
         sorted its own frontier is exactly how the walk and the dashboard would come to
         disagree about what is next, with the walk winning silently because it is the one
         that spends money.
+
+        Whole records, for the callers that go on to work the task: the epic walk, the
+        dispatch pull loop and ``get_next_task`` all want the record they are about to
+        act on. A caller that only draws the frontier -- the dashboard's queue preview --
+        asks :meth:`claimable_over` with the projection it has already read instead
+        (task-498).
         """
-        project_corpus = self.storage.list_tasks()
-        tasks = (
-            [task for task in project_corpus if task.parent == parent]
-            if parent is not None
-            else project_corpus
-        )
-        # Derived from the records this method has already read, not from a second
-        # listing of the same project (task-485). ``_states_over`` and
-        # ``_open_children_over`` take a ``LabelledTask``, which whole records satisfy,
-        # and the corpus here is the unfiltered one -- ``parent`` narrows the candidates
-        # and must not narrow what "has an open child" is computed over.
-        candidates = self._claimable(
-            tasks,
-            priority,
-            agent,
-            self._states_over(project_corpus),
-            self._open_children_over(project_corpus),
-        )
-        if not candidates:
-            return []
-        winning_rank = min(task.priority_rank() for task in candidates)
-        self.assert_queue_integrity(bands_at_or_above(winning_rank))
-        candidates.sort(key=order_key)
-        return candidates
+        return self.claimable_over(self.storage.list_tasks(), priority, agent=agent, parent=parent)
 
     def get_next_task(
         self,
@@ -2607,7 +2657,7 @@ class TaskManager:
     # Corruption is loud (design doc section 8)
     # ------------------------------------------------------------------
 
-    def _queue_places(self) -> List[QueuePlace]:
+    def _queue_places(self, corpus: Optional[Sequence[LabelledTask]] = None) -> List[QueuePlace]:
         """Every open task's claim on a band, including the files that will not load.
 
         Loaded tasks supply theirs for free. A file that fails to load is then read raw
@@ -2617,16 +2667,31 @@ class TaskManager:
 
         The raw reads are bounded by how broken the corpus is, not by how big it is: a
         healthy corpus costs nothing beyond the listing every caller already does.
+
+        **The listing, and not the records.** ``place_of`` reads an id, a band and a
+        position, all of which a ``TaskSummary`` carries -- and this is on the dashboard's
+        path through ``claimable_tasks``, so reading whole records here put every log
+        entry in the project back on a request that draws a panel of ten (task-498).
+        ``load_all`` was the whole-record form of exactly these two calls.
+
+        ``corpus`` is that listing, for a caller that has already read it -- selection
+        has, and in a shape of its own. Without it a dashboard request reads the project
+        twice: once as the cards it draws and once as the summaries this checks.
         """
-        loaded = self.storage.load_all()
-        places = [place_of(task) for task in loaded.tasks if task.is_open]
-        for error in loaded.errors:
+        rows = corpus if corpus is not None else self.storage.list_task_summaries()
+        places = [place_of(task) for task in rows if task.is_open]
+        for error in self.storage.load_errors():
             record = read_queue_record(error.path)
             if record is not None and record.is_open:
                 places.append(QueuePlace(record.task_id, record.priority, record.queue_position))
         return places
 
-    def assert_queue_integrity(self, bands: Optional[Collection[str]] = None) -> None:
+    def assert_queue_integrity(
+        self,
+        bands: Optional[Collection[str]] = None,
+        *,
+        corpus: Optional[Sequence[LabelledTask]] = None,
+    ) -> None:
         """Raise :class:`QueueCorruptionError` if the checked bands are not a queue.
 
         Selection calls this before it answers, over the winning band and the bands
@@ -2638,8 +2703,11 @@ class TaskManager:
         the claim that a particular ``high`` task is next, and making every selection
         hostage to corruption in a band it never reads would punish the wrong caller.
         ``check_queue`` and ``repair_queue`` cover every band, always.
+
+        ``corpus`` is passed by a caller that has already read the project -- selection
+        has, which is why the check no longer reads it a second time in a second shape.
         """
-        problems = find_queue_problems(self._queue_places(), bands=bands)
+        problems = find_queue_problems(self._queue_places(corpus), bands=bands)
         if problems:
             raise QueueCorruptionError(problems)
 

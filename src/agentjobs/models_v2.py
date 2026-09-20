@@ -1581,6 +1581,72 @@ def summary_of(task: "Task") -> TaskSummary:
     )
 
 
+class TaskCard(TaskSummary):
+    """A listing row plus the two things a dashboard card draws that a row does not.
+
+    The dashboard is a page of cards rather than a table: every one of them prints the
+    task's one-sentence summary under its title, and the slot board's free cells have to
+    know whether pressing Dispatch would stop to ask a person for text. Those are one
+    text column and one boolean expression over a second, both on ``task`` -- so a card
+    is the listing read with two more columns rather than a whole record (task-498).
+
+    **A subclass of ``TaskSummary``, unlike ``TaskSummary``'s relation to ``Task``.**
+    That refusal was about a projection pretending to be a record: an empty ``log`` is a
+    lie a reader cannot detect. Nothing here is empty -- both fields are required, and a
+    card built without one is a validation error rather than a blank line under a title.
+
+    **Not fields on ``TaskSummary``.** task-495 rejected that with a measurement: the
+    summary averages 293 bytes against a 785-byte row, and putting it on the projection
+    puts it on ``GET /tasks``, where nothing draws it.
+    """
+
+    summary: str
+    """The task's one-sentence orientation, as :attr:`Spec.summary` holds it."""
+
+    can_brief: bool
+    """Whether this record, on its own, could brief an agent that has never seen it.
+
+    Exactly :func:`agentjobs.dispatch.guards.record_can_brief` -- ``spec.description``
+    stripped and tested for emptiness -- decided where the column lives rather than by
+    carrying the largest field on the record in order to throw it away.
+    """
+
+
+def card_of(task: "Task") -> TaskCard:
+    """The card projection of a whole record.
+
+    The fallback :func:`summary_of` is: for a backend with no cheaper path, and for the
+    tests that hold the two shapes against each other. A store that can project reaches
+    its columns directly and does not come through here.
+    """
+    return TaskCard.model_validate(
+        {
+            **summary_of(task).model_dump(mode="python", by_alias=True, exclude={"display_status"}),
+            "summary": task.spec.summary,
+            "can_brief": bool(task.spec.description.strip()),
+        }
+    )
+
+
+class RecentLogEntry(StrictModel):
+    """One log entry as the dashboard's recent-updates panel needs it.
+
+    The panel is the only consumer in the snapshot that wants a log at all, and it wants
+    the ten newest entries in the project rather than any task's history. Reading whole
+    records to find them joined every ``log_entry`` row in the project and threw all but
+    ten away (task-498), so the store answers this directly and this is the shape it
+    answers in: the entry's own fields, plus the title of the task it belongs to, which
+    is the one thing the panel draws that the log row does not carry.
+    """
+
+    task_id: str
+    task_title: str
+    ts: datetime
+    actor: str
+    type: LogEntryType
+    body: Optional[str] = None
+
+
 LabelledTask = Union["Task", TaskSummary]
 """Either shape a status label can be drawn from.
 

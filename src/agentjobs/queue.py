@@ -103,7 +103,7 @@ def bands_at_or_above(rank: int) -> Set[str]:
     return {priority.value for priority, band in PRIORITY_RANK.items() if band <= rank}
 
 
-def order_key(task: Task) -> Tuple[int, int]:
+def order_key(task: LabelledTask) -> Tuple[int, int]:
     """``(band, place)`` -- the total order over open work, and the only one.
 
     Consistency rule 6 guarantees an open task has a position, so a task reaching this
@@ -416,7 +416,7 @@ class QueuePlace:
     position: Optional[int]
 
 
-def place_of(task: Task) -> QueuePlace:
+def place_of(task: LabelledTask) -> QueuePlace:
     """The claim an in-memory task makes on its band."""
     return QueuePlace(task.id, task.priority.value, task.queue_position)
 

@@ -21,7 +21,7 @@ from agentjobs.attention import (
 from agentjobs.dashboard import build_dashboard_snapshot
 from agentjobs.dispatch.config import machine_ceiling
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Task
+from agentjobs.models_v2 import TaskCard
 from agentjobs.principals import Principal
 from agentjobs.projects import Project
 from agentjobs.stalled import Stall, stalled_in
@@ -62,29 +62,38 @@ async def get_dashboard(
     # Which claimed tasks have nobody on them, read off this machine's run ledger
     # (task-499). Computed here rather than inside the projection for the same reason
     # the ceiling is: `dashboard.py` is a projection over task records and must not
-    # reach into the user's home. `list_tasks` is free inside the request's corpus
-    # scope, which the snapshot below opens against the same rows.
-    stalls = stalled_in(manager.list_tasks(), project_id=project.id)
+    # reach into the user's home. The listing is free inside the request's corpus scope,
+    # which the snapshot below opens against the same rows.
+    #
+    # Cards and a bounded lookup, not records. The detector reads a lifecycle, a ball
+    # and a ball reason off every task and the newest log timestamp off the handful it
+    # admits, so handing it whole records put every log entry in the project back on this
+    # request (task-498). `newest_log_ts` is one statement over the candidates.
+    cards = manager.list_task_cards()
+    stalls = stalled_in(cards, project_id=project.id, newest_log_ts=manager.newest_log_ts)
     snapshot = build_dashboard_snapshot(
         manager, preview_limit=ceiling, stalled_ids={stall.task_id for stall in stalls}
     )
     # The corpus the snapshot was built from, handed to the facts rather than letting
-    # them list the project again in the other shape (task-485). `list_tasks` is free
-    # here: the request's corpus scope already holds it, and this is what says so at the
-    # call site instead of leaving it to a scope being open.
-    facts = manager.dependency_facts(corpus=manager.list_tasks())
+    # them list the project again in the other shape (task-485). The card listing is
+    # free here: the request's corpus scope already holds it, and this is what says so at
+    # the call site instead of leaving it to a scope being open. Records would not be --
+    # asking for them here is what kept every log entry in the project on this request
+    # after the payload was fixed (task-498).
+    facts = manager.dependency_facts(corpus=cards)
     identity = current_identity(project, principal)
 
-    # Cards, not records. Each list here is a page of cards drawing a title, a summary
-    # line, a priority chip and a dependency badge; sending the whole record to draw one
-    # was 5.2 MB at 480 tasks and grew with every log entry appended to any of them
-    # (task-495). `TaskCardRead` is the listing row plus the summary line, which is the
-    # only field on a card that a row does not already carry.
-    def read(task: Optional[Task]) -> Optional[TaskCardRead]:
-        return TaskCardRead.from_task(task, facts[task.id]) if task is not None else None
+    # Cards, not records -- now on the way in as well as on the way out. Each list here
+    # is a page of cards drawing a title, a summary line, a priority chip and a
+    # dependency badge; sending the whole record to draw one was 5.2 MB at 480 tasks and
+    # grew with every log entry appended to any of them (task-495), and *reading* whole
+    # records to build them joined every one of those log rows (task-498). The snapshot
+    # hands over `TaskCard` rows and this attaches each one's dependency facts.
+    def read(card: Optional[TaskCard]) -> Optional[TaskCardRead]:
+        return TaskCardRead.from_card(card, facts[card.id]) if card is not None else None
 
-    def reads(tasks: list[Task]) -> list[TaskCardRead]:
-        return TaskCardRead.from_tasks(facts, tasks)
+    def reads(cards: list[TaskCard]) -> list[TaskCardRead]:
+        return TaskCardRead.from_cards(facts, cards)
 
     return DashboardResponse(
         **{

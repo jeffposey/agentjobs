@@ -75,6 +75,7 @@ import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Callable, Dict, List, Optional, Sequence
@@ -232,6 +233,29 @@ def bench_home(root: Path) -> Path:
 
 SYNTHETIC_LOG_ENTRIES = 6
 
+#: The instant the newest generated log entry carries. Every other entry is a whole
+#: number of seconds before it.
+SYNTHETIC_LOG_BASE = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def _synthetic_entry_ts(index: int, entry: int, *, total: int) -> str:
+    """A distinct timestamp for one generated log entry, newest at the end.
+
+    **Every generated entry used to carry the same instant**, which made the corpus
+    degenerate for any question about log order: a panel showing the ten newest entries
+    in a project where all 2,880 of them are simultaneous has to consider all 2,880 to
+    answer, so a bounded read and the whole-corpus read it replaced were
+    indistinguishable (task-498). No real project looks like that, and the budget these
+    records exist for is meant to catch a read that follows the corpus.
+
+    One second apart, ascending with entry id within a task and with index across them,
+    and always at or before :data:`SYNTHETIC_LOG_BASE` so nothing is stamped after the
+    ``updated`` the records carry. The format is fixed-width, so the bytes a record puts
+    on the wire are what they were.
+    """
+    behind = (total - index) * SYNTHETIC_LOG_ENTRIES + (SYNTHETIC_LOG_ENTRIES - entry)
+    return (SYNTHETIC_LOG_BASE - timedelta(seconds=behind)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 def _synthetic_task(index: int, *, total: int) -> Dict[str, Any]:
     """One generated task, shaped like a real one.
@@ -285,7 +309,7 @@ def _synthetic_task(index: int, *, total: int) -> Dict[str, Any]:
         "log": [
             {
                 "id": entry,
-                "ts": "2026-01-01T00:00:00Z",
+                "ts": _synthetic_entry_ts(index, entry, total=total),
                 "actor": "claude",
                 "type": "progress",
                 "body": body,

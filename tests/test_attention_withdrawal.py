@@ -18,7 +18,7 @@ assertions below are the point rather than a flourish.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
+from typing import List, Sequence
 
 import pytest
 
@@ -30,7 +30,15 @@ from agentjobs.dashboard import (
     human_waiting_tasks,
 )
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome, Task
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    LabelledTask,
+    Lifecycle,
+    LogEntryType,
+    Outcome,
+    Task,
+)
 from agentjobs.retraction import Finding, retract, survey, waiting_on_stamp
 from support import task_store
 
@@ -93,7 +101,7 @@ def ask_about(manager: TaskManager, parent: Task, child_id: str, *, stamped: boo
     )
 
 
-def ids(tasks: List[Task]) -> List[str]:
+def ids(tasks: Sequence[LabelledTask]) -> List[str]:
     return [task.id for task in tasks]
 
 

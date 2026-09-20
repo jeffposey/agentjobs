@@ -38,7 +38,15 @@ import yaml
 from .. import corpus
 from ..attachments import MEDIA_TYPES
 from ..instrumentation import record_corpus_load
-from ..models_v2 import Ball, BallReason, Task, TaskSummary, self_clearing_wait_of
+from ..models_v2 import (
+    Ball,
+    BallReason,
+    RecentLogEntry,
+    Task,
+    TaskCard,
+    TaskSummary,
+    self_clearing_wait_of,
+)
 from .blobs import SqlAttachmentStore
 from .connection import Database, SqlStoreError
 from .history import HistoryWrite, upsert_finish, upsert_gate_run
@@ -74,6 +82,16 @@ def _iso(value: Optional[datetime]) -> Optional[str]:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _parsed(value: str) -> datetime:
+    """The stored string form of a timestamp, back as the datetime it came from.
+
+    The inverse of :func:`_iso`, and it exists for one caller: the recent-updates window,
+    which has to order by the value rather than by its spelling. ``fromisoformat`` reads
+    the ``Z`` suffix from Python 3.11 on; this package requires 3.13.
+    """
+    return datetime.fromisoformat(value)
 
 
 def _enum(value: Any) -> Optional[str]:
@@ -255,6 +273,130 @@ class SqlTaskStore:
         not a reason to read it four times.
         """
         return list(corpus.memoised((self, "list_task_summaries"), self._load_task_summaries))
+
+    # Every column ``_summary_document`` and ``_self_clearing_waits`` read, named once.
+    # The card read below selects these explicitly rather than ``*``, because the two
+    # columns it adds are the point: fetching ``spec_description`` in order to test it
+    # for emptiness and then drop it is the shape task-483 is removing, and ``SELECT *``
+    # is how that happens without anybody deciding to.
+    _SUMMARY_COLUMNS = (
+        "task_id, title, created_at, updated_at, lifecycle, ball, ball_reason, "
+        "ball_prompt, outcome, archived, priority, queue_position, category, effort, "
+        "owner, parent_id, posture, eligible_json"
+    )
+
+    def _load_task_cards(self) -> List[TaskCard]:
+        """Read the card projection from the database, now."""
+        record_corpus_load()
+        connection = self._connection()
+        rows = connection.execute(
+            f"SELECT {self._SUMMARY_COLUMNS}, spec_summary, "
+            "(length(trim(spec_description)) > 0) AS can_brief "
+            f"FROM task WHERE project_id = ? {self._LISTING_ORDER}",
+            (self.project_id,),
+        ).fetchall()
+        return self._assemble_cards(connection, rows)
+
+    def list_task_cards(self) -> List[TaskCard]:
+        """Every task as a dashboard card needs it, in ``list_tasks`` order.
+
+        The listing row plus ``spec.summary`` and one bit derived from
+        ``spec_description`` -- one query, no join, and no prose on the wire beyond the
+        line the card draws. ``can_brief`` is computed in SQL rather than from a
+        description this then discards, which is the whole difference between a card
+        read and a record read (task-498).
+
+        Scoped exactly as :meth:`list_task_summaries` is, and for the same reason: the
+        dashboard route asks for the corpus once for the snapshot and once for the
+        dependency facts beside it.
+        """
+        return list(corpus.memoised((self, "list_task_cards"), self._load_task_cards))
+
+    #: How far past the panel's own limit the bounded log read looks, in whole seconds.
+    #:
+    #: Stored timestamps come from ``_iso`` in one of two forms -- with six fractional
+    #: digits, or with none at all when the microsecond is zero, which 106 of this
+    #: repository's 5,871 entries are. Those two forms do not sort the same way as text
+    #: and as datetimes: ``...:17Z`` is lexicographically *after* ``...:17.9Z`` and
+    #: chronologically before it. Truncating the boundary to whole seconds is the
+    #: smallest widening that provably contains every entry the datetime order would
+    #: have chosen, because a prefix sorts below every string it is a prefix of.
+    _TIMESTAMP_SECONDS = 19
+
+    def recent_log_entries(self, limit: int) -> List[RecentLogEntry]:
+        """The newest ``limit`` entries in the project, newest first, bounded.
+
+        Two statements, both served by ``ix_log_project_ts``. The first finds where the
+        panel's window ends; the second reads that window and joins ``task`` for the one
+        field the panel draws that a log row does not carry. Before this the dashboard
+        assembled every record in the project -- every ``log_entry`` row in it -- so that
+        ``nlargest`` could keep ten (task-498).
+
+        **The final order is decided here rather than in SQL**, and that is not
+        squeamishness. The whole-record form was a stable ``nlargest`` over the
+        ``list_tasks`` walk, so on equal ``ts`` it returned entries in listing order and
+        then by entry id; the window is ordered that way by SQL, and a stable sort by the
+        parsed timestamp over it reproduces that exactly -- including for the two stored
+        timestamp spellings that are equal as datetimes and different as text.
+        """
+        if limit <= 0:
+            return []
+        connection = self._connection()
+        boundary = connection.execute(
+            "SELECT ts FROM log_entry WHERE project_id = ? ORDER BY ts DESC LIMIT 1 OFFSET ?",
+            (self.project_id, limit - 1),
+        ).fetchone()
+        window = "" if boundary is None else str(boundary["ts"])[: self._TIMESTAMP_SECONDS]
+        rows = connection.execute(
+            "SELECT e.task_id, e.entry_id, e.ts, e.actor, e.type, e.body, t.title "
+            "FROM log_entry e "
+            "JOIN task t ON t.project_id = e.project_id AND t.task_id = e.task_id "
+            "WHERE e.project_id = ? AND e.ts >= ? "
+            "ORDER BY (t.lifecycle = 'closed'), t.priority_rank, t.queue_position, "
+            "t.task_id, e.entry_id",
+            (self.project_id, window),
+        ).fetchall()
+        newest = sorted(rows, key=lambda row: _parsed(row["ts"]), reverse=True)[:limit]
+        return [
+            RecentLogEntry.model_validate(
+                {
+                    "task_id": row["task_id"],
+                    "task_title": row["title"],
+                    "ts": row["ts"],
+                    "actor": row["actor"],
+                    "type": row["type"],
+                    "body": row["body"],
+                }
+            )
+            for row in newest
+        ]
+
+    def newest_log_ts(self, task_ids: Sequence[str]) -> Dict[str, datetime]:
+        """The newest log timestamp for each of ``task_ids`` that has one.
+
+        One statement, bounded by the caller's list and served by ``log_entry``'s primary
+        key. The stalled-task detector wants this for the handful of tasks an agent is
+        supposed to be working right now; before this it got it by being handed every
+        record in the project and taking one number out of each log (task-498).
+
+        A task with no log rows is **absent** from the answer rather than present with a
+        default, because the caller's fallback for that case is ``created`` and this
+        method does not know it.
+        """
+        if not task_ids:
+            return {}
+        ids = list(task_ids)
+        placeholders = ",".join("?" for _ in ids)
+        rows = (
+            self._connection()
+            .execute(
+                f"SELECT task_id, max(ts) AS newest FROM log_entry WHERE project_id = ? "
+                f"AND task_id IN ({placeholders}) GROUP BY task_id",
+                (self.project_id, *ids),
+            )
+            .fetchall()
+        )
+        return {row["task_id"]: _parsed(row["newest"]) for row in rows}
 
     def _search_ids(self, connection: sqlite3.Connection, text: str) -> List[str]:
         """The ids matching free text, in relevance order, exact id matches leading.
@@ -503,6 +645,21 @@ class SqlTaskStore:
         ``_summary_document`` with ``_document``, so the two listings cannot come to
         disagree about what a stored column means.
         """
+        return [
+            TaskSummary.model_validate(document)
+            for document in self._summary_documents(connection, rows)
+        ]
+
+    def _summary_documents(
+        self, connection: sqlite3.Connection, rows: Sequence[sqlite3.Row]
+    ) -> List[Dict[str, Any]]:
+        """The listing projection as documents, before anything validates them.
+
+        Split out so the card listing can add its two keys and validate **once** rather
+        than validating a summary and then dumping it back into a dictionary to validate
+        again -- which at this corpus size is 480 models built to be thrown away
+        (task-498).
+        """
         if not rows:
             return []
         ids = [row["task_id"] for row in rows]
@@ -526,15 +683,31 @@ class SqlTaskStore:
 
         waits = self._self_clearing_waits(connection, rows)
 
-        summaries: List[TaskSummary] = []
+        documents: List[Dict[str, Any]] = []
         for row in rows:
             task_id = row["task_id"]
             document = self._summary_document(row, tags=tags[task_id], dependencies=deps[task_id])
             wait = waits.get(task_id)
             if wait is not None:
                 document["self_clearing_wait"] = wait.model_dump(mode="json")
-            summaries.append(TaskSummary.model_validate(document))
-        return summaries
+            documents.append(document)
+        return documents
+
+    def _assemble_cards(
+        self, connection: sqlite3.Connection, rows: Sequence[sqlite3.Row]
+    ) -> List[TaskCard]:
+        """Build ``TaskCard`` records from card rows, through the summary assembly.
+
+        The same three queries the listing runs, because a card is the listing row plus
+        two columns the same ``SELECT`` already carried. Built on
+        :meth:`_summary_documents` rather than beside it, so a card and a row cannot come
+        to disagree about what a stored column means.
+        """
+        documents = self._summary_documents(connection, rows)
+        for document, row in zip(documents, rows):
+            document["summary"] = row["spec_summary"]
+            document["can_brief"] = bool(row["can_brief"])
+        return [TaskCard.model_validate(document) for document in documents]
 
     def _self_clearing_waits(
         self, connection: sqlite3.Connection, rows: Sequence[sqlite3.Row]

@@ -23,13 +23,16 @@ import pytest
 from pydantic import ValidationError
 
 from agentjobs.manager import TaskManager
+from agentjobs.dispatch.guards import record_can_brief
 from agentjobs.models_v2 import (
     AUTH_RECOVERY_MARKER,
     Ball,
     BallReason,
     Lifecycle,
     Task,
+    TaskCard,
     TaskSummary,
+    card_of,
     summary_of,
 )
 
@@ -277,6 +280,96 @@ class TestTheListingIsCheaper:
         assert not touched_the_log, (
             "the listing joined log_entry for a corpus with nothing parked on a service: "
             f"{touched_the_log}"
+        )
+
+
+class TestTheCardIsTheRowPlusTwo:
+    """``TaskCard`` is ``TaskSummary`` and two fields, and must stay that.
+
+    The card exists because the dashboard draws a summary line under every title and the
+    slot board needs to know whether Dispatch would stop to ask for text -- one text
+    column and one boolean expression over a second (task-498). "One more field,
+    everywhere" is how a projection grows back into a record, and a fourth model is only
+    worth having while it is smaller than the third.
+    """
+
+    @pytest.fixture
+    def corpus(self, manager: TaskManager) -> List[Task]:
+        parent = _task(manager, title="An umbrella", description="Holds the others.")
+        child = _task(
+            manager,
+            title="Under the umbrella",
+            description="A child of the parent above.",
+            parent=parent.id,
+            priority="high",
+        )
+        manager.claim_task(child.id, agent="claude")
+        return [parent, child]
+
+    def test_a_card_adds_exactly_summary_and_can_brief(self) -> None:
+        added = set(TaskCard.model_fields) - set(TaskSummary.model_fields)
+        assert added == {"summary", "can_brief"}, (
+            "TaskCard has grown past the two fields a dashboard card draws that a "
+            f"listing row does not: {sorted(added)}. A surface gets the fields it "
+            "draws; anything else belongs on the record it opens."
+        )
+
+    def test_the_summary_is_not_on_the_listing_row(self) -> None:
+        """task-495's rejection, held. The listing must not start carrying prose."""
+        assert "summary" not in TaskSummary.model_fields
+        assert "can_brief" not in TaskSummary.model_fields
+
+    def test_every_card_agrees_with_the_record_it_projects(
+        self, manager: TaskManager, corpus: List[Task]
+    ) -> None:
+        """The store's two columns against the record's two fields, task for task."""
+        assert corpus
+        cards = {card.id: card for card in manager.storage.list_task_cards()}
+        assert set(cards) == {task.id for task in manager.storage.list_tasks()}
+        for task in manager.storage.list_tasks():
+            assert cards[task.id] == card_of(task), task.id
+
+    def test_a_task_with_no_description_cannot_brief(self, manager: TaskManager) -> None:
+        """``can_brief`` is ``record_can_brief``, computed in SQL rather than in Python.
+
+        Two expressions of one rule is how the client's copy of it drifted from the
+        gate's (task-495), so this holds the column against the function itself rather
+        than against a literal.
+        """
+        full = _task(manager, title="Briefable", description="A working specification.")
+        empty = _task(manager, title="Not briefable", description="   ")
+        cards = {card.id: card for card in manager.storage.list_task_cards()}
+        assert cards[full.id].can_brief is record_can_brief(full)
+        assert cards[empty.id].can_brief is record_can_brief(empty)
+        assert (cards[full.id].can_brief, cards[empty.id].can_brief) == (True, False)
+
+    def test_the_card_listing_is_in_the_same_order_as_the_others(
+        self, manager: TaskManager, corpus: List[Task]
+    ) -> None:
+        assert corpus
+        assert [card.id for card in manager.storage.list_task_cards()] == [
+            row.id for row in manager.storage.list_task_summaries()
+        ]
+
+    def test_no_log_rows_are_read_for_an_unparked_corpus(self, manager: TaskManager) -> None:
+        """The listing's assertion, on the card read. Same reasoning, same units."""
+        for index in range(3):
+            assert _task(manager, title=f"Task {index}", description="Has a log.").id
+
+        store = manager.storage
+        connection = store.read_connection()
+        statements: List[str] = []
+        connection.set_trace_callback(statements.append)
+        try:
+            cards = store.list_task_cards()
+        finally:
+            connection.set_trace_callback(None)
+
+        assert len(cards) == 3
+        touched_the_log = [sql for sql in statements if "log_entry" in sql]
+        assert not touched_the_log, (
+            "the card listing joined log_entry for a corpus with nothing parked on a "
+            f"service: {touched_the_log}"
         )
 
 
