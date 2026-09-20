@@ -8,7 +8,7 @@ import type { TaskCreateRequest } from "../api/types";
 import { client } from "../api/generated/client.gen";
 import { MAX_ATTACHMENT_BYTES } from "../report/attachments";
 import { apiMockServer } from "../test/api-mock";
-import { IssueReporter } from "./IssueReporter";
+import { CaptureControl } from "./CaptureControl";
 
 function project(id: string, name: string, user: string | null) {
   return {
@@ -22,23 +22,31 @@ function project(id: string, name: string, user: string | null) {
   };
 }
 
-function renderReporter(route: string) {
+function renderControl(route: string) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>
-        <IssueReporter />
+        <CaptureControl />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-async function openReporter(route: string) {
-  renderReporter(route);
-  fireEvent.click(screen.getByRole("button", { name: "Report issue" }));
-  await screen.findByRole("dialog", { name: "Report an issue" });
+async function openCapture(route: string) {
+  renderControl(route);
+  fireEvent.click(screen.getByRole("button", { name: "New task or issue" }));
+  await screen.findByRole("dialog", { name: "New task" });
+  // The projects list decides the destination, and the destination decides who is
+  // filing -- so until it arrives the form correctly refuses to file anything. Waiting
+  // for the picker to hold an option is waiting for that, rather than for a timer.
+  await waitFor(() =>
+    expect(
+      screen.getByRole("combobox", { name: "File into project" }).children.length,
+    ).toBeGreaterThan(0),
+  );
 }
 
 function fill(title: string, details: string) {
@@ -57,7 +65,7 @@ function pasteImage(target: HTMLElement, file: File) {
   });
 }
 
-describe("IssueReporter", () => {
+describe("CaptureControl", () => {
   it("files a tagged, attributed task carrying the page and the task being viewed", async () => {
     client.setConfig({ baseUrl: "http://localhost" });
     let received: TaskCreateRequest | null = null;
@@ -71,9 +79,9 @@ describe("IssueReporter", () => {
       }),
     );
 
-    await openReporter("/p/agentjobs/tasks/task-052-react-app");
+    await openCapture("/p/agentjobs/tasks/task-052-react-app");
     fill("Filters match nothing", "Every task-list filter returns zero rows.");
-    fireEvent.click(screen.getByRole("button", { name: "File issue" }));
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
 
     await screen.findByText("task-140-filters");
     const body = received as unknown as TaskCreateRequest;
@@ -101,14 +109,9 @@ describe("IssueReporter", () => {
       }),
     );
 
-    await openReporter("/");
-    // The projects list has to arrive before the destination can resolve.
-    await screen.findByRole("combobox", { name: "File into project" });
+    await openCapture("/");
     fill("Opening AgentJobs hangs", "The picker never resolves a project.");
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "File issue" })).not.toBeDisabled(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "File issue" }));
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
 
     await screen.findByText("task-141");
     const body = received as unknown as TaskCreateRequest;
@@ -132,12 +135,12 @@ describe("IssueReporter", () => {
       }),
     );
 
-    await openReporter("/p/alpha/tasks/task-004-import");
-    const destination = await screen.findByRole("combobox", { name: "File into project" });
+    await openCapture("/p/alpha/tasks/task-004-import");
+    const destination = screen.getByRole("combobox", { name: "File into project" });
     expect(destination).toHaveValue("alpha");
     fireEvent.change(destination, { target: { value: "agentjobs" } });
     fill("The task list scrolls sideways", "Horizontal scroll on a phone.");
-    fireEvent.click(screen.getByRole("button", { name: "File issue" }));
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
 
     await screen.findByText("task-142");
     const body = received as unknown as TaskCreateRequest;
@@ -158,7 +161,7 @@ describe("IssueReporter", () => {
       }),
     );
 
-    await openReporter("/p/agentjobs/tasks");
+    await openCapture("/p/agentjobs/tasks");
     fill("The badge shows an enum name", "Look at the status column.");
     pasteImage(
       screen.getByRole("textbox", { name: /^What happened/ }),
@@ -168,7 +171,7 @@ describe("IssueReporter", () => {
     const gallery = await screen.findByRole("list", { name: "Attached images" });
     expect(within(gallery).getByRole("img", { name: "screenshot.png" })).toBeVisible();
 
-    fireEvent.click(screen.getByRole("button", { name: "File issue" }));
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
     await screen.findByText("task-143");
     const body = received as unknown as TaskCreateRequest;
     expect(body.attachments).toHaveLength(1);
@@ -178,7 +181,7 @@ describe("IssueReporter", () => {
     expect(body.description).not.toContain("base64");
   });
 
-  it("rejects an oversized paste without touching what the reporter typed", async () => {
+  it("rejects an oversized paste without touching what was typed", async () => {
     client.setConfig({ baseUrl: "http://localhost" });
     apiMockServer.use(
       http.get("*/api/projects", () =>
@@ -186,7 +189,7 @@ describe("IssueReporter", () => {
       ),
     );
 
-    await openReporter("/p/agentjobs/tasks");
+    await openCapture("/p/agentjobs/tasks");
     fill("Something is wrong", "Prose that must survive a rejected image.");
     pasteImage(
       screen.getByRole("textbox", { name: /^What happened/ }),
@@ -207,15 +210,15 @@ describe("IssueReporter", () => {
       http.get("*/api/projects", () => HttpResponse.json([project("agentjobs", "AgentJobs", null)])),
     );
 
-    await openReporter("/p/agentjobs/tasks");
+    await openCapture("/p/agentjobs/tasks");
     fill("Something is wrong", "Details.");
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "File issue" })).toBeDisabled(),
+      expect(screen.getByRole("button", { name: "File it" })).toBeDisabled(),
     );
     expect(screen.getByRole("alert").textContent).toContain("No single human actor is configured");
   });
 
-  it("keeps the reporter on the page and reports a refusal without losing the draft", async () => {
+  it("stays open and reports a refusal without losing what was typed", async () => {
     client.setConfig({ baseUrl: "http://localhost" });
     apiMockServer.use(
       http.get("*/api/projects", () =>
@@ -229,18 +232,18 @@ describe("IssueReporter", () => {
       ),
     );
 
-    await openReporter("/p/agentjobs/tasks");
+    await openCapture("/p/agentjobs/tasks");
     fill("Filters match nothing", "Every filter returns zero rows.");
-    fireEvent.click(screen.getByRole("button", { name: "File issue" }));
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
 
     await screen.findByRole("alert");
     expect(screen.getByRole("alert").textContent).toContain("is not an actor in this project");
     expect(screen.getByRole("textbox", { name: /^Title/ })).toHaveValue("Filters match nothing");
   });
 
-  it("drafts a spec into the reporter, and files it as an ordinary task", async () => {
-    // The reporter composes with `buildIssueTaskRequest` rather than bypassing it, so
-    // a drafted report is one task filed by one path -- same tag, same provenance, same
+  it("drafts a spec into the capture, and files it as an ordinary task", async () => {
+    // The form composes with `buildCaptureRequest` rather than bypassing it, so a
+    // drafted capture is one task filed by one path -- same tag, same provenance, same
     // attribution as one typed in fifteen seconds.
     client.setConfig({ baseUrl: "http://localhost" });
     let received: TaskCreateRequest | null = null;
@@ -258,6 +261,9 @@ describe("IssueReporter", () => {
           calls_used: 0,
         }),
       ),
+      // A draft opens the specification, and the Parent field's completions are
+      // fetched the moment it does.
+      http.get("*/api/projects/agentjobs/tasks", () => HttpResponse.json([])),
       http.post("*/api/projects/agentjobs/model/draft", () =>
         HttpResponse.json({
           drafted: true,
@@ -278,7 +284,7 @@ describe("IssueReporter", () => {
       }),
     );
 
-    await openReporter("/p/agentjobs/tasks");
+    await openCapture("/p/agentjobs/tasks");
     fill("Filters match nothing", "every filter returns zero rows");
 
     const checkbox = await screen.findByRole("checkbox", { name: /Flesh this out with AI/ });
@@ -294,7 +300,7 @@ describe("IssueReporter", () => {
       "## What happens\n\nSelecting any filter empties the list.",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "File issue" }));
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
     await screen.findByText("task-141-filters");
 
     const body = received as unknown as TaskCreateRequest;
@@ -315,6 +321,61 @@ describe("IssueReporter", () => {
     expect(JSON.stringify(body)).not.toContain("a-model-id");
   });
 
+  it("returns focus to the trigger when the dialog closes", async () => {
+    client.setConfig({ baseUrl: "http://localhost" });
+    apiMockServer.use(
+      http.get("*/api/projects", () =>
+        HttpResponse.json([project("agentjobs", "AgentJobs", "Jeff Posey")]),
+      ),
+    );
+
+    await openCapture("/p/agentjobs/tasks");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // By hand, because this is not a browser dialog: the node that had focus has left
+    // the document, and without this the next Tab starts from the top of the page.
+    expect(screen.getByRole("button", { name: "New task or issue" })).toHaveFocus();
+  });
+
+  it("reaches the whole specification from the same dialog, without refiling", async () => {
+    client.setConfig({ baseUrl: "http://localhost" });
+    let received: TaskCreateRequest | null = null;
+    apiMockServer.use(
+      http.get("*/api/projects", () =>
+        HttpResponse.json([project("agentjobs", "AgentJobs", "Jeff Posey")]),
+      ),
+      http.get("*/api/projects/agentjobs/tasks", () => HttpResponse.json([])),
+      http.post("*/api/projects/agentjobs/tasks", async ({ request }) => {
+        received = (await request.json()) as TaskCreateRequest;
+        return HttpResponse.json({ id: "task-144" }, { status: 201 });
+      }),
+    );
+
+    await openCapture("/p/agentjobs/tasks");
+    fill("Worth specifying after all", "It turned out to be bigger than a note.");
+    fireEvent.click(screen.getByRole("button", { name: "Add the full specification" }));
+
+    // task-342: priority is reachable from a capture without abandoning it and
+    // starting again in a different form.
+    fireEvent.change(await screen.findByRole("combobox", { name: "Priority" }), {
+      target: { value: "high" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /Acceptance criteria/ }), {
+      target: { value: "The filter returns the tasks it names." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
+
+    await screen.findByText("task-144");
+    const body = received as unknown as TaskCreateRequest;
+    expect(body.priority).toBe("high");
+    expect(body.acceptance).toEqual([
+      { id: "ac-1", text: "The filter returns the tasks it names.", status: "pending" },
+    ]);
+    // Still one population: expanding does not turn it into a different kind of record.
+    expect(body.tags).toEqual(["reported-issue"]);
+  });
+
   it("offers no drafting option when no model is configured", async () => {
     client.setConfig({ baseUrl: "http://localhost" });
     apiMockServer.use(
@@ -323,7 +384,7 @@ describe("IssueReporter", () => {
       ),
     );
 
-    await openReporter("/p/agentjobs/tasks");
+    await openCapture("/p/agentjobs/tasks");
     expect(await screen.findByText(/No model is configured on this machine/)).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /Flesh this out with AI/ })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Draft the spec" })).toBeNull();

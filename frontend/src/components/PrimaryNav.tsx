@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom";
 
 import { ActionsMenu } from "./ActionsMenu";
+import { CaptureControl } from "./CaptureControl";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
 /**
@@ -13,9 +14,10 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * **It is pinned.** `sticky top-0` on the <header>. This header is the whole
  * navigation system -- there is no rail, and no back button that means anything --
  * and the pages you most need to leave are the longest ones in the product. `z-30`
- * rather than a reflexive `z-50`: it must stay *below* IssueReporter's `z-40` button
- * and `z-50` modal, because a header floating above a full-screen dialog punches a
- * hole in it.
+ * rather than a reflexive `z-50`: it must stay *below* the capture dialog's `z-50`,
+ * because a header floating above a full-screen dialog punches a hole in it. Since
+ * task-346 the capture trigger is inside this header, so it needs no z-index of its
+ * own; the rule survives for the dialog it opens.
  *
  * **It never wraps.** The row of destinations only fits on one line above
  * {@link NAV_INLINE_MIN_PX} (measured, not guessed -- see that constant). Below it the
@@ -30,11 +32,16 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * entry is now the brightest thing in the row, tinted and ringed, and carries
  * `aria-current="page"`; see {@link currentDestinationPath} for which entry that is.
  *
- * The burger is at the **left** end on purpose. task-168's *actions* menu is in the
- * top-right ({@link ActionsMenu} -- About and the API docs today, Playbooks and
- * Dispatch settings once task-345 sheds them from this row);
+ * The burger is at the **left** end on purpose. The *actions* end is the top-right --
+ * task-346's capture trigger and task-168's {@link ActionsMenu}, grouped;
  * navigation-left/actions-right keeps the two apart, and keeps navigation out of the
  * component task-169 wants to embed in somebody else's app.
+ *
+ * **There is no Create destination, and that is task-346 rather than task-345.** The
+ * capture control replaced it: one control now reaches both a fifteen-second report and
+ * the whole authoring form, so a link to half of it would be a second way to do the
+ * same thing. `/tasks/new` still exists as a page and still marks Tasks as the current
+ * destination, longest-match having nothing deeper to offer it.
  */
 
 /**
@@ -54,7 +61,14 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * row's gap went from `gap-6` to `gap-4` (56px back across seven gaps) and the number
  * moved less than it otherwise would have.
  *
- * **Re-measured again for task-168's actions menu**, which adds a 44px trigger plus a
+ * **Not re-measured for task-346's capture trigger, deliberately.** That swap is a net
+ * *narrowing* -- a 44px icon button and a 4px gap replacing a `Create` link that cost
+ * roughly 70px plus the inline group's 16px gap -- so the number below stays correct
+ * and merely stops being tight. task-345 owns the re-measurement for the row's final
+ * contents, and re-deriving it here would have collided with that branch for no gain.
+ * Verified in Chromium at 1256 after the swap: the row still fits on one line.
+ *
+ * **Re-measured for task-168's actions menu**, which adds a 44px trigger plus a
  * gap at the right end -- and unlike a destination it is there at *every* width, since
  * a menu that vanishes on a phone is not somewhere task-345 can move Dispatch settings
  * to. Dropped straight in, the row fitted only at 1278 of the 1280 the `max-w-7xl`
@@ -104,12 +118,6 @@ const DESTINATIONS: ReadonlyArray<{
   // go to *read* the project rather than act on it. Expected to move again when
   // task-345 reduces the bar to Dashboard, Tasks and Runs.
   { path: "/analytics", label: "Analytics" },
-  // No accent, deliberately, and this is task-336's finding rather than a tidy-up.
-  // It used to be `text-blue-300` -- the only coloured thing in a bar where nothing
-  // marked the current page -- so on the Dashboard the one entry that stood out was
-  // Create, and it read as the selected tab. Blue in this bar now means "you are
-  // here" and nothing else.
-  { path: "/tasks/new", label: "Create" },
   // Its own nav entry, not buried in a menu: this is where the switch that stops
   // every future run lives, and a kill switch you cannot reach is not one. Below the
   // breakpoint it is one tap behind the burger, which is the most the width allows.
@@ -344,12 +352,18 @@ export function PrimaryNav({
           {apiDocs}
         </div>
         {/*
-          The actions menu (task-168), at the opposite end from the burger and present
-          at every width. `ml-auto` lives on its own root, so it is the only thing in
-          this row that is right-aligned and the destinations keep the positions they
-          had. Its 44px is counted in NAV_INLINE_MIN_PX.
+          The actions end: the capture trigger (task-346) and the actions menu
+          (task-168), at the opposite end from the burger and present at every width.
+          `ml-auto` lives on this wrapper rather than on either child, because two
+          auto margins in one flex row share the free space between them and would push
+          the pair apart instead of to the edge. Both sit outside the collapsible group
+          on purpose -- the burger takes the destinations away below the breakpoint, and
+          neither of these is a destination.
         */}
-        <ActionsMenu projectId={projectId} onOpen={close} />
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <CaptureControl />
+          <ActionsMenu projectId={projectId} onOpen={close} />
+        </div>
       </nav>
       {open && (
         <div

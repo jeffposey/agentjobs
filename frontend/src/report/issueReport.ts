@@ -1,13 +1,25 @@
-import type { AttachmentUpload, TaskCreateRequest } from "../api/generated";
+import type {
+  AttachmentUpload,
+  ContextPointer,
+  Dependency,
+  Priority,
+  TaskCreateRequest,
+} from "../api/generated";
 
 /**
- * Building one reported issue into a normal task request.
+ * Building one captured thing into a normal task request.
  *
  * Kept apart from the component that collects it because task-121's capture tray has
  * to produce exactly the same records from many drafts at once. A second builder
- * would let the batch path drift from the single-report path -- different tags,
- * different context wording -- and reported issues would stop being one filterable
+ * would let the batch path drift from the single-capture path -- different tags,
+ * different context wording -- and captures would stop being one filterable
  * population.
+ *
+ * Since task-346 this is the **only** builder. Filing a finding and authoring a task
+ * are one act behind one control, so they are one request assembled in one place: what
+ * used to be the create form's own assembly of a `TaskCreateRequest` arrives here as
+ * `spec`, and a capture that fills none of it produces exactly the request a reported
+ * issue produced before.
  */
 
 /** Tag every reported issue carries, so the population is filterable. */
@@ -32,23 +44,32 @@ export type IssueDraft = {
 };
 
 /**
- * The spec fields a model drafted and the reporter kept, if they used the option.
+ * Everything the capture form's specification section holds, as it holds it.
  *
  * Threaded through this builder rather than posted separately, because the point of
- * this module is that one reported issue becomes one ordinary task by one path. An
- * AI-assisted report that skipped it would be a second builder with different tags and
- * different provenance -- the drift this file exists to prevent.
+ * this module is that one capture becomes one ordinary task by one path. A second
+ * assembly for the fuller half would drift in tags and provenance -- exactly what this
+ * file exists to prevent.
  *
- * It carries *spec* fields only. There is no member here for lifecycle, ball, priority,
- * parent, dependencies or actor: those stay the reporter's, and the `actionable`
- * checkbox above is still the only thing that decides the lifecycle.
+ * **Every member is optional in effect**: an empty string, an empty list or `undefined`
+ * is dropped rather than sent, so the fifteen-second capture produces byte-identically
+ * the request it produced when this was two forms. `lifecycle` is deliberately absent:
+ * the `actionable` checkbox is still the only thing that decides it.
  */
-export type ReportedSpec = {
+export type CapturedSpec = {
   summary: string;
   intent: string;
   constraints: string;
   out_of_scope: string;
   acceptance: Array<string>;
+  /** Curated read-this-first paths. */
+  context?: Array<ContextPointer>;
+  /** `needs` edges the author typed; the captured page's `related` edge is added below. */
+  dependencies?: Array<Dependency>;
+  id?: string;
+  parent?: string;
+  category?: string;
+  effort?: string;
 };
 
 const TASK_ROUTE = /^\/p\/([^/]+)\/tasks\/([^/]+)$/;
@@ -109,19 +130,21 @@ function provenance(context: ReportContext, reporter: string, destinationProject
 }
 
 /**
- * Turn one draft into the create-task request that records it.
+ * Turn one capture into the create-task request that records it.
  *
- * `draft` lands the issue on a human to finish specifying, which is the honest state
- * for something typed in fifteen seconds; `actionable` is the reporter asserting it is
+ * `draft` lands it on a human to finish specifying, which is the honest state for
+ * something typed in fifteen seconds; `actionable` is the author asserting it is
  * already executable.
  */
-export function buildIssueTaskRequest({
+export function buildCaptureRequest({
   draft,
   context,
   destinationProjectId,
   reporter,
   operationId,
   attachments = [],
+  tags,
+  priority,
   spec,
 }: {
   draft: IssueDraft;
@@ -130,15 +153,19 @@ export function buildIssueTaskRequest({
   reporter: string;
   operationId: string;
   attachments?: Array<AttachmentUpload>;
-  spec?: ReportedSpec;
+  /** What the Tags field held. Defaults to the reported-issue population when absent. */
+  tags?: Array<string>;
+  priority?: Priority;
+  spec?: CapturedSpec;
 }): TaskCreateRequest {
   const details = draft.details.trim();
   const description = [details, provenance(context, reporter, destinationProjectId)]
     .filter(Boolean)
     .join("\n\n");
   const sameProject = context.projectId === destinationProjectId;
-  // Empty strings are dropped rather than sent, so a report with no spec produces
-  // exactly the request it produced before this option existed.
+  // Empty values are dropped rather than sent, so a capture that opened no
+  // specification produces exactly the request a reported issue produced before the
+  // two forms became one.
   const specFields = spec
     ? {
         ...(spec.summary.trim() ? { summary: spec.summary.trim() } : {}),
@@ -154,26 +181,37 @@ export function buildIssueTaskRequest({
               })),
             }
           : {}),
+        ...(spec.context?.length ? { context: spec.context } : {}),
+        ...(spec.id ? { id: spec.id } : {}),
+        ...(spec.parent ? { parent: spec.parent } : {}),
+        ...(spec.category?.trim() ? { category: spec.category.trim() } : {}),
+        ...(spec.effort?.trim() ? { effort: spec.effort.trim() } : {}),
       }
     : {};
+  // The captured page's own edge goes last, so an author's typed `needs` lines read
+  // first and the provenance edge is never mistaken for one of them.
+  const dependencies: Array<Dependency> = [
+    ...(spec?.dependencies ?? []),
+    ...(context.taskId && sameProject
+      ? [
+          {
+            task: context.taskId,
+            type: "related" as const,
+            note: "Reported while viewing this task.",
+          },
+        ]
+      : []),
+  ];
   return {
     title: draft.title.trim(),
     description,
     ...specFields,
     lifecycle: draft.actionable ? "ready" : "draft",
-    tags: [REPORTED_ISSUE_TAG],
+    ...(priority ? { priority } : {}),
+    tags: tags ?? [REPORTED_ISSUE_TAG],
     actor: reporter,
     operation_id: operationId,
     attachments,
-    dependencies:
-      context.taskId && sameProject
-        ? [
-            {
-              task: context.taskId,
-              type: "related",
-              note: "Reported while viewing this task.",
-            },
-          ]
-        : [],
+    dependencies,
   };
 }
