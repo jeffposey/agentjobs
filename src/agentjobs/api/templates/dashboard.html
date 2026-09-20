@@ -30,7 +30,7 @@
                                 <div class="font-mono text-xs text-blue-400">{{ task.id }}</div>
                                 <h3 class="font-medium text-dark-text">{{ task.title }}</h3>
                                 <p class="text-sm text-dark-muted mt-1">
-                                    {{ (task.ball_prompt or task.spec.summary) | truncate(160, True, '…') }}
+                                    {{ (task.ball_prompt or task.summary) | truncate(160, True, '…') }}
                                 </p>
                             </div>
                             <span class="px-2 py-1 bg-red-900 text-red-200 text-xs rounded whitespace-nowrap">
@@ -116,7 +116,7 @@
                         <div class="font-mono text-xs text-blue-400">{{ task.id }}</div>
                         <h3 class="font-medium text-dark-text">{{ task.title }}</h3>
                         <p class="text-sm text-dark-muted mt-1">
-                            {{ task.spec.summary | truncate(160, True, '…') }}
+                            {{ task.summary | truncate(160, True, '…') }}
                         </p>
                     </div>
                     <span class="px-2 py-1 bg-dark-surface text-dark-muted text-xs rounded whitespace-nowrap">

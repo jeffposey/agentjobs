@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Dict, List, Literal, Optional, Self
+from typing import Any, Dict, List, Literal, Optional, Self, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
@@ -27,6 +27,7 @@ from agentjobs.models_v2 import (
     SelfClearingWait,
     Spec,
     Task,
+    TaskCard,
     TaskSummary,
     queued_display_status,
     self_clearing_wait,
@@ -222,10 +223,11 @@ class TaskCardRead(TaskSummaryRead):
     surface gets the fields it draws, which is the whole of task-483's argument, and
     "one more field, everywhere" is how a projection grows back into a record.
 
-    Built from whole records rather than from rows, because the dashboard has them in
-    hand: its recent-updates panel is the ten newest log entries in the project, so the
-    snapshot behind this reads logs whatever the cards need. See
-    :func:`agentjobs.dashboard.build_dashboard_snapshot`.
+    Built from rows, not from records. It used to say the opposite -- that the dashboard
+    had whole records in hand anyway, because the recent-updates panel needed logs -- and
+    that was the last thing holding the whole-corpus read in place: the panel asks the
+    store for the ten entries it draws now, and nothing else in the snapshot wants a log
+    (task-498). See :func:`agentjobs.dashboard.build_dashboard_snapshot`.
     """
 
     summary: str
@@ -251,6 +253,29 @@ class TaskCardRead(TaskSummaryRead):
     would disable a button rather than draw a wrong one, which is the kind of default
     nobody notices.
     """
+
+    @classmethod
+    def from_cards(
+        cls, facts: Dict[str, DependencyFacts], cards: Sequence[TaskCard]
+    ) -> List["TaskCardRead"]:
+        """Attach dependency facts to each card row. What the dashboard route calls."""
+        return [cls.from_card(card, facts[card.id]) for card in cards]
+
+    @classmethod
+    def from_card(cls, card: TaskCard, facts: DependencyFacts) -> "TaskCardRead":
+        """One card, from the row the store projected rather than from a record.
+
+        The sibling of :meth:`from_task`, and the one the dashboard uses. Both fields
+        this adds to a listing row are already on a :class:`TaskCard`, decided where the
+        columns are -- so a card read costs a dictionary rather than a record and a call
+        into the dispatch guards (task-498).
+        """
+        return cls.from_summary(
+            card,
+            facts,
+            summary=card.summary,
+            can_brief=card.can_brief,
+        )
 
     @classmethod
     def from_tasks(

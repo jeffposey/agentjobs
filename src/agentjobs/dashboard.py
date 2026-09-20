@@ -2,14 +2,40 @@
 
 from __future__ import annotations
 
-import heapq
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Callable, Collection, Dict, List, Optional, Sequence, TypedDict
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    TypedDict,
+    TypeVar,
+)
 
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, Lifecycle, Outcome, Task
+from agentjobs.models_v2 import (
+    Ball,
+    LabelledTask,
+    Lifecycle,
+    Outcome,
+    RecentLogEntry,
+    Task,
+    TaskCard,
+)
 from agentjobs.queue import REPAIR_COMMAND, QueueCorruptionError, problem_dicts
+
+
+RecordT = TypeVar("RecordT", bound=LabelledTask)
+"""Whichever shape of record a panel was handed, filtered and sorted but not converted.
+
+Every predicate and every sort key below reads a field both shapes carry, which is what
+lets the snapshot be built from cards while the attention poll keeps passing records
+through the same functions (task-498).
+"""
 
 
 class RecentUpdate(TypedDict):
@@ -33,12 +59,12 @@ class DashboardSnapshot(TypedDict):
     """The complete read model shared by both dashboard clients."""
 
     stats: Dict[str, int]
-    active_tasks: List[Task]
+    active_tasks: List[TaskCard]
     recent_updates: List[RecentUpdate]
-    waiting_tasks: List[Task]
-    backlog_tasks: List[Task]
-    next_task: Optional[Task]
-    queue_preview: List[Task]
+    waiting_tasks: List[TaskCard]
+    backlog_tasks: List[TaskCard]
+    next_task: Optional[TaskCard]
+    queue_preview: List[TaskCard]
     next_action: str
     broken_files: List[Dict[str, Any]]
     queue_broken: Optional[QueueBroken]
@@ -64,17 +90,19 @@ answers, what the why-this-one disclosure explains, and what several callers alr
 """
 
 
-def blocks_human(task: Task) -> bool:
+def blocks_human(task: LabelledTask) -> bool:
     """Return whether work is stopped because a person holds the ball."""
     return task.ball is Ball.HUMAN and task.lifecycle is not Lifecycle.DRAFT
 
 
-def awaits_human_input(task: Task) -> bool:
+def awaits_human_input(task: LabelledTask) -> bool:
     """Return whether an unstarted draft is parked on a person."""
     return task.ball is Ball.HUMAN and task.lifecycle is Lifecycle.DRAFT
 
 
-def deferred_to_child(task: Task, children: Sequence[Task]) -> Optional[Task]:
+def deferred_to_child(
+    task: LabelledTask, children: Sequence[LabelledTask]
+) -> Optional[LabelledTask]:
     """The open child that is already holding this task's ask, if one is (task-467).
 
     A parent whose child sits at ``human``/``review`` is not a second thing to do. The
@@ -93,8 +121,8 @@ def deferred_to_child(task: Task, children: Sequence[Task]) -> Optional[Task]:
 
 
 def human_waiting(
-    tasks: Sequence[Task], children_of: Callable[[str], Sequence[Task]]
-) -> List[Task]:
+    tasks: Sequence[RecordT], children_of: Callable[[str], Sequence[LabelledTask]]
+) -> List[RecordT]:
     """The waiting set itself: what a person is holding up, in inbox order.
 
     One function so that the badge, the notification and the dashboard panel cannot
@@ -116,10 +144,10 @@ def human_waiting(
 
 
 def attention_waiting(
-    tasks: Sequence[Task],
-    children_of: Callable[[str], Sequence[Task]],
+    tasks: Sequence[RecordT],
+    children_of: Callable[[str], Sequence[LabelledTask]],
     stalled_ids: Collection[str] = (),
-) -> List[Task]:
+) -> List[RecordT]:
     """The whole waiting set: what a person holds, plus what nobody is working.
 
     The second half is task-499's. A claimed task whose agent died reads ``agent`` on
@@ -135,7 +163,7 @@ def attention_waiting(
     the defect ``tests/test_attention_tiers.py`` was written about. A task that is both
     human-held and stalled appears once.
     """
-    waiting = {task.id: task for task in human_waiting(tasks, children_of)}
+    waiting: Dict[str, RecordT] = {task.id: task for task in human_waiting(tasks, children_of)}
     for task in tasks:
         if task.id in stalled_ids:
             waiting.setdefault(task.id, task)
@@ -168,12 +196,12 @@ def count_blocking_human(manager: TaskManager) -> int:
     return len(human_waiting_tasks(manager))
 
 
-def _inbox_order(tasks: List[Task]) -> List[Task]:
+def _inbox_order(tasks: List[RecordT]) -> List[RecordT]:
     """Order human-held tasks by urgency, then most recently touched."""
     return sorted(tasks, key=lambda task: (task.priority_rank(), -task.updated.timestamp()))
 
 
-def _sort_active_tasks(tasks: List[Task]) -> List[Task]:
+def _sort_active_tasks(tasks: List[RecordT]) -> List[RecordT]:
     """Order in-flight work by urgency, then most recently touched."""
     return sorted(
         (task for task in tasks if task.lifecycle in (Lifecycle.READY, Lifecycle.ACTIVE)),
@@ -181,40 +209,45 @@ def _sort_active_tasks(tasks: List[Task]) -> List[Task]:
     )
 
 
-def _collect_recent_updates(tasks: List[Task]) -> List[RecentUpdate]:
-    """Flatten task logs into the ten newest dashboard updates.
+RECENT_UPDATES_LIMIT = 10
+"""How many entries the recent-updates panel shows.
 
-    ``nlargest`` over a generator rather than a list built and sorted, because the
-    corpus holds 5,545 log entries and the panel shows ten. The old form built a
-    dictionary per entry -- splitting every body into lines to keep its first -- and
-    then sorted all of them to throw 5,535 away (task-485). The winners are rendered
-    afterwards, so only ten bodies are ever split.
+A product decision, and the number the bounded read is asked for. It was a literal
+inside the flattening loop when the panel's cost was the whole corpus; now that the
+store is told what the panel needs, it is the argument.
+"""
+
+
+def _collect_recent_updates(entries: Sequence[RecentLogEntry]) -> List[RecentUpdate]:
+    """Render the newest entries the store returned as the panel's rows.
+
+    **The finding is no longer done here.** This used to flatten every task's log and
+    take the ten newest with ``nlargest``, which meant the snapshot had to load every
+    record in the project -- 5,871 log entries on this repository's own backlog, to draw
+    ten lines (task-498). The store answers the question directly now; what is left is
+    the rendering, and only these ten bodies are ever split.
     """
-    newest = heapq.nlargest(
-        10,
-        ((task, entry) for task in tasks for entry in task.log),
-        key=lambda pair: pair[1].ts,
-    )
-    updates: List[RecentUpdate] = []
-    for task, entry in newest:
-        body = (entry.body or "").strip()
-        updates.append(
-            {
-                "task_id": task.id,
-                "task_title": task.title,
-                "timestamp": entry.ts,
-                "summary": body.splitlines()[0] if body else entry.type.value,
-                "author": entry.actor,
-            }
-        )
-    return updates
+    return [
+        {
+            "task_id": entry.task_id,
+            "task_title": entry.task_title,
+            "timestamp": entry.ts,
+            "summary": (
+                (entry.body or "").strip().splitlines()[0]
+                if (entry.body or "").strip()
+                else entry.type.value
+            ),
+            "author": entry.actor,
+        }
+        for entry in entries
+    ]
 
 
 def _next_action(
     *,
-    blocking: List[Task],
-    backlog: List[Task],
-    next_task: Optional[Task],
+    blocking: Sequence[LabelledTask],
+    backlog: Sequence[LabelledTask],
+    next_task: Optional[LabelledTask],
     queue_broken: bool,
     total: int,
 ) -> str:
@@ -282,8 +315,12 @@ def build_dashboard_snapshot(
     shown, and ``None`` means exactly that number.
     """
     limit = max(QUEUE_PREVIEW_LIMIT, preview_limit or 0)
-    tasks = manager.list_tasks()
-    children_by_parent: Dict[str, List[Task]] = defaultdict(list)
+    # Cards, not records. Every panel here draws a title, a badge, a place in line and a
+    # summary line; the one consumer that wanted a log -- the recent-updates panel --
+    # asks the store for the ten entries it shows instead of being handed every log in
+    # the project to pick them out of (task-498).
+    tasks = manager.list_task_cards()
+    children_by_parent: Dict[str, List[TaskCard]] = defaultdict(list)
     for task in tasks:
         if task.parent:
             children_by_parent[task.parent].append(task)
@@ -303,7 +340,11 @@ def build_dashboard_snapshot(
         # two: `get_next_task` *is* `claimable_tasks()[0]`, so asking for both would run
         # the same scan twice and -- worse -- give the panel and the disclosure beside it
         # two chances to disagree about what is first.
-        queue_preview = manager.claimable_tasks()[:limit]
+        #
+        # Over the corpus already in hand rather than through `claimable_tasks`, which
+        # would read the project again as whole records. The selection rules read only
+        # fields a card carries, so the frontier comes back as cards (task-498).
+        queue_preview = manager.claimable_over(tasks)[:limit]
     except QueueCorruptionError as error:
         queue_preview = []
         queue_broken = {
@@ -324,7 +365,7 @@ def build_dashboard_snapshot(
     return {
         "stats": stats,
         "active_tasks": _sort_active_tasks(tasks),
-        "recent_updates": _collect_recent_updates(tasks),
+        "recent_updates": _collect_recent_updates(manager.recent_log_entries(RECENT_UPDATES_LIMIT)),
         "waiting_tasks": waiting_tasks,
         "backlog_tasks": backlog_tasks,
         "next_task": next_task,
