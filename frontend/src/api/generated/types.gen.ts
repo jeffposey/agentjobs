@@ -975,16 +975,22 @@ export type DashboardRecentUpdate = {
  * DashboardResponse
  *
  * The complete Python-computed dashboard contract.
+ *
+ * Every task list here is a :class:`TaskCardRead`, not a whole record. It answered
+ * with whole ``TaskRead`` records until task-495 -- spec prose, acceptance criteria and
+ * the complete log of every task on the page -- which measured 10,888 bytes per record
+ * and 5.2 MB in total against a generated corpus of 480, to draw cards showing a title,
+ * a summary line, a priority chip and a dependency badge.
  */
 export type DashboardResponse = {
     /**
      * Active Tasks
      */
-    active_tasks: Array<TaskReadOutput>;
+    active_tasks: Array<TaskCardReadOutput>;
     /**
      * Backlog Tasks
      */
-    backlog_tasks: Array<TaskReadOutput>;
+    backlog_tasks: Array<TaskCardReadOutput>;
     /**
      * Broken Files
      */
@@ -994,14 +1000,14 @@ export type DashboardResponse = {
      * Next Action
      */
     next_action: 'blocked' | 'backlog' | 'queue_broken' | 'next_up' | 'nothing_claimable' | 'empty_project';
-    next_task: TaskReadOutput | null;
+    next_task: TaskCardReadOutput | null;
     queue_broken?: QueueBrokenRead | null;
     /**
      * Queue Preview
      *
      * The head of the claimable queue, in the queue's own order. `next_task` is its first element. Sent as a list because the slot board offers a way to *start* each of them, one per free run slot -- so it is at least `QUEUE_PREVIEW_LIMIT` long and grows with this machine's `max_concurrent_runs`, which is what decides how many cells the board has.
      */
-    queue_preview?: Array<TaskReadOutput>;
+    queue_preview?: Array<TaskCardReadOutput>;
     /**
      * Recent Updates
      */
@@ -1010,7 +1016,7 @@ export type DashboardResponse = {
     /**
      * Waiting Tasks
      */
-    waiting_tasks: Array<TaskReadOutput>;
+    waiting_tasks: Array<TaskCardReadOutput>;
 };
 
 /**
@@ -5779,6 +5785,300 @@ export type Task = {
 };
 
 /**
+ * TaskCardRead
+ *
+ * A dashboard card: a listing row, plus the one line a card prints.
+ *
+ * The dashboard is a page of cards rather than a table, and every one of them --
+ * ``TaskCard`` on the panels, the free cells of the slot board -- draws the task's
+ * one-sentence summary under its title. That is the single field the listing row does
+ * not carry, so it is the single field added here.
+ *
+ * **Why a fourth read model rather than putting ``summary`` on ``TaskSummary``.** That
+ * would have put it on ``GET /tasks`` as well, where nothing draws it: the summary
+ * averages 293 bytes on this repository's own backlog, which is a third again on top
+ * of a row that task-484 had just cut to 785, spent on a field no consumer reads. A
+ * surface gets the fields it draws, which is the whole of task-483's argument, and
+ * "one more field, everywhere" is how a projection grows back into a record.
+ *
+ * Built from whole records rather than from rows, because the dashboard has them in
+ * hand: its recent-updates panel is the ten newest log entries in the project, so the
+ * snapshot behind this reads logs whatever the cards need. See
+ * :func:`agentjobs.dashboard.build_dashboard_snapshot`.
+ */
+export type TaskCardReadInput = {
+    /**
+     * Actionable
+     */
+    actionable?: boolean;
+    /**
+     * Archived
+     *
+     * Visibility flag, orthogonal to how the task ended.
+     */
+    archived?: boolean;
+    assignment?: Assignment;
+    /**
+     * Who acts next. Required while open.
+     */
+    ball?: Ball | null;
+    /**
+     * Ball Prompt
+     *
+     * The ask, addressed to whoever holds the ball. Required when ball is set.
+     */
+    ball_prompt?: string | null;
+    /**
+     * Why they hold it, scoped to the holder.
+     */
+    ball_reason?: BallReason | null;
+    /**
+     * Can Brief
+     */
+    can_brief: boolean;
+    /**
+     * Category
+     *
+     * Project taxonomy; validated against config.
+     */
+    category: string;
+    /**
+     * Created
+     */
+    created: string;
+    /**
+     * Dependencies
+     */
+    dependencies?: Array<Dependency>;
+    /**
+     * Effort
+     *
+     * Free text. An estimate, not a contract.
+     */
+    effort?: string | null;
+    /**
+     * Id
+     *
+     * Unique task identifier.
+     */
+    id: string;
+    lifecycle?: Lifecycle;
+    /**
+     * Needs Cycles
+     */
+    needs_cycles?: Array<Array<string>>;
+    /**
+     * Open Children Count
+     */
+    open_children_count?: number;
+    /**
+     * How it ended. Set only when closed.
+     */
+    outcome?: Outcome | null;
+    /**
+     * Parent
+     *
+     * Task id of the umbrella task, if any.
+     */
+    parent?: string | null;
+    /**
+     * This task's request for a dispatch envelope. A request, not a grant.
+     */
+    posture?: DispatchPosture | null;
+    priority?: Priority;
+    /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
+    queued_dispatch?: QueuedDispatchState | null;
+    /**
+     * Schema
+     *
+     * Schema version stamp. Always 2 for this model (D3).
+     */
+    schema?: number;
+    self_clearing_wait?: SelfClearingWait | null;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     *
+     * Task title.
+     */
+    title: string;
+    /**
+     * Unblocks Count
+     */
+    unblocks_count?: number;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
+    /**
+     * Updated
+     */
+    updated: string;
+};
+
+/**
+ * TaskCardRead
+ *
+ * A dashboard card: a listing row, plus the one line a card prints.
+ *
+ * The dashboard is a page of cards rather than a table, and every one of them --
+ * ``TaskCard`` on the panels, the free cells of the slot board -- draws the task's
+ * one-sentence summary under its title. That is the single field the listing row does
+ * not carry, so it is the single field added here.
+ *
+ * **Why a fourth read model rather than putting ``summary`` on ``TaskSummary``.** That
+ * would have put it on ``GET /tasks`` as well, where nothing draws it: the summary
+ * averages 293 bytes on this repository's own backlog, which is a third again on top
+ * of a row that task-484 had just cut to 785, spent on a field no consumer reads. A
+ * surface gets the fields it draws, which is the whole of task-483's argument, and
+ * "one more field, everywhere" is how a projection grows back into a record.
+ *
+ * Built from whole records rather than from rows, because the dashboard has them in
+ * hand: its recent-updates panel is the ten newest log entries in the project, so the
+ * snapshot behind this reads logs whatever the cards need. See
+ * :func:`agentjobs.dashboard.build_dashboard_snapshot`.
+ */
+export type TaskCardReadOutput = {
+    /**
+     * Actionable
+     */
+    actionable?: boolean;
+    /**
+     * Archived
+     *
+     * Visibility flag, orthogonal to how the task ended.
+     */
+    archived?: boolean;
+    assignment?: Assignment;
+    /**
+     * Who acts next. Required while open.
+     */
+    ball?: Ball | null;
+    /**
+     * Ball Prompt
+     *
+     * The ask, addressed to whoever holds the ball. Required when ball is set.
+     */
+    ball_prompt?: string | null;
+    /**
+     * Why they hold it, scoped to the holder.
+     */
+    ball_reason?: BallReason | null;
+    /**
+     * Can Brief
+     */
+    can_brief: boolean;
+    /**
+     * Category
+     *
+     * Project taxonomy; validated against config.
+     */
+    category: string;
+    /**
+     * Created
+     */
+    created: string;
+    /**
+     * Dependencies
+     */
+    dependencies?: Array<Dependency>;
+    /**
+     * Display Status
+     *
+     * The record's label, with a waiting dispatch named where there is one.
+     */
+    readonly display_status: string;
+    /**
+     * Effort
+     *
+     * Free text. An estimate, not a contract.
+     */
+    effort?: string | null;
+    /**
+     * Id
+     *
+     * Unique task identifier.
+     */
+    id: string;
+    lifecycle?: Lifecycle;
+    /**
+     * Needs Cycles
+     */
+    needs_cycles?: Array<Array<string>>;
+    /**
+     * Open Children Count
+     */
+    open_children_count?: number;
+    /**
+     * How it ended. Set only when closed.
+     */
+    outcome?: Outcome | null;
+    /**
+     * Parent
+     *
+     * Task id of the umbrella task, if any.
+     */
+    parent?: string | null;
+    /**
+     * This task's request for a dispatch envelope. A request, not a grant.
+     */
+    posture?: DispatchPosture | null;
+    priority?: Priority;
+    /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
+    queued_dispatch?: QueuedDispatchState | null;
+    /**
+     * Schema
+     *
+     * Schema version stamp. Always 2 for this model (D3).
+     */
+    schema?: number;
+    self_clearing_wait?: SelfClearingWait | null;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     *
+     * Task title.
+     */
+    title: string;
+    /**
+     * Unblocks Count
+     */
+    unblocks_count?: number;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
+    /**
+     * Updated
+     */
+    updated: string;
+};
+
+/**
  * TaskCreateRequest
  *
  * Payload for creating a new task.
@@ -7084,16 +7384,22 @@ export type WhoAmIResponse = {
  * DashboardResponse
  *
  * The complete Python-computed dashboard contract.
+ *
+ * Every task list here is a :class:`TaskCardRead`, not a whole record. It answered
+ * with whole ``TaskRead`` records until task-495 -- spec prose, acceptance criteria and
+ * the complete log of every task on the page -- which measured 10,888 bytes per record
+ * and 5.2 MB in total against a generated corpus of 480, to draw cards showing a title,
+ * a summary line, a priority chip and a dependency badge.
  */
 export type DashboardResponseWritable = {
     /**
      * Active Tasks
      */
-    active_tasks: Array<TaskReadOutputWritable>;
+    active_tasks: Array<TaskCardReadOutputWritable>;
     /**
      * Backlog Tasks
      */
-    backlog_tasks: Array<TaskReadOutputWritable>;
+    backlog_tasks: Array<TaskCardReadOutputWritable>;
     /**
      * Broken Files
      */
@@ -7103,14 +7409,14 @@ export type DashboardResponseWritable = {
      * Next Action
      */
     next_action: 'blocked' | 'backlog' | 'queue_broken' | 'next_up' | 'nothing_claimable' | 'empty_project';
-    next_task: TaskReadOutputWritable | null;
+    next_task: TaskCardReadOutputWritable | null;
     queue_broken?: QueueBrokenRead | null;
     /**
      * Queue Preview
      *
      * The head of the claimable queue, in the queue's own order. `next_task` is its first element. Sent as a list because the slot board offers a way to *start* each of them, one per free run slot -- so it is at least `QUEUE_PREVIEW_LIMIT` long and grows with this machine's `max_concurrent_runs`, which is what decides how many cells the board has.
      */
-    queue_preview?: Array<TaskReadOutputWritable>;
+    queue_preview?: Array<TaskCardReadOutputWritable>;
     /**
      * Recent Updates
      */
@@ -7119,7 +7425,7 @@ export type DashboardResponseWritable = {
     /**
      * Waiting Tasks
      */
-    waiting_tasks: Array<TaskReadOutputWritable>;
+    waiting_tasks: Array<TaskCardReadOutputWritable>;
 };
 
 /**
@@ -7298,6 +7604,150 @@ export type TaskWritable = {
      * Task title.
      */
     title: string;
+    /**
+     * Updated
+     */
+    updated: string;
+};
+
+/**
+ * TaskCardRead
+ *
+ * A dashboard card: a listing row, plus the one line a card prints.
+ *
+ * The dashboard is a page of cards rather than a table, and every one of them --
+ * ``TaskCard`` on the panels, the free cells of the slot board -- draws the task's
+ * one-sentence summary under its title. That is the single field the listing row does
+ * not carry, so it is the single field added here.
+ *
+ * **Why a fourth read model rather than putting ``summary`` on ``TaskSummary``.** That
+ * would have put it on ``GET /tasks`` as well, where nothing draws it: the summary
+ * averages 293 bytes on this repository's own backlog, which is a third again on top
+ * of a row that task-484 had just cut to 785, spent on a field no consumer reads. A
+ * surface gets the fields it draws, which is the whole of task-483's argument, and
+ * "one more field, everywhere" is how a projection grows back into a record.
+ *
+ * Built from whole records rather than from rows, because the dashboard has them in
+ * hand: its recent-updates panel is the ten newest log entries in the project, so the
+ * snapshot behind this reads logs whatever the cards need. See
+ * :func:`agentjobs.dashboard.build_dashboard_snapshot`.
+ */
+export type TaskCardReadOutputWritable = {
+    /**
+     * Actionable
+     */
+    actionable?: boolean;
+    /**
+     * Archived
+     *
+     * Visibility flag, orthogonal to how the task ended.
+     */
+    archived?: boolean;
+    assignment?: Assignment;
+    /**
+     * Who acts next. Required while open.
+     */
+    ball?: Ball | null;
+    /**
+     * Ball Prompt
+     *
+     * The ask, addressed to whoever holds the ball. Required when ball is set.
+     */
+    ball_prompt?: string | null;
+    /**
+     * Why they hold it, scoped to the holder.
+     */
+    ball_reason?: BallReason | null;
+    /**
+     * Can Brief
+     */
+    can_brief: boolean;
+    /**
+     * Category
+     *
+     * Project taxonomy; validated against config.
+     */
+    category: string;
+    /**
+     * Created
+     */
+    created: string;
+    /**
+     * Dependencies
+     */
+    dependencies?: Array<Dependency>;
+    /**
+     * Effort
+     *
+     * Free text. An estimate, not a contract.
+     */
+    effort?: string | null;
+    /**
+     * Id
+     *
+     * Unique task identifier.
+     */
+    id: string;
+    lifecycle?: Lifecycle;
+    /**
+     * Needs Cycles
+     */
+    needs_cycles?: Array<Array<string>>;
+    /**
+     * Open Children Count
+     */
+    open_children_count?: number;
+    /**
+     * How it ended. Set only when closed.
+     */
+    outcome?: Outcome | null;
+    /**
+     * Parent
+     *
+     * Task id of the umbrella task, if any.
+     */
+    parent?: string | null;
+    /**
+     * This task's request for a dispatch envelope. A request, not a grant.
+     */
+    posture?: DispatchPosture | null;
+    priority?: Priority;
+    /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
+    queued_dispatch?: QueuedDispatchState | null;
+    /**
+     * Schema
+     *
+     * Schema version stamp. Always 2 for this model (D3).
+     */
+    schema?: number;
+    self_clearing_wait?: SelfClearingWait | null;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     *
+     * Task title.
+     */
+    title: string;
+    /**
+     * Unblocks Count
+     */
+    unblocks_count?: number;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
     /**
      * Updated
      */
@@ -9391,10 +9841,47 @@ export type SearchTasksApiProjectsProjectIdSearchGetResponses = {
      *
      * Successful Response
      */
-    200: Array<TaskReadOutput>;
+    200: Array<TaskSummaryReadOutput>;
 };
 
 export type SearchTasksApiProjectsProjectIdSearchGetResponse = SearchTasksApiProjectsProjectIdSearchGetResponses[keyof SearchTasksApiProjectsProjectIdSearchGetResponses];
+
+export type SearchTasksFullApiProjectsProjectIdSearchFullGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query: {
+        /**
+         * Q
+         */
+        q: string;
+    };
+    url: '/api/projects/{project_id}/search/full';
+};
+
+export type SearchTasksFullApiProjectsProjectIdSearchFullGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchTasksFullApiProjectsProjectIdSearchFullGetError = SearchTasksFullApiProjectsProjectIdSearchFullGetErrors[keyof SearchTasksFullApiProjectsProjectIdSearchFullGetErrors];
+
+export type SearchTasksFullApiProjectsProjectIdSearchFullGetResponses = {
+    /**
+     * Response Search Tasks Full Api Projects  Project Id  Search Full Get
+     *
+     * Successful Response
+     */
+    200: Array<TaskReadOutput>;
+};
+
+export type SearchTasksFullApiProjectsProjectIdSearchFullGetResponse = SearchTasksFullApiProjectsProjectIdSearchFullGetResponses[keyof SearchTasksFullApiProjectsProjectIdSearchFullGetResponses];
 
 export type ListTasksApiProjectsProjectIdTasksGetData = {
     body?: never;
@@ -11079,10 +11566,42 @@ export type SearchTasksApiSearchGetResponses = {
      *
      * Successful Response
      */
-    200: Array<TaskReadOutput>;
+    200: Array<TaskSummaryReadOutput>;
 };
 
 export type SearchTasksApiSearchGetResponse = SearchTasksApiSearchGetResponses[keyof SearchTasksApiSearchGetResponses];
+
+export type SearchTasksFullApiSearchFullGetData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Q
+         */
+        q: string;
+    };
+    url: '/api/search/full';
+};
+
+export type SearchTasksFullApiSearchFullGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchTasksFullApiSearchFullGetError = SearchTasksFullApiSearchFullGetErrors[keyof SearchTasksFullApiSearchFullGetErrors];
+
+export type SearchTasksFullApiSearchFullGetResponses = {
+    /**
+     * Response Search Tasks Full Api Search Full Get
+     *
+     * Successful Response
+     */
+    200: Array<TaskReadOutput>;
+};
+
+export type SearchTasksFullApiSearchFullGetResponse = SearchTasksFullApiSearchFullGetResponses[keyof SearchTasksFullApiSearchFullGetResponses];
 
 export type ListIdleSessionsApiSessionsIdleGetData = {
     body?: never;

@@ -7,7 +7,7 @@ import type {
   MachineHolderView,
   QueuedDispatchView,
   StartPauseView,
-  TaskRead,
+  TaskCardRead,
 } from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
 import {
@@ -90,7 +90,7 @@ export type SlotCell =
   | { kind: "run"; key: string; run: LiveRunView }
   | { kind: "opaque"; key: string }
   | { kind: "finish"; key: string; finish: MachineHolderView }
-  | { kind: "queued"; key: string; task: TaskRead }
+  | { kind: "queued"; key: string; task: TaskCardRead }
   | { kind: "empty"; key: string };
 
 export type BoardLayout = {
@@ -170,7 +170,7 @@ export function holdsSlot(run: LiveRunView): boolean {
 
 export function boardLayout(
   body: LiveRunsView,
-  queue: TaskRead[],
+  queue: TaskCardRead[],
   projectId: string,
 ): BoardLayout {
   const unconfigured = !body.dispatch_configured;
@@ -401,7 +401,7 @@ function QueuedCell({
   action,
   disclosure,
 }: {
-  task: TaskRead;
+  task: TaskCardRead;
   projectId: string;
   /** "Slot free", or "Next up" on a machine whose slots are a number nobody chose. */
   label: string;
@@ -428,7 +428,7 @@ function QueuedCell({
             which is not worth the line a person picks the task by.
           */}
           <p className="mt-1 line-clamp-2 text-xs text-dark-muted">
-            {truncate(task.spec.summary, 110)}
+            {truncate(task.summary, 110)}
           </p>
         </Link>
       </div>
@@ -799,7 +799,7 @@ export type SlotBoardProps = {
   /** The machine-wide answer. `null` while it is still being read. */
   body: LiveRunsView | null;
   /** This project's claimable frontier, in queue order, from the dashboard endpoint. */
-  queue: TaskRead[];
+  queue: TaskCardRead[];
   projectId: string;
   /**
    * An alarm is holding the page, so the board offers no action.
@@ -813,7 +813,7 @@ export type SlotBoardProps = {
    */
   statusOnly?: boolean;
   /** The Dispatch control for one queued task, supplied by the page. */
-  renderQueueAction?: (task: TaskRead) => React.ReactNode;
+  renderQueueAction?: (task: TaskCardRead) => React.ReactNode;
   /** Why the machine cannot dispatch at all, if it cannot. One line, at the foot. */
   renderQueueGate?: () => React.ReactNode;
   /** The "why this one" disclosure, rendered in the first free cell. */

@@ -4,7 +4,7 @@ import { HttpResponse, http } from "msw";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { DashboardResponse, TaskDetailResponse, TaskRead } from "./api/types";
+import type { DashboardResponse, TaskCardRead, TaskDetailResponse, TaskRead } from "./api/types";
 import { client } from "./api/generated/client.gen";
 import { App } from "./App";
 import { apiMockServer } from "./test/api-mock";
@@ -48,6 +48,17 @@ function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
   };
 }
 
+/**
+ * The dashboard's row shape: a listing row plus the summary line and one derived bit.
+ *
+ * Separate from `task` above because the dashboard stopped answering with whole records
+ * in task-495 -- a `spec` here would not compile, which is the point.
+ */
+function card(id: string, overrides: Partial<TaskCardRead> = {}): TaskCardRead {
+  const { spec, ...row } = task(id);
+  return { ...row, summary: spec.summary ?? "", can_brief: true, ...overrides };
+}
+
 const TASKS = [task("task-001"), task("task-002")];
 
 const DETAIL: TaskDetailResponse = {
@@ -63,7 +74,7 @@ const DETAIL: TaskDetailResponse = {
 
 const DASHBOARD: DashboardResponse = {
   stats: { total: 2, in_progress: 0, blocked: 0, waiting_for_human: 0, awaiting_input: 0, completed: 0 },
-  active_tasks: [task("task-001", { lifecycle: "active", display_status: "In flight" })],
+  active_tasks: [card("task-001", { lifecycle: "active", display_status: "In flight" })],
   recent_updates: [],
   waiting_tasks: [],
   backlog_tasks: [],

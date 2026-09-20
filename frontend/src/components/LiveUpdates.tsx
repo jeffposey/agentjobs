@@ -24,6 +24,11 @@ export const PROJECT_TASK_QUERY_IDS = new Set([
   // query in the set whose staleness is visible without opening anything.
   "getAttentionApiProjectsProjectIdAttentionGet",
   "searchTasksApiProjectsProjectIdSearchGet",
+  // The same hits as whole records. No browser surface asks for it -- it exists for
+  // `TaskClient.search_tasks`, which must return `Task` and so cannot take the rows
+  // (task-495) -- but it answers with task data, so it belongs in the set that refetches
+  // rather than in the list of reasons not to.
+  "searchTasksFullApiProjectsProjectIdSearchFullGet",
   "listTasksApiProjectsProjectIdTasksGet",
   // The same listing as whole records. No browser surface asks for it -- it exists for
   // `TaskClient.list_tasks`, which must return `Task` and so cannot take the rows

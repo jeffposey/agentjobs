@@ -200,10 +200,12 @@ function DashboardPage({ projectId }: { projectId: string }) {
               state={dispatch.state}
               user={identity.ok ? identity.user : null}
               identityDetail={identity.detail}
-              // The same expression the task page uses, against the same field the
-              // server checks. Drift between the two costs a link instead of a button,
-              // never a dispatch the server would refuse.
-              canBrief={Boolean(task.spec.description?.trim())}
+              // Server-computed, by the same function the dispatch gate calls. This
+              // used to be `Boolean(task.spec.description?.trim())` here, with a comment
+              // admitting that drift between the two expressions would cost a link
+              // instead of a button; the card carries the answer instead of the field
+              // (task-495).
+              canBrief={task.can_brief}
               taskHref={`/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.id)}`}
               busy={dispatch.startingTaskId === task.id}
               refusal={dispatch.refusal?.taskId === task.id ? dispatch.refusal.refusal : null}

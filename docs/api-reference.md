@@ -52,7 +52,8 @@ the scoped form so switching projects never depends on the server's current dire
 | `GET` | `/api/tasks/{task_id}` | Return one task record |
 | `GET` | `/api/tasks/{task_id}/detail` | Return the full review/resumption view with relationships |
 | `GET` | `/api/tasks/broken` | Report task records that exist but cannot be loaded |
-| `GET` | `/api/search?q=...` | Search task id, title, spec, ball prompt and tags |
+| `GET` | `/api/search?q=...` | Search task id, title, spec, ball prompt and tags. Answers with listing rows |
+| `GET` | `/api/search/full?q=...` | The same hits as complete records. Expensive; see below |
 | `GET` | `/api/dashboard` | Return dashboard counts and activity |
 | `GET` | `/api/attention` | The tasks stopped waiting on a person -- the header's red badge, plus the attention episode driving the Windows taskbar and notification. **Reconciles the episode**, so the answer is idempotent rather than read-only |
 | `POST` | `/api/attention/ack` | Record that a person deliberately acted on the episode they were shown. Stops the next interruption being suppressed; does **not** clear the indicator. Takes `episode_id`; a stale one is a no-op. No run may call it |
@@ -81,6 +82,24 @@ The reason is that the listing used to carry them: on a 479-task backlog that wa
 records -- `TaskClient.list_tasks`, which must return `Task`, and `agentjobs branches`,
 which reads `branches[]` off every task. It is the expensive one deliberately, so a new
 caller has to ask for it by name.
+
+**`GET /api/search` and `GET /api/dashboard` answer with rows for the same reason**
+(task-495). Both returned whole records until then: measured against a generated corpus
+of 480, the search was 5.17 MB and the dashboard 5.23 MB -- about 10.8 KB per record each,
+against the listing's 785 bytes -- because a search result and a dashboard card are lists,
+and a whole record is what they were drawing one from.
+
+*   `GET /api/search` answers with the same rows `GET /api/tasks` does.
+    `GET /api/search/full` is the old shape, for `TaskClient.search_tasks`, which parses
+    each item into a `Task` and so cannot take a row -- a row parses without complaint
+    and with an empty log.
+*   `GET /api/dashboard` answers with a *card*: the listing row, plus the one-sentence
+    `summary` every card on that page prints under the title, plus `can_brief`. That last
+    is one bit rather than the field behind it: the slot board's Dispatch button has to
+    know whether pressing it would stop to ask a person for text, the answer is keyed on
+    `spec.description`, and the description is the largest field on a record and one no
+    card draws. It is computed by the same function the dispatch gate calls. There is no
+    `/api/dashboard/full`, because nothing ever wanted one.
 
 ## Finish and gate history
 

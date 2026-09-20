@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Self
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
@@ -30,6 +30,7 @@ from agentjobs.models_v2 import (
     TaskSummary,
     queued_display_status,
     self_clearing_wait,
+    summary_of,
 )
 
 from .queued_dispatch import queued_dispatch_for
@@ -174,7 +175,7 @@ class TaskSummaryRead(TaskSummary):
     @classmethod
     def from_summaries(
         cls, facts: Dict[str, DependencyFacts], summaries: List[TaskSummary]
-    ) -> List["TaskSummaryRead"]:
+    ) -> List[Self]:
         """Attach dependency facts to each row.
 
         The facts are passed in rather than fetched, unlike ``TaskRead.from_tasks``,
@@ -182,19 +183,96 @@ class TaskSummaryRead(TaskSummary):
         and computing them from that one listing is what stops this route loading the
         project four times over (task-484).
         """
-        return [
-            cls.model_validate(
-                {
-                    **summary.model_dump(mode="python", by_alias=True, exclude={"display_status"}),
-                    "unmet_needs": list(facts[summary.id].unmet_needs),
-                    "actionable": facts[summary.id].actionable,
-                    "needs_cycles": [list(cycle) for cycle in facts[summary.id].needs_cycles],
-                    "unblocks_count": facts[summary.id].unblocks_count,
-                    "open_children_count": facts[summary.id].open_children_count,
-                }
-            )
-            for summary in summaries
-        ]
+        return [cls.from_summary(summary, facts[summary.id]) for summary in summaries]
+
+    @classmethod
+    def from_summary(cls, row: TaskSummary, facts: DependencyFacts, **extra: Any) -> Self:
+        """One row, with its dependency facts attached.
+
+        ``extra`` is for a subclass that carries a field the projection does not, so the
+        fact-attachment is written once. :class:`TaskCardRead` is the only user, and it
+        is why the parameter is ``row`` rather than ``summary``: the field it adds is
+        called ``summary``, and the two names collide.
+        """
+        return cls.model_validate(
+            {
+                **row.model_dump(mode="python", by_alias=True, exclude={"display_status"}),
+                "unmet_needs": list(facts.unmet_needs),
+                "actionable": facts.actionable,
+                "needs_cycles": [list(cycle) for cycle in facts.needs_cycles],
+                "unblocks_count": facts.unblocks_count,
+                "open_children_count": facts.open_children_count,
+                **extra,
+            }
+        )
+
+
+class TaskCardRead(TaskSummaryRead):
+    """A dashboard card: a listing row, plus the one line a card prints.
+
+    The dashboard is a page of cards rather than a table, and every one of them --
+    ``TaskCard`` on the panels, the free cells of the slot board -- draws the task's
+    one-sentence summary under its title. That is the single field the listing row does
+    not carry, so it is the single field added here.
+
+    **Why a fourth read model rather than putting ``summary`` on ``TaskSummary``.** That
+    would have put it on ``GET /tasks`` as well, where nothing draws it: the summary
+    averages 293 bytes on this repository's own backlog, which is a third again on top
+    of a row that task-484 had just cut to 785, spent on a field no consumer reads. A
+    surface gets the fields it draws, which is the whole of task-483's argument, and
+    "one more field, everywhere" is how a projection grows back into a record.
+
+    Built from whole records rather than from rows, because the dashboard has them in
+    hand: its recent-updates panel is the ten newest log entries in the project, so the
+    snapshot behind this reads logs whatever the cards need. See
+    :func:`agentjobs.dashboard.build_dashboard_snapshot`.
+    """
+
+    summary: str
+    """The task's one-sentence orientation, as :attr:`Spec.summary` holds it.
+
+    Required rather than defaulted, so a card built without one is a validation error
+    instead of a page of blank lines under the titles.
+    """
+
+    can_brief: bool
+    """Whether this record, on its own, could brief an agent that has never seen it.
+
+    One bit rather than the field it is read from. The slot board's free cells offer a
+    Dispatch button and have to know whether pressing it would stop to ask a person for
+    text, and the answer is keyed on ``spec.description`` -- which is the largest field
+    on a record and one no card draws.
+
+    Computed by :func:`agentjobs.dispatch.guards.record_can_brief`, the same function the
+    dispatch gate itself calls. The client used to compute it from the description it was
+    being sent, with a comment noting that drift between its expression and the server's
+    would cost a link instead of a button; there is now one expression and it is the
+    gate's own. Required for the reason ``summary`` above is: a card built without it
+    would disable a button rather than draw a wrong one, which is the kind of default
+    nobody notices.
+    """
+
+    @classmethod
+    def from_tasks(
+        cls, facts: Dict[str, DependencyFacts], tasks: List[Task]
+    ) -> List["TaskCardRead"]:
+        """Project whole records into cards, attaching each one's dependency facts."""
+        return [cls.from_task(task, facts[task.id]) for task in tasks]
+
+    @classmethod
+    def from_task(cls, task: Task, facts: DependencyFacts) -> "TaskCardRead":
+        """One card. ``summary_of`` is the same projection the store's rows are."""
+        # Imported here rather than at module scope: `dispatch.guards` reaches the
+        # dispatch config and the execution store, and nothing else in this module needs
+        # any of it.
+        from agentjobs.dispatch.guards import record_can_brief
+
+        return cls.from_summary(
+            summary_of(task),
+            facts,
+            summary=task.spec.summary,
+            can_brief=record_can_brief(task),
+        )
 
 
 class DependencyRelation(BaseModel):
@@ -443,15 +521,22 @@ class ReviewIdentity(BaseModel):
 
 
 class DashboardResponse(BaseModel):
-    """The complete Python-computed dashboard contract."""
+    """The complete Python-computed dashboard contract.
+
+    Every task list here is a :class:`TaskCardRead`, not a whole record. It answered
+    with whole ``TaskRead`` records until task-495 -- spec prose, acceptance criteria and
+    the complete log of every task on the page -- which measured 10,888 bytes per record
+    and 5.2 MB in total against a generated corpus of 480, to draw cards showing a title,
+    a summary line, a priority chip and a dependency badge.
+    """
 
     stats: DashboardStats
-    active_tasks: List[TaskRead]
+    active_tasks: List[TaskCardRead]
     recent_updates: List[DashboardRecentUpdate]
-    waiting_tasks: List[TaskRead]
-    backlog_tasks: List[TaskRead]
-    next_task: Optional[TaskRead]
-    queue_preview: List[TaskRead] = Field(
+    waiting_tasks: List[TaskCardRead]
+    backlog_tasks: List[TaskCardRead]
+    next_task: Optional[TaskCardRead]
+    queue_preview: List[TaskCardRead] = Field(
         default_factory=list,
         description=(
             "The head of the claimable queue, in the queue's own order. `next_task` is "
