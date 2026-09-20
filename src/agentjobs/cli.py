@@ -2280,6 +2280,10 @@ def dispatch_reap() -> None:
     A reap that is **refused** is reported rather than forced -- passing `-f` here would
     delete exactly the thing worth keeping, in the case where a session AgentJobs did not
     start does own a worktree with work in it.
+
+    One refusal is not reported twice: a session the manager has no job for is settled
+    on the record and skipped from then on, because there is nothing left to remove and
+    no later run can do differently (task-503). Everything else is asked again.
     """
     results = DispatchLedger(default_home()).reap_finished()
     if not results:
