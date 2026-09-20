@@ -35,7 +35,9 @@ from typing import (
 
 import yaml
 
+from .. import corpus
 from ..attachments import MEDIA_TYPES
+from ..instrumentation import record_corpus_load
 from ..models_v2 import Ball, BallReason, Task, TaskSummary, self_clearing_wait_of
 from .blobs import SqlAttachmentStore
 from .connection import Database, SqlStoreError
@@ -188,8 +190,9 @@ class SqlTaskStore:
     # snapshot to go stale. They stay because the manager and the API call them by name.
     load_task_uncached = load_task
 
-    def list_tasks(self) -> List[Task]:
-        """Every task in the project, in the listing order the queue defines."""
+    def _load_tasks(self) -> List[Task]:
+        """Read and assemble every task in the project, from the database, now."""
+        record_corpus_load()
         connection = self._connection()
         rows = connection.execute(
             f"SELECT * FROM task WHERE project_id = ? {self._LISTING_ORDER}",
@@ -197,11 +200,42 @@ class SqlTaskStore:
         ).fetchall()
         return self._assemble(connection, rows)
 
-    list_tasks_uncached = list_tasks
+    def list_tasks(self) -> List[Task]:
+        """Every task in the project, in the listing order the queue defines.
+
+        Inside an open :func:`agentjobs.corpus.corpus_scope` -- which a request is --
+        the first call loads and the rest are answered from that load. The scope ends
+        with the request and a write inside it discards the memo, so this is never an
+        older corpus than the caller's own writes; see :mod:`agentjobs.corpus` for why
+        that is a scope rather than a cache.
+
+        A fresh list each time, over the same ``Task`` objects: a caller that sorts or
+        truncates its answer in place must not reorder the next caller's.
+        """
+        return list(corpus.memoised((self, "list_tasks"), self._load_tasks))
+
+    def list_tasks_uncached(self) -> List[Task]:
+        """Every task, read from the database whether or not a scope is open.
+
+        The queue's own mutations read through this. They rewrite positions and then
+        re-read to check what they wrote, so a memo from before the rewrite is exactly
+        the wrong answer -- and they run inside a request, where a scope is open.
+        """
+        return self._load_tasks()
 
     # The listing order is the same sentence in both listings. Named once so a change to
     # the band-then-place rule cannot reach whole records without reaching summaries.
     _LISTING_ORDER = "ORDER BY (lifecycle = 'closed'), priority_rank, queue_position, task_id"
+
+    def _load_task_summaries(self) -> List[TaskSummary]:
+        """Read the listing projection from the database, now."""
+        record_corpus_load()
+        connection = self._connection()
+        rows = connection.execute(
+            f"SELECT * FROM task WHERE project_id = ? {self._LISTING_ORDER}",
+            (self.project_id,),
+        ).fetchall()
+        return self._assemble_summaries(connection, rows)
 
     def list_task_summaries(self) -> List[TaskSummary]:
         """Every task as a listing needs it, in the same order ``list_tasks`` returns.
@@ -214,13 +248,13 @@ class SqlTaskStore:
         service, the one log row a quota-wait label is derived from.
 
         Measured on that backlog, 2026-09-19: 40 ms against ``list_tasks``'s 287 ms.
+
+        Scoped exactly as ``list_tasks`` is (task-485), and for the same reason: the
+        manager asks for this in six places -- the listing, the dependency states, the
+        open-children map -- so one request asked for it repeatedly. Cheaper per read is
+        not a reason to read it four times.
         """
-        connection = self._connection()
-        rows = connection.execute(
-            f"SELECT * FROM task WHERE project_id = ? {self._LISTING_ORDER}",
-            (self.project_id,),
-        ).fetchall()
-        return self._assemble_summaries(connection, rows)
+        return list(corpus.memoised((self, "list_task_summaries"), self._load_task_summaries))
 
     def search_tasks(self, query: str) -> List[Task]:
         """Full-text search, with an exact id match first.
@@ -764,6 +798,10 @@ class SqlTaskStore:
         exists to catch, so the two are kept consistent here rather than papered over
         there.
         """
+        # The corpus has changed, so whatever an open scope kept is now a corpus from
+        # before this write. Discarded here rather than in `save_task` because this is
+        # the one place every write path goes through -- see `agentjobs.corpus`.
+        corpus.discard()
         connection = self.database.writer
         previous = self.load_task(task.id)
         if record_history:
@@ -1236,6 +1274,7 @@ class SqlTaskStore:
     def delete_task(self, task_id: str) -> bool:
         """Remove a task and everything owned by it. False when there was none."""
         task_id = self._normalised_id(task_id)
+        corpus.discard()
         with self.database.write() as connection:
             cursor = connection.execute(
                 "DELETE FROM task WHERE project_id = ? AND task_id = ?",

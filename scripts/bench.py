@@ -33,6 +33,13 @@ reading a directory again. It is not evidence that a corpus loaded, because an e
 store reports zero too; that a corpus loaded is asserted against the store and the
 running server instead, before any timing runs.
 
+Beside it is ``X-Corpus-Loads``: times the request loaded **every task in the
+project**. That is the number the slow endpoints were actually made of (task-485) --
+``/dashboard`` asked the corpus nine separate questions and loaded it nine times, which
+no timer here could have attributed, because it looked exactly like one slow endpoint.
+One is the expected value for a request that needs the corpus at all, and zero for
+``/revision``, which answers from a counter.
+
 **CLI** -- cold processes, including interpreter startup, because that is what a
 person waiting at a terminal experiences.
 
@@ -314,6 +321,14 @@ def build_corpus(destination: Path, *, kind: str, count: int, source: Optional[P
             raise SystemExit(f"No task files found in {source}")
         for path in found:
             shutil.copy2(path, destination / path.name)
+        # The sidecar too, or the corpus cannot be imported at all: a log entry naming
+        # an attachment whose bytes are absent is refused, and the whole task with it.
+        # Nine of this repository's own 488 records quarantined that way on 2026-09-19,
+        # which is enough for the import check below to refuse the run -- so `--corpus
+        # real` was unusable against any export that had ever had a screenshot on it.
+        attachments = source / "attachments"
+        if attachments.is_dir():
+            shutil.copytree(attachments, destination / "attachments", dirs_exist_ok=True)
         return
     for index in range(1, count + 1):
         task = _synthetic_task(index, total=count)
@@ -545,6 +560,7 @@ def bench_api(server: BenchServer, *, iterations: int, sample_task_id: str) -> S
         ("GET /tasks", f"{prefix}/tasks"),
         ("GET /tasks/{id}/detail", f"{prefix}/tasks/{sample_task_id}/detail"),
         ("GET /search?q=the", f"{prefix}/search?q=the"),
+        ("GET /tasks/next", f"{prefix}/tasks/next"),
         ("GET /revision", f"{prefix}/revision"),
     )
 
@@ -553,9 +569,11 @@ def bench_api(server: BenchServer, *, iterations: int, sample_task_id: str) -> S
             response = client.get(url)
             response.raise_for_status()
             parses = response.headers.get("X-Task-Parses")
+            loads = response.headers.get("X-Corpus-Loads")
             server_ms = response.headers.get("X-Response-Time-Ms")
             return {
                 "task_parses": int(parses) if parses is not None else None,
+                "corpus_loads": int(loads) if loads is not None else None,
                 "server_ms": float(server_ms) if server_ms is not None else None,
                 "bytes": len(response.content),
             }
@@ -568,7 +586,12 @@ def bench_api(server: BenchServer, *, iterations: int, sample_task_id: str) -> S
             note=(
                 "parses is the X-Task-Parses response header: task files read from "
                 "disk. Zero is the expected value since task-402 -- it says no request "
-                "read a directory, not that the corpus is empty."
+                "read a directory, not that the corpus is empty. loads is "
+                "X-Corpus-Loads: times a request loaded every task in the project. "
+                "That is the number task-485's endpoints were made of -- the dashboard "
+                "asked the corpus nine separate questions and loaded it nine times -- "
+                "and one is the expected value for a request that needs the corpus at "
+                "all."
             ),
             measurements=[
                 measure(name, make_call(url), iterations=iterations) for name, url in endpoints
@@ -714,22 +737,24 @@ def format_report(report: Dict[str, Any]) -> str:
     for section in report["sections"]:
         lines.append(section["name"])
         lines.append("-" * 90)
-        header = f"  {'surface':<46}{'p50':>11}{'p95':>11}{'parses':>9}{'srv ms':>9}"
+        header = f"  {'surface':<42}{'p50':>11}{'p95':>11}{'parses':>8}{'loads':>7}{'srv ms':>9}"
         lines.append(header)
         for entry in section["measurements"]:
             if entry.get("error"):
-                lines.append(f"  {entry['name']:<46}{'ERROR':>11}")
+                lines.append(f"  {entry['name']:<42}{'ERROR':>11}")
                 for line in str(entry["error"]).splitlines():
                     lines.append(f"      {line}")
                 continue
             detail = entry.get("detail") or {}
             parses = detail.get("task_parses")
+            loads = detail.get("corpus_loads")
             server_ms = detail.get("server_ms")
             lines.append(
-                f"  {entry['name']:<46}"
+                f"  {entry['name']:<42}"
                 f"{entry['p50']:>9.1f}ms"
                 f"{entry['p95']:>9.1f}ms"
-                f"{('-' if parses is None else str(parses)):>9}"
+                f"{('-' if parses is None else str(parses)):>8}"
+                f"{('-' if loads is None else str(loads)):>7}"
                 f"{('-' if server_ms is None else format(server_ms, '.1f')):>9}"
             )
         if section.get("note"):

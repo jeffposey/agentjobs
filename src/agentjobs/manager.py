@@ -701,6 +701,13 @@ class TaskManager:
         a filtered subset here silently makes every count page-relative, which is the
         bug the paragraph above describes.
 
+        A caller that does not pass it is no longer paying for the read either, inside a
+        request: :func:`agentjobs.corpus.corpus_scope` answers every listing in one
+        request from one load (task-485). The parameter is still the better call where a
+        caller has the corpus in hand -- it says so in the signature rather than relying
+        on a scope being open -- but forgetting it is now cheap instead of quadrupling
+        the endpoint.
+
         ``unblocks_count`` and ``needs_cycles`` are still derived from ``tasks`` and so
         are still page-relative. Every caller in this repository passes the full corpus
         or nothing, so neither is wrong today; both are the same trap and neither is in
@@ -838,11 +845,23 @@ class TaskManager:
         disagree about what is next, with the walk winning silently because it is the one
         that spends money.
         """
-        tasks = self.storage.list_tasks()
-        if parent is not None:
-            tasks = [task for task in tasks if task.parent == parent]
+        project_corpus = self.storage.list_tasks()
+        tasks = (
+            [task for task in project_corpus if task.parent == parent]
+            if parent is not None
+            else project_corpus
+        )
+        # Derived from the records this method has already read, not from a second
+        # listing of the same project (task-485). ``_states_over`` and
+        # ``_open_children_over`` take a ``LabelledTask``, which whole records satisfy,
+        # and the corpus here is the unfiltered one -- ``parent`` narrows the candidates
+        # and must not narrow what "has an open child" is computed over.
         candidates = self._claimable(
-            tasks, priority, agent, self._dependency_states(), self._open_children()
+            tasks,
+            priority,
+            agent,
+            self._states_over(project_corpus),
+            self._open_children_over(project_corpus),
         )
         if not candidates:
             return []

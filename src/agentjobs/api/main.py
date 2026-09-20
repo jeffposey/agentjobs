@@ -20,7 +20,12 @@ from agentjobs.environment import (
     capture_source_identity,
     verify_source_or_die,
 )
-from agentjobs.instrumentation import reset_task_parses, task_parse_count
+from agentjobs.corpus import corpus_scope
+from agentjobs.instrumentation import (
+    corpus_load_count,
+    reset_task_parses,
+    task_parse_count,
+)
 from agentjobs.projects import ProjectError, ProjectRegistry, default_home
 from agentjobs.dispatch.credentials import verify_run_credential
 from agentjobs.principals import set_run_credential_verifier
@@ -224,31 +229,44 @@ app = FastAPI(
 
 MEASUREMENT_HEADER = "X-Response-Time-Ms"
 PARSE_COUNT_HEADER = "X-Task-Parses"
+CORPUS_LOAD_HEADER = "X-Corpus-Loads"
 
 
 @app.middleware("http")
 async def measure_request(request: Any, call_next: Any) -> Any:
-    """Report how long a request took and how many task files it parsed.
+    """Report how long a request took and how much work against the corpus it did.
 
-    Two headers, on every response:
+    Three headers, on every response:
 
     - ``X-Response-Time-Ms`` -- wall time inside the application.
     - ``X-Task-Parses`` -- task files read and parsed from disk while serving it.
+    - ``X-Corpus-Loads`` -- times every task in a project was loaded from the store.
 
     The parse count is zero on every ordinary request now that records are rows, and
     is kept for exactly that reason: it is the cheap standing assertion that no request
     has quietly started reading a directory again. It still counts the one operation
     that legitimately parses files, which is an import.
 
-    The counter is reset per request rather than read as a running total, because a
-    long-lived server would otherwise report a number that only ever grows.
+    The corpus-load count replaced it as the number that moves (task-485). Rows made a
+    listing a query rather than a directory walk, so parses went to zero -- and the
+    nine separate loads the dashboard was making to answer one request went on costing
+    1.6 seconds while every counter the application had read zero. One load per request
+    is the standing assertion now, and the scope that makes it true is opened below.
+
+    The counters are reset per request rather than read as a running total, because a
+    long-lived server would otherwise report numbers that only ever grow.
     """
     reset_task_parses()
     started = time.perf_counter()
-    response = await call_next(request)
+    # The scope is opened around the handler, so every question a request asks the
+    # corpus is answered from one load of it. It closes here, with the request: no
+    # later request can be served anything this one kept. See `agentjobs.corpus`.
+    with corpus_scope():
+        response = await call_next(request)
     elapsed_ms = (time.perf_counter() - started) * 1000
     response.headers[MEASUREMENT_HEADER] = f"{elapsed_ms:.1f}"
     response.headers[PARSE_COUNT_HEADER] = str(task_parse_count())
+    response.headers[CORPUS_LOAD_HEADER] = str(corpus_load_count())
     return response
 
 
@@ -286,7 +304,7 @@ app.add_middleware(
     allow_headers=["*"],
     # Without this the browser hides the measurement headers from page scripts, so a
     # frontend served from the Vite dev server could not read its own timings.
-    expose_headers=[MEASUREMENT_HEADER, PARSE_COUNT_HEADER],
+    expose_headers=[MEASUREMENT_HEADER, PARSE_COUNT_HEADER, CORPUS_LOAD_HEADER],
 )
 
 

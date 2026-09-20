@@ -77,7 +77,7 @@ was doing four times too much work on any hardware, and the change that dropped 
 had demonstrably fixed something no timing could have proved. Prefer an assertion on work
 done over an assertion on elapsed time wherever you can construct one.
 
-## The two headers
+## The three headers
 
 Every API response carries them, not just benchmark runs. They are the way to
 attribute a slow request without attaching a profiler:
@@ -86,10 +86,18 @@ attribute a slow request without attaching a profiler:
 | --- | --- |
 | `X-Response-Time-Ms` | Wall time inside the application. |
 | `X-Task-Parses` | Task files read and parsed from disk while serving the request. |
+| `X-Corpus-Loads` | Times every task in the project was loaded from the store. |
 
-The parse counter is also available to tests through
+Both counters are available to tests through
 `agentjobs.instrumentation.count_task_parses()`, which is how a test asserts that one
-request never parses the same file twice.
+request never parses the same file twice and never loads the corpus twice.
+
+**`X-Corpus-Loads` exists because the parse count stopped being able to see this class
+of defect** (task-485). Parses went to zero when records became rows, and a request
+could then load the whole corpus nine times while every counter the application had read
+zero — which is exactly what `GET /dashboard` was doing. One is the expected value for a
+request that needs the corpus at all; zero for `/revision`, which answers from a counter
+and must never load anything.
 
 ## Choosing a corpus
 
@@ -164,6 +172,62 @@ serving nothing. The empty-store run task-408 was filed on is the illustration �
 files, one iteration, `GET /dashboard` at 12.5ms, `0 parses` everywhere and the detail
 endpoint 404ing. A run that answers for no records is fast, and that is all such a
 figure says.
+
+### One load per request (task-485, 2026-09-19)
+
+`GET /dashboard` took 1,755ms against this repository's 488 records, and **nothing in it
+was a slow query**. `build_dashboard_snapshot` asks the corpus six separate questions
+and `dependency_facts` three more; each called `storage.list_tasks()`, which assembles
+488 `Task` aggregates with 5,545 log entries in about 160ms. Eight of the nine loads
+were the same corpus, and no counter in the application could see it.
+
+`agentjobs.corpus` is the fix. It is **a memo with a lifetime, not a cache**: inside an
+open scope the first load is kept and the rest are answered from it, and outside one
+nothing is kept at all. There is no expiry to tune and no staleness window, because the
+memo cannot outlive the block that opened it. A write inside a scope discards it, so a
+handler that saves a task and then reads the corpus reads the corpus it just changed.
+
+**The scope is one HTTP request, and it is opened in one place** — the API middleware.
+That is not incidental. The previous snapshot was scoped to a *CLI invocation*, and an
+epic walk is a single invocation that runs for as long as the epic takes: it saw every
+child exactly as it was when the walk began, forever. `tests/test_dispatch_epic.py`
+carries that epitaph. Nothing in the dispatch family opens a scope, and nothing should.
+
+Measured on the same 488-task corpus, isolated bench server, 5 iterations, p50:
+
+| surface | before | after | change | loads |
+| --- | --- | --- | --- | --- |
+| `GET /dashboard` | 1755.0ms | 225.2ms | 7.8x | 9 -> 1 |
+| `GET /tasks/next` | 629.0ms | 181.0ms | 3.5x | 7 -> 1 |
+| `GET /tasks` | 918.1ms | 416.5ms | 2.2x | — |
+| `GET /tasks/{id}/detail` | 658.0ms | 210.2ms | 3.1x | — |
+| `GET /search?q=the` | 952.5ms | 642.7ms | 1.5x | — |
+| `GET /revision` | 6.3ms | 6.6ms | — | 0 |
+
+The last three rows were not the task's subject. They are the same defect: every read
+surface asked the corpus more than one question.
+
+### `/revision` was never slow; it was waiting (task-485)
+
+The poll every connected client runs every 15 seconds was recorded at 220ms against a
+19ms close-out figure. **On an idle server it answers in 7ms**, and it loads nothing —
+one aggregate query over the `task` table. The 220ms was measured on a server that was
+also serving the dashboard.
+
+Head-of-line blocking, demonstrated rather than assumed. The same server, `/revision`
+sampled alone and then with three clients fetching `/dashboard` in a loop:
+
+| | idle | behind 3x `/dashboard` |
+| --- | --- | --- |
+| before | 8ms | 6,038ms |
+| after | 7ms | 733ms |
+
+The improvement is 8.2x, which is the dashboard's own 7.8x: `/revision`'s latency is
+whatever work is queued in front of it. **The route handlers are `async def` and do
+their work synchronously, so a slow request holds the event loop and every other request
+waits.** Shortening the blocking work fixed the symptom in proportion; the structure is
+untouched and a concurrent dashboard still costs the poll most of a second. Whether the
+read routes should run in the threadpool instead is task-492.
 
 ## The browser measurement
 
