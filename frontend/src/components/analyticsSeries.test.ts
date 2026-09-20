@@ -14,11 +14,10 @@ import {
   historyOf,
   holderReadout,
   openLevel,
-  percentileSeries,
   stuckPhrase,
   summaryTiles,
-  throughputReadout,
 } from "./analyticsSeries";
+import { deltaBaseline } from "./analyticsSecondSet";
 
 /**
  * The rules the page would otherwise get wrong quietly (docs/analytics-design.md §9).
@@ -38,15 +37,10 @@ function throughputPoint(bucket: string, over: Partial<ThroughputPoint> = {}): T
     tasks_completed: 0,
     completion_events: 0,
     cancelled: 0,
-    cycle_p50_days: null,
-    cycle_p90_days: null,
-    sample: 0,
+    reopened: 0,
+    estimated: false,
     ...over,
   };
-}
-
-function throughputReadoutOf(over: Partial<ThroughputPoint>, showPercentiles = true): string {
-  return throughputReadout(throughputPoint("2026-09-07", over), "week", showPercentiles);
 }
 
 /** A payload with real history, which every test below varies one thing of. */
@@ -78,15 +72,26 @@ function response(over: Partial<AnalyticsResponse> = {}): AnalyticsResponse {
       completed: 273,
       open: 149,
     },
+    // Two buckets before `native_from` and two after it. Everything the summary row
+    // claims is computed from the two after, which is §19.1's whole point: the pair
+    // before are backfilled, and differencing against them is what produced a delta
+    // within four of its own total.
     backlog: [
-      backlogPoint("2026-06-21", { open_count: 140, opened: 2, closed: 0 }),
-      backlogPoint("2026-06-22", { open_count: 149, opened: 8, closed: 1 }),
+      backlogPoint("2026-06-21", { open_count: 4, opened: 120, closed: 0 }),
+      backlogPoint("2026-06-22", { open_count: 131, opened: 11, closed: 0 }),
+      backlogPoint("2026-09-08", { open_count: 140, opened: 2, closed: 0 }),
+      backlogPoint("2026-09-09", { open_count: 149, opened: 8, closed: 1 }),
     ],
     holders: [
-      { day: "2026-06-21", agent: 110, human: 25, external: 5 },
-      { day: "2026-06-22", agent: 118, human: 29, external: 2 },
+      { day: "2026-06-21", agent: 4, human: 0, external: 0 },
+      { day: "2026-06-22", agent: 100, human: 20, external: 9 },
+      { day: "2026-09-08", agent: 110, human: 25, external: 5 },
+      { day: "2026-09-09", agent: 118, human: 29, external: 2 },
     ],
-    throughput: [throughputPoint("2026-06-15", { tasks_completed: 4, completion_events: 4, sample: 4 })],
+    throughput: [
+      throughputPoint("2026-06-15", { tasks_completed: 60, completion_events: 60 }),
+      throughputPoint("2026-09-08", { tasks_completed: 4, completion_events: 4 }),
+    ],
     aging: [],
     oldest: [],
     stuck: [],
@@ -186,9 +191,10 @@ describe("deltaWindow", () => {
 
 describe("summaryTiles", () => {
   const full = historyOf(response().coverage, NOW);
+  const baselineOf = (data = response()) => deltaBaseline(data.range, data.coverage);
 
   it("gives every count a delta computed from a series in the same payload", () => {
-    const tiles = summaryTiles(response(), full);
+    const tiles = summaryTiles(response(), full, baselineOf());
     expect(tiles.map((tile) => tile.key)).toEqual([
       "open",
       "created",
@@ -198,29 +204,70 @@ describe("summaryTiles", () => {
     ]);
     const open = tiles[0];
     expect(open?.count).toBe(149);
-    // 10 opened less 1 closed over the two buckets.
+    // 10 opened less 1 closed over the two buckets inside native coverage. The 131
+    // opened before it are on the chart and not in this number.
     expect(open?.delta).toEqual({ value: 9, direction: "up", tone: "bad", kind: "change" });
+  });
+
+  it("differences against native history, not against the backfilled floor (ac-3)", () => {
+    // §19.1. The failure this replaces: a 90-day window over a store whose events were
+    // reconstructed back to October 2025 reported *"149 open ▲ 145 more since 22 Jun"*
+    // -- a delta four short of its own total, which is the total wearing an arrow.
+    const tiles = summaryTiles(response(), full, baselineOf());
+    for (const tile of tiles) {
+      expect(
+        tile.delta === null || Math.abs(tile.delta.value) !== tile.count,
+        `${tile.key} reported a delta equal to its own count`,
+      ).toBe(true);
+    }
+    expect(tiles[0]?.delta?.value).toBe(9);
+    expect(tiles[0]?.count).toBe(149);
+  });
+
+  it("names the date it compares against while native history is younger than the range", () => {
+    expect(baselineOf().words).toBe("since 7 Sep 2026");
+    expect(baselineOf().day).toBe("2026-09-07");
+  });
+
+  it("names the range once native history is older than it", () => {
+    const data = response();
+    const baseline = deltaBaseline(data.range, {
+      ...data.coverage,
+      native_from: "2026-01-01T00:00:00Z",
+    });
+    expect(baseline.words).toBe("in 90 days");
+    expect(baseline.day).toBe("2026-06-21");
+  });
+
+  it("refuses a comparison at all where nothing was recorded natively", () => {
+    const data = response();
+    const baseline = deltaBaseline(data.range, { ...data.coverage, native_from: null });
+    expect(baseline.suppressed).toBe("nothing recorded natively yet");
+    const tiles = summaryTiles(data, full, baseline);
+    expect(tiles.every((tile) => tile.delta === null)).toBe(true);
+    expect(tiles[0]?.count).toBe(149);
   });
 
   it("knows that up is bad for the backlog and good for completions", () => {
     // §8.2: red-up is bad for backlog and good for completed, so colour alone cannot
     // carry the meaning and the tone has to be decided here rather than by a class.
-    const tiles = summaryTiles(response(), full);
+    const tiles = summaryTiles(response(), full, baselineOf());
     expect(tiles.find((tile) => tile.key === "completed")?.delta?.tone).toBe("good");
     expect(tiles.find((tile) => tile.key === "human")?.delta?.tone).toBe("bad");
   });
 
   it("counts a flow rather than differencing two levels where that is the truth", () => {
-    const tiles = summaryTiles(response(), full);
+    const tiles = summaryTiles(response(), full, baselineOf());
     const completed = tiles.find((tile) => tile.key === "completed");
     expect(completed?.delta?.kind).toBe("flow");
+    // The 60 completed in June are outside native coverage and are not in the flow.
     expect(completed?.delta?.value).toBe(4);
   });
 
   it("suppresses every delta, and no count, on a thin history", () => {
     // §9.2: trends are suppressed, values are not.
     const thin = historyOf({ baseline_at: "2026-09-12T00:00:00Z" }, NOW);
-    const tiles = summaryTiles(response(), thin);
+    const tiles = summaryTiles(response(), thin, baselineOf());
     expect(tiles.every((tile) => tile.delta === null)).toBe(true);
     expect(tiles.every((tile) => tile.suppressed?.includes("days of history"))).toBe(true);
     expect(tiles[0]?.count).toBe(149);
@@ -228,28 +275,15 @@ describe("summaryTiles", () => {
 
   it("suppresses every delta on a project with no history, and still shows the counts", () => {
     const empty = response({ backlog: [], holders: [], throughput: [] });
-    const tiles = summaryTiles(empty, historyOf({ baseline_at: null }, NOW));
+    const tiles = summaryTiles(empty, historyOf({ baseline_at: null }, NOW), baselineOf(empty));
     expect(tiles.every((tile) => tile.delta === null)).toBe(true);
     expect(tiles[0]?.suppressed).toBe("no history yet");
     expect(tiles.map((tile) => tile.count)).toEqual([149, 453, 273, 29, 2]);
   });
 
   it("leads each count to the filter that shows it", () => {
-    const tiles = summaryTiles(response(), full);
+    const tiles = summaryTiles(response(), full, baselineOf());
     expect(tiles.map((tile) => tile.status)).toEqual(["open", "all", "closed", "human", "external"]);
-  });
-});
-
-describe("percentileSeries", () => {
-  it("blanks a bucket with too few completions instead of drawing it", () => {
-    const series = percentileSeries(
-      [
-        throughputPoint("2026-06-15", { cycle_p50_days: 3, sample: 4 }),
-        throughputPoint("2026-06-22", { cycle_p50_days: 40, sample: 2 }),
-      ],
-      "cycle_p50_days",
-    );
-    expect(series).toEqual([3, null]);
   });
 });
 
@@ -258,23 +292,6 @@ describe("the readouts", () => {
     expect(
       backlogReadout(backlogPoint("2026-09-18", { open_count: 149, opened: 8, closed: 6 }), "day"),
     ).toBe("18 Sep · 149 open · 8 opened · 6 closed");
-  });
-
-  it("mentions completion events only when they disagree with the task count", () => {
-    const quiet = throughputReadoutOf({ tasks_completed: 3, completion_events: 3 });
-    expect(quiet).not.toContain("completion events");
-    const reopened = throughputReadoutOf({ tasks_completed: 3, completion_events: 4 });
-    expect(reopened).toContain("4 completion events — a task was reopened");
-  });
-
-  it("says a percentile is not measured rather than printing a dash and nothing else", () => {
-    const thin = throughputReadoutOf({ tasks_completed: 2, completion_events: 2, sample: 2 });
-    expect(thin).toContain("cycle time not measured — 2 completions");
-  });
-
-  it("omits cycle time entirely where the history is too thin to claim one", () => {
-    const suppressed = throughputReadoutOf({ sample: 9, cycle_p50_days: 3 }, false);
-    expect(suppressed).not.toContain("median");
   });
 
   it("names all three holder bands", () => {
