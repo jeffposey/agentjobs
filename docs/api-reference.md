@@ -60,7 +60,7 @@ the scoped form so switching projects never depends on the server's current dire
 | `POST` | `/api/push/subscribe` | Register a device for mobile push. Takes the browser's own `PushSubscription.toJSON()` plus a `label` and a `detail` mode. Idempotent by endpoint; a device registered mid-episode waits for the next one |
 | `POST` | `/api/push/unsubscribe` | Forget a device, by `subscription_id` from the page or by `endpoint` from a service worker. Idempotent |
 | `POST` | `/api/push/test` | Push one message on purpose, to one device or to all. Does not consume the episode's interruption |
-| `GET` | `/api/analytics` | Backlog, throughput, aging and where work is stuck, over one range. `range` is `30d`, `90d`, `12m` or `all` |
+| `GET` | `/api/analytics` | Backlog, throughput, aging and where work is stuck, plus the process series (lifecycle segments, cost per task, finishes, gates, runs, the execution journal, review and questions), each with its own coverage, over one range. `range` is `30d`, `90d`, `12m` or `all` |
 | `GET` | `/api/revision` | Return the project revision used for client refresh |
 
 The human inbox is `GET /api/tasks?ball=human`; external blockers are

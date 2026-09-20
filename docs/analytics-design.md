@@ -2336,6 +2336,26 @@ verifies that over HTTP the way task-372 did.
 - No field, model or query names a runner. A test greps the models for `runner` and
   `agent` as field names and fails on either.
 
+### 21.6 Where each item landed (task-473, 2026-09-19)
+
+| item | where it lives | note |
+|---|---|---|
+| the models (§21.2) | `api/models.py`, from `SeriesCoverage` to `OpenQuestion` | named as written, with one field added: `SeriesCoverage.bucket`, the grain the series is aggregated at, so a client never infers which series are weekly and which follow the spine |
+| the segments (§17) | `analytics.fold_segments` and `settle_finish`; `AnalyticsProjection.segment_tasks` exposes the per-task fold | the invariant holds on all 296 completed tasks in the live copy, and `total` agrees with an independent sum of open intervals on every one |
+| the finish segment of an approved task (§17.3) | `settle_finish` | measured as the *work accrued since the last approval*, which is the span from that approval to the close whenever the holder stayed `agent`/`work`, and stays inside *work* when it did not -- so the five segments always partition the total. The design's phrasing would let a wait after an approval push *work* negative |
+| the finish segment of an unreviewed task (§17.3) | `settle_finish`, from the merged `finish` row whose `finished_at` is within a minute of the close | 107 of 129 finished rows on the live copy match under that rule; the rest belong to tasks closed by hand later or reopened, and stay inside *work* |
+| the queries and their plans (§21.3) | `analytics.QUERIES` gains eighteen names, `EXECUTION_QUERIES` the four journal queries, `UNINDEXED_QUERIES` the two scans with their reason | every task-store query plans as §21.3's table says on the live copy; `tests/test_analytics_second_set.py::TestQueryPlans` refuses a `SCAN` on any of them and exempts the two journal scans by name |
+| the machine series (§18.5) | `AnalyticsProjection.machine`, over `execution_store_for(home).read(...)` | a journal that cannot be read costs that series a caption, not the page a 500 |
+| `ThroughputPoint` (§21.2) | gains `reopened` and `estimated`; **keeps its cycle fields and its grain for now** | the page still draws the cycle line from them, and removing them here would have made task-474's page change a prerequisite of this one; task-474 removes the fields and moves the grain when it removes the consumer. Recorded as a decision on task-473 |
+| what it costs (§21.4) | measured on the live copy, 2026-09-19, after the §20.4 import | 32 statements on the task store per request; the projection builds in **35 to 38 ms** on every range (task-372 measured the first set alone at 16 to 33 ms over HTTP); over HTTP **53 to 62 ms** wall-clock, **25 to 61 KB** of body, `X-Task-Parses: 0` on every range |
+
+One thing the verification found that is not this task's: **the live store had not had
+`agentjobs storage import-finishes --project agentjobs` run when this was measured** --
+`finish` held four native rows and `gate_run` thirteen, all from the afternoon of
+2026-09-19 -- so the finish and gate series on the dashboard start there until the
+import runs. The import was run on the scratch copy for the numbers above (218
+finishes, 220 gates, from 2026-08-23) and left the live store untouched.
+
 ---
 
 ## 22. Decisions, pass two
