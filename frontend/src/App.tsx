@@ -77,6 +77,7 @@ import { TaskList, type ReorderHandlers, type TaskListVariant } from "./componen
 import { TaskDetail } from "./components/TaskDetail";
 import { CaptureForm } from "./components/CaptureForm";
 import { GlobalCapture } from "./components/CaptureControl";
+import { FiledNotice, type FiledOutcome } from "./components/DispatchOnCreate";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
 import { LiveRunCount, LiveRunsPage, useLiveRuns } from "./components/LiveRuns";
@@ -1029,6 +1030,56 @@ function TaskCreatePage({ projectId }: { projectId: string }) {
     name: entry.name,
     reporter: entry.default_user ?? null,
   }));
+  // The same gates the task page's Dispatch button reads, for the checkbox that starts
+  // an agent on what is being filed (task-176). One endpoint, so the form and the
+  // button cannot disagree about whether this machine can dispatch.
+  const [destination, setDestination] = useState(projectId);
+  const dispatchState = useQuery({
+    ...getDispatchStateApiProjectsProjectIdDispatchGetOptions({
+      path: { project_id: destination },
+    }),
+    enabled: Boolean(destination),
+  });
+  const start = useMutation(
+    dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation(),
+  );
+  const reporterFor = (id: string) =>
+    destinations.find((entry) => entry.id === id)?.reporter ?? null;
+  // What the last submit did, kept only when a start was asked for: with the box
+  // unchecked this page navigates away exactly as it always has, and there is nothing
+  // to read. A refusal announced by a task list that looks the same either way is not
+  // announced, which is why the page stays when one is possible.
+  const [filed, setFiled] = useState<FiledOutcome | null>(null);
+
+  if (filed) {
+    // A fixed page name, never the task's own title: a heading slot says which page you
+    // are on, and putting what somebody just typed there makes arbitrary content read
+    // as part of the application. The title is content, so it goes in the card.
+    return (
+      <section className="mx-auto max-w-3xl space-y-6" aria-labelledby="capture-page-heading">
+        <header>
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-300">New task</p>
+          <h2 id="capture-page-heading" className="mt-1 text-3xl font-bold">
+            Filed
+          </h2>
+        </header>
+        <FiledNotice
+          taskId={filed.task.id}
+          taskTitle={filed.task.title}
+          taskHref={`/p/${encodeURIComponent(destination)}/tasks/${encodeURIComponent(filed.task.id)}`}
+          start={filed.start}
+        />
+        <div className="mobile-action-row flex items-center justify-end gap-3">
+          <Link
+            to={`/p/${encodeURIComponent(destination)}/tasks?status=all`}
+            className="touch-target rounded-lg px-4 font-semibold text-dark-muted hover:bg-dark-border"
+          >
+            Back to the list
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mx-auto max-w-3xl space-y-6" aria-labelledby="capture-page-heading">
@@ -1057,9 +1108,21 @@ function TaskCreatePage({ projectId }: { projectId: string }) {
             throw new Error(refusal ? refusal.message : "");
           }
         }}
-        onFiled={(destinationId) => {
+        dispatchState={dispatchState.data ?? null}
+        onDestinationChange={setDestination}
+        onStart={(destinationId, taskId) =>
+          start.mutateAsync({
+            path: { project_id: destinationId, task_id: taskId },
+            body: reporterFor(destinationId) ? { user: reporterFor(destinationId)! } : {},
+          })
+        }
+        onFiled={(destinationId, outcome) => {
           void queryClient.invalidateQueries();
-          navigate(`/p/${encodeURIComponent(destinationId)}/tasks?status=all`);
+          if (outcome.start.kind === "not_asked") {
+            navigate(`/p/${encodeURIComponent(destinationId)}/tasks?status=all`);
+            return;
+          }
+          setFiled(outcome);
         }}
         cancel={
           <Link

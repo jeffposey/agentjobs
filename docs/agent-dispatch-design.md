@@ -2207,6 +2207,64 @@ given up that recovery.
 
 ---
 
+### 5d. The create that starts a run (task-176, 2026-09-20)
+
+A checkbox beside *Create task* and beside *File issue*, **unchecked by default**, that
+starts an agent on the task the moment it is filed. It closes the gap between filing and
+starting: for a small obvious fix the decision to work on it was already made at the
+moment of noticing, and making somebody open the task afterwards to press a second button
+asks them to decide twice.
+
+**It is not a fourth trigger.** The server gained nothing. What the browser does is the
+two requests it already had, in order: `POST /tasks`, then the ordinary
+`POST /tasks/{id}/dispatch` the Dispatch button posts, with the same body and every gate
+in front of it. So "which triggers exist" is unchanged, and so is every answer in §6 and
+§7.
+
+**Why §2 is satisfied without an exemption.** A human filling in a form and pressing
+create is a human act, and the entry the create writes is attributed to them — so
+`assert_human_clocked` reads a human's entry and is satisfied by the *creation itself*.
+Nothing here is special-cased, and the rule that would have had to bend if it were is
+pinned directly: `tests/test_dispatch_on_create.py` dispatches a just-created task with an
+empty body, which resolves the newest entry, and it is the create's.
+
+The wheel still stops for the same reason it stops everywhere else: the run ends in an
+agent's handoff, and an agent's handoff causes nothing. That is asserted on this exact
+shape — filed, dispatched and handed back inside a minute — rather than assumed from the
+approval trigger's version of it.
+
+**Its relationship to `auto_dispatch`, decided rather than inherited.** This checkbox is
+**independent of the `auto_dispatch` project setting, and does not read it.** They answer
+different questions: `auto_dispatch` is a standing project policy — *approvals here start
+agents, from now on, without anybody choosing again* — while this is one person choosing
+once, for one task, in the same gesture as filing it. Gating the checkbox on
+`auto_dispatch` would make a per-task choice require a machine-local file edit and would
+overload one flag with two meanings; adding a switch of its own would be a third
+overlapping control nobody asked for. So there are still exactly two, and the checkbox is
+governed by what governs the Dispatch button: `GET /dispatch`'s `can_dispatch`.
+
+**Off by default, and deliberately not sticky.** Starting an agent spends money on this
+machine unattended, and the moment of filing is the moment you know least about whether
+the task is ready to be worked. A remembered or project-defaulted box would turn that into
+a setting somebody forgot they changed.
+
+**One place the browser is stricter than the API, which is the safe direction.** The box
+is closed while the task is being filed as a *draft* — on the create form that is the
+starting-state radio, and on the issue reporter it is the *Ready for an agent* box. A
+draft says in its own lifecycle that a person still has to decide the task is worth doing,
+and starting an agent on it in the same gesture contradicts that. It also makes task-175's
+sequence the natural one: draft the spec properly, mark it ready, then start it. The
+dispatch API itself does not check lifecycle and is not changed; this narrows what the
+surface offers, never what the guard allows.
+
+**Two requests means two outcomes, and they are reported separately.** A create that
+succeeded and a dispatch that was refused is a task that exists and is not running, and
+the confirmation says exactly that, quoting the gate that refused and linking to the task.
+Nothing is ever rolled back: a refused dispatch is not a reason to delete a record
+somebody deliberately wrote.
+
+---
+
 ## 5a. What *ends* a dispatch: the scripted finish (task-241, shipped)
 
 Not in the original design, because in the original design a human approval woke an agent

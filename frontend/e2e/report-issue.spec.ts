@@ -35,7 +35,7 @@ test("files an issue from a task page and links the task the reporter was readin
   await dialog.getByRole("button", { name: "File it" }).click();
 
   await expect(dialog).toContainText("Filed as");
-  await dialog.getByRole("link", { name: "Open the task" }).click();
+  await dialog.getByRole("link", { name: /^Open task-/ }).click();
 
   // The stored record, read the way a user reads it.
   await expect(page.getByRole("heading", { name: "The log timestamps are unreadable" })).toBeVisible();
@@ -71,7 +71,9 @@ test("is reachable from a page where no project has resolved yet", async ({ page
   await dialog.getByRole("button", { name: "File it" }).click();
   await expect(dialog).toContainText("Filed as");
 
-  const filed = (await dialog.getByRole("status").innerText()).replace(/^Filed as\s*/, "").replace(/\.$/, "");
+  // Read off the attribute rather than parsed out of the sentence: since task-176 the
+  // prose around the id changes with what happened to the dispatch, and the id does not.
+  const filed = (await dialog.getByRole("status").getAttribute("data-task-id")) ?? "";
   const record = await (await request.get(`/api/tasks/${filed}`)).json();
   expect(record.tags).toEqual(["reported-issue"]);
   expect(record.dependencies).toEqual([]);
@@ -130,9 +132,9 @@ test("files from an origin with no crypto.randomUUID, which is what a phone has"
   await dialog.getByRole("button", { name: "File it" }).click();
 
   await expect(dialog).toContainText("Filed as");
-  const filed = (await dialog.getByRole("status").innerText())
-    .replace(/^Filed as\s*/, "")
-    .replace(/\.$/, "");
+  // Read off the attribute rather than parsed out of the sentence: since task-176 the
+  // prose around the id changes with what happened to the dispatch, and the id does not.
+  const filed = (await dialog.getByRole("status").getAttribute("data-task-id")) ?? "";
   // The record exists on the server, so the operation_id it carried was one the API
   // accepted as a UUID rather than merely a unique string.
   const record = await (await request.get(`/api/tasks/${filed}`)).json();

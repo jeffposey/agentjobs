@@ -47,9 +47,9 @@ test("authors a full task from the capture control and stores every field", asyn
 
   await dialog.getByRole("button", { name: "File it" }).click();
   await expect(dialog).toContainText("Filed as");
-  const filed = (await dialog.getByRole("status").innerText())
-    .replace(/^Filed as\s*/, "")
-    .replace(/\.$/, "");
+  // Read off the attribute rather than parsed out of the sentence: since task-176 the
+  // prose around the id changes with what happened to the dispatch, and the id does not.
+  const filed = (await dialog.getByRole("status").getAttribute("data-task-id")) ?? "";
 
   // The stored record, asked of the server rather than read back off the form.
   const record = await (await request.get(`/api/tasks/${filed}`)).json();
@@ -72,7 +72,7 @@ test("authors a full task from the capture control and stores every field", asyn
   ]);
 
   // And it is in the list, which is the round trip the old spec was for.
-  await dialog.getByRole("link", { name: "Open the task" }).click();
+  await dialog.getByRole("link", { name: /^Open task-/ }).click();
   await expect(page.getByRole("heading", { name: "Playwright-created task" })).toBeVisible();
   await page.goto("/app/p/_local/tasks?status=all");
   const tasks = page.getByRole("region", { name: "Tasks" });
@@ -95,7 +95,14 @@ test("files a second task without the dialog remembering the first", async ({ pa
   await dialog.getByRole("button", { name: "File it" }).click();
   await expect(dialog).toContainText("Filed as");
 
+  // The start-an-agent box is there and off (task-176). Whether it is *enabled* is the
+  // server's answer and depends on whether another spec has already switched dispatch
+  // on for this project, so it is deliberately not asserted here -- which gate is shut
+  // is covered where the state can be stated rather than inherited.
   await dialog.getByRole("button", { name: "File another" }).click();
+  const startNow = dialog.getByRole("checkbox", { name: /Start an agent on it now/ });
+  await expect(startNow).toBeVisible();
+  await expect(startNow).not.toBeChecked();
   await expect(dialog.getByRole("textbox", { name: /^Title/ })).toHaveValue("");
   await expect(dialog.getByRole("textbox", { name: /^What happened/ })).toHaveValue("");
   await expect(dialog.getByRole("button", { name: "Add the full specification" })).toBeVisible();

@@ -1,6 +1,7 @@
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import type {
+  DispatchStarted,
   Priority,
   SpecDraftResponse,
   Task,
@@ -20,7 +21,14 @@ import {
   type DraftableField,
   type DraftableValues,
 } from "../report/specDraft";
+import type { DispatchStateView } from "../api/types";
 import { AttachmentPicker } from "./AttachmentPicker";
+import {
+  StartOnFileCheckbox,
+  fileAndMaybeStart,
+  startOnFileGate,
+  type FiledOutcome,
+} from "./DispatchOnCreate";
 import { SpecDraftControl } from "./SpecDraftControl";
 
 /**
@@ -70,8 +78,34 @@ export type CaptureFormProps = {
   existingTaskIds: ReadonlyArray<string>;
   /** Files the request. Returns the stored task, which the caller then shows. */
   onSubmit: (projectId: string, request: TaskCreateRequest) => Promise<Task>;
-  /** Called with the filed task. The dialog shows a receipt; the page navigates away. */
-  onFiled: (projectId: string, task: Task) => void;
+  /**
+   * Called with what the submit did. The dialog shows a receipt; the page navigates away.
+   *
+   * The whole outcome rather than the task alone, because since task-176 a submit can
+   * do two things -- file, and start an agent -- which succeed and fail independently.
+   * `outcome.task` is the record, which exists whatever happened to the start.
+   */
+  onFiled: (projectId: string, outcome: FiledOutcome) => void;
+  /**
+   * Machine and project dispatch gates for the destination currently selected, or null
+   * while the answer is in flight (task-176).
+   *
+   * Supplied rather than queried here, and the destination is reported back through
+   * {@link CaptureFormProps.onDestinationChange} so the caller can ask about the right
+   * project. That is this file's existing arrangement for `onExpandedChange`, kept for
+   * the same reason: the form owns no requests, so it renders in a test without a
+   * server answering for a surface the test is not about.
+   */
+  dispatchState?: DispatchStateView | null;
+  /** Which project the form would file into now. Fires on mount and on every change. */
+  onDestinationChange?: (projectId: string) => void;
+  /**
+   * Start an agent on the task just filed. Absent means the box is never offered.
+   *
+   * Rejects with the dispatch's refusal, which `fileAndMaybeStart` turns into the
+   * "filed, not started" half of the outcome -- it never undoes the create.
+   */
+  onStart?: (projectId: string, taskId: string) => Promise<DispatchStarted>;
   /** Rendered at the end of the action row's left side, e.g. the dialog's Cancel. */
   cancel?: React.ReactNode;
   /** True on `/tasks/new`, where the whole specification is the point of the page. */
@@ -120,6 +154,9 @@ export function CaptureForm({
   startExpanded = false,
   autoFocus = false,
   onExpandedChange,
+  dispatchState = null,
+  onDestinationChange,
+  onStart,
 }: CaptureFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const specHeadingId = useId();
@@ -129,6 +166,10 @@ export function CaptureForm({
   const [attachments, setAttachments] = useState<Array<PendingAttachment>>([]);
   const [destination, setDestination] = useState(context.projectId ?? "");
   const [actionable, setActionable] = useState(false);
+  // Unchecked on every mount, and never persisted anywhere. See `DispatchOnCreate.tsx`
+  // for why a remembered "spend money" is the default this feature exists not to have;
+  // the dialog remounts this form for a second capture, so it resets there too.
+  const [startOnFile, setStartOnFile] = useState(false);
   const [priority, setPriority] = useState<Priority>("medium");
   const [expanded, setExpandedState] = useState(startExpanded);
   const setExpanded = useCallback(
@@ -149,6 +190,28 @@ export function CaptureForm({
   const effectiveDestination = destination || destinations[0]?.id || "";
   const destinationProject = destinations.find((entry) => entry.id === effectiveDestination);
   const reporter = destinationProject?.reporter ?? null;
+
+  // Tell the caller which project to ask about, so the start-an-agent box is gated on
+  // the gates of the project actually selected rather than the one the capture started
+  // in (task-176). Reported rather than queried here for the reason the props say.
+  useEffect(() => {
+    if (effectiveDestination) onDestinationChange?.(effectiveDestination);
+  }, [effectiveDestination, onDestinationChange]);
+
+  const startGate = startOnFileGate({
+    state: dispatchState,
+    user: reporter,
+    identityDetail:
+      "No human actor is configured for this project, so AgentJobs would have nobody to " +
+      "attribute a run to.",
+    // "Ready for an agent" is this form's lifecycle control, so it is what decides
+    // whether starting one in the same gesture makes sense. A draft says a person still
+    // has to decide the task is worth doing.
+    lifecycle: actionable ? "ready" : "draft",
+  });
+  // `onStart` absent means the surface does not offer this at all, which is a closed
+  // gate rather than a hidden control -- the checkbox still says so.
+  const wantsStart = Boolean(onStart) && startGate.allowed && startOnFile;
 
   const fieldElement = (name: string) => {
     const found = formRef.current?.elements.namedItem(name);
@@ -256,8 +319,21 @@ export function CaptureForm({
           effort: optional(String(form.get("effort") ?? "")),
         },
       });
-      const task = await onSubmit(effectiveDestination, request);
-      onFiled(effectiveDestination, task);
+      // Two requests in order, and two outcomes reported separately: the create, then
+      // the ordinary dispatch the task page's button makes. A refused start never
+      // undoes the create -- see `fileAndMaybeStart`.
+      const outcome = await fileAndMaybeStart({
+        wanted: wantsStart,
+        create: () => onSubmit(effectiveDestination, request),
+        // Unreachable while `wantsStart` is false, which it always is without
+        // `onStart` -- written out rather than asserted so a surface that forgets to
+        // pass one cannot crash a create that was going to succeed.
+        start: (taskId) =>
+          onStart
+            ? onStart(effectiveDestination, taskId)
+            : Promise.reject(new Error("This surface does not start agents.")),
+      });
+      onFiled(effectiveDestination, outcome);
     } catch (caught) {
       setError(
         caught instanceof Error && caught.message
@@ -493,6 +569,18 @@ export function CaptureForm({
           </span>
         </span>
       </label>
+
+      {/*
+        Directly under the lifecycle control, because it is the next question in the
+        same sequence -- is this ready, and should it start now -- and because the
+        reason it is closed on a draft is the box immediately above it.
+      */}
+      <StartOnFileCheckbox
+        gate={startGate}
+        checked={wantsStart}
+        onChange={setStartOnFile}
+        machineFull={Boolean(dispatchState?.machine_full)}
+      />
 
       <p className="rounded-lg border border-dark-border bg-dark-bg p-3 text-xs text-dark-muted">
         Captured from <code>{context.route}</code>

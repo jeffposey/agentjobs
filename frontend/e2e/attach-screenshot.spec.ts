@@ -54,9 +54,9 @@ test("pastes a screenshot into a report and renders it back from the stored file
 
   await dialog.getByRole("button", { name: "File it" }).click();
   await expect(dialog).toContainText("Filed as");
-  const filed = (await dialog.getByRole("status").innerText())
-    .replace(/^Filed as\s*/, "")
-    .replace(/\.$/, "");
+  // Read off the attribute rather than parsed out of the sentence: since task-176 the
+  // prose around the id changes with what happened to the dispatch, and the id does not.
+  const filed = (await dialog.getByRole("status").getAttribute("data-task-id")) ?? "";
 
   // The stored record carries metadata only -- the bytes are in a sidecar file.
   const record = await (await request.get(`/api/tasks/${filed}`)).json();
@@ -66,7 +66,7 @@ test("pastes a screenshot into a report and renders it back from the stored file
   expect(JSON.stringify(record)).not.toContain("data:image");
 
   // And the browser renders it where the entry is read.
-  await dialog.getByRole("link", { name: "Open the task" }).click();
+  await dialog.getByRole("link", { name: /^Open task-/ }).click();
   const shown = page.getByRole("img", { name: "screenshot.png" });
   await expect(shown).toBeVisible();
   await expect(shown).toHaveAttribute("src", new RegExp(`${attachment.sha256}\\.png$`));
