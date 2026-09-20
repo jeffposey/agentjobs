@@ -1,4 +1,4 @@
-import type { TaskRead } from "../api/types";
+import type { TaskSummaryRead } from "../api/types";
 
 /**
  * The task list as a tree: rows, what is folded away, and where an arrow key lands.
@@ -12,7 +12,7 @@ import type { TaskRead } from "../api/types";
  */
 
 export type TaskRow = {
-  task: TaskRead;
+  task: TaskSummaryRead;
   depth: number;
   /** Every ancestor, outermost first. Empty for a row drawn at the root. */
   ancestors: Array<string>;
@@ -39,9 +39,9 @@ export type TaskRow = {
  * is what makes it safe to hand this a *filtered* list: the sidebar tree groups at
  * every filter setting, and a child whose parent is closed simply becomes a root row.
  */
-export function buildTaskRows(tasks: Array<TaskRead>): Array<TaskRow> {
+export function buildTaskRows(tasks: Array<TaskSummaryRead>): Array<TaskRow> {
   const byId = new Map(tasks.map((task) => [task.id, task]));
-  const children = new Map<string | null, Array<TaskRead>>();
+  const children = new Map<string | null, Array<TaskSummaryRead>>();
 
   for (const task of tasks) {
     const parent = task.parent && byId.has(task.parent) ? task.parent : null;
@@ -50,7 +50,7 @@ export function buildTaskRows(tasks: Array<TaskRead>): Array<TaskRow> {
 
   const rows: Array<TaskRow> = [];
   const drawn = new Set<string>();
-  const walk = (task: TaskRead, ancestors: Array<string>) => {
+  const walk = (task: TaskSummaryRead, ancestors: Array<string>) => {
     if (drawn.has(task.id)) return;
     const kids = children.get(task.id) ?? [];
     rows.push({

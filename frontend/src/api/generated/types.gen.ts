@@ -5620,6 +5620,264 @@ export type TaskReadOutput = {
 };
 
 /**
+ * TaskSummaryRead
+ *
+ * A listing row: the task without its prose, its criteria or its log.
+ *
+ * What ``GET /tasks`` returns. It carries the same server-computed dependency state
+ * ``TaskRead`` does, because a list is where the claim gate is drawn -- a row is greyed
+ * out by ``actionable`` and explained by ``unmet_needs``, and a client that had to work
+ * those out for itself would need the corpus the projection exists to avoid sending.
+ *
+ * Whole records are still on offer, at ``GET /tasks/full``; see the route.
+ */
+export type TaskSummaryReadInput = {
+    /**
+     * Actionable
+     */
+    actionable?: boolean;
+    /**
+     * Archived
+     *
+     * Visibility flag, orthogonal to how the task ended.
+     */
+    archived?: boolean;
+    assignment?: Assignment;
+    /**
+     * Who acts next. Required while open.
+     */
+    ball?: Ball | null;
+    /**
+     * Ball Prompt
+     *
+     * The ask, addressed to whoever holds the ball. Required when ball is set.
+     */
+    ball_prompt?: string | null;
+    /**
+     * Why they hold it, scoped to the holder.
+     */
+    ball_reason?: BallReason | null;
+    /**
+     * Category
+     *
+     * Project taxonomy; validated against config.
+     */
+    category: string;
+    /**
+     * Created
+     */
+    created: string;
+    /**
+     * Dependencies
+     */
+    dependencies?: Array<Dependency>;
+    /**
+     * Effort
+     *
+     * Free text. An estimate, not a contract.
+     */
+    effort?: string | null;
+    /**
+     * Id
+     *
+     * Unique task identifier.
+     */
+    id: string;
+    lifecycle?: Lifecycle;
+    /**
+     * Needs Cycles
+     */
+    needs_cycles?: Array<Array<string>>;
+    /**
+     * Open Children Count
+     */
+    open_children_count?: number;
+    /**
+     * How it ended. Set only when closed.
+     */
+    outcome?: Outcome | null;
+    /**
+     * Parent
+     *
+     * Task id of the umbrella task, if any.
+     */
+    parent?: string | null;
+    /**
+     * This task's request for a dispatch envelope. A request, not a grant.
+     */
+    posture?: DispatchPosture | null;
+    priority?: Priority;
+    /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
+    queued_dispatch?: QueuedDispatchState | null;
+    /**
+     * Schema
+     *
+     * Schema version stamp. Always 2 for this model (D3).
+     */
+    schema?: number;
+    self_clearing_wait?: SelfClearingWait | null;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     *
+     * Task title.
+     */
+    title: string;
+    /**
+     * Unblocks Count
+     */
+    unblocks_count?: number;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
+    /**
+     * Updated
+     */
+    updated: string;
+};
+
+/**
+ * TaskSummaryRead
+ *
+ * A listing row: the task without its prose, its criteria or its log.
+ *
+ * What ``GET /tasks`` returns. It carries the same server-computed dependency state
+ * ``TaskRead`` does, because a list is where the claim gate is drawn -- a row is greyed
+ * out by ``actionable`` and explained by ``unmet_needs``, and a client that had to work
+ * those out for itself would need the corpus the projection exists to avoid sending.
+ *
+ * Whole records are still on offer, at ``GET /tasks/full``; see the route.
+ */
+export type TaskSummaryReadOutput = {
+    /**
+     * Actionable
+     */
+    actionable?: boolean;
+    /**
+     * Archived
+     *
+     * Visibility flag, orthogonal to how the task ended.
+     */
+    archived?: boolean;
+    assignment?: Assignment;
+    /**
+     * Who acts next. Required while open.
+     */
+    ball?: Ball | null;
+    /**
+     * Ball Prompt
+     *
+     * The ask, addressed to whoever holds the ball. Required when ball is set.
+     */
+    ball_prompt?: string | null;
+    /**
+     * Why they hold it, scoped to the holder.
+     */
+    ball_reason?: BallReason | null;
+    /**
+     * Category
+     *
+     * Project taxonomy; validated against config.
+     */
+    category: string;
+    /**
+     * Created
+     */
+    created: string;
+    /**
+     * Dependencies
+     */
+    dependencies?: Array<Dependency>;
+    /**
+     * Display Status
+     *
+     * The record's label, with a waiting dispatch named where there is one.
+     */
+    readonly display_status: string;
+    /**
+     * Effort
+     *
+     * Free text. An estimate, not a contract.
+     */
+    effort?: string | null;
+    /**
+     * Id
+     *
+     * Unique task identifier.
+     */
+    id: string;
+    lifecycle?: Lifecycle;
+    /**
+     * Needs Cycles
+     */
+    needs_cycles?: Array<Array<string>>;
+    /**
+     * Open Children Count
+     */
+    open_children_count?: number;
+    /**
+     * How it ended. Set only when closed.
+     */
+    outcome?: Outcome | null;
+    /**
+     * Parent
+     *
+     * Task id of the umbrella task, if any.
+     */
+    parent?: string | null;
+    /**
+     * This task's request for a dispatch envelope. A request, not a grant.
+     */
+    posture?: DispatchPosture | null;
+    priority?: Priority;
+    /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
+    queued_dispatch?: QueuedDispatchState | null;
+    /**
+     * Schema
+     *
+     * Schema version stamp. Always 2 for this model (D3).
+     */
+    schema?: number;
+    self_clearing_wait?: SelfClearingWait | null;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     *
+     * Task title.
+     */
+    title: string;
+    /**
+     * Unblocks Count
+     */
+    unblocks_count?: number;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
+    /**
+     * Updated
+     */
+    updated: string;
+};
+
+/**
  * TaskUpdateRequest
  *
  * Payload for partially updating a task.
@@ -6444,6 +6702,132 @@ export type TaskReadOutputWritable = {
     schema?: number;
     self_clearing_wait?: SelfClearingWait | null;
     spec: Spec;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     *
+     * Task title.
+     */
+    title: string;
+    /**
+     * Unblocks Count
+     */
+    unblocks_count?: number;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
+    /**
+     * Updated
+     */
+    updated: string;
+};
+
+/**
+ * TaskSummaryRead
+ *
+ * A listing row: the task without its prose, its criteria or its log.
+ *
+ * What ``GET /tasks`` returns. It carries the same server-computed dependency state
+ * ``TaskRead`` does, because a list is where the claim gate is drawn -- a row is greyed
+ * out by ``actionable`` and explained by ``unmet_needs``, and a client that had to work
+ * those out for itself would need the corpus the projection exists to avoid sending.
+ *
+ * Whole records are still on offer, at ``GET /tasks/full``; see the route.
+ */
+export type TaskSummaryReadOutputWritable = {
+    /**
+     * Actionable
+     */
+    actionable?: boolean;
+    /**
+     * Archived
+     *
+     * Visibility flag, orthogonal to how the task ended.
+     */
+    archived?: boolean;
+    assignment?: Assignment;
+    /**
+     * Who acts next. Required while open.
+     */
+    ball?: Ball | null;
+    /**
+     * Ball Prompt
+     *
+     * The ask, addressed to whoever holds the ball. Required when ball is set.
+     */
+    ball_prompt?: string | null;
+    /**
+     * Why they hold it, scoped to the holder.
+     */
+    ball_reason?: BallReason | null;
+    /**
+     * Category
+     *
+     * Project taxonomy; validated against config.
+     */
+    category: string;
+    /**
+     * Created
+     */
+    created: string;
+    /**
+     * Dependencies
+     */
+    dependencies?: Array<Dependency>;
+    /**
+     * Effort
+     *
+     * Free text. An estimate, not a contract.
+     */
+    effort?: string | null;
+    /**
+     * Id
+     *
+     * Unique task identifier.
+     */
+    id: string;
+    lifecycle?: Lifecycle;
+    /**
+     * Needs Cycles
+     */
+    needs_cycles?: Array<Array<string>>;
+    /**
+     * Open Children Count
+     */
+    open_children_count?: number;
+    /**
+     * How it ended. Set only when closed.
+     */
+    outcome?: Outcome | null;
+    /**
+     * Parent
+     *
+     * Task id of the umbrella task, if any.
+     */
+    parent?: string | null;
+    /**
+     * This task's request for a dispatch envelope. A request, not a grant.
+     */
+    posture?: DispatchPosture | null;
+    priority?: Priority;
+    /**
+     * Queue Position
+     *
+     * Order within the priority band. Present if and only if the task is open.
+     */
+    queue_position?: number | null;
+    queued_dispatch?: QueuedDispatchState | null;
+    /**
+     * Schema
+     *
+     * Schema version stamp. Always 2 for this model (D3).
+     */
+    schema?: number;
+    self_clearing_wait?: SelfClearingWait | null;
     /**
      * Tags
      */
@@ -8208,7 +8592,7 @@ export type ListTasksApiProjectsProjectIdTasksGetResponses = {
      *
      * Successful Response
      */
-    200: Array<TaskReadOutput>;
+    200: Array<TaskSummaryReadOutput>;
 };
 
 export type ListTasksApiProjectsProjectIdTasksGetResponse = ListTasksApiProjectsProjectIdTasksGetResponses[keyof ListTasksApiProjectsProjectIdTasksGetResponses];
@@ -8319,6 +8703,57 @@ export type GetClaimableTasksApiProjectsProjectIdTasksClaimableGetResponses = {
 };
 
 export type GetClaimableTasksApiProjectsProjectIdTasksClaimableGetResponse = GetClaimableTasksApiProjectsProjectIdTasksClaimableGetResponses[keyof GetClaimableTasksApiProjectsProjectIdTasksClaimableGetResponses];
+
+export type ListFullTasksApiProjectsProjectIdTasksFullGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Lifecycle
+         */
+        lifecycle?: Lifecycle | null;
+        /**
+         * Ball
+         */
+        ball?: Ball | null;
+        /**
+         * Priority
+         */
+        priority?: Priority | null;
+        /**
+         * Parent
+         *
+         * Return only the children of this umbrella task.
+         */
+        parent?: string | null;
+    };
+    url: '/api/projects/{project_id}/tasks/full';
+};
+
+export type ListFullTasksApiProjectsProjectIdTasksFullGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListFullTasksApiProjectsProjectIdTasksFullGetError = ListFullTasksApiProjectsProjectIdTasksFullGetErrors[keyof ListFullTasksApiProjectsProjectIdTasksFullGetErrors];
+
+export type ListFullTasksApiProjectsProjectIdTasksFullGetResponses = {
+    /**
+     * Response List Full Tasks Api Projects  Project Id  Tasks Full Get
+     *
+     * Successful Response
+     */
+    200: Array<TaskReadOutput>;
+};
+
+export type ListFullTasksApiProjectsProjectIdTasksFullGetResponse = ListFullTasksApiProjectsProjectIdTasksFullGetResponses[keyof ListFullTasksApiProjectsProjectIdTasksFullGetResponses];
 
 export type GetNextTaskApiProjectsProjectIdTasksNextGetData = {
     body?: never;
@@ -9881,7 +10316,7 @@ export type ListTasksApiTasksGetResponses = {
      *
      * Successful Response
      */
-    200: Array<TaskReadOutput>;
+    200: Array<TaskSummaryReadOutput>;
 };
 
 export type ListTasksApiTasksGetResponse = ListTasksApiTasksGetResponses[keyof ListTasksApiTasksGetResponses];
@@ -9968,6 +10403,52 @@ export type GetClaimableTasksApiTasksClaimableGetResponses = {
 };
 
 export type GetClaimableTasksApiTasksClaimableGetResponse = GetClaimableTasksApiTasksClaimableGetResponses[keyof GetClaimableTasksApiTasksClaimableGetResponses];
+
+export type ListFullTasksApiTasksFullGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Lifecycle
+         */
+        lifecycle?: Lifecycle | null;
+        /**
+         * Ball
+         */
+        ball?: Ball | null;
+        /**
+         * Priority
+         */
+        priority?: Priority | null;
+        /**
+         * Parent
+         *
+         * Return only the children of this umbrella task.
+         */
+        parent?: string | null;
+    };
+    url: '/api/tasks/full';
+};
+
+export type ListFullTasksApiTasksFullGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListFullTasksApiTasksFullGetError = ListFullTasksApiTasksFullGetErrors[keyof ListFullTasksApiTasksFullGetErrors];
+
+export type ListFullTasksApiTasksFullGetResponses = {
+    /**
+     * Response List Full Tasks Api Tasks Full Get
+     *
+     * Successful Response
+     */
+    200: Array<TaskReadOutput>;
+};
+
+export type ListFullTasksApiTasksFullGetResponse = ListFullTasksApiTasksFullGetResponses[keyof ListFullTasksApiTasksFullGetResponses];
 
 export type GetNextTaskApiTasksNextGetData = {
     body?: never;

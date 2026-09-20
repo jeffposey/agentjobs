@@ -25,6 +25,11 @@ export const PROJECT_TASK_QUERY_IDS = new Set([
   "getAttentionApiProjectsProjectIdAttentionGet",
   "searchTasksApiProjectsProjectIdSearchGet",
   "listTasksApiProjectsProjectIdTasksGet",
+  // The same listing as whole records. No browser surface asks for it -- it exists for
+  // `TaskClient.list_tasks`, which must return `Task` and so cannot take the rows
+  // (task-484) -- but it answers with task data, so it belongs in the set that
+  // refetches rather than in the list of reasons not to.
+  "listFullTasksApiProjectsProjectIdTasksFullGet",
   "listBrokenTasksApiProjectsProjectIdTasksBrokenGet",
   "getNextTaskApiProjectsProjectIdTasksNextGet",
   // The whole claimable set rather than its head. Nothing in the app asks for it today

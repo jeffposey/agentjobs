@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { TaskRead } from "../api/types";
+import type { TaskSummaryRead } from "../api/types";
 import { applyMove, bandMembers, describeMove, stepMove } from "./queueOrder";
 
-function task(id: string, queue_position: number | null, priority = "high"): TaskRead {
+function task(id: string, queue_position: number | null, priority = "high"): TaskSummaryRead {
   return {
     schema: 2,
     id,
@@ -17,8 +17,7 @@ function task(id: string, queue_position: number | null, priority = "high"): Tas
     priority,
     category: "general",
     queue_position,
-    spec: { summary: `Summary of ${id}`, description: "Body." },
-  } as TaskRead;
+  } as TaskSummaryRead;
 }
 
 /** The list as a server sends it: open work by band and position, closed behind it. */
@@ -30,7 +29,7 @@ const backlog = [
   task("task-done", null),
 ];
 
-const ids = (tasks: Array<TaskRead>) => tasks.map((entry) => entry.id);
+const ids = (tasks: Array<TaskSummaryRead>) => tasks.map((entry) => entry.id);
 
 describe("stepMove", () => {
   it("steps within the band, never past its edges", () => {

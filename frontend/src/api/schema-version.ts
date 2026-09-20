@@ -11,7 +11,10 @@ export class UnsupportedTaskSchemaError extends Error {
   }
 }
 
-export function requireSupportedTaskSchemas(tasks: Task[]): Task[] {
+/** The stamp this checks, and all it needs: whole records and listing rows both carry it. */
+type SchemaStamped = Pick<Task, "id" | "schema">;
+
+export function requireSupportedTaskSchemas<T extends SchemaStamped>(tasks: T[]): T[] {
   for (const task of tasks) {
     if (task.schema !== SUPPORTED_TASK_SCHEMA) {
       throw new UnsupportedTaskSchemaError(task.id, task.schema);

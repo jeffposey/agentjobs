@@ -1,4 +1,4 @@
-import type { TaskRead } from "../api/types";
+import type { TaskSummaryRead } from "../api/types";
 
 /**
  * Reordering the backlog, as arithmetic the browser can do without a server.
@@ -26,11 +26,11 @@ export type QueueMove =
 export type StepDirection = "up" | "down" | "top" | "bottom";
 
 /** Whether this task has a place in line that a person can change. */
-export function isInQueue(task: TaskRead): boolean {
+export function isInQueue(task: TaskSummaryRead): boolean {
   return task.lifecycle !== "closed" && task.queue_position !== null && task.queue_position !== undefined;
 }
 
-export function bandOf(task: TaskRead): string {
+export function bandOf(task: TaskSummaryRead): string {
   return task.priority ?? "medium";
 }
 
@@ -41,7 +41,7 @@ export function bandOf(task: TaskRead): string {
  * `(band, queue_position)` and re-deriving that here would be a second opinion about
  * the queue living in the browser, which is the thing task-207 deleted.
  */
-export function bandMembers(tasks: Array<TaskRead>, band: string): Array<TaskRead> {
+export function bandMembers(tasks: Array<TaskSummaryRead>, band: string): Array<TaskSummaryRead> {
   return tasks.filter((task) => isInQueue(task) && bandOf(task) === band);
 }
 
@@ -52,7 +52,7 @@ export function bandMembers(tasks: Array<TaskRead>, band: string): Array<TaskRea
  * already is writes a `queue_move` log entry recording a decision nobody made.
  */
 export function stepMove(
-  tasks: Array<TaskRead>,
+  tasks: Array<TaskSummaryRead>,
   taskId: string,
   direction: StepDirection,
 ): QueueMove | null {
@@ -77,7 +77,7 @@ export function stepMove(
 }
 
 /** Where in the band, after removing the mover, this placement puts it. */
-function insertionIndex(rest: Array<TaskRead>, move: QueueMove): number {
+function insertionIndex(rest: Array<TaskSummaryRead>, move: QueueMove): number {
   if ("top" in move) return 0;
   if ("bottom" in move) return rest.length;
   if ("before" in move) {
@@ -99,10 +99,10 @@ function insertionIndex(rest: Array<TaskRead>, move: QueueMove): number {
  * this predicts the *order* faithfully and the numbers only well enough to read.
  */
 export function applyMove(
-  tasks: Array<TaskRead>,
+  tasks: Array<TaskSummaryRead>,
   taskId: string,
   move: QueueMove,
-): Array<TaskRead> {
+): Array<TaskSummaryRead> {
   const task = tasks.find((candidate) => candidate.id === taskId);
   if (!task || !isInQueue(task)) return tasks;
   const band = bandOf(task);
@@ -128,7 +128,7 @@ export function applyMove(
 
 /** What just happened, as a sentence for the live region. */
 export function describeMove(
-  tasks: Array<TaskRead>,
+  tasks: Array<TaskSummaryRead>,
   taskId: string,
   move: QueueMove,
 ): string {

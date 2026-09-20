@@ -508,7 +508,37 @@ class TaskManager:
         and the cost this exists to remove was never the ``WHERE`` clause. It was the
         seven joined child tables, and the projection has already left those behind.
         """
-        summaries = self.storage.list_task_summaries()
+        return self._filtered(self.storage.list_task_summaries(), lifecycle, ball, priority, parent)
+
+    def listing_rows(
+        self,
+        *,
+        lifecycle: Optional[Lifecycle] = None,
+        ball: Optional[Ball] = None,
+        priority: Optional[Priority] = None,
+        parent: Optional[str] = None,
+    ) -> Tuple[List[TaskSummary], Dict[str, DependencyFacts]]:
+        """The rows a listing draws, and the corpus-wide facts each row needs, in one read.
+
+        Two answers from one method because they come from one listing, and separating
+        them is what made the list endpoint read the whole project four times over
+        (task-484). The facts are computed over the unfiltered corpus even when the rows
+        are a subset -- ``?parent=`` narrows what is drawn and must not narrow what
+        "six open children" counts.
+        """
+        corpus = self.storage.list_task_summaries()
+        facts = self.dependency_facts(corpus, corpus=corpus)
+        return self._filtered(corpus, lifecycle, ball, priority, parent), facts
+
+    @staticmethod
+    def _filtered(
+        summaries: List[TaskSummary],
+        lifecycle: Optional[Lifecycle],
+        ball: Optional[Ball],
+        priority: Optional[Priority],
+        parent: Optional[str],
+    ) -> List[TaskSummary]:
+        """The state-axis filters and the listing order, applied once for both callers."""
         if lifecycle is not None:
             summaries = [task for task in summaries if task.lifecycle == lifecycle]
         if ball is not None:
@@ -553,10 +583,17 @@ class TaskManager:
         file is unreadable cannot be shown to be finished, and treating it as done would
         let a gate open on the strength of a corrupt file.
         """
-        states = {
-            task.id: task.lifecycle is Lifecycle.CLOSED
-            for task in self.storage.list_task_summaries()
-        }
+        return self._states_over(self.storage.list_task_summaries())
+
+    def _states_over(self, corpus: Sequence[LabelledTask]) -> Dict[str, bool]:
+        """:meth:`_dependency_states`, over a corpus the caller has already read.
+
+        Split so a caller that needs the states *and* the open-children map *and* the
+        rows themselves pays for one listing rather than three (task-484). The broken
+        ids still come from ``load_errors``, which is an index probe and not a read of
+        the corpus.
+        """
+        states = {task.id: task.lifecycle is Lifecycle.CLOSED for task in corpus}
         for error in self.storage.load_errors():
             states.setdefault(error.task_id, False)
         return states
@@ -641,7 +678,10 @@ class TaskManager:
         return {task_id: tuple(task_cycles) for task_id, task_cycles in indexed.items()}
 
     def dependency_facts(
-        self, tasks: Optional[Sequence[LabelledTask]] = None
+        self,
+        tasks: Optional[Sequence[LabelledTask]] = None,
+        *,
+        corpus: Optional[Sequence[LabelledTask]] = None,
     ) -> Dict[str, DependencyFacts]:
         """Compute the claim gate, reverse impact, and cycle errors once.
 
@@ -651,10 +691,15 @@ class TaskManager:
 
         It used to count only within ``tasks``, so a caller passing a filtered subset
         got a number silently relative to that page -- a parent with six open children
-        reporting 0, indistinguishable from a parent that has none. Corpus-wide is free
-        rather than a trade: ``_open_children`` is already called unconditionally for
-        ``actionable``, and inside a request's ``corpus_snapshot`` scope the corpus is
-        parsed at most once however many times it is asked for.
+        reporting 0, indistinguishable from a parent that has none. Corpus-wide costs
+        nothing extra: ``_open_children`` is computed unconditionally for ``actionable``
+        anyway, and it is now computed from the same listing the states come from.
+
+        ``corpus`` is that listing, for a caller that has already read it. Without it
+        this reads the corpus once; it used to read it three times, and the list endpoint
+        above it made that four (task-484). Pass it only where it *is* the whole corpus:
+        a filtered subset here silently makes every count page-relative, which is the
+        bug the paragraph above describes.
 
         ``unblocks_count`` and ``needs_cycles`` are still derived from ``tasks`` and so
         are still page-relative. Every caller in this repository passes the full corpus
@@ -662,9 +707,10 @@ class TaskManager:
         this task's scope. See task-180.
         """
 
-        project_tasks = tasks if tasks is not None else self.storage.list_task_summaries()
-        states = self._dependency_states()
-        open_children = self._open_children()
+        project_corpus = corpus if corpus is not None else self.storage.list_task_summaries()
+        project_tasks = tasks if tasks is not None else project_corpus
+        states = self._states_over(project_corpus)
+        open_children = self._open_children_over(project_corpus)
         cycles = self._needs_cycles(project_tasks)
         reverse_open_needs: Dict[str, int] = {}
         for task in project_tasks:
@@ -713,8 +759,13 @@ class TaskManager:
         still show up in the broken-files listing, which is where an unreadable file
         gets dealt with.
         """
+        return self._open_children_over(self.storage.list_task_summaries())
+
+    @staticmethod
+    def _open_children_over(corpus: Sequence[LabelledTask]) -> Dict[str, List[str]]:
+        """:meth:`_open_children`, over a corpus the caller has already read."""
         open_children: Dict[str, List[str]] = {}
-        for task in self.storage.list_task_summaries():
+        for task in corpus:
             if task.parent and task.is_open:
                 open_children.setdefault(task.parent, []).append(task.id)
         for ids in open_children.values():

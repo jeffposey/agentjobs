@@ -182,10 +182,10 @@ async def list_tasks(
     adding a narrow sibling is deliberate: the expensive shape should be the one a caller
     asks for by name, so a new surface that never thought about it gets the cheap one.
     """
-    summaries = manager.list_task_summaries(
+    summaries, facts = manager.listing_rows(
         lifecycle=lifecycle, ball=ball, priority=priority_filter, parent=parent
     )
-    return TaskSummaryRead.from_summaries(manager.dependency_facts(), summaries)
+    return TaskSummaryRead.from_summaries(facts, summaries)
 
 
 @router.get("/full", response_model=List[TaskRead])

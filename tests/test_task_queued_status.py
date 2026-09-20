@@ -26,7 +26,7 @@ from fastapi.testclient import TestClient
 
 from agentjobs.api.dependencies import reset_dependency_cache
 from agentjobs.api.main import app
-from agentjobs.api.models import TaskRead
+from agentjobs.api.models import TaskRead, TaskSummaryRead
 from agentjobs.dispatch import queue as dispatch_queue
 from agentjobs.dispatch.journal import journal
 
@@ -182,12 +182,22 @@ def _task(**fields: Any) -> Any:
 
 # ----- every surface that builds a TaskRead (ac-3) ------------------------------------
 
-#: Every **read** route that answers with a ``TaskRead``, and how to reach one task's row
-#: through it. The keys are endpoint function names, which is what
+#: Every **read** route that answers with a row carrying ``queued_dispatch``, and how to
+#: reach one task's row through it. The keys are endpoint function names, which is what
 #: ``test_no_read_surface_is_left_out`` walks ``app.routes`` for -- a route added tomorrow
-#: that answers with a ``TaskRead`` and is not named here turns this file red rather than
-#: quietly becoming the one surface that tells a person a queued task is Ready.
-SURFACES = ("list_tasks", "get_task_detail", "get_dashboard", "search_tasks")
+#: that answers with one and is not named here turns this file red rather than quietly
+#: becoming the one surface that tells a person a queued task is Ready.
+#:
+#: ``list_tasks`` and ``list_full_tasks`` are the same listing in the two shapes task-484
+#: split it into, and both are here because both are read: the browser draws the rows and
+#: ``TaskClient.list_tasks`` parses the records.
+SURFACES = (
+    "list_tasks",
+    "list_full_tasks",
+    "get_task_detail",
+    "get_dashboard",
+    "search_tasks",
+)
 
 #: The module whose one helper builds the ``TaskRead`` every *mutation* answers with.
 #: The walk below insists every non-GET route answering with one is served from here, so
@@ -199,6 +209,9 @@ def rows_from_surface(client: TestClient, surface: str, task_id: str) -> List[Di
     """Every row a surface returns for ``task_id``, however deeply it nests them."""
     if surface == "list_tasks":
         response = client.get("/api/projects/sandbox/tasks")
+        found = response.json()
+    elif surface == "list_full_tasks":
+        response = client.get("/api/projects/sandbox/tasks/full")
         found = response.json()
     elif surface == "get_task_detail":
         response = client.get(f"/api/projects/sandbox/tasks/{task_id}/detail")
@@ -303,8 +316,15 @@ class TestEverySurfaceCarriesIt:
 
 
 def _mentions_task_read(annotation: Any) -> bool:
-    """Whether ``TaskRead`` appears anywhere in a response model, however nested."""
-    if annotation is TaskRead:
+    """Whether a row carrying ``queued_dispatch`` appears in a response model, nested or not.
+
+    Two models carry one since task-484 -- a whole record and the listing row projected
+    out of it -- and the walk has to see both. Matching on the field rather than on the
+    two class names was the alternative and is worse here: ``queued_dispatch`` is
+    ``Optional`` on several unrelated dispatch models, so the walk would start naming
+    routes that answer about a queue entry rather than about a task.
+    """
+    if annotation is TaskRead or annotation is TaskSummaryRead:
         return True
     if isinstance(annotation, type):
         fields = getattr(annotation, "model_fields", None)
