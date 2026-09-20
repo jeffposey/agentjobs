@@ -121,8 +121,12 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * drawn, so deleting links has a floor well above a phone. Shrinking *those* is the only
  * lever that would reach one, and it is nobody's task yet.
  *
- * 762 is recorded rather than left to be re-derived: task-346 takes Create out of this
- * row, and that is the last overflow it will be moving this constant against.
+ * **762 is recorded, but task-346 must not simply adopt it.** That branch takes Create
+ * out of this row *and puts a capture control into the bar*, so its row is these three
+ * destinations plus a control this sweep never laid out -- roughly another 44px and a
+ * gap, and "roughly" is exactly the word this constant's history warns about. 762 is
+ * the floor its measurement should come out above, and a starting point for the sweep
+ * rather than an answer. Re-measure; the method is four paragraphs up.
  *
  * **The badge is why this first moved and it is also why the move is cheap.** It
  * renders only when work has actually stopped on you, so the 34px is spent on the rare
