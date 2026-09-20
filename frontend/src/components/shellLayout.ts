@@ -18,7 +18,7 @@ import { useSyncExternalStore } from "react";
  * open the list themselves and their choice is remembered.
  *
  * This is a third breakpoint on purpose. `min-[820px]:` in `TaskList` and
- * `min-[1220px]:` in `PrimaryNav` both ask "does this content fit on one line"; this
+ * `min-[952px]:` in `PrimaryNav` both ask "does this content fit on one line"; this
  * one asks "is this a phone", which is a different question with a different answer.
  * Do not consolidate them.
  */

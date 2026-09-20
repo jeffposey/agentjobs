@@ -1045,10 +1045,15 @@ to two lines at 1280. So the inline row's gap went from 24px to 16px, and
 tighter gap. The 1140–1219 band now gets the burger. The measurement method and the
 numbers are in the constant's docstring in `PrimaryNav.tsx`.
 
-**Expected to move again.** Task-345 takes the bar down to Dashboard, Tasks and Runs with
-the rest behind an actions menu (task-168). Where Analytics lands in that design is that
-task's decision; this one only establishes that it is a nav-level surface and not a link
-inside another page.
+**It did move again, and it stayed.** Task-345 thinned the bar to navigation only,
+sending Dispatch settings, Playbooks and API Docs to the actions menu (task-168) — and
+kept Analytics where this section put it. Its spec, written before this page existed,
+named three destinations; its decision was that Analytics is a fourth, because the test
+it applied to the three it removed is *is this somewhere you navigate to while working*,
+and a reading surface passes that test where a settings page, a launcher and a reference
+document do not. Sweeping it into the menu would also have reinstated exactly the
+arrangement this section was written to undo. The band this entry costs got much cheaper
+in the process: `NAV_INLINE_MIN_PX` fell from 1256 to **952**.
 
 **Still rejected: an icon.** An unlabelled glyph for a page nobody has seen before is a
 guess, and the nav's other entries are words.
