@@ -105,10 +105,14 @@ it.** `dispatch.yaml` models a runner as `argv: List[str]` with a deliberately n
 placeholder set — `prompt`, `task_id`, `project_id`, `project_root`, `run_id`, `agent`,
 `api_base` — and nothing that means "this is a bounded prompt, not repository work". To
 make a drafting call safe, AgentJobs would have to splice flags into a command line the
-human wrote, and the flags are **runner-specific**: `--setting-sources` is a Claude Code
-flag with no equivalent in the Codex runners this machine also has configured. That is a
-per-runner matrix of safety flags, maintained by AgentJobs, against CLI surfaces it has
-deliberately treated as opaque since task-068.
+human wrote, and the flags are **CLI-specific**: `--setting-sources` is a Claude Code
+flag, and this machine's `dispatch.yaml` also configures Codex runners whose argv shares
+no vocabulary with it at all — a subcommand and repeated `-c key=value` pairs. Whether
+Codex has an equivalent flag was *not* established: the binary its argv names no longer
+exists at that path, so the honest claim is the one that does not need it. AgentJobs
+would be maintaining a per-CLI matrix of safety flags against surfaces it has
+deliberately treated as opaque since task-068, and would have to keep that matrix correct
+for every runner an operator adds.
 
 **Measured, and the reason the paragraph above is not hypothetical.** Asked on
 2026-09-19 what it had been given, a one-shot invocation with MCP and tools stripped but
