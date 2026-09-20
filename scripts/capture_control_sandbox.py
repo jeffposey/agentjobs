@@ -10,11 +10,27 @@ a diff.
 
     python scripts/capture_control_sandbox.py [port] [--tailnet]
 
-``--tailnet`` binds this machine's Tailscale address instead of loopback, so the same
-URL opens on a phone. That is the half a resized desktop window cannot answer: the
-control replaced a floating button that was under a thumb, and whether the top-right
-corner of a phone is reachable one-handed is a thumb question. It is opt-in because the
-default has to stay loopback -- nothing in a sandbox should be reachable by accident.
+``--tailnet`` also serves this machine's Tailscale address, in the same process and over
+the same corpus, so the page opens on a phone. That is the half a resized desktop window
+cannot answer: the control replaced a floating button that was under a thumb, and whether
+the top-right corner of a phone is reachable one-handed is a thumb question.
+
+**The two addresses are not equivalent, and the difference is the app's security model
+rather than a bug.** A sandbox is not behind the tailnet front door
+(``scripts/tailscale-service-host``), which is the component that proves who a remote
+caller is; without it, `principals.py` correctly treats a request from the tailnet
+address as an unidentified remote caller and **refuses every write with 403**. It is also
+plain HTTP, so it is not a secure context. So:
+
+* **loopback -- filing works.** The socket is loopback, so the caller is the owner. This
+  is where the function half of a review happens.
+* **the tailnet address -- looking works, filing is refused.** Layout, tap targets, what
+  the dialog does to the bar at 375px: all real. Pressing *File it* there will show the
+  front door's refusal, and that refusal is correct.
+
+Putting a throwaway sandbox behind the real front door would mean a second Tailscale
+Service, an auth key and an admin approval, which is far more than a review is worth --
+so the sandbox states the split instead of hiding it.
 
 **Both halves of the merge are seeded**, so neither has to be constructed by hand:
 
@@ -44,6 +60,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -166,21 +183,50 @@ def build_project(root: Path, *, project_id: str, name: str) -> Path:
     return project_root
 
 
+def serve(*, port: int, remote: Optional[str]) -> None:
+    """Serve loopback, and the tailnet address too when there is one.
+
+    Two uvicorn servers over one application and one store, rather than binding
+    ``0.0.0.0``. The bind surface then stays exactly the two addresses named -- a laptop
+    on a cafe network does not also start answering on its Wi-Fi address because somebody
+    wanted to look at a form on their phone.
+
+    The loopback server runs in a daemon thread and the remote one on the main thread, so
+    Ctrl-C reaches the one that owns the terminal and the process exits with it.
+    """
+    import uvicorn
+
+    from agentjobs.api.main import app
+
+    def server(host: str) -> uvicorn.Server:
+        return uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+
+    if remote is None:
+        server("127.0.0.1").run()
+        return
+
+    local = server("127.0.0.1")
+    thread = threading.Thread(target=local.run, daemon=True)
+    thread.start()
+    try:
+        server(remote).run()
+    finally:
+        local.should_exit = True
+
+
 def main() -> None:
     argv = sys.argv[1:]
     tailnet = "--tailnet" in argv
     positional = [argument for argument in argv if not argument.startswith("--")]
     port = int(positional[0]) if positional else DEFAULT_PORT
 
-    host = "127.0.0.1"
-    if tailnet:
-        address = tailnet_address()
-        if address is None:
-            print(
-                "[capture] Tailscale is not reporting an address; staying on loopback", flush=True
-            )
-        else:
-            host = address
+    # Loopback is always served, because it is the only address a write is accepted on.
+    # The tailnet address, when asked for, is served *as well* rather than instead: a
+    # review needs the phone for the layout and the desktop for the filing, and two
+    # sandboxes over two corpora would be two different things to look at.
+    remote = tailnet_address() if tailnet else None
+    if tailnet and remote is None:
+        print("[capture] Tailscale is not reporting an address; loopback only", flush=True)
 
     root = Path(tempfile.mkdtemp(prefix="agentjobs-capture-"))
     home = root / "home"
@@ -196,6 +242,7 @@ def main() -> None:
     project = build_project(root, project_id="sandbox-capture", name="Capture Control Sandbox")
     registry.add(project, project_id="sandbox-capture", name="Capture Control Sandbox")
 
+    host = "127.0.0.1"
     base = f"http://{host}:{port}/app/p/sandbox-capture"
     print(f"[capture] capture-control sandbox at {base}", flush=True)
     print("[capture]   the + is at the top-right, beside the kebab, at every width", flush=True)
@@ -212,18 +259,27 @@ def main() -> None:
         f"http://{host}:{port}/app/not-found",
         flush=True,
     )
-    if host == "127.0.0.1":
-        print("[capture]   --tailnet binds the Tailscale address instead, for a phone", flush=True)
+    if remote is None:
+        print("[capture]   --tailnet also serves the Tailscale address, for a phone", flush=True)
     else:
-        print("[capture]   reachable from any device on the tailnet, phone included", flush=True)
+        print(
+            f"[capture]   on a phone, to LOOK at it: "
+            f"http://{remote}:{port}/app/p/sandbox-capture",
+            flush=True,
+        )
+        print(
+            "[capture]   filing is refused there and that is correct -- a sandbox is not",
+            flush=True,
+        )
+        print(
+            "[capture]   behind the tailnet front door, so the server cannot identify the",
+            flush=True,
+        )
+        print("[capture]   caller. File from the loopback URL above.", flush=True)
     print("[capture] Ctrl-C stops it; the temporary corpus goes with it", flush=True)
 
-    import uvicorn
-
-    from agentjobs.api.main import app
-
     try:
-        uvicorn.run(app, host=host, port=port, log_level="warning")
+        serve(port=port, remote=remote)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
