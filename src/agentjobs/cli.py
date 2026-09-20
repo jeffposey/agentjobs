@@ -2828,6 +2828,36 @@ def run_register(
         typer.echo(line)
 
 
+model_app = typer.Typer(
+    name="model",
+    help="What this machine is configured to call for AI-drafted task specs.",
+)
+app.add_typer(model_app)
+
+
+@model_app.command("status")
+def model_status() -> None:
+    """Report whether a task spec can be drafted here, and what would do the drafting.
+
+    An operator whose drafting checkbox is greyed out needs one command that says which
+    of the four reasons it is, and this is it. **It never prints the credential, or a
+    prefix of it, or its length** -- the whole thing goes through ``availability()``,
+    whose answer has no field one could occupy.
+    """
+    from agentjobs.modelaccess import availability, model_config_path
+
+    state = availability()
+    typer.echo(f"Config file:    {model_config_path()}")
+    if state.available:
+        typer.secho(f"Drafting:       available, using {state.model}", fg=typer.colors.GREEN)
+    else:
+        typer.secho(f"Drafting:       unavailable ({state.reason})", fg=typer.colors.YELLOW)
+        if state.detail:
+            typer.echo(f"                {state.detail}")
+    if state.calls_per_hour is not None:
+        typer.echo(f"Hourly cap:     {state.calls_used}/{state.calls_per_hour} used this hour")
+
+
 storage_app = typer.Typer(
     name="storage",
     help="Import a directory of task YAML into a project's database, and export one out.",

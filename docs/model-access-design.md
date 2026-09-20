@@ -1,9 +1,11 @@
 # How AgentJobs is allowed to call a model
 
-**Accepted 2026-09-19 (task-174). Nothing here is built.** It is the fork task-175 was
-blocked on: AgentJobs starts coding agents but has never called a model itself, and
-"flesh this out with AI" needs one. Read it for the reasoning and the constraints a
-first implementation has to satisfy, not as a description of anything that runs today.
+**Accepted 2026-09-19 (task-174). Built 2026-09-20 (task-175)** -- `src/agentjobs/modelaccess/`,
+`GET /api/model` and `POST .../model/draft`. It is the fork task-175 was blocked on:
+AgentJobs starts coding agents but has never called a model itself, and "flesh this out
+with AI" needs one. Sections 1 to 6 are the reasoning and the constraints; §8 says what
+exists and how to switch it on, and **§9 records the one thing this decision still rests
+on that nobody has measured.**
 
 The scope is narrow on purpose and the narrowness is load-bearing: **short, bounded,
 human-triggered calls that return text into a form.** A general in-app assistant, an
@@ -56,7 +58,7 @@ nothing imports it.**
 | A, one-shot CLI, `claude-haiku-4-5` | **9.78s, 14.17s, 20.04s** |
 | A, one-shot CLI, `claude-sonnet-5` | **27.93s, 41.46s, 56.60s** |
 | B, transport floor (TLS + HTTP, no inference) | **0.116, 0.095, 0.085, 0.078, 0.085s** |
-| B, end-to-end | **not measured** — no credential exists on this machine |
+| B, end-to-end | **still not measured** — no credential exists on this machine (re-checked 2026-09-20; see §9) |
 | C, Ollama | unavailable — nothing listening on `127.0.0.1:11434` |
 
 Three things to read carefully, because each of them is easy to get wrong in the
@@ -250,9 +252,8 @@ first. **AgentJobs runs with no model access at all, and that stays true.**
 
 ## 7. What this decision does not settle
 
-- **The drafting feature itself** — the control, the prompt, how a draft reaches the form
-  fields without destroying what a person typed. That is task-175.
-- **Option B's end-to-end latency**, per §2. Task-175 measures it before it builds on it.
+- **The drafting feature itself** is now built; see §8.
+- **Option B's end-to-end latency**, per §2. Still open, and §9 says why.
 - **Streaming.** A 2KB draft at option B's overhead probably does not need it; if the
   measurement in §2 says otherwise, streaming is a change to the route and not to any
   argument here.
@@ -262,3 +263,80 @@ first. **AgentJobs runs with no model access at all, and that stays true.**
 - **Any use of a model beyond a short, bounded, human-triggered call.** Triage,
   prioritisation, automatic edits and a conversational loop are all out of scope, and
   nothing above should be read as clearing a path for them.
+
+## 8. What is built, and how to switch it on
+
+`src/agentjobs/modelaccess/` is §1 to §6 as four modules -- `config` (what to call, and the
+credential), `budget` (`calls_per_hour`), `client` (the request, and the wall around its
+failures) and `draft` (the one prompt, and the parse). Two routes sit on top:
+`GET /api/model` answers whether a call can be made, and `POST .../model/draft` makes one.
+The create form and the issue reporter both carry the control.
+
+**With no configuration none of that is reachable, and nothing else about AgentJobs
+changes.** That is not a claim about intent: the status route answers `unconfigured`, the
+drafting control is disabled with that sentence where its hint goes, and the rest of both
+forms behaves exactly as it did. It is the state of the machine this was written on, so it
+is the state the whole suite runs in.
+
+To switch it on, write `~/.agentjobs/model.yaml` -- machine-local, mode `0600`, never
+committed, and **never reachable from a project's `.agentjobs/config.yaml`** (§4):
+
+```yaml
+version: 1
+provider: anthropic
+base_url: https://api.anthropic.com
+model: claude-haiku-4-5-20251001
+max_tokens: 2048
+calls_per_hour: 60
+timeout_seconds: 30
+api_key: sk-...        # or set ANTHROPIC_API_KEY for the server process instead
+```
+
+Every field has a default, so a file naming only `api_key` works. `agentjobs model status`
+reports what resolved, and never prints the credential.
+
+**Three properties are enforced in code rather than promised**, each with a test that goes
+red if it stops being true:
+
+- **A draft cannot set state a model does not own.** `SpecDraft` has six fields and the
+  parse reads six keys, so a reply naming a priority, a parent or a dependency graph
+  produces a draft in which those values do not exist. There is nowhere to put one --
+  not in the dataclass, not in the response model, not in the form's apply step.
+- **The credential is on no object that travels.** It is not a field of `ModelConfig`,
+  there is no field of `Availability` it could occupy, and `ModelCallError` carries a code
+  from the closed set plus a sentence written in this repository. Nothing scrubs a key out
+  of a string, because no string anything logs ever contains one.
+- **No run may draft.** `model.draft` is granted to the two human principal kinds and to
+  no run, checked at the route by the dependency that checks every other route.
+
+**The sentinel is shared and the other dispatch gates are not.**
+`~/.agentjobs/DISPATCH_DISABLED` stops drafting as well as runs, because the operator's
+single blunt stop must not leave a second spending path running (§5). `enabled:`, the
+runner map and per-project enablement are not consulted: a machine with no `dispatch.yaml`
+at all can still draft.
+
+## 9. The precondition that is still open
+
+**§2's missing measurement is still missing.** Task-174 said task-175's first act should be
+to re-run `scripts/model_access_probe.py --path api` once a credential existed, and to
+revisit this decision if option B's end-to-end latency were not comfortably better than
+option A's 9.8 to 20.0 seconds.
+
+Re-checked on 2026-09-20, in every scope the probe and the server look at: process
+environment, user environment, machine environment, `~/.claude/settings.json`,
+`~/.agentjobs/model.yaml`. **No credential exists on this machine**, so the measurement
+could not be taken. It is unavailable here rather than unfavourable, which is a different
+thing from the number coming back bad, and neither should be confused with having passed.
+
+What *was* re-taken is the transport floor: **0.12s**, against task-174's 0.078 to 0.116s.
+That is the half of the comparison that differs between the two options, and §2 says so
+plainly -- both paths pay the same inference; what differs is what sits above it. So the
+decision's own argument does not rest on the missing half. This section exists rather than
+being closed because "the argument does not need it" is a weaker claim than "it was
+measured", and the difference should stay visible to whoever reads this next.
+
+    poetry run python scripts/model_access_probe.py --path api --repeat 3
+
+**Run that the first time this machine holds a credential.** If the end-to-end number is
+not comfortably better than 9.8 to 20.0 seconds, §1's choice is wrong, and what §8
+describes is what would have to change.

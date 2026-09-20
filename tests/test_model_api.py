@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Iterator, Tuple
+from typing import Any, Dict, Iterator
 
 import pytest
 import yaml
@@ -200,10 +200,14 @@ class TestTheDraftRoute:
     ) -> None:
         configure(sandbox, model="a-model-id")
         stub_provider(monkeypatch, json.dumps(DRAFT_JSON))
-        body = owner().post(
-            "/api/projects/_local/model/draft",
-            json={"title": "Paging is slow", "description": "it drags at 400 tasks"},
-        ).json()
+        body = (
+            owner()
+            .post(
+                "/api/projects/_local/model/draft",
+                json={"title": "Paging is slow", "description": "it drags at 400 tasks"},
+            )
+            .json()
+        )
         assert body["summary"] == DRAFT_JSON["summary"]
         assert body["acceptance"] == DRAFT_JSON["acceptance"]
         assert body["model"] == "a-model-id"
@@ -241,7 +245,7 @@ class TestTheDraftRoute:
     ) -> None:
         """ac-5, over the wire: there is nowhere in the response to put one."""
         configure(sandbox)
-        reply = dict(DRAFT_JSON)
+        reply: Dict[str, Any] = dict(DRAFT_JSON)
         reply.update(
             {
                 "lifecycle": "ready",
@@ -252,10 +256,14 @@ class TestTheDraftRoute:
             }
         )
         stub_provider(monkeypatch, json.dumps(reply))
-        raw = owner().post(
-            "/api/projects/_local/model/draft",
-            json={"title": "A title", "description": "A description"},
-        ).text
+        raw = (
+            owner()
+            .post(
+                "/api/projects/_local/model/draft",
+                json={"title": "A title", "description": "A description"},
+            )
+            .text
+        )
         for forbidden in ("critical", "task-001-invented", "task-002-invented", "somebody"):
             assert forbidden not in raw
 
@@ -278,10 +286,14 @@ class TestTheDraftRoute:
         configure(sandbox)
         captured = stub_provider(monkeypatch, json.dumps(DRAFT_JSON))
         (sandbox / "home" / "DISPATCH_DISABLED").write_text("", encoding="utf-8")
-        body = owner().post(
-            "/api/projects/_local/model/draft",
-            json={"title": "A title", "description": "A description"},
-        ).json()
+        body = (
+            owner()
+            .post(
+                "/api/projects/_local/model/draft",
+                json={"title": "A title", "description": "A description"},
+            )
+            .json()
+        )
         assert body["drafted"] is False
         assert body["reason"] == model_config.SENTINEL
         assert captured == [], "a stopped machine must not have caused model work"
@@ -304,10 +316,14 @@ class TestTheDraftRoute:
             )
 
         monkeypatch.setattr("agentjobs.modelaccess.client.urllib.request.urlopen", send)
-        raw = owner().post(
-            "/api/projects/_local/model/draft",
-            json={"title": "A title", "description": "A description"},
-        ).text
+        raw = (
+            owner()
+            .post(
+                "/api/projects/_local/model/draft",
+                json={"title": "A title", "description": "A description"},
+            )
+            .text
+        )
         assert "sk-distinctive" not in raw
         assert json.loads(raw)["reason"] == model_config.REFUSED
 
@@ -316,10 +332,14 @@ class TestTheDraftRoute:
     ) -> None:
         configure(sandbox)
         stub_provider(monkeypatch, "Sure! Here is your spec, hope it helps.")
-        body = owner().post(
-            "/api/projects/_local/model/draft",
-            json={"title": "A title", "description": "A description"},
-        ).json()
+        body = (
+            owner()
+            .post(
+                "/api/projects/_local/model/draft",
+                json={"title": "A title", "description": "A description"},
+            )
+            .json()
+        )
         assert body["drafted"] is False
         assert body["reason"] == model_config.MALFORMED
 
@@ -328,10 +348,14 @@ class TestTheDraftRoute:
     ) -> None:
         configure(sandbox)
         stub_provider(monkeypatch, "not json")
-        body = owner().post(
-            "/api/projects/_local/model/draft",
-            json={"title": "A title", "description": "A description"},
-        ).json()
+        body = (
+            owner()
+            .post(
+                "/api/projects/_local/model/draft",
+                json={"title": "A title", "description": "A description"},
+            )
+            .json()
+        )
         assert body["reason"] in model_config.REASONS
 
 
@@ -386,6 +410,4 @@ class TestTheResultingTaskIsIndistinguishable:
         ignored = {"id", "title", "created", "updated", "queue_position", "log"}
         for key in set(left) - ignored:
             assert left[key] == right[key], key
-        assert [entry["type"] for entry in left["log"]] == [
-            entry["type"] for entry in right["log"]
-        ]
+        assert [entry["type"] for entry in left["log"]] == [entry["type"] for entry in right["log"]]

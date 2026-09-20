@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
+from email.message import Message
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 import pytest
 import urllib.error
@@ -259,7 +260,7 @@ def test_the_call_is_counted_before_it_is_sent(home: Path, monkeypatch) -> None:
     """
     monkeypatch.setenv(config.ENV_CREDENTIAL, "not-a-real-key")
     _write_config(home)
-    failure = urllib.error.HTTPError("https://example.invalid", 500, "boom", {}, None)
+    failure = urllib.error.HTTPError("https://example.invalid", 500, "boom", Message(), None)
     with pytest.raises(client.ModelCallError):
         draft.draft_spec("t", "d", "proj", home=home, opener=_raiser(failure))
     assert budget.calls_in_last_hour(home) == 1
@@ -303,7 +304,7 @@ def test_statuses_map_to_the_closed_set(
     home: Path, monkeypatch, status: int, expected: str
 ) -> None:
     monkeypatch.setenv(config.ENV_CREDENTIAL, "not-a-real-key")
-    failure = urllib.error.HTTPError("https://example.invalid", status, "no", {}, None)
+    failure = urllib.error.HTTPError("https://example.invalid", status, "no", Message(), None)
     with pytest.raises(client.ModelCallError) as caught:
         client.call_model("hi", config.ModelConfig(), home=home, opener=_raiser(failure))
     assert caught.value.reason == expected
@@ -317,7 +318,7 @@ def test_a_provider_error_body_never_crosses_the_boundary(home: Path, monkeypatc
     """
     monkeypatch.setenv(config.ENV_CREDENTIAL, "sk-distinctive")
     body = b'{"error":{"message":"bad key sk-distinctive for model x"}}'
-    failure = urllib.error.HTTPError("https://example.invalid", 401, body.decode(), {}, None)
+    failure = urllib.error.HTTPError("https://example.invalid", 401, body.decode(), Message(), None)
     with pytest.raises(client.ModelCallError) as caught:
         client.call_model("hi", config.ModelConfig(), home=home, opener=_raiser(failure))
     assert "sk-distinctive" not in str(caught.value)
@@ -344,9 +345,7 @@ def test_a_wrapped_socket_timeout_is_still_a_timeout(home: Path, monkeypatch) ->
     assert caught.value.reason == config.TIMEOUT
 
 
-def test_an_unexpected_response_shape_is_malformed_not_a_traceback(
-    home: Path, monkeypatch
-) -> None:
+def test_an_unexpected_response_shape_is_malformed_not_a_traceback(home: Path, monkeypatch) -> None:
     monkeypatch.setenv(config.ENV_CREDENTIAL, "not-a-real-key")
     with pytest.raises(client.ModelCallError) as caught:
         client.call_model("hi", config.ModelConfig(), home=home, opener=_opener({"oops": True}))
@@ -399,7 +398,9 @@ def test_prose_around_the_object_is_not_guessed_at(home: Path) -> None:
     reply like this is a refusal rather than a partial draft.
     """
     with pytest.raises(client.ModelCallError) as caught:
-        draft.parse_draft_reply("Sure! Here you go:\n" + json.dumps(DRAFT_JSON) + "\nHope that helps.")
+        draft.parse_draft_reply(
+            "Sure! Here you go:\n" + json.dumps(DRAFT_JSON) + "\nHope that helps."
+        )
     assert caught.value.reason == config.MALFORMED
 
 
@@ -415,7 +416,7 @@ def test_the_model_cannot_set_state_it_does_not_own(home: Path) -> None:
     an actor produces a draft none of that survives into -- not a draft that carries it
     into a form where a person might not notice.
     """
-    reply = dict(DRAFT_JSON)
+    reply: Dict[str, Any] = dict(DRAFT_JSON)
     reply.update(
         {
             "lifecycle": "ready",

@@ -94,9 +94,7 @@ def calls_in_last_hour(home: Optional[Path] = None, *, now: Optional[datetime] =
     return sum(1 for stamp in _read(ledger_path(home)) if stamp > cutoff)
 
 
-def within_cap(
-    cap: int, home: Optional[Path] = None, *, now: Optional[datetime] = None
-) -> bool:
+def within_cap(cap: int, home: Optional[Path] = None, *, now: Optional[datetime] = None) -> bool:
     """Whether one more call is permitted under ``cap``."""
     return calls_in_last_hour(home, now=now) < cap
 

@@ -105,9 +105,7 @@ REASON_DETAIL: Dict[Reason, str] = {
         "This machine is stopped: the DISPATCH_DISABLED sentinel is present, which "
         "halts model calls as well as runs. Delete it to re-enable both."
     ),
-    INVALID_CONFIG: (
-        "~/.agentjobs/model.yaml exists but cannot be read as a valid configuration."
-    ),
+    INVALID_CONFIG: ("~/.agentjobs/model.yaml exists but cannot be read as a valid configuration."),
     OVER_CAP: (
         "This machine has made its configured number of model calls in the last hour. "
         "Raise calls_per_hour in ~/.agentjobs/model.yaml, or wait."

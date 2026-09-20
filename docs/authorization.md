@@ -41,6 +41,7 @@ human is asking, this stops being a table and becomes a role system.
 | `task.queue` | queue-move, queue-keep, reprioritize | ✓ | ✓ | ✓ |
 | `history.record` | `PUT /history/finishes/{id}`, `PUT /history/gates/{id}` -- a finish or a gate indexing itself (task-472) | ✓ | ✓ | ✓ |
 | `task.review` | approve, request-changes, answer, redirect, hold, resume, reject | ✓ | ✓ | — |
+| `model.draft` | `POST .../model/draft` -- one drafting call to a model provider (task-175) | ✓ | ✓ | — |
 | `dispatch.start` | task dispatch, playbook run, run cancel, queued-dispatch cancel | ✓ | ✓ | — |
 | `dispatch.over_ceiling` | the `over_ceiling` field on a task dispatch | ✓ | ✓ | — |
 | `dispatch.admin` | dispatch enable / disable, pull-mode arm / disarm, idle-session settings | ✓ | ✓ | — |
@@ -48,6 +49,19 @@ human is asking, this stops being a table and becomes a role system.
 | `queue.admin` | queue repair / compact | ✓ | ✓ | — |
 | `webhook.admin` | webhook create / delete / test | ✓ | ✓ | — |
 | `run.output` | run and finish output, tail, transcript | ✓ | ✓ | own run |
+
+**`model.draft` is a purchase, which is why it sits with `dispatch.start` and not with
+`task.create`** (task-175). Filing the drafted task afterwards is an ordinary create and
+needs only `task.create`, which a run does hold; what a run may not do is make the machine
+pay for the prose. That is the whole of what forecloses the loop -- a drafting call
+deliberately consumes no dispatch run slot, so nothing dispatch counts bounds it, and an
+agent that cannot reach the route cannot spend the budget however much it does.
+
+Its sibling `GET /model` is **not** on the table, which is the one read in this API left
+out on purpose rather than by the policy that leaves reads out. It answers a boolean about
+this machine's own configuration and there is no field on its response a credential could
+occupy; gating it would leave a run unable to discover that it may not draft, and a run
+that reads it still cannot call the route it describes.
 
 **A queued dispatch is cancelled under `dispatch.start`, like the run it has not become**
 (task-459). It is the same route -- `POST /projects/{id}/dispatch/runs/{run_id}/cancel`,

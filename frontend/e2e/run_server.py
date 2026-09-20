@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -87,6 +90,84 @@ def write_dispatch_config(home: Path) -> None:
     )
 
 
+DRAFT = {
+    "summary": "The task list pages badly once a project holds a few hundred tasks.",
+    "intent": "Filing more work should not make the backlog harder to read.",
+    "description": "## What to do\n\nPage the listing endpoint and the list that renders it.",
+    "constraints": "No schema change.",
+    "out_of_scope": "Search, which pages separately.",
+    "acceptance": [
+        "A project with 500 tasks renders its first page without loading all of them.",
+        "Paging back and forth does not change the order.",
+    ],
+}
+"""The one draft the stub provider answers with.
+
+Canned on purpose. What the browser path proves is the *plumbing* -- form to route to
+provider to parse to form fields to a filed record -- and a canned answer is what lets it
+prove that deterministically, on a machine with no credential, spending nothing. It says
+nothing about whether a real model writes a good spec, which is a different question and
+needs a real one; see `docs/model-access-design.md` section 9.
+"""
+
+
+class StubProvider(BaseHTTPRequestHandler):
+    """A few lines of the Messages API: enough for one drafting call to succeed."""
+
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler's spelling
+        length = int(self.headers.get("content-length", "0"))
+        self.rfile.read(length)
+        if self.headers.get("x-api-key") is None:
+            self.send_response(401)
+            self.end_headers()
+            return
+        body = json.dumps({"content": [{"type": "text", "text": json.dumps(DRAFT)}]})
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body.encode("utf-8"))
+
+    def log_message(self, *args: object) -> None:
+        """Quiet: this is a fixture, and its access log is noise in a gate."""
+
+
+def start_stub_provider() -> str:
+    """Serve the stub on an ephemeral port and return its base URL.
+
+    Port zero rather than a number derived from the server's own: several worktrees gate
+    at once, and a derived offset could land on a sibling checkout's chosen port, which
+    is the collision `playwright.config.ts` went to some trouble to avoid.
+    """
+    server = HTTPServer(("127.0.0.1", 0), StubProvider)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    port = int(server.server_address[1])
+    return f"http://127.0.0.1:{port}"
+
+
+def write_model_config(home: Path, base_url: str) -> None:
+    """Point the drafting feature at the stub, with a credential that is not one.
+
+    The key is a literal placeholder and the endpoint is on loopback, so the browser
+    path exercises the configured branch -- which is otherwise unreachable on a machine
+    with no model -- without a credential existing anywhere and without a request leaving
+    this machine.
+    """
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "model.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "base_url": base_url,
+                "model": "e2e-stub-model",
+                "api_key": "e2e-not-a-real-key",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
 def main() -> None:
     """Pin a fresh project before importing the app, then serve until Playwright exits."""
     port = resolve_port()
@@ -110,6 +191,7 @@ def main() -> None:
             encoding="utf-8",
         )
         write_dispatch_config(root / ".agentjobs-home")
+        write_model_config(root / ".agentjobs-home", start_stub_provider())
         uvicorn.run(
             "agentjobs.api.main:app",
             host="127.0.0.1",

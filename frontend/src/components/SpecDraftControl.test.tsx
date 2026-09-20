@@ -73,7 +73,7 @@ function renderForm(onCreate = vi.fn().mockResolvedValue(createdTask())) {
   return onCreate;
 }
 
-function configured(draft: unknown = DRAFT) {
+function configured(draft: Record<string, unknown> = DRAFT) {
   apiMockServer.use(
     http.get("*/api/model", () => HttpResponse.json(CONFIGURED)),
     http.post("*/api/projects/agentjobs/model/draft", () => HttpResponse.json(draft)),
@@ -217,7 +217,8 @@ describe("drafting a spec on the create form", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
 
     await waitFor(() => expect(onCreate).toHaveBeenCalled());
-    expect(onCreate.mock.calls[0][0].summary).toBe("Written by me.");
+    const [written] = onCreate.mock.calls[0] ?? [];
+    expect(written?.summary).toBe("Written by me.");
   });
 });
 
@@ -242,6 +243,7 @@ describe("when no model is configured", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
 
     await waitFor(() => expect(onCreate).toHaveBeenCalled());
-    expect(onCreate.mock.calls[0][0].title).toBe("Filed with no model anywhere");
+    const [filed] = onCreate.mock.calls[0] ?? [];
+    expect(filed?.title).toBe("Filed with no model anywhere");
   });
 });
