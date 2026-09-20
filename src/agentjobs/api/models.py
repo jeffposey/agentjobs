@@ -1878,3 +1878,70 @@ class AnalyticsResponse(BaseModel):
     review_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
     in_review: List[InReview] = Field(default_factory=list)
     open_questions: List[OpenQuestion] = Field(default_factory=list)
+
+
+# ----- drafting a spec with a model (task-175) --------------------------------
+
+
+class ModelStatusResponse(BaseModel):
+    """Whether this machine can draft a task spec right now, and why not when it cannot.
+
+    **There is no field here that a credential could occupy**, which is the design's
+    rule expressed as a shape rather than as a promise (`docs/model-access-design.md`
+    §4): the status route answers a boolean, never the key, a prefix of it, or its
+    length. `model` is a configured identifier and is shown because a person who asked
+    for a draft is entitled to know what drafted it.
+
+    `reason` is one of the closed set in `agentjobs.modelaccess.config.REASONS`, and
+    `detail` is a sentence written in this repository. Neither is ever built from a
+    provider's response.
+    """
+
+    available: bool = Field(..., description="Whether a drafting call can be made now.")
+    reason: Optional[str] = Field(
+        None, description="Why not, as a stable code. Null when available."
+    )
+    detail: Optional[str] = Field(None, description="One sentence a person can act on.")
+    model: Optional[str] = Field(None, description="The configured model id, when there is one.")
+    calls_per_hour: Optional[int] = Field(None, description="This machine's hourly cap.")
+    calls_used: Optional[int] = Field(None, description="Calls made inside the rolling hour.")
+
+
+class SpecDraftRequest(BaseModel):
+    """What the human typed, and nothing about where the task should land.
+
+    There is deliberately no field for lifecycle, ball, priority, parent, dependencies
+    or actor -- not because the server would refuse them, but so that no caller can form
+    the request that would ask a model to choose one.
+    """
+
+    title: str = Field("", description="The title the human typed, possibly empty.")
+    description: str = Field("", description="The rough description the human typed.")
+
+
+class SpecDraftResponse(BaseModel):
+    """One draft, for a form to fill its fields from -- or a refusal saying why not.
+
+    Six spec fields, matching `agentjobs.modelaccess.draft.SpecDraft`. A reply that
+    named a priority or a parent produced a draft in which those values do not exist;
+    there is nowhere in this model to put one.
+
+    **A refusal is a 200 with `drafted: false`**, carrying the same `reason`/`detail`
+    pair as the status route. That is a decision rather than laziness: the person is
+    standing in a form they are about to file by hand, and "no draft, here is why" is
+    not the same event as "your task could not be filed". Answering with an error status
+    would route it through the form's filing-failed path. It also puts the refusal in
+    the OpenAPI document, so the generated client is typed for it -- which the 409
+    refusals elsewhere in this API are not.
+    """
+
+    drafted: bool = Field(True, description="False when no draft was produced.")
+    summary: str = ""
+    intent: str = ""
+    description: str = ""
+    constraints: str = ""
+    out_of_scope: str = ""
+    acceptance: List[str] = Field(default_factory=list)
+    model: Optional[str] = Field(None, description="Which model produced this draft.")
+    reason: Optional[str] = Field(None, description="Why there is no draft, as a stable code.")
+    detail: Optional[str] = Field(None, description="One sentence a person can act on.")

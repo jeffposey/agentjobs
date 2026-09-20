@@ -91,6 +91,22 @@ class Capability(str, Enum):
     first use, and answers with the labels of every device the owner carries.
     """
 
+    MODEL_DRAFT = "model.draft"
+    """Spend the operator's model budget: one drafting call to a model provider (task-175).
+
+    It sits here beside :attr:`DISPATCH` rather than beside :attr:`TASK_CREATE`, on that
+    row's own reasoning: a model call is a purchase, and a purchase is something a person
+    signs for. Filing the drafted task afterwards is an ordinary create and needs only
+    ``task.create``, which a run does hold -- what a run may not do is make the machine
+    pay for the prose.
+
+    **A run holds this in no circumstances**, and that is what forecloses the loop
+    without needing a new argument: no amount of agent activity can spend a budget no
+    agent can reach. It is the only thing standing between an agent and the operator's
+    provider bill, because the drafting route deliberately consumes no dispatch run slot
+    (``docs/model-access-design.md`` §5) and so is bounded by nothing dispatch counts.
+    """
+
     DISPATCH = "dispatch.start"
     """Spend money: start a run on a task or a playbook, or cancel one."""
 

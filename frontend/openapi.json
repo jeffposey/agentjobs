@@ -4260,6 +4260,81 @@
         "title": "MachinePoint",
         "type": "object"
       },
+      "ModelStatusResponse": {
+        "description": "Whether this machine can draft a task spec right now, and why not when it cannot.\n\n**There is no field here that a credential could occupy**, which is the design's\nrule expressed as a shape rather than as a promise (`docs/model-access-design.md`\n§4): the status route answers a boolean, never the key, a prefix of it, or its\nlength. `model` is a configured identifier and is shown because a person who asked\nfor a draft is entitled to know what drafted it.\n\n`reason` is one of the closed set in `agentjobs.modelaccess.config.REASONS`, and\n`detail` is a sentence written in this repository. Neither is ever built from a\nprovider's response.",
+        "properties": {
+          "available": {
+            "description": "Whether a drafting call can be made now.",
+            "title": "Available",
+            "type": "boolean"
+          },
+          "calls_per_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This machine's hourly cap.",
+            "title": "Calls Per Hour"
+          },
+          "calls_used": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calls made inside the rolling hour.",
+            "title": "Calls Used"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One sentence a person can act on.",
+            "title": "Detail"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The configured model id, when there is one.",
+            "title": "Model"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why not, as a stable code. Null when available.",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "ModelStatusResponse",
+        "type": "object"
+      },
       "MutationResult-Input": {
         "description": "What a mutation did, for callers that need more than the new task.\n\nReturned only when a request asks for it with `?envelope=true`, so the existing\ntask-shaped responses stay exactly as they were. `replayed` is the field that\ncannot be derived any other way: a caller retrying after a timeout has no way to\ntell \"I did that\" from \"you already had\".",
         "properties": {
@@ -7542,6 +7617,106 @@
         "title": "Spec",
         "type": "object"
       },
+      "SpecDraftRequest": {
+        "description": "What the human typed, and nothing about where the task should land.\n\nThere is deliberately no field for lifecycle, ball, priority, parent, dependencies\nor actor -- not because the server would refuse them, but so that no caller can form\nthe request that would ask a model to choose one.",
+        "properties": {
+          "description": {
+            "default": "",
+            "description": "The rough description the human typed.",
+            "title": "Description",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "description": "The title the human typed, possibly empty.",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "title": "SpecDraftRequest",
+        "type": "object"
+      },
+      "SpecDraftResponse": {
+        "description": "One draft, for a form to fill its fields from -- or a refusal saying why not.\n\nSix spec fields, matching `agentjobs.modelaccess.draft.SpecDraft`. A reply that\nnamed a priority or a parent produced a draft in which those values do not exist;\nthere is nowhere in this model to put one.\n\n**A refusal is a 200 with `drafted: false`**, carrying the same `reason`/`detail`\npair as the status route. That is a decision rather than laziness: the person is\nstanding in a form they are about to file by hand, and \"no draft, here is why\" is\nnot the same event as \"your task could not be filed\". Answering with an error status\nwould route it through the form's filing-failed path. It also puts the refusal in\nthe OpenAPI document, so the generated client is typed for it -- which the 409\nrefusals elsewhere in this API are not.",
+        "properties": {
+          "acceptance": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Acceptance",
+            "type": "array"
+          },
+          "constraints": {
+            "default": "",
+            "title": "Constraints",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One sentence a person can act on.",
+            "title": "Detail"
+          },
+          "drafted": {
+            "default": true,
+            "description": "False when no draft was produced.",
+            "title": "Drafted",
+            "type": "boolean"
+          },
+          "intent": {
+            "default": "",
+            "title": "Intent",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which model produced this draft.",
+            "title": "Model"
+          },
+          "out_of_scope": {
+            "default": "",
+            "title": "Out Of Scope",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why there is no draft, as a stable code.",
+            "title": "Reason"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "title": "SpecDraftResponse",
+        "type": "object"
+      },
       "StartPauseView": {
         "description": "One open incident, as the reason the machine is starting nothing on a credential.\n\n**Machine-wide and about starts, not about runs.** The runs it already parked are\ntask-417's business and appear on their own tasks; what this says is why the two\nclickless starters -- the dispatch queue and the pull mode -- are quiet, which is a\nquestion a person asks of the board and of nothing else.\n\nIt is a list rather than one object because the pause is per credential: a machine\nwith a Claude home out of quota and a working Codex runner has one pause, and the\nCodex rows carry on starting beside it.",
         "properties": {
@@ -10821,6 +10996,70 @@
         ]
       }
     },
+    "/api/model": {
+      "get": {
+        "description": "Whether a drafting call can be made on this machine, and why not when it cannot.\n\nNames no project: what is configured is a property of the machine, and a per-project\nanswer would imply a per-project credential, which is the one arrangement the design\nrules out (``docs/model-access-design.md`` §4).",
+        "operationId": "get_model_status_api_model_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Model Status",
+        "tags": [
+          "model"
+        ]
+      }
+    },
+    "/api/model/draft": {
+      "post": {
+        "description": "Expand what a person typed into spec fields. Writes nothing.\n\nProject-scoped because the draft is told which project it is being filed into, which\nis context a spec legitimately reflects. It reads nothing else about the project and\nwrites nothing to it.\n\nEvery refusal comes back as a 200 with ``drafted: false``; see\n:class:`~agentjobs.api.models.SpecDraftResponse` for why that is the shape.",
+        "operationId": "draft_task_spec_api_model_draft_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpecDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecDraftResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Draft Task Spec",
+        "tags": [
+          "model"
+        ]
+      }
+    },
     "/api/playbooks": {
       "get": {
         "description": "Every playbook this project holds, with the files that would not load.",
@@ -12063,6 +12302,102 @@
         "summary": "Record Gate History",
         "tags": [
           "history"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/model": {
+      "get": {
+        "description": "Whether a drafting call can be made on this machine, and why not when it cannot.\n\nNames no project: what is configured is a property of the machine, and a per-project\nanswer would imply a per-project credential, which is the one arrangement the design\nrules out (``docs/model-access-design.md`` §4).",
+        "operationId": "get_model_status_api_projects__project_id__model_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Model Status",
+        "tags": [
+          "model"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/model/draft": {
+      "post": {
+        "description": "Expand what a person typed into spec fields. Writes nothing.\n\nProject-scoped because the draft is told which project it is being filed into, which\nis context a spec legitimately reflects. It reads nothing else about the project and\nwrites nothing to it.\n\nEvery refusal comes back as a 200 with ``drafted: false``; see\n:class:`~agentjobs.api.models.SpecDraftResponse` for why that is the shape.",
+        "operationId": "draft_task_spec_api_projects__project_id__model_draft_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpecDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecDraftResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Draft Task Spec",
+        "tags": [
+          "model"
         ]
       }
     },
