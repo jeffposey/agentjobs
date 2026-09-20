@@ -161,8 +161,8 @@ tree — commit, patch and untracked files alike — says so at the top of its o
     `scripts/run_report.py` says where dispatched agent time goes.
 -   **A speed claim, cycle time included, is a before/after pair from one of them or it
     is an anecdote.** Prefer a count over wall-clock time: a count means the same thing
-    on every machine, and a threshold does not. `bench.py`'s corpus modes measure an
-    empty store until task-408, so read its caveat before quoting it.
+    on every machine, and a threshold does not. A `bench.py` figure from before
+    2026-09-19 measured an empty store, so it compares with nothing (task-408).
 -   **Do not measure a run by grepping `transcript.log`.** It is a raw TTY capture, so a
     line appears in it as many times as the terminal repainted it and every count derived
     from it is an artefact of that (task-233).
