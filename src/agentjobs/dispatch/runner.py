@@ -282,9 +282,14 @@ AUTOMATIC_CLAUSE = (
 
 It names a command rather than describing an outcome, for the reason task-192 gave about
 the worktree: an instruction a model can satisfy in several ways will be satisfied in the
-cheapest one, and here the cheapest one is ``git merge``, which skips the gate that is
-the entire safety argument for merging without a person. So the clause says which
+cheapest one, and the cheap alternative here is ``git merge``, which skips the gate that
+is the entire safety argument for merging without a person. So the clause says which
 command, and says not to do it by hand.
+
+Task-245 made the prose and the permissions agree. Until then ``ALLOW_PREFIXES`` held
+``git merge`` and not this command, so the list was pricing the ungated path below the
+one this clause names; now it is the other way round, and the command named here is the
+one that runs without a round trip.
 """
 
 EVALUATION_CLAUSE = (
@@ -409,13 +414,36 @@ ALLOW_PREFIXES = (
     "git diff",
     "git add",
     "git commit",
-    "git merge",
+    "agentjobs finish",
+    "poetry run agentjobs finish",
 )
 """The seed allow-list from task-076: deliberately boring commands.
 
 This list is a maintenance surface that will be widened under pressure. What the design
 buys is that widening it becomes a *visible act* -- someone answering a parked prompt
 with "don't ask again" -- rather than a config edit nobody reviews.
+
+**``git merge`` was here and was taken out (task-245), and what replaced it is the
+point.** It went in on task-222's reasoning that the merge is the sanctioned end of the
+lifecycle and is gated on a human approval recorded on the task. An allow rule cannot
+read a task record. So the pre-approval was justified by a check the thing being
+pre-approved does not make, and ``git merge`` remains the one command in the lifecycle
+that merges whether or not anybody approved anything.
+
+Meanwhile ``AUTOMATIC_CLAUSE`` -- the sentence that tells an ``autonomous`` run how to
+merge -- names ``agentjobs finish ... --posture-release``, and *that* was not on this
+list. Its own docstring says the failure it guards against is that an instruction a
+model can satisfy several ways gets satisfied in the cheapest one. The list was making
+``git merge`` the cheapest one: no round trip for the ungated path, a classifier
+adjudication for the gated one. Both spellings of the finisher are here because the
+clause names the bare one and this repository's prose uses the Poetry one.
+
+Pre-approving the finisher grants nothing the project's configuration has not granted
+already: ``dispatch.finish`` refuses without a standing human approval on the record,
+re-checks that it has not been withdrawn, and accepts ``--posture-release`` only where
+the project's own configured posture releases the gate. A run that tries to merge by
+hand now meets the classifier, and on a ``--bg`` run with nobody to answer that ends in
+a park and a handoff -- which is the correct outcome for an unreviewed merge.
 """
 
 ALLOW_TOOLS = ("Bash", "PowerShell")
@@ -1895,6 +1923,7 @@ class DispatchRunner:
         argv, prompt = self.build_argv_and_prompt(task.id, run_id, task.title)
         wake, resume_refused = self._codex_wake_plan(task.id)
         if wake is not None:
+            author, author_is_human = self._ball_prompt_author(task)
             prompt = build_wake_prompt(
                 agent=self.runner.actor_id,
                 task_id=task.id,
@@ -1902,6 +1931,8 @@ class DispatchRunner:
                 api_base=self.api_base,
                 run_id=run_id,
                 previous_run_id=wake.previous_run_id,
+                author=author,
+                author_is_human=author_is_human,
                 policy=self.policy_clause_for(task.id),
                 earlier=self._earlier_messages(task, wake.previous_run_id),
             )
@@ -2756,6 +2787,33 @@ class DispatchRunner:
             f"From {entry.actor} (entry {entry.id}):\n\n{entry.body or ''}" for entry in owed[:-1]
         ]
 
+    def _ball_prompt_author(self, task: Task) -> tuple[str, bool]:
+        """Who wrote the text a wake is about to carry, and whether they are a person.
+
+        The wake used to hand the ball prompt to a resumed session under the words *a
+        human has moved the ball back to you*, having checked nothing about who wrote it
+        (task-245). This is the check. The whole `Task` is already in hand at both call
+        sites, so naming the author costs no fetch.
+
+        ``("", False)`` for every doubt -- an unreadable registry, a project with no
+        ``actors:``, an actor the vocabulary does not know -- which renders as quoted
+        material from the record. A wake is never refused over this.
+        """
+        from agentjobs.dispatch.approval import (
+            author_is_human,
+            ball_prompt_author,
+            project_config_for,
+        )
+
+        try:
+            author = ball_prompt_author(task)
+            if not author:
+                return "", False
+            config = project_config_for(self.home, self.resolution.project_id)
+            return author, author_is_human(config, author)
+        except Exception:  # noqa: BLE001 - see the docstring; the prompt still renders
+            return "", False
+
     def _plan_wake(
         self, task: Task, run_id: str, argv: List[str], prompt: str
     ) -> tuple[Optional[WakeTarget], List[str], Optional[str], Optional[str]]:
@@ -2797,6 +2855,7 @@ class DispatchRunner:
             resumed = wake_argv(argv, prompt, target.session_uuid)
         except WakeError:
             return None, argv, None, None
+        author, author_is_human = self._ball_prompt_author(task)
         return (
             target,
             resumed,
@@ -2807,6 +2866,8 @@ class DispatchRunner:
                 api_base=self.api_base,
                 run_id=run_id,
                 previous_run_id=target.previous_run_id,
+                author=author,
+                author_is_human=author_is_human,
                 policy=self.policy_clause_for(task.id),
                 earlier=self._earlier_messages(task, target.previous_run_id),
             ),
