@@ -845,11 +845,23 @@ class TaskManager:
         disagree about what is next, with the walk winning silently because it is the one
         that spends money.
         """
-        tasks = self.storage.list_tasks()
-        if parent is not None:
-            tasks = [task for task in tasks if task.parent == parent]
+        project_corpus = self.storage.list_tasks()
+        tasks = (
+            [task for task in project_corpus if task.parent == parent]
+            if parent is not None
+            else project_corpus
+        )
+        # Derived from the records this method has already read, not from a second
+        # listing of the same project (task-485). ``_states_over`` and
+        # ``_open_children_over`` take a ``LabelledTask``, which whole records satisfy,
+        # and the corpus here is the unfiltered one -- ``parent`` narrows the candidates
+        # and must not narrow what "has an open child" is computed over.
         candidates = self._claimable(
-            tasks, priority, agent, self._dependency_states(), self._open_children()
+            tasks,
+            priority,
+            agent,
+            self._states_over(project_corpus),
+            self._open_children_over(project_corpus),
         )
         if not candidates:
             return []

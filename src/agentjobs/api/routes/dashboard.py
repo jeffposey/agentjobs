@@ -52,7 +52,11 @@ async def get_dashboard(
     # supply of tasks for it cannot come from two different readings of one file.
     ceiling, _configured = machine_ceiling()
     snapshot = build_dashboard_snapshot(manager, preview_limit=ceiling)
-    facts = manager.dependency_facts()
+    # The corpus the snapshot was built from, handed to the facts rather than letting
+    # them list the project again in the other shape (task-485). `list_tasks` is free
+    # here: the request's corpus scope already holds it, and this is what says so at the
+    # call site instead of leaving it to a scope being open.
+    facts = manager.dependency_facts(corpus=manager.list_tasks())
     identity = current_identity(project, principal)
 
     def read(task: Optional[Task]) -> Optional[TaskRead]:

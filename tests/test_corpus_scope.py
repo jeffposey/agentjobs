@@ -280,7 +280,13 @@ class TestTheApplicationOpensOne:
         reset_dependency_cache()
         try:
             client = TestClient(app)
-            for path in ("/api/projects/_local/dashboard", "/api/projects/_local/tasks/next"):
+            paths = (
+                "/api/projects/_local/dashboard",
+                "/api/projects/_local/tasks/next",
+                "/api/projects/_local/tasks",
+                "/api/projects/_local/tasks/claimable",
+            )
+            for path in paths:
                 response = client.get(path)
                 assert response.status_code == 200, response.text
                 loads = int(response.headers[CORPUS_LOAD_HEADER])
