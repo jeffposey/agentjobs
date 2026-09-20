@@ -8,11 +8,11 @@ import { client } from "../api/generated/client.gen";
 /**
  * The app-level actions menu, anchored to the top-right of the header.
  *
- * **This is a shell, and that is the point (task-168).** It holds About, Dispatch
- * settings, Playbooks and the API docs; task-345 moved the last three off the primary
- * nav into it, and did so by adding lines to {@link ENTRIES} rather than by building a
- * second popup, which is the shell working as intended. Adding an entry should stay a
- * line in {@link ENTRIES} or one more branch of {@link View}.
+ * **This is a shell, and that is the point (task-168).** It holds About, Analytics,
+ * Dispatch settings, Playbooks and the API docs; task-345 moved the last four off the
+ * primary nav into it, and did so by adding lines to {@link ENTRIES} rather than by
+ * building a second popup, which is the shell working as intended. Adding an entry
+ * should stay a line in {@link ENTRIES} or one more branch of {@link View}.
  *
  * **Top-right, and not a hamburger.** Navigation lives at the left end of this bar and
  * collapses behind a burger below `NAV_INLINE_MIN_PX`; two hamburgers at opposite ends
@@ -58,17 +58,24 @@ function projectPath(projectId: string, path = "") {
  * so it is an `<a>`, and a `<Link>` there would ask the router for a route that does
  * not exist and land on the not-found page.
  *
- * **The order is the dispatch pair first, the reference last.** Dispatch settings holds
- * the machine-wide kill switch, and task-167's constraint is that it stays one
- * interaction from every page: it is the first thing under the kebab for that reason
- * and not for tidiness. Playbooks sits next to it because a playbook run *is* a
- * dispatch -- the two gates a reader needs are the same ones -- and About stays where
- * task-168 put it, at the top, since it is the menu's own identity rather than a
- * destination.
+ * **The order groups by what a thing is**: About, which is the menu's own identity and
+ * stays where task-168 put it; then the page you might read; then the dispatch pair,
+ * adjacent because a playbook run *is* a dispatch and the two gates a reader needs are
+ * the same ones; then the external reference, last because it leaves the app.
+ *
+ * Position is deliberately **not** doing any work for task-167's constraint, which is
+ * that the machine-wide kill switch stays one interaction from every page. Opening the
+ * menu is that interaction and choosing an entry is the second, whichever row it is on;
+ * an earlier revision of this file claimed Dispatch settings was first *because of* the
+ * kill switch, which sounded principled and was not true of any position.
  */
 const ENTRIES: ReadonlyArray<
   { label: string } & ({ to: string; href?: never } | { href: string; to?: never })
 > = [
+  // Here rather than in the nav row, and that is the owner's call on 2026-09-20 rather
+  // than a reading of the spec: task-345 shipped it in the bar as a reading surface and
+  // he moved it in here with the rest. See that task's decision entries.
+  { to: "/analytics", label: "Analytics" },
   // task-345 moved this off the nav row. The kill switch it leads to is why the move
   // needed the menu to exist first: the trigger lives inside PrimaryNav's own
   // <header>, so it is on every page the bar is on, by construction.

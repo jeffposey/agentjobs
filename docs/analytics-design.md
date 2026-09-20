@@ -1045,15 +1045,22 @@ to two lines at 1280. So the inline row's gap went from 24px to 16px, and
 tighter gap. The 1140–1219 band now gets the burger. The measurement method and the
 numbers are in the constant's docstring in `PrimaryNav.tsx`.
 
-**It did move again, and it stayed.** Task-345 thinned the bar to navigation only,
-sending Dispatch settings, Playbooks and API Docs to the actions menu (task-168) — and
-kept Analytics where this section put it. Its spec, written before this page existed,
-named three destinations; its decision was that Analytics is a fourth, because the test
-it applied to the three it removed is *is this somewhere you navigate to while working*,
-and a reading surface passes that test where a settings page, a launcher and a reference
-document do not. Sweeping it into the menu would also have reinstated exactly the
-arrangement this section was written to undo. The band this entry costs got much cheaper
-in the process: `NAV_INLINE_MIN_PX` fell from 1256 to **952**.
+**It moved again, into the actions menu.** Task-345 thinned the bar to navigation only,
+sending Dispatch settings, Playbooks and API Docs to the actions menu (task-168). It
+proposed keeping Analytics in the bar — a reading surface is somewhere you navigate to
+in a way a settings page is not — and the owner, looking at the built bar on 2026-09-20,
+moved it into the menu with the rest. So the entry point is now a row under the kebab at
+the top right, present at every width and two interactions from any page.
+
+**That is not a return to what this section reversed, and the distinction is the whole
+point.** Task-374's placement failed because the link lived *inside another page*, in a
+heading row of the Dashboard, where a reader had no reason to look for it. A menu that
+is in the global header on every screen is somewhere a reader does look. What this
+section established still holds: Analytics needs an entry point of its own at the app's
+top level. Which of the two top-level containers holds it — the row or the menu — was
+never this section's claim.
+
+The row it left is now four entries, and `NAV_INLINE_MIN_PX` fell from 1256 to **854**.
 
 **Still rejected: an icon.** An unlabelled glyph for a page nobody has seen before is a
 guess, and the nav's other entries are words.

@@ -24,7 +24,7 @@ const project = "/app/p/_local";
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 800 };
 /** Mirrors `NAV_INLINE_MIN_PX`. */
-const NAV_INLINE_MIN_PX = 952;
+const NAV_INLINE_MIN_PX = 854;
 /** The app's own minimum touch target, from `.touch-target` in `styles.css`. */
 const TOUCH_TARGET_PX = 44;
 
@@ -45,16 +45,17 @@ test.describe("the actions menu", () => {
     await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
   });
 
-  test("opens a popup holding About, the dispatch pair and the API docs, without moving the header", async ({
+  test("opens a popup holding About, Analytics, the dispatch pair and the API docs, without moving the header", async ({
     page,
   }) => {
     const before = await headerHeight(page);
     await trigger(page).click();
 
     await expect(menu(page)).toBeVisible();
-    // The whole membership, in order: About, then task-345's three arrivals.
+    // The whole membership, in order: About, then task-345's four arrivals.
     await expect(menu(page).getByRole("menuitem")).toHaveText([
       "About",
+      "Analytics",
       "Dispatch settings",
       "Playbooks",
       "API Docs",
@@ -98,7 +99,7 @@ test.describe("the actions menu", () => {
     // menu rather than tabbing out of it.
     await expect(menu(page).getByRole("menuitem", { name: "About" })).toBeFocused();
     await page.keyboard.press("ArrowDown");
-    await expect(menu(page).getByRole("menuitem", { name: "Dispatch settings" })).toBeFocused();
+    await expect(menu(page).getByRole("menuitem", { name: "Analytics" })).toBeFocused();
     await page.keyboard.press("End");
     await expect(menu(page).getByRole("menuitem", { name: "API Docs" })).toBeFocused();
   });
@@ -162,7 +163,7 @@ test("every entry is tappable at a phone width", async ({ page }) => {
 
   await trigger(page).click();
   const entries = menu(page).getByRole("menuitem");
-  await expect(entries).toHaveCount(4);
+  await expect(entries).toHaveCount(5);
   for (const entry of await entries.all()) {
     const box = (await entry.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
@@ -252,12 +253,17 @@ test("the bar still fits on one line at the breakpoint the trigger moved", async
  *
  * Demonstrated rather than asserted, which is the acceptance criterion's own word: the
  * test presses the trigger and presses the entry, and then checks that the page it
- * asked for is the page it got. Counting the entries in a menu would prove that three
+ * asked for is the page it got. Counting the entries in a menu would prove that four
  * links exist, which is not the claim -- the claim is that the machine-wide kill switch
  * is still reachable from wherever you happen to be standing, and that is task-167's
  * constraint rather than a nicety.
+ *
+ * Analytics is walked for a different reason and the reason is worth stating. This menu
+ * is now its *only* entry point: task-374 put a link in a Dashboard heading row, the
+ * owner could not find the page, task-465 moved it to the nav row, and task-345 moved
+ * it in here. If this walk fails, the page has gone unreachable for the third time.
  */
-test("Dispatch settings, Playbooks and the API docs are two interactions from anywhere", async ({
+test("everything behind the kebab is two interactions from anywhere", async ({
   page,
 }) => {
   // 375px is the narrowest phone this app is read on, and narrower than the 390 the
@@ -283,6 +289,14 @@ test("Dispatch settings, Playbooks and the API docs are two interactions from an
       await trigger(page).click();
       await menu(page).getByRole("menuitem", { name: "Playbooks" }).click();
       await expect(page).toHaveURL(/\/p\/_local\/playbooks$/);
+
+      await page.goto(from);
+      await trigger(page).click();
+      await menu(page).getByRole("menuitem", { name: "Analytics" }).click();
+      await expect(page).toHaveURL(/\/p\/_local\/analytics$/);
+      // The page itself, because this menu row is the only way in since task-345 and
+      // the failure being guarded against is the page becoming unfindable again.
+      await expect(page.getByTestId("analytics-page")).toBeVisible();
 
       await page.goto(from);
       await trigger(page).click();

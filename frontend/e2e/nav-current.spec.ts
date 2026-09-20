@@ -21,22 +21,25 @@ const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 952;
+const NAV_INLINE_MIN_PX = 854;
 
 const SURFACES = [
   ["/app/p/_local", "Dashboard"],
   ["/app/p/_local/tasks", "Tasks"],
-  ["/app/p/_local/analytics", "Analytics"],
   ["/app/p/_local/runs", "Runs"],
 ] as const;
 
 /**
  * Routes the bar no longer has an entry for (task-345).
  *
- * Both still work and both are reached from the actions menu; what changed is the
- * bar's answer to "where am I" on them, which is now *nothing*. See ac-4.
+ * All three still work and all three are reached from the actions menu; what changed
+ * is the bar's answer to "where am I" on them, which is now *nothing*. See ac-4.
  */
-const UNOWNED_SURFACES = ["/app/p/_local/dispatch", "/app/p/_local/playbooks"] as const;
+const UNOWNED_SURFACES = [
+  "/app/p/_local/dispatch",
+  "/app/p/_local/playbooks",
+  "/app/p/_local/analytics",
+] as const;
 
 /** The nav, addressed by its label rather than by a tag: pages carry headers too. */
 function nav(page: Page) {
@@ -165,7 +168,7 @@ test("no action in the bar is painted like a place, so colour still means one th
 test("the burger panel marks the current destination too", async ({ page }) => {
   await page.setViewportSize(PHONE);
   expect(PHONE.width).toBeLessThan(NAV_INLINE_MIN_PX);
-  await page.goto("/app/p/_local/analytics");
+  await page.goto("/app/p/_local/runs");
 
   await page.getByRole("button", { name: "Navigation" }).click();
   const panel = page.locator("#primary-nav-destinations");
@@ -173,7 +176,7 @@ test("the burger panel marks the current destination too", async ({ page }) => {
 
   const marked = panel.locator('[aria-current="page"]');
   await expect(marked).toHaveCount(1);
-  await expect(marked).toHaveText("Analytics");
+  await expect(marked).toHaveText(/^Runs/);
   await expect(marked).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 });
 

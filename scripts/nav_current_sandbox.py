@@ -22,12 +22,12 @@ Narrow the window below ``NAV_INLINE_MIN_PX`` and the same marking appears insid
 burger panel, which is where this app is read on a phone.
 
 **task-345 added a third state to compare, and it is the interesting one.** The bar now
-carries navigation only: Dispatch settings, Playbooks and the API docs moved into the
-kebab menu at the right-hand end. So there are now routes the bar has no entry for, and
-standing on one of them the honest answer to "where am I" is *nothing marked*. Walk from
-Dashboard (marked) to Dispatch settings (nothing marked) and back; before this change
-the second of those lit up Dashboard, which was a confident wrong answer. Both URLs are
-printed below so the pair can be compared without hunting for them.
+carries navigation only: Analytics, Dispatch settings, Playbooks and the API docs moved
+into the kebab menu at the right-hand end. So there are now routes the bar has no entry
+for, and standing on one of them the honest answer to "where am I" is *nothing marked*.
+Walk from Dashboard (marked) to Dispatch settings (nothing marked) and back; before this
+change the second of those lit up Dashboard, which was a confident wrong answer. Both
+URLs are printed below so the pair can be compared without hunting for them.
 
 Nothing here touches the live corpus or the 8876 dashboard. Everything lives under a
 temporary directory with its own ``AGENTJOBS_HOME`` registry, deleted when this process
@@ -120,7 +120,6 @@ def main() -> None:
     for suffix, label in [
         ("", "Dashboard"),
         ("/tasks", "Tasks"),
-        ("/analytics", "Analytics"),
         ("/tasks/new", "Create"),
         ("/runs", "Runs"),
     ]:
@@ -128,7 +127,11 @@ def main() -> None:
     print(f"[nav]   task detail -- Tasks stays marked: {base}/tasks/task-101", flush=True)
     print("[nav] behind the kebab at the right-hand end -- and nothing in the bar is", flush=True)
     print("[nav] marked while you are on one of them (task-345):", flush=True)
-    for suffix, label in [("/dispatch", "Dispatch settings"), ("/playbooks", "Playbooks")]:
+    for suffix, label in [
+        ("/analytics", "Analytics"),
+        ("/dispatch", "Dispatch settings"),
+        ("/playbooks", "Playbooks"),
+    ]:
         print(f"[nav]   {label:<18} {base}{suffix}", flush=True)
     print("[nav]   API Docs           behind the same kebab, at /docs", flush=True)
     print(

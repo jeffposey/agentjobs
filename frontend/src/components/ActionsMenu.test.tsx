@@ -50,24 +50,31 @@ describe("ActionsMenu", () => {
     expect(menu()).toBeNull();
   });
 
-  it("opens a menu holding About, the dispatch pair and the API docs", () => {
+  it("opens a menu holding About, Analytics, the dispatch pair and the API docs", () => {
     renderMenu();
     fireEvent.click(trigger());
 
     expect(trigger()).toHaveAttribute("aria-expanded", "true");
     const opened = menu();
     expect(opened).not.toBeNull();
-    // Read in order, because the order is a decision rather than an accident:
-    // Dispatch settings comes first under About since it is the route holding the
-    // machine-wide kill switch, Playbooks beside it, the reference document last.
+    // Read in order, because the order is a decision rather than an accident: About
+    // is the menu's own identity, Analytics is the one page here you would go to and
+    // read, the dispatch pair is adjacent because a playbook run is a dispatch, and the
+    // external reference is last because following it leaves the app.
     const labels = within(opened as HTMLElement)
       .getAllByRole("menuitem")
       .map((item) => item.textContent);
-    expect(labels).toEqual(["About", "Dispatch settings", "Playbooks", "API Docs"]);
+    expect(labels).toEqual([
+      "About",
+      "Analytics",
+      "Dispatch settings",
+      "Playbooks",
+      "API Docs",
+    ]);
   });
 
   it("links this app's routes through the router and the docs out of it", () => {
-    // task-345 moved three entries in here and only two of them are this app's. The
+    // task-345 moved four entries in here and only three of them are this app's. The
     // distinction is not cosmetic: a router `<Link>` to `/docs` would ask for a route
     // nothing serves and land on the not-found page, and a plain `<a>` to
     // `/p/demo/dispatch` would reload the whole bundle to go one page sideways.
@@ -75,6 +82,10 @@ describe("ActionsMenu", () => {
     fireEvent.click(trigger());
     const opened = menu() as HTMLElement;
 
+    expect(within(opened).getByRole("menuitem", { name: "Analytics" })).toHaveAttribute(
+      "href",
+      "/p/demo/analytics",
+    );
     expect(within(opened).getByRole("menuitem", { name: "Dispatch settings" })).toHaveAttribute(
       "href",
       "/p/demo/dispatch",
@@ -120,7 +131,7 @@ describe("ActionsMenu", () => {
     const opened = menu() as HTMLElement;
 
     fireEvent.keyDown(opened, { key: "ArrowDown" });
-    expect(document.activeElement).toHaveTextContent("Dispatch settings");
+    expect(document.activeElement).toHaveTextContent("Analytics");
     fireEvent.keyDown(opened, { key: "ArrowUp" });
     expect(document.activeElement).toHaveTextContent("About");
     // Wraps rather than stopping: a menu where Up does nothing at the top reads as

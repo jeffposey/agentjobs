@@ -28,10 +28,10 @@ const ONE_ROW_MAX_PX = 72;
  * this row was additions nobody subtracted, and a test that looks for the survivors
  * would not have noticed.
  */
-const DESTINATIONS = ["Dashboard", "Tasks", "Analytics", "Runs"];
+const DESTINATIONS = ["Dashboard", "Tasks", "Runs"];
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 952;
+const NAV_INLINE_MIN_PX = 854;
 
 /**
  * One record, long enough that every viewport under test has somewhere to scroll to,
@@ -237,7 +237,7 @@ test("below the breakpoint the destinations are behind the burger, and all of th
   const burger = page.getByRole("button", { name: "Navigation" });
   await expect(burger).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Primary navigation" });
-  await expect(nav.getByText("Analytics", { exact: true })).toBeHidden();
+  await expect(nav.getByText("Create", { exact: true })).toBeHidden();
 
   await burger.click();
   const panel = page.locator("#primary-nav-destinations");

@@ -21,7 +21,7 @@ const project = "/app/p/_local";
 /** iPhone 14/15 CSS pixels, which is where this app is read over Tailscale. */
 const PHONE = { width: 390, height: 844 };
 /** Exactly `NAV_INLINE_MIN_PX`: the narrowest width that still renders the row inline. */
-const NAV_INLINE_MIN_PX = 952;
+const NAV_INLINE_MIN_PX = 854;
 const INLINE_MIN = { width: NAV_INLINE_MIN_PX, height: 800 };
 
 /** One row is `min-h-16` plus a 1px bottom border; anything taller has wrapped. */

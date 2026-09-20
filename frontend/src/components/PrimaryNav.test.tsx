@@ -41,7 +41,7 @@ const panel = () => document.getElementById("primary-nav-destinations");
  * replaced the entry, so authoring stayed one interaction from every page instead of
  * becoming two. This task's own subtraction is Dispatch, Playbooks and API Docs.
  */
-const BAR_DESTINATIONS = ["Dashboard", "Tasks", "Analytics", "Runs"] as const;
+const BAR_DESTINATIONS = ["Dashboard", "Tasks", "Runs"] as const;
 
 describe("PrimaryNav", () => {
   it("starts closed, and says so to a screen reader", () => {
@@ -190,13 +190,12 @@ describe("currentDestinationPath", () => {
     // destination until task-346 replaced Create with the capture control; longest
     // match now lands on `/tasks`, which is where creating a task belongs anyway.
     ["/p/demo/tasks/new", "/tasks"],
-    ["/p/demo/analytics", "/analytics"],
     ["/p/demo/runs", "/runs"],
   ])("marks %s as %s", (pathname, expected) => {
     expect(currentDestinationPath(pathname, "demo")).toBe(expected);
   });
 
-  it.each([["/p/demo/dispatch"], ["/p/demo/playbooks"]])(
+  it.each([["/p/demo/dispatch"], ["/p/demo/playbooks"], ["/p/demo/analytics"]])(
     "marks nothing on %s, rather than lighting up the Dashboard",
     (pathname) => {
       // ac-4, and the whole reason Dashboard's `""` stopped being a catch-all. These
@@ -235,7 +234,6 @@ describe("PrimaryNav current destination", () => {
     // No Create destination since task-346: the capture control replaced it, and
     // longest-match has nothing deeper than Tasks to offer this URL.
     ["/p/demo/tasks/new", "Tasks"],
-    ["/p/demo/analytics", "Analytics"],
     ["/p/demo/runs", "Runs"],
   ])("marks exactly one destination on %s, and it is %s", (at, label) => {
     renderNav(at);
@@ -245,7 +243,7 @@ describe("PrimaryNav current destination", () => {
     expect(current()[0]).toHaveTextContent(label);
   });
 
-  it.each([["/p/demo/dispatch"], ["/p/demo/playbooks"]])(
+  it.each([["/p/demo/dispatch"], ["/p/demo/playbooks"], ["/p/demo/analytics"]])(
     "marks no entry at all on %s, which no destination owns",
     (at) => {
       // The rendered half of ac-4. The rule itself is covered above against URLs;

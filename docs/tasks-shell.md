@@ -78,13 +78,15 @@ treated as a phone and starts stacked; that is acceptable and self-correcting.
 It lives in `frontend/src/components/shellLayout.ts` as `WIDE_SHELL_QUERY`.
 
 **This is a third breakpoint, deliberately.** `min-[820px]:` in `TaskList` and
-`min-[952px]:` in `PrimaryNav` (task-292, re-measured by task-465 and again by task-345)
+`min-[854px]:` in `PrimaryNav` (task-292, re-measured by task-465 and again by task-345)
 are both real numbers in this codebase and neither expresses device class: 820 catches no
-phone but excludes the iPad mini in portrait, and 952 lands in the middle of the tablets —
-it excludes an iPad in portrait and admits a 12.9-inch one. Those two ask "does this
-content fit on one line". This one asks "is this a phone". **Do not consolidate them**,
-and note that the nav's number has moved three times while this one has not, which is the
-argument rather than an accident.
+phone but excludes the iPad mini in portrait, and 854 excludes a standard iPad in portrait
+while admitting a 12.9-inch one. Those two ask "does this content fit on one line". This
+one asks "is this a phone". **Do not consolidate them** — and note that they are now 34px
+apart, which is the strongest version of the argument rather than a reason to merge them:
+two measurements of unrelated content happening to land near each other says nothing about
+whether they will move together, and the nav's number has moved four times while this one
+has not.
 
 Rejected: a user-agent check, and `pointer: coarse`. More precise in principle, wrong in
 practice — `pointer: coarse` is true for a touchscreen laptop and for an iPad with a
