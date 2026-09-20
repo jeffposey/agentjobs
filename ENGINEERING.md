@@ -156,8 +156,9 @@ tree — commit, patch and untracked files alike — says so at the top of its o
 **runs anyway**: a refusal would be a new way to be stuck.
 
 ### Measuring performance
--   Two tools, both documented in [docs/performance.md](docs/performance.md):
+-   Three tools, all documented in [docs/performance.md](docs/performance.md):
     `scripts/bench.py` times the API, the CLI and the browser's open-a-task interaction;
+    `scripts/bench_startup.py` times a start and how long a restart leaves the port dead;
     `scripts/run_report.py` says where dispatched agent time goes.
 -   **A speed claim, cycle time included, is a before/after pair from one of them or it
     is an anecdote.** Prefer a count over wall-clock time: a count means the same thing

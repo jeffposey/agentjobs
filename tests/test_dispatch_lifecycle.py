@@ -20,7 +20,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Sequence
 
 import pytest
 import yaml
@@ -1178,11 +1178,12 @@ class TestReap:
             )
         scans: List[int] = []
         real_list_runs = ledger_module.list_runs
-        monkeypatch.setattr(
-            ledger_module,
-            "list_runs",
-            lambda home_: (scans.append(1), real_list_runs(home_))[1],
-        )
+
+        def counted(home_: Path) -> Sequence[object]:
+            scans.append(1)
+            return real_list_runs(home_)
+
+        monkeypatch.setattr(ledger_module, "list_runs", counted)
 
         ledger_with(home, fake_session_cli).reap_finished()
 

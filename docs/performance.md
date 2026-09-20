@@ -1,14 +1,15 @@
 # Measuring performance
 
-Three questions, three tools:
+Four questions, four tools:
 
 | Question | Tool | Where |
 | --- | --- | --- |
 | How long does the product take to answer? | `scripts/bench.py` | [below](#producing-a-beforeafter-pair) |
+| How long does a restart leave the port dead? | `scripts/bench_startup.py` | [What a restart costs](#what-a-restart-costs) |
 | What does the repository gate cost? | `scripts/check.py` | [What the gate costs](#what-the-gate-costs) |
 | Where does dispatched agent time go? | `scripts/run_report.py` | [Where agent time goes](#where-agent-time-goes) |
 
-The rules derived from all three — quote a command and a date rather than a bare count,
+The rules derived from all four — quote a command and a date rather than a bare count,
 state a before/after pair, prefer parse counts to wall clock — are in
 [ENGINEERING.md](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#testing). This file is the working detail and the
 measurement history behind them.
@@ -888,6 +889,91 @@ skips it becomes provable rather than assumed, or the finish's gate stops being 
 that admits code to `main`. Until then step 3 of
 [One gate per handoff](https://github.com/jeffposey/agentjobs/blob/main/ENGINEERING.md#one-gate-per-handoff)
 is unqualified, and on a project with `finish=off` it is the only gate the work ever gets.
+
+---
+
+## What a restart costs
+
+`scripts/bench_startup.py` measures getting a server *up*, which `bench.py` does not:
+its corpus is the run history under the AgentJobs home, not the task store. Startup
+housekeeping walks that history, so the cost grows with every dispatched run and no
+amount of seeded tasks exercises it.
+
+```bash
+poetry run python scripts/bench_startup.py phases      # where the startup path's time goes
+poetry run python scripts/bench_startup.py handover    # how long the port is dead
+```
+
+Both seed their own throwaway home, modelled by default on this machine's ledger as it
+stood on 2026-09-20 — 330 run directories, 274 sessions already reaped, 31 still to
+attempt and 20 of those permanently doomed. `phases --home ~/.agentjobs` measures the
+real one instead; it reads, and skips the one step that would write.
+
+**`handover` is the instrument the defect was found with.** It starts a server, stops
+it, starts another, and watches which process owns the listening socket across the
+handover — because connectability alone cannot tell a successor that has bound from a
+predecessor that has not let go, and during the early part of a restart it is the *old*
+process still answering. What it prints is the window in which nobody was listening.
+
+A before/after pair is two runs of the same command from two checkouts, since what is
+being changed is this repository's own startup path:
+
+```bash
+git worktree add ../worktrees/agentjobs-before <commit-before>
+cp scripts/bench_startup.py ../worktrees/agentjobs-before/scripts/
+python scripts/bench_startup.py handover    # from each checkout, same flags
+```
+
+The copy is deliberate: a benchmark has to be newer than the code it measures, so the
+script guards what it reaches for in the application and falls back to the older shape.
+Comparing two different scripts would compare the scripts.
+
+### Startup blocked the bind, and a doomed reap was eternal (task-503)
+
+Measured 2026-09-20, before `660b474c` and after, against the real home
+(`phases --home ~/.agentjobs`, 332 run directories):
+
+| step | before | after |
+| --- | ---: | ---: |
+| `import agentjobs.api.main` | 1.90s | 1.32s |
+| `_verify_served_source()` | 0.00s | 0.00s |
+| `capture_source_identity()` | 0.08s | 0.03s |
+| `live_contract_digest()` | 0.91s | 0.96s |
+| `list_runs()` | 0.24s | 0.23s |
+| `_wakeable_run_ids()` | **39.18s** | **1.33s** |
+| total | 42.32s | 3.88s |
+
+`_wakeable_run_ids` asked `newest_session_run` once per task and each of those re-read
+every run directory on the machine: 330 runs, 185 distinct tasks. The rule moved into
+`newest_session_runs`, which answers every pair in one pass over records the caller
+already holds. It keeps the same five runs.
+
+And the end to end, from `handover` on the seeded default, two runs of each arm:
+
+| | before | after |
+| --- | ---: | ---: |
+| launch to listening, cold | 43.7s / 45.1s | 6.2s / 5.7s |
+| **dead port across a restart** | **74.2s / 48.5s** | **3.7s / 3.6s** |
+
+Two changes produce that. Session reaping moved behind the bind — it spawns one session
+manager per unreaped run, and nothing about serving a request depends on it. And a reap
+the session manager refuses because it has no job by that id is now recorded as
+`reap_settled` rather than `reap_blocked`, which was never a skip condition: 20 of this
+machine's 31 attempts were permanently doomed, the oldest since 2026-09-10, and the set
+only grew. Every other refusal still says `reap_blocked` and is still retried, because a
+refusal meaning "this session still owns something worth keeping" is the half of `reap`
+worth having.
+
+**The two arms are not the same scale of machine load, and the spread above says so.**
+The before arm's two dead-port figures differ by 26s because a 40-second start is long
+enough to overlap whatever else this machine is running; the after arm's differ by
+0.1s. That is the shape of the finding rather than noise in it — a cost that large is
+also a cost that varies.
+
+**A methodology note worth keeping**: sampling the socket's owner with `netstat` ten
+times a second made the thing being timed slower. A 43.7s cold start had not finished
+in 420s. The script now probes connectability cheaply and asks who owns the socket only
+when that answer can have changed.
 
 ---
 
