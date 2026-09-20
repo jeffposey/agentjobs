@@ -237,4 +237,95 @@ describe("IssueReporter", () => {
     expect(screen.getByRole("alert").textContent).toContain("is not an actor in this project");
     expect(screen.getByRole("textbox", { name: /^Title/ })).toHaveValue("Filters match nothing");
   });
+
+  it("drafts a spec into the reporter, and files it as an ordinary task", async () => {
+    // The reporter composes with `buildIssueTaskRequest` rather than bypassing it, so
+    // a drafted report is one task filed by one path -- same tag, same provenance, same
+    // attribution as one typed in fifteen seconds.
+    client.setConfig({ baseUrl: "http://localhost" });
+    let received: TaskCreateRequest | null = null;
+    apiMockServer.use(
+      http.get("*/api/projects", () =>
+        HttpResponse.json([project("agentjobs", "AgentJobs", "Jeff Posey")]),
+      ),
+      http.get("*/api/model", () =>
+        HttpResponse.json({
+          available: true,
+          reason: null,
+          detail: null,
+          model: "a-model-id",
+          calls_per_hour: 60,
+          calls_used: 0,
+        }),
+      ),
+      http.post("*/api/projects/agentjobs/model/draft", () =>
+        HttpResponse.json({
+          drafted: true,
+          summary: "Every task-list filter matches nothing.",
+          intent: "A filter that silently matches nothing is worse than no filter.",
+          description: "## What happens\n\nSelecting any filter empties the list.",
+          constraints: "",
+          out_of_scope: "",
+          acceptance: ["Selecting a ball filter returns the tasks with that ball."],
+          model: "a-model-id",
+          reason: null,
+          detail: null,
+        }),
+      ),
+      http.post("*/api/projects/agentjobs/tasks", async ({ request }) => {
+        received = (await request.json()) as TaskCreateRequest;
+        return HttpResponse.json({ id: "task-141-filters" }, { status: 201 });
+      }),
+    );
+
+    await openReporter("/p/agentjobs/tasks");
+    fill("Filters match nothing", "every filter returns zero rows");
+
+    const checkbox = await screen.findByRole("checkbox", { name: /Flesh this out with AI/ });
+    await waitFor(() => expect(checkbox).toBeEnabled());
+    expect(checkbox).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Draft the spec" }));
+
+    await screen.findByRole("textbox", { name: /^Summary/ });
+    expect(screen.getByRole("textbox", { name: /^Summary/ })).toHaveValue(
+      "Every task-list filter matches nothing.",
+    );
+    expect(screen.getByRole("textbox", { name: /^What happened/ })).toHaveValue(
+      "## What happens\n\nSelecting any filter empties the list.",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "File issue" }));
+    await screen.findByText("task-141-filters");
+
+    const body = received as unknown as TaskCreateRequest;
+    expect(body.summary).toBe("Every task-list filter matches nothing.");
+    expect(body.intent).toBe("A filter that silently matches nothing is worse than no filter.");
+    expect(body.acceptance).toEqual([
+      {
+        id: "ac-1",
+        text: "Selecting a ball filter returns the tasks with that ball.",
+        status: "pending",
+      },
+    ]);
+    // ac-7: nothing marks it as drafted. It is tagged and attributed exactly as a
+    // hand-typed report is, and the reporter's own checkbox still sets the lifecycle.
+    expect(body.tags).toEqual(["reported-issue"]);
+    expect(body.actor).toBe("Jeff Posey");
+    expect(body.lifecycle).toBe("draft");
+    expect(JSON.stringify(body)).not.toContain("a-model-id");
+  });
+
+  it("offers no drafting option when no model is configured", async () => {
+    client.setConfig({ baseUrl: "http://localhost" });
+    apiMockServer.use(
+      http.get("*/api/projects", () =>
+        HttpResponse.json([project("agentjobs", "AgentJobs", "Jeff Posey")]),
+      ),
+    );
+
+    await openReporter("/p/agentjobs/tasks");
+    expect(await screen.findByText(/No model is configured on this machine/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Flesh this out with AI/ })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Draft the spec" })).toBeNull();
+  });
 });

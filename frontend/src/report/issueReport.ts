@@ -31,6 +31,26 @@ export type IssueDraft = {
   actionable: boolean;
 };
 
+/**
+ * The spec fields a model drafted and the reporter kept, if they used the option.
+ *
+ * Threaded through this builder rather than posted separately, because the point of
+ * this module is that one reported issue becomes one ordinary task by one path. An
+ * AI-assisted report that skipped it would be a second builder with different tags and
+ * different provenance -- the drift this file exists to prevent.
+ *
+ * It carries *spec* fields only. There is no member here for lifecycle, ball, priority,
+ * parent, dependencies or actor: those stay the reporter's, and the `actionable`
+ * checkbox above is still the only thing that decides the lifecycle.
+ */
+export type ReportedSpec = {
+  summary: string;
+  intent: string;
+  constraints: string;
+  out_of_scope: string;
+  acceptance: Array<string>;
+};
+
 const TASK_ROUTE = /^\/p\/([^/]+)\/tasks\/([^/]+)$/;
 const PROJECT_ROUTE = /^\/p\/([^/]+)(?:\/|$)/;
 
@@ -102,6 +122,7 @@ export function buildIssueTaskRequest({
   reporter,
   operationId,
   attachments = [],
+  spec,
 }: {
   draft: IssueDraft;
   context: ReportContext;
@@ -109,15 +130,36 @@ export function buildIssueTaskRequest({
   reporter: string;
   operationId: string;
   attachments?: Array<AttachmentUpload>;
+  spec?: ReportedSpec;
 }): TaskCreateRequest {
   const details = draft.details.trim();
   const description = [details, provenance(context, reporter, destinationProjectId)]
     .filter(Boolean)
     .join("\n\n");
   const sameProject = context.projectId === destinationProjectId;
+  // Empty strings are dropped rather than sent, so a report with no spec produces
+  // exactly the request it produced before this option existed.
+  const specFields = spec
+    ? {
+        ...(spec.summary.trim() ? { summary: spec.summary.trim() } : {}),
+        ...(spec.intent.trim() ? { intent: spec.intent.trim() } : {}),
+        ...(spec.constraints.trim() ? { constraints: spec.constraints.trim() } : {}),
+        ...(spec.out_of_scope.trim() ? { out_of_scope: spec.out_of_scope.trim() } : {}),
+        ...(spec.acceptance.length
+          ? {
+              acceptance: spec.acceptance.map((text, index) => ({
+                id: `ac-${index + 1}`,
+                text,
+                status: "pending" as const,
+              })),
+            }
+          : {}),
+      }
+    : {};
   return {
     title: draft.title.trim(),
     description,
+    ...specFields,
     lifecycle: draft.actionable ? "ready" : "draft",
     tags: [REPORTED_ISSUE_TAG],
     actor: reporter,

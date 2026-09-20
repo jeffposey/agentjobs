@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -27,10 +28,18 @@ function createdTask(): Task {
 }
 
 function renderForm(onCreate = vi.fn().mockResolvedValue(createdTask())) {
+  // The drafting control asks the server whether a model is configured, so the form
+  // now needs a query client. The default mock answers `unconfigured`, which is what
+  // every test below except the drafting ones is asserting the form behaves under.
+  const queryClient = new QueryClient({
+    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+  });
   render(
-    <MemoryRouter>
-      <TaskCreate projectId="inbox" existingTaskIds={["task-parent"]} onCreate={onCreate} />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <TaskCreate projectId="inbox" existingTaskIds={["task-parent"]} onCreate={onCreate} />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
   return onCreate;
 }
