@@ -34,6 +34,7 @@ import yaml
 from fastapi.testclient import TestClient
 
 from agentjobs.analytics import (
+    DEFAULT_RANGE,
     QUERIES,
     AnalyticsProjection,
     bucket_start,
@@ -386,9 +387,15 @@ class TestTheEndpoint:
         client, _store, _manager = served
         assert analytics(client, range=key)["range"]["key"] == key
 
-    def test_the_default_range_is_ninety_days(self, served) -> None:
+    def test_the_default_range_is_thirty_days(self, served) -> None:
+        """Section 19.1 moved it from 90d.
+
+        Not because thirty days sits inside native coverage -- nothing offered does yet
+        -- but because the page is now mostly machine series at day grain, and thirty
+        bars fit a phone where ninety do not.
+        """
         client, _store, _manager = served
-        assert analytics(client)["range"]["key"] == "90d"
+        assert analytics(client)["range"]["key"] == DEFAULT_RANGE == "30d"
 
     def test_a_range_outside_the_four_presets_is_refused(self, served) -> None:
         """§7.1: the four presets are the whole surface, so ``7d`` is a bad request."""
@@ -566,14 +573,18 @@ class TestTheSpine:
 
     @pytest.mark.parametrize(
         "key, bucket, throughput_bucket",
-        [("30d", "day", "week"), ("90d", "day", "week"), ("12m", "week", "month")],
+        [("30d", "day", "day"), ("90d", "day", "day"), ("12m", "week", "week")],
     )
     def test_the_grain_follows_the_range(
         self, served, key: str, bucket: str, throughput_bucket: str
     ) -> None:
-        """§8.3 fixes the spine's grain; §8.4's percentiles fix throughput's.
+        """Section 8.3 fixes the spine's grain, and section 19.2 gave throughput the same one.
 
-        Both are on the response so the page never has to hold a second copy of the rule.
+        They used to differ: throughput was a grain coarser so the cycle-time percentile
+        drawn over its bars had a sample. Cycle time moved to its own panel, so what is
+        left is a count, and *completed per day* is the question being asked. The field
+        stays on the response rather than being dropped, so no client has to infer one
+        series' grain from another's.
         """
         client, _store, _manager = served
 
@@ -685,7 +696,7 @@ class TestThroughput:
                 (
                     "reopened",
                     "task-001",
-                    iso(NOW - timedelta(days=9)),
+                    iso(NOW - timedelta(days=10) + timedelta(hours=1)),
                     "claude",
                     "reopen",
                     "native",
@@ -701,7 +712,7 @@ class TestThroughput:
                 (
                     "reopened",
                     "task-001",
-                    iso(NOW - timedelta(days=8)),
+                    iso(NOW - timedelta(days=10) + timedelta(hours=2)),
                     "claude",
                     "close",
                     "native",
@@ -712,10 +723,17 @@ class TestThroughput:
             )
 
         payload = AnalyticsProjection(store.read_connection(), "reopened", now=NOW).build("90d")
-        completed = sum(point["tasks_completed"] for point in payload["throughput"])
-        events = sum(point["completion_events"] for point in payload["throughput"])
+        day = local_day(NOW - timedelta(days=10), CHICAGO)
+        bucket = next(point for point in payload["throughput"] if point["bucket"] == day)
 
-        assert (completed, events) == (1, 2)
+        # Asserted on the bucket rather than on a sum over the series. Since section
+        # 19.2 put throughput at the spine grain, a task reopened and closed again on a
+        # *later* day is one distinct task in each of two buckets, and summing
+        # ``tasks_completed`` across them would count it twice -- which is a fact about
+        # summing a distinct count, not about this rule. T1's ``reopened`` marker is
+        # what tells a reader that happened.
+        assert (bucket["tasks_completed"], bucket["completion_events"]) == (1, 2)
+        assert bucket["reopened"] == 1
 
     def test_a_rewrite_of_a_closed_record_is_not_a_second_close(self, tmp_path: Path) -> None:
         """§3.2 property 2: only a *transition* counts.
@@ -752,23 +770,23 @@ class TestThroughput:
 
         assert sum(point["completion_events"] for point in payload["throughput"]) == 1
 
-    def test_a_bucket_with_nothing_in_it_reports_null_percentiles_not_zero(self, served) -> None:
-        """§7.3: ``null`` is the honest value for a percentile with no sample."""
+    def test_a_quiet_bucket_is_a_zero_count_rather_than_a_gap(self, served) -> None:
+        """The spine is filled, so a day nothing closed on is a bar of height nought.
+
+        A count of zero is a fact and is drawn; it is only a *percentile* over no sample
+        that has to be a blank, and since section 19.2 this series holds no percentile.
+        The two cycle-time tests that used to live here went with the fields -- what
+        replaced them is ``tests/test_analytics_second_set.py``'s segment coverage,
+        which is where a percentile with no sample now has to be null.
+        """
         client, _store, _manager = served
 
-        empty = [
-            point for point in analytics(client, range="90d")["throughput"] if point["sample"] == 0
-        ]
+        points = analytics(client, range="90d")["throughput"]
+        quiet = [point for point in points if point["tasks_completed"] == 0]
 
-        assert empty, "the fixture should contain a week with no completions"
-        assert all(point["cycle_p50_days"] is None for point in empty)
-
-    def test_sample_is_returned_beside_the_percentiles(self, served) -> None:
-        """So the page can suppress a line drawn from three points (§8.4)."""
-        client, _store, _manager = served
-
-        for point in analytics(client, range="all")["throughput"]:
-            assert (point["sample"] > 0) == (point["cycle_p50_days"] is not None)
+        assert quiet, "the fixture should contain a day with no completions"
+        assert all(point["completion_events"] == 0 for point in quiet)
+        assert all("cycle_p50_days" not in point for point in points)
 
     @pytest.mark.parametrize(
         "values, fraction, expected",

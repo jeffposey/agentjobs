@@ -38,20 +38,18 @@ RangeKey = str
 """One of ``30d``, ``90d``, ``12m``, ``all`` -- section 7.1's whole parameter surface."""
 
 RANGE_KEYS: Tuple[str, ...] = ("30d", "90d", "12m", "all")
-DEFAULT_RANGE: RangeKey = "90d"
+DEFAULT_RANGE: RangeKey = "30d"
 
 #: How the backlog and holder spines are bucketed, per section 8.3: "day for 30d and
 #: 90d, week for 12m, week for all".
 SPINE_BUCKET: Dict[str, str] = {"30d": "day", "90d": "day", "12m": "week", "all": "week"}
 
-#: How throughput and cycle time are bucketed. One grain coarser than the spine, and
-#: deliberately so -- see :func:`bucket_for` for the argument and the alternative.
-THROUGHPUT_BUCKET: Dict[str, str] = {
-    "30d": "week",
-    "90d": "week",
-    "12m": "month",
-    "all": "month",
-}
+#: How throughput is bucketed: the spine grain, per section 19.2. The coarser grain
+#: this used to carry existed only so the cycle-time percentile drawn over the bars had
+#: a sample; section 19.2 moved cycle time off this chart, and what is left is a count,
+#: which is honest at any grain. Kept as its own table rather than aliased to
+#: :data:`SPINE_BUCKET`, so a future divergence is an edit here rather than a rewrite.
+THROUGHPUT_BUCKET: Dict[str, str] = dict(SPINE_BUCKET)
 
 #: Section 8.5's four age bands, as ``(label, exclusive upper bound in days)``. The last
 #: bound is ``None``: "90d+" is everything left.
@@ -164,18 +162,18 @@ def spine(first: date, last: date, bucket: str) -> List[date]:
 def bucket_for(range_key: str, *, throughput: bool = False) -> str:
     """The bucket grain for one range, for the spine or for throughput.
 
-    **Two grains, not one, and it is a decision rather than an oversight.** Section 8.3
-    fixes the spine at "day for 30d and 90d, week for 12m, week for all", because the
-    backlog readout is a day's level and a day's flows. Section 8.4 draws throughput as
-    bars with a cycle-time percentile line over them, and ``ThroughputPoint.bucket`` is
-    specified as "first day of the week/month" -- a daily grain there would put nine
-    tenths of the bars at zero and leave every percentile below section 8.4's own
-    ``sample < 3`` suppression threshold.
+    **The two tables now agree, and what changed is the argument for keeping both.**
+    Until section 19.2 throughput was one grain coarser on purpose: the chart carried a
+    cycle-time percentile line over its bars, and a daily grain would have left every
+    bucket below section 8.4's ``sample < 3`` suppression threshold. Cycle time moved to
+    its own panel (S1, section 18.1), so what is left here is a count of completions,
+    and the owner's question -- *completed per day* -- is answered at the spine grain.
 
-    Rejected: one grain for the whole response. It forces a choice between a throughput
-    chart of 90 near-empty bars and a backlog level coarsened to weeks, which would
-    remove the daily readout line section 8.3 requires. The cost of two grains is one
-    extra field on ``AnalyticsRange`` so a client never has to infer which it was given.
+    ``AnalyticsRange.throughput_bucket`` stays, now returning the same answer as
+    ``bucket``. Removing it would make every client infer one series' grain from
+    another's, which is the drift section 7.2 argues a response shape should prevent;
+    keeping it costs one field and leaves a future divergence to a table rather than to
+    a rewrite.
     """
     table = THROUGHPUT_BUCKET if throughput else SPINE_BUCKET
     return table.get(range_key, table[DEFAULT_RANGE])
@@ -228,15 +226,6 @@ SELECT ts, task_id, outcome_to, source
    AND (lifecycle_from IS NULL OR lifecycle_from <> 'closed')
    AND ts >= ? AND ts < ?
  ORDER BY ts
-"""
-
-#: Cycle time is ``created_at`` -> ``closed_at`` on the task row (section 3.1), so it
-#: is answered from ``ix_task_closed_at`` without touching the history at all.
-SQL_CYCLE_TIMES = """
-SELECT closed_at, created_at
-  FROM task
- WHERE project_id = ? AND outcome = 'completed'
-   AND closed_at IS NOT NULL AND closed_at >= ? AND closed_at < ?
 """
 
 #: Ball transitions. ``ix_event_ball`` is partial on exactly this predicate.
@@ -526,7 +515,6 @@ QUERIES: Dict[str, str] = {
     "backlog opening balance": SQL_BACKLOG_OPENING,
     "backlog series": SQL_BACKLOG_EVENTS,
     "close events": SQL_CLOSE_EVENTS,
-    "cycle times": SQL_CYCLE_TIMES,
     "holder opening balance": SQL_HOLDER_OPENING,
     "holder series": SQL_HOLDER_EVENTS,
     "the five current counts": SQL_TOTALS,
@@ -1112,13 +1100,21 @@ class AnalyticsProjection:
         return points
 
     def throughput(self, window: Window) -> List[Dict[str, Any]]:
-        """Completions, cancellations and cycle time, one point per throughput bucket.
+        """Completions, cancellations and reopenings, one point per throughput bucket.
 
         ``tasks_completed`` and ``completion_events`` are kept apart because a reopened
         task closes twice (section 3.3): the chart plots the first, and the second is
         there so a reader whose sums do not match has an answer rather than a suspicion.
         ``cancelled`` is closed-with-any-other-outcome, which is not throughput and is
         not hidden either -- a month of cancellations must not read as a quiet month.
+
+        **The cycle-time percentiles this used to carry are gone** (section 19.2, and
+        task-473's first decision, which left their removal to the task that removed
+        their consumer). ``created_at`` to ``closed_at`` over a task that spent six
+        weeks in the queue is a true number attributed to the wrong thing; section
+        18.1's S1 and S2 answer the question it stood in for, split into the part that
+        is the queue and the part that is the work. A field meaning the wrong thing is
+        worse than one that is gone, so it went rather than being deprecated in place.
         """
         grain = window.throughput_bucket
         completed: Dict[date, set] = {}
@@ -1155,30 +1151,14 @@ class AnalyticsProjection:
             if row["source"] in INEXACT_SOURCES:
                 estimated.add(day)
 
-        durations: Dict[date, List[float]] = {}
-        for row in self._rows(
-            SQL_CYCLE_TIMES, (self.project_id, _iso(window.start), _iso(window.end))
-        ):
-            closed_at = parse_instant(row["closed_at"])
-            created_at = parse_instant(row["created_at"])
-            if closed_at is None or created_at is None:
-                continue
-            day = bucket_start(local_day(closed_at, window.zone), grain)
-            days_taken = (closed_at - created_at).total_seconds() / 86400.0
-            durations.setdefault(day, []).append(max(days_taken, 0.0))
-
         points: List[Dict[str, Any]] = []
         for day in spine(window.first_day, window.last_day, grain):
-            sample = durations.get(day, [])
             points.append(
                 {
                     "bucket": day,
                     "tasks_completed": len(completed.get(day, ())),
                     "completion_events": events.get(day, 0),
                     "cancelled": len(cancelled.get(day, ())),
-                    "cycle_p50_days": percentile(sample, 0.5),
-                    "cycle_p90_days": percentile(sample, 0.9),
-                    "sample": len(sample),
                     "reopened": len(reopened.get(day, ())),
                     "estimated": day in estimated,
                 }
