@@ -50,17 +50,62 @@ describe("ActionsMenu", () => {
     expect(menu()).toBeNull();
   });
 
-  it("opens a menu holding About and the API docs", () => {
+  it("opens a menu holding About, the dispatch pair and the API docs", () => {
     renderMenu();
     fireEvent.click(trigger());
 
     expect(trigger()).toHaveAttribute("aria-expanded", "true");
     const opened = menu();
     expect(opened).not.toBeNull();
-    expect(within(opened as HTMLElement).getByRole("menuitem", { name: "About" })).toBeInTheDocument();
-    const docs = within(opened as HTMLElement).getByRole("menuitem", { name: "API Docs" });
-    // An anchor, not a router link: /docs is FastAPI's page and no route serves it.
-    expect(docs).toHaveAttribute("href", "/docs");
+    // Read in order, because the order is a decision rather than an accident:
+    // Dispatch settings comes first under About since it is the route holding the
+    // machine-wide kill switch, Playbooks beside it, the reference document last.
+    const labels = within(opened as HTMLElement)
+      .getAllByRole("menuitem")
+      .map((item) => item.textContent);
+    expect(labels).toEqual(["About", "Dispatch settings", "Playbooks", "API Docs"]);
+  });
+
+  it("links this app's routes through the router and the docs out of it", () => {
+    // task-345 moved three entries in here and only two of them are this app's. The
+    // distinction is not cosmetic: a router `<Link>` to `/docs` would ask for a route
+    // nothing serves and land on the not-found page, and a plain `<a>` to
+    // `/p/demo/dispatch` would reload the whole bundle to go one page sideways.
+    renderMenu();
+    fireEvent.click(trigger());
+    const opened = menu() as HTMLElement;
+
+    expect(within(opened).getByRole("menuitem", { name: "Dispatch settings" })).toHaveAttribute(
+      "href",
+      "/p/demo/dispatch",
+    );
+    expect(within(opened).getByRole("menuitem", { name: "Playbooks" })).toHaveAttribute(
+      "href",
+      "/p/demo/playbooks",
+    );
+    expect(within(opened).getByRole("menuitem", { name: "API Docs" })).toHaveAttribute(
+      "href",
+      "/docs",
+    );
+  });
+
+  it("scopes its route entries to the project it was given, encoded", () => {
+    // A project id is arbitrary text, and an unencoded space makes a URL that resolves
+    // to nothing. The same trap `currentDestinationPath` guards on the way in.
+    client.setConfig({ baseUrl: BASE_URL });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/p/my%20project"]}>
+          <ActionsMenu projectId="my project" />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(trigger());
+    expect(screen.getByRole("menuitem", { name: "Dispatch settings" })).toHaveAttribute(
+      "href",
+      "/p/my%20project/dispatch",
+    );
   });
 
   it("puts focus on the first entry, so a keyboard is already inside the menu", () => {
@@ -75,17 +120,19 @@ describe("ActionsMenu", () => {
     const opened = menu() as HTMLElement;
 
     fireEvent.keyDown(opened, { key: "ArrowDown" });
-    expect(document.activeElement).toHaveTextContent("API Docs");
-    // Wraps rather than stopping: a two-entry menu where Down does nothing at the
-    // bottom reads as broken.
-    fireEvent.keyDown(opened, { key: "ArrowDown" });
+    expect(document.activeElement).toHaveTextContent("Dispatch settings");
+    fireEvent.keyDown(opened, { key: "ArrowUp" });
     expect(document.activeElement).toHaveTextContent("About");
+    // Wraps rather than stopping: a menu where Up does nothing at the top reads as
+    // broken.
     fireEvent.keyDown(opened, { key: "ArrowUp" });
     expect(document.activeElement).toHaveTextContent("API Docs");
-    fireEvent.keyDown(opened, { key: "Home" });
+    fireEvent.keyDown(opened, { key: "ArrowDown" });
     expect(document.activeElement).toHaveTextContent("About");
     fireEvent.keyDown(opened, { key: "End" });
     expect(document.activeElement).toHaveTextContent("API Docs");
+    fireEvent.keyDown(opened, { key: "Home" });
+    expect(document.activeElement).toHaveTextContent("About");
   });
 
   it("closes on Escape and hands focus back to the trigger", () => {
