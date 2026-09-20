@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import heapq
 from collections import defaultdict
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Sequence, TypedDict
@@ -154,22 +155,32 @@ def _sort_active_tasks(tasks: List[Task]) -> List[Task]:
 
 
 def _collect_recent_updates(tasks: List[Task]) -> List[RecentUpdate]:
-    """Flatten task logs into the ten newest dashboard updates."""
+    """Flatten task logs into the ten newest dashboard updates.
+
+    ``nlargest`` over a generator rather than a list built and sorted, because the
+    corpus holds 5,545 log entries and the panel shows ten. The old form built a
+    dictionary per entry -- splitting every body into lines to keep its first -- and
+    then sorted all of them to throw 5,535 away (task-485). The winners are rendered
+    afterwards, so only ten bodies are ever split.
+    """
+    newest = heapq.nlargest(
+        10,
+        ((task, entry) for task in tasks for entry in task.log),
+        key=lambda pair: pair[1].ts,
+    )
     updates: List[RecentUpdate] = []
-    for task in tasks:
-        for entry in task.log:
-            body = (entry.body or "").strip()
-            updates.append(
-                {
-                    "task_id": task.id,
-                    "task_title": task.title,
-                    "timestamp": entry.ts,
-                    "summary": body.splitlines()[0] if body else entry.type.value,
-                    "author": entry.actor,
-                }
-            )
-    updates.sort(key=lambda record: record["timestamp"], reverse=True)
-    return updates[:10]
+    for task, entry in newest:
+        body = (entry.body or "").strip()
+        updates.append(
+            {
+                "task_id": task.id,
+                "task_title": task.title,
+                "timestamp": entry.ts,
+                "summary": body.splitlines()[0] if body else entry.type.value,
+                "author": entry.actor,
+            }
+        )
+    return updates
 
 
 def _next_action(
