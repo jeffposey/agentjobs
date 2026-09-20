@@ -1336,6 +1336,12 @@ class TestTheWatcherReadsLivenessFirst:
 # a query against the store another process is writing -- so there is nothing left to
 # hold wrong. What the test also proved, that the walk notices a child closing, is
 # asserted by every case in `TestTheWalk` above.
+#
+# `agentjobs.corpus` reinstated a memo in task-485, and this paragraph is why its scope
+# is **one HTTP request** and is opened in one place, the API middleware. The walk is a
+# single invocation that runs for as long as an epic takes; a scope that lasted an
+# invocation would freeze its view of every child again, exactly as described above.
+# Nothing in the dispatch family opens one, and nothing should.
 
 
 class TestConcurrentWalk:

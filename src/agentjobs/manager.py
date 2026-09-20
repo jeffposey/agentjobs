@@ -701,6 +701,13 @@ class TaskManager:
         a filtered subset here silently makes every count page-relative, which is the
         bug the paragraph above describes.
 
+        A caller that does not pass it is no longer paying for the read either, inside a
+        request: :func:`agentjobs.corpus.corpus_scope` answers every listing in one
+        request from one load (task-485). The parameter is still the better call where a
+        caller has the corpus in hand -- it says so in the signature rather than relying
+        on a scope being open -- but forgetting it is now cheap instead of quadrupling
+        the endpoint.
+
         ``unblocks_count`` and ``needs_cycles`` are still derived from ``tasks`` and so
         are still page-relative. Every caller in this repository passes the full corpus
         or nothing, so neither is wrong today; both are the same trap and neither is in

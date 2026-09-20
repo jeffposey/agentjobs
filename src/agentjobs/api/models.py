@@ -114,7 +114,8 @@ class TaskRead(Task):
         returns rows -- the full list, a filtered list, a search -- goes through here,
         and a count scoped to whichever rows the filter returned would report 0 for a
         parent whose children the filter excluded. Inside a request's
-        ``corpus_snapshot`` the corpus is already parsed, so this costs no extra reads.
+        :func:`agentjobs.corpus.corpus_scope` the corpus is already loaded, so this
+        costs no extra reads.
         """
         facts = manager.dependency_facts()
         return [cls.from_task(task, facts[task.id]) for task in tasks]
