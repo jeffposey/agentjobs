@@ -361,7 +361,7 @@ describe("failures are stated, never silent", () => {
     act(() => latest().fail("no-speech"));
     press(screen.getByRole("button", { name: /stop dictating/i }));
     act(() => latest().end());
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Nothing was heard/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/No speech reached the browser/i);
   });
 
   it("never mentions a silence that words arrived after", async () => {

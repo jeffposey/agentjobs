@@ -146,8 +146,13 @@ describe("errorSentence", () => {
     expect(errorSentence("not-allowed")).toContain("keyboard");
   });
 
-  it("reassures that nothing was lost when nothing was heard", () => {
-    expect(errorSentence("no-speech")).toContain("unchanged");
+  it("names the microphone when no speech arrived, not just the silence", () => {
+    // Both causes, because the flattering one alone sent the owner away believing the
+    // feature was broken while his default input device was delivering digital zero.
+    const sentence = errorSentence("no-speech") ?? "";
+    expect(sentence).toContain("unchanged");
+    expect(sentence).toMatch(/microphone/i);
+    expect(sentence).toMatch(/muted/i);
   });
 
   it("still says something for a code it has never seen", () => {

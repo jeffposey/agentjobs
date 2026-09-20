@@ -45,6 +45,14 @@ and `result` lines with no text in the box would mean this application dropped t
 Every event goes to the terminal that started the sandbox, so a reviewer presses the
 microphone, speaks, and has to tell nobody anything.
 
+**It also reports the input level**, because the recogniser's own events cannot
+distinguish the two states that matter most. A muted or dead capture device opens
+cleanly -- `audiostart` fires -- and then delivers samples that are exactly zero, so the
+session ends in `no-speech` looking identical to somebody who did not speak. That is not
+hypothetical: this machine's default input measured **peak 0.000000** over four seconds
+while its webcam microphone, on the same machine at the same moment, read **0.107**.
+A trace now names the device and says `SILENT` or gives the peak.
+
 **To use this from a phone**, which is the device the whole epic is about, put a proxy
 in front rather than widening the bind -- and it has to be HTTPS, because the speech API
 and the microphone both require a secure context and a plain-http LAN address is not
@@ -183,10 +191,55 @@ DISABLE_SHIM = """
             set: function (value) { real[prop] = value; },
           });
         });
-        self.start = function () { note("start() called"); real.start(); };
+        self.start = function () {
+          note("start() called");
+          meter(note);
+          real.start();
+        };
         self.stop = function () { note("stop() called"); real.stop(); };
         self.abort = function () { note("abort() called"); real.abort(); };
       }
+      // **What the recogniser's own events cannot tell you: whether any audio is
+      // arriving at all.** A muted or dead input device opens cleanly -- `audiostart`
+      // fires -- and then delivers samples that are exactly zero, so the session ends
+      // in `no-speech` looking identical to a person who simply did not speak. This
+      // machine is in that state: its default input measured peak 0.000000 while a
+      // second microphone on the same machine read 0.107. So the trace reports the
+      // level too, and "it did not work" becomes a number.
+      function meter(note) {
+        navigator.mediaDevices
+          .getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+          .then(function (stream) {
+            var track = stream.getAudioTracks()[0];
+            note("input device: " + (track ? track.label : "none"));
+            var ctx = new AudioContext();
+            var an = ctx.createAnalyser();
+            an.fftSize = 2048;
+            ctx.createMediaStreamSource(stream).connect(an);
+            var buf = new Float32Array(an.fftSize);
+            var peak = 0;
+            var started = Date.now();
+            var timer = setInterval(function () {
+              an.getFloatTimeDomainData(buf);
+              for (var i = 0; i < buf.length; i++) {
+                var v = Math.abs(buf[i]);
+                if (v > peak) peak = v;
+              }
+              if (Date.now() - started >= 5000) {
+                clearInterval(timer);
+                note(
+                  peak === 0
+                    ? "input level: SILENT (peak exactly 0 over 5s -- the microphone is delivering nothing)"
+                    : "input level: peak " + peak.toFixed(4) + " over 5s"
+                );
+                stream.getTracks().forEach(function (t) { t.stop(); });
+                ctx.close();
+              }
+            }, 100);
+          })
+          .catch(function (e) { note("input device unavailable: " + e.name); });
+      }
+
       Traced.available = C.available ? C.available.bind(C) : undefined;
       Traced.install = C.install ? C.install.bind(C) : undefined;
       Object.defineProperty(window, "SpeechRecognition", { value: Traced, configurable: true });

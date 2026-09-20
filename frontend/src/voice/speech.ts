@@ -269,7 +269,13 @@ export function errorSentence(code: string): string | null {
     case "audio-capture":
       return "No microphone was found, so nothing was recorded.";
     case "no-speech":
-      return "Nothing was heard. Your text is unchanged.";
+      // Two causes, and the sentence used to name only the flattering one. On the
+      // machine this was built on the default input device delivers exact digital
+      // silence -- measured at peak 0.000000 over four seconds, while a second
+      // microphone on the same machine read 0.107 -- so the owner spoke, was told
+      // "nothing was heard", and reasonably concluded the feature was broken. Whichever
+      // cause it is, the microphone is the thing to check.
+      return "No speech reached the browser. Your text is unchanged — if you did speak, check which microphone your system is set to use, and that it is not muted.";
     case "network":
       return "The speech service could not be reached, so nothing was transcribed.";
     case "language-not-supported":
