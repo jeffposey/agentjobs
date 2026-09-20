@@ -359,19 +359,21 @@ export function CaptureForm({
         </div>
       )}
 
-      <label className="block font-medium">
-        Title
-        <input
-          name="title"
-          required
-          autoFocus={autoFocus}
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          className={inputClass}
-          placeholder="Task list filters match nothing"
-        />
-      </label>
-      <DictationControl label="Title" target={() => fieldElement("title")} />
+      <div className="relative">
+        <label className="block font-medium">
+          Title
+          <input
+            name="title"
+            required
+            autoFocus={autoFocus}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            className={inputClass}
+            placeholder="Task list filters match nothing"
+          />
+        </label>
+        <DictationControl label="Title" target={() => fieldElement("title")} />
+      </div>
 
       <AttachmentPicker
         label="What happened"
@@ -445,41 +447,49 @@ export function CaptureForm({
       <div id={specHeadingId} hidden={!expanded} className="space-y-4">
         <section className={sectionClass} aria-label="Specification">
           <h3 className="text-lg font-semibold">Specification</h3>
-          <label className="block font-medium">
-            Summary
-            <span className="mt-1 block text-xs font-normal text-dark-muted">
-              One or two sentences that orient a reader with no prior context.
-            </span>
-            <textarea name="summary" className={textareaClass} />
-          </label>
-          <DictationControl label="Summary" target={() => fieldElement("summary")} />
-          <label className="block font-medium">
-            Intent
-            <textarea
-              name="intent"
-              className={textareaClass}
-              placeholder="Why does this task exist?"
-            />
-          </label>
-          <DictationControl label="Intent" target={() => fieldElement("intent")} />
-          <label className="block font-medium">
-            Constraints
-            <textarea
-              name="constraints"
-              className={textareaClass}
-              placeholder="Hard requirements and prohibitions"
-            />
-          </label>
-          <DictationControl label="Constraints" target={() => fieldElement("constraints")} />
-          <label className="block font-medium">
-            Out of scope
-            <textarea
-              name="out_of_scope"
-              className={textareaClass}
-              placeholder="Explicit non-goals"
-            />
-          </label>
-          <DictationControl label="Out of scope" target={() => fieldElement("out_of_scope")} />
+          <div className="relative">
+            <label className="block font-medium">
+              Summary
+              <span className="mt-1 block text-xs font-normal text-dark-muted">
+                One or two sentences that orient a reader with no prior context.
+              </span>
+              <textarea name="summary" className={textareaClass} />
+            </label>
+            <DictationControl label="Summary" target={() => fieldElement("summary")} />
+          </div>
+          <div className="relative">
+            <label className="block font-medium">
+              Intent
+              <textarea
+                name="intent"
+                className={textareaClass}
+                placeholder="Why does this task exist?"
+              />
+            </label>
+            <DictationControl label="Intent" target={() => fieldElement("intent")} />
+          </div>
+          <div className="relative">
+            <label className="block font-medium">
+              Constraints
+              <textarea
+                name="constraints"
+                className={textareaClass}
+                placeholder="Hard requirements and prohibitions"
+              />
+            </label>
+            <DictationControl label="Constraints" target={() => fieldElement("constraints")} />
+          </div>
+          <div className="relative">
+            <label className="block font-medium">
+              Out of scope
+              <textarea
+                name="out_of_scope"
+                className={textareaClass}
+                placeholder="Explicit non-goals"
+              />
+            </label>
+            <DictationControl label="Out of scope" target={() => fieldElement("out_of_scope")} />
+          </div>
           <label className="block font-medium">
             Read-first context
             <span className="mt-1 block text-xs font-normal text-dark-muted">
@@ -491,12 +501,14 @@ export function CaptureForm({
               placeholder="src/agentjobs/manager.py | Owns the behavior being changed"
             />
           </label>
-          <label className="block font-medium">
-            Acceptance criteria
-            <span className="mt-1 block text-xs font-normal text-dark-muted">One per line.</span>
-            <textarea name="acceptance" className={textareaClass} />
-          </label>
-          <DictationControl label="Acceptance criteria" target={() => fieldElement("acceptance")} />
+          <div className="relative">
+            <label className="block font-medium">
+              Acceptance criteria
+              <span className="mt-1 block text-xs font-normal text-dark-muted">One per line.</span>
+              <textarea name="acceptance" className={textareaClass} />
+            </label>
+            <DictationControl label="Acceptance criteria" target={() => fieldElement("acceptance")} />
+          </div>
         </section>
 
         <section className={sectionClass} aria-label="Planning and relationships">

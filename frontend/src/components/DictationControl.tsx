@@ -1,5 +1,5 @@
 import { useDictation, type DictationTarget } from "../voice/useDictation";
-import { modeSentence } from "../voice/speech";
+import { modeBadge, modeSentence } from "../voice/speech";
 
 /**
  * The microphone beside a field. One of these, used everywhere (ac-1).
@@ -18,6 +18,18 @@ import { modeSentence } from "../voice/speech";
  * element serves both without either form changing shape, and writing through the DOM
  * means a controlled field's `onChange` fires exactly as if the words had been typed.
  *
+ * **It costs no vertical space, and that is a requirement rather than a nicety.** The
+ * first version was a labelled button on a row of its own, which on the create form is
+ * seven extra rows pushing the thing you came to fill in below the fold -- the owner
+ * rejected it on sight. So the button is absolutely positioned into the empty right-hand
+ * end of the field's own label line: it is in the layout's flow nowhere, it does not
+ * cover the field or its resize grip, and it sits beside the name of the box it speaks
+ * into. **Its caller supplies the positioned ancestor** -- wrap the field's label block
+ * in `relative` -- and that is the whole of what a caller has to do.
+ *
+ * The 44px hit area is deliberate and free: an absolutely positioned box costs no
+ * layout, so the target can meet the touch floor while the visible glyph stays small.
+ *
  * **Where the button is absent.** Firefox has neither spelling of the constructor, so
  * there is nothing to render and nothing is rendered -- a disabled microphone is a
  * worse answer than no microphone, and the sentence explaining what to do instead
@@ -35,54 +47,84 @@ export function DictationControl({ label, target }: DictationControlProps) {
   if (!dictation.supported) return null;
 
   const mode = modeSentence(dictation.mode);
+  // Where the audio goes, said while it is going there rather than in a box that is
+  // on screen when nobody is speaking (task-171: state the mode, never a blanket claim).
+  const badge = modeBadge(dictation.mode);
   const name = dictation.listening ? `Stop dictating into ${label}` : `Dictate into ${label}`;
 
   return (
-    <div className="mt-2 space-y-2 text-sm font-normal">
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={dictation.toggle}
-          aria-pressed={dictation.listening}
-          aria-label={name}
-          title={mode || undefined}
-          className={`touch-target rounded-lg border px-3 font-semibold ${
-            dictation.listening
-              ? "border-red-400 bg-red-950/50 text-red-200"
-              : "border-dark-border bg-dark-bg text-blue-300 hover:border-blue-500 hover:bg-dark-border"
-          }`}
-        >
-          <span aria-hidden="true" className="mr-2">
-            🎤
-          </span>
-          {/* The recording state is carried by this word and by `aria-pressed`, not by
-              the border colour alone. */}
-          {dictation.listening ? "Stop" : "Dictate"}
-        </button>
-        {dictation.listening && <span className="text-xs text-dark-muted">{mode}</span>}
-      </div>
+    <>
+      <button
+        type="button"
+        onClick={dictation.toggle}
+        aria-pressed={dictation.listening}
+        aria-label={name}
+        title={dictation.listening ? name : `${name}. ${mode}`.trim()}
+        // Out of the flow entirely: the caller's `relative` wrapper puts this at the
+        // right-hand end of the label line, where there is nothing else.
+        className={`absolute -top-2 right-0 flex h-11 w-11 items-center justify-center rounded-full ${
+          dictation.listening
+            ? "text-red-300 hover:bg-red-950/50"
+            // The blue every other affordance in this application uses, so a small glyph
+            // still reads as something to press rather than as decoration beside a hint.
+            : "text-blue-300/80 hover:bg-dark-border hover:text-blue-300"
+        }`}
+      >
+        {/* Shape, not colour: a microphone when idle and a stop square while running,
+            so the state survives a monochrome display as well as `aria-pressed` does. */}
+        {dictation.listening ? <StopGlyph /> : <MicrophoneGlyph />}
+      </button>
 
       {/* Interim text: on screen while it is being spoken, and visibly not yet part of
           the field. Italic and muted rather than in the box, because putting unfinished
           words into the box is what destroys a half-typed sentence and what breaks
-          undo. */}
-      {/* Present before it is needed, because a live region added at the moment of the
+          undo.
+
+          Present before it is needed, because a live region added at the moment of the
           announcement is not reliably announced -- and out of the layout until then,
-          because seven empty lines down the create form is its own defect. */}
+          because seven empty lines down the create form is the defect above. */}
       <p
         aria-live="polite"
-        className={dictation.listening ? "min-h-5 text-xs italic text-dark-muted" : "sr-only"}
+        className={
+          dictation.listening ? "mt-1 text-xs italic text-dark-muted" : "sr-only"
+        }
         data-testid="dictation-interim"
       >
         {dictation.listening
-          ? dictation.interim
-            ? `Hearing: ${dictation.interim}…`
-            : "Listening…"
+          ? `${dictation.interim ? `Hearing: ${dictation.interim}…` : "Listening…"}${
+              badge ? ` · ${badge}` : ""
+            }`
           : ""}
       </p>
 
       <DictationError message={dictation.error} onDismiss={dictation.dismissError} />
-    </div>
+    </>
+  );
+}
+
+function MicrophoneGlyph() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      <rect x="9" y="2.5" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
+      <path d="M12 17.5V21" />
+    </svg>
+  );
+}
+
+function StopGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
   );
 }
 
@@ -104,7 +146,7 @@ function DictationError({
   return (
     <p
       role="alert"
-      className="rounded-lg border border-amber-500/60 bg-amber-950/40 p-3 text-xs text-amber-200"
+      className="mt-1 rounded-lg border border-amber-500/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200"
     >
       {message}{" "}
       <button type="button" onClick={onDismiss} className="underline hover:text-amber-100">
@@ -115,53 +157,48 @@ function DictationError({
 }
 
 /**
- * The one sentence a form shows when this browser cannot put a microphone on a field.
+ * The one line a form shows when the browser needs something said about dictation.
  *
- * Rendered once per form rather than once per field: the answer is the same for every
- * box on the page, and repeating it under each one would be noise on exactly the
- * browser that is already worse off. It names the keyboard's own microphone key,
- * because that is the path that still works -- confirmed on Android over the tailnet
- * origin in task-171 -- and it is the honest thing to point at rather than leaving a
- * dead button on screen.
+ * Once per form rather than once per field, in both of its states: the answer is a
+ * property of the browser, so repeating it under every box would be the same sentence
+ * seven times. Kept to a single line of muted text for the same reason the microphone
+ * is an icon -- a form is for filling in, not for reading about microphones.
  */
 export function DictationNote() {
   const dictation = useDictation(() => null);
 
   if (!dictation.supported) {
     return (
-      <p className="rounded-lg border border-dark-border bg-dark-bg p-3 text-xs text-dark-muted">
-        This browser has no in-page dictation. Use the microphone key on your phone or tablet
-        keyboard — it types into every box here. On a computer, Windows dictates with{" "}
-        <kbd className="rounded border border-dark-border bg-dark-surface px-1">Win</kbd>+
-        <kbd className="rounded border border-dark-border bg-dark-surface px-1">H</kbd> and macOS
-        with a double press of{" "}
-        <kbd className="rounded border border-dark-border bg-dark-surface px-1">Fn</kbd>.
+      <p className="text-xs text-dark-muted">
+        No in-page dictation in this browser. Use the microphone key on your phone or tablet
+        keyboard — it types into every box here; on a computer,{" "}
+        <kbd className="rounded border border-dark-border bg-dark-bg px-1">Win</kbd>+
+        <kbd className="rounded border border-dark-border bg-dark-bg px-1">H</kbd> or a double
+        press of <kbd className="rounded border border-dark-border bg-dark-bg px-1">Fn</kbd>.
       </p>
     );
   }
 
-  // Offered, never forced, and once per form rather than once per field: the pack is a
-  // property of the browser, so seven identical offers down one form would be seven
-  // ways to answer the same question. Only desktop Chrome reported a pack it could
-  // fetch at all -- the phone and Edge reported none, where demanding a local run is
-  // permanent failure rather than a first-run download (task-171).
+  // Offered, never forced. Only desktop Chrome reported a pack it could fetch at all --
+  // the phone and Edge reported none, where demanding a local run is permanent failure
+  // rather than a first-run download (task-171).
   if (dictation.mode !== "installable" && !dictation.error) return null;
   return (
-    <div className="space-y-2 text-sm font-normal">
+    <>
       {dictation.mode === "installable" && (
-        <p className="flex flex-wrap items-center gap-3 rounded-lg border border-dark-border bg-dark-bg p-3 text-xs text-dark-muted">
-          <span>{modeSentence(dictation.mode)}</span>
+        <p className="text-xs text-dark-muted">
+          {modeSentence(dictation.mode)}{" "}
           <button
             type="button"
             onClick={dictation.install}
             disabled={dictation.installing}
-            className="touch-target rounded-lg border border-dark-border px-3 font-semibold text-blue-300 hover:border-blue-500 disabled:opacity-60"
+            className="underline hover:text-blue-300 disabled:opacity-60"
           >
-            {dictation.installing ? "Downloading…" : "Keep speech on this device"}
+            {dictation.installing ? "Downloading…" : "Download it"}
           </button>
         </p>
       )}
       <DictationError message={dictation.error} onDismiss={dictation.dismissError} />
-    </div>
+    </>
   );
 }

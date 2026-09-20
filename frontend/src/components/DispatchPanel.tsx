@@ -555,28 +555,30 @@ export function DispatchPanel({
             );
           }}
         >
-          <label htmlFor="dispatch-brief" className="block text-sm font-semibold">
-            This task has no specification — say what the agent should do
-          </label>
-          <textarea
-            ref={briefRef}
-            id="dispatch-brief"
-            required
-            rows={4}
-            value={brief}
-            onChange={(event) => setBrief(event.target.value)}
-            placeholder="What the agent should do…"
-            className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-sky-500 focus:outline-none"
-          />
-          {/* The dispatch prompt task-172 names. The always-present optional
-              instruction box is task-162's and does not exist yet; this is the one
-              place a person writes a brief for a run today, and it is the one that
-              gets a microphone. */}
-          <DictationControl
-            label="What the agent should do"
-            target={() => briefRef.current}
-          />
-          <DictationNote />
+          {/* `relative` so the microphone can position itself into the right-hand end
+              of the label line. The dispatch prompt task-172 names: the always-present
+              optional instruction box is task-162's and does not exist yet, so this is
+              the one place a person writes a brief for a run today. */}
+          <div className="relative">
+            <label htmlFor="dispatch-brief" className="block text-sm font-semibold">
+              This task has no specification — say what the agent should do
+            </label>
+            <textarea
+              ref={briefRef}
+              id="dispatch-brief"
+              required
+              rows={4}
+              value={brief}
+              onChange={(event) => setBrief(event.target.value)}
+              placeholder="What the agent should do…"
+              className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-sky-500 focus:outline-none"
+            />
+            <DictationControl
+              label="What the agent should do"
+              target={() => briefRef.current}
+            />
+            <DictationNote />
+          </div>
           <p className="text-sm text-dark-muted">
             Saved to the task as a note by{" "}
             <strong className="text-dark-text">{user}</strong>, and that note is what

@@ -81,7 +81,10 @@ export function AttachmentPicker({
   };
 
   return (
-    <div className="space-y-2">
+    // `relative` for the sake of `under`: the dictation control positions itself into
+    // the empty right-hand end of the label line, and needs a positioned ancestor to
+    // do it against. Nothing else here depends on it.
+    <div className="relative space-y-2">
       <label className="block font-medium">
         {label}
         {hint && <span className="mt-1 block text-xs font-normal text-dark-muted">{hint}</span>}

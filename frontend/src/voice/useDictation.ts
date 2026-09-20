@@ -88,6 +88,10 @@ export function useDictation(target: DictationTarget): Dictation {
   const emptySessions = useRef(0);
   const startedAt = useRef(0);
   const sessionText = useRef("");
+  // A complaint we are not going to make yet, and whether this dictation has produced
+  // anything at all. See `onerror` for why a recoverable failure waits.
+  const pendingError = useRef<string | null>(null);
+  const heardAnything = useRef(false);
   const targetRef = useRef(target);
   targetRef.current = target;
 
@@ -141,18 +145,37 @@ export function useDictation(target: DictationTarget): Dictation {
 
     active.onresult = (event) => {
       const { final, interim: heard } = readTranscript(event.results);
+      // Anything at all answers an earlier complaint, so it is never shown afterwards.
+      if (final || heard) pendingError.current = null;
       sessionText.current = final;
       setInterim(heard);
     };
 
     active.onerror = (event) => {
+      const terminal = isTerminalError(event.error);
+      if (terminal) wanted.current = false;
       const sentence = errorSentence(event.error);
-      if (sentence) setError(sentence);
-      if (isTerminalError(event.error)) wanted.current = false;
+      if (!sentence) return;
+      if (terminal) {
+        setError(sentence);
+        return;
+      }
+      // **A recoverable complaint is held, not shown.** Desktop Chrome reports
+      // `no-speech` after about eight seconds of quiet, and we restart and carry on --
+      // so pausing to gather your thoughts before speaking was answered with "Nothing
+      // was heard" while the microphone was plainly still listening. The owner pressed
+      // the button, waited, read that, and reported that dictation did not work; on
+      // the evidence available to him it did not. It is said only once the dictation
+      // is really over with nothing to show for it.
+      pendingError.current = sentence;
     };
 
     active.onend = () => {
       const produced = flush();
+      if (produced) {
+        heardAnything.current = true;
+        pendingError.current = null;
+      }
       setInterim("");
       const brief = Date.now() - startedAt.current < EMPTY_SESSION_MS;
       emptySessions.current = produced || !brief ? 0 : emptySessions.current + 1;
@@ -160,6 +183,11 @@ export function useDictation(target: DictationTarget): Dictation {
       if (!wanted.current) {
         recognition.current = null;
         setListening(false);
+        // The held complaint, now that it is news: the dictation is over and nothing
+        // ever arrived. A dictation that produced words keeps quiet about the silences
+        // in between.
+        if (pendingError.current && !heardAnything.current) setError(pendingError.current);
+        pendingError.current = null;
         return;
       }
       if (emptySessions.current >= EMPTY_SESSION_LIMIT) {
@@ -209,6 +237,8 @@ export function useDictation(target: DictationTarget): Dictation {
     // Permission is asked for here and only here -- inside the handler for the press.
     emptySessions.current = 0;
     sessionText.current = "";
+    pendingError.current = null;
+    heardAnything.current = false;
     wanted.current = true;
     begin();
   }, [begin, stopEverything]);

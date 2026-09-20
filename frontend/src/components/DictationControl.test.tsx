@@ -337,12 +337,51 @@ describe("failures are stated, never silent", () => {
     expect(recogniser.started).toBe(1);
   });
 
-  it("says nothing was heard rather than failing silently", async () => {
+  it("keeps quiet about a silence while it is still listening", async () => {
+    // The defect the owner hit and reported as "it did not work". Desktop Chrome gives
+    // up on a quiet microphone after about eight seconds and we restart, so pausing to
+    // gather your thoughts before speaking was answered with "Nothing was heard" while
+    // the button still said Stop and the line still said Listening.
+    installRecogniser();
+    render(<ControlledField />);
+    press(screen.getByRole("button", { name: /dictate/i }));
+    act(() => {
+      latest().fail("no-speech");
+      latest().end();
+    });
+    await waitFor(() => expect(latest().started).toBe(2));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /stop dictating/i })).toBeInTheDocument();
+  });
+
+  it("says nothing was heard once the dictation is over with nothing to show", async () => {
     installRecogniser();
     render(<ControlledField />);
     press(screen.getByRole("button", { name: /dictate/i }));
     act(() => latest().fail("no-speech"));
+    press(screen.getByRole("button", { name: /stop dictating/i }));
+    act(() => latest().end());
     expect(await screen.findByRole("alert")).toHaveTextContent(/Nothing was heard/i);
+  });
+
+  it("never mentions a silence that words arrived after", async () => {
+    installRecogniser();
+    render(<ControlledField />);
+    press(screen.getByRole("button", { name: /dictate/i }));
+    act(() => {
+      latest().fail("no-speech");
+      latest().end();
+    });
+    await waitFor(() => expect(latest().started).toBe(2));
+    act(() => {
+      latest().say([{ text: "and then I spoke", final: true }]);
+      latest().end();
+    });
+    press(screen.getByRole("button", { name: /stop dictating/i }));
+    await waitFor(() =>
+      expect(screen.getByTestId("mirror")).toHaveTextContent("and then I spoke"),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
@@ -351,14 +390,16 @@ describe("saying where the audio goes", () => {
     installRecogniser(async () => "available");
     render(<ControlledField />);
     press(screen.getByRole("button", { name: /dictate/i }));
-    expect(await screen.findByText(/recognised on this device/i)).toBeInTheDocument();
+    expect(await screen.findByTestId("dictation-interim")).toHaveTextContent(/on this device/i);
   });
 
   it("says the audio leaves when the pack is unavailable, which is what the phone reported", async () => {
     installRecogniser(async () => "unavailable");
     render(<ControlledField />);
     press(screen.getByRole("button", { name: /dictate/i }));
-    expect(await screen.findByText(/browser's speech service/i)).toBeInTheDocument();
+    expect(await screen.findByTestId("dictation-interim")).toHaveTextContent(
+      /browser's speech service/i,
+    );
   });
 
   it("offers the one-time download once per form, not once per field", async () => {
@@ -370,8 +411,8 @@ describe("saying where the audio goes", () => {
         <DictationNote />
       </>,
     );
-    await screen.findByRole("button", { name: /keep speech on this device/i });
-    expect(screen.getAllByRole("button", { name: /keep speech on this device/i })).toHaveLength(1);
+    await screen.findByRole("button", { name: /download it/i });
+    expect(screen.getAllByRole("button", { name: /download it/i })).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: /dictate into/i })).toHaveLength(2);
   });
 
@@ -395,10 +436,10 @@ describe("saying where the audio goes", () => {
         <DictationNote />
       </>,
     );
-    press(await screen.findByRole("button", { name: /keep speech on this device/i }));
+    press(await screen.findByRole("button", { name: /download it/i }));
     await waitFor(() => expect(FakeRecognition.installs).toBe(1));
     press(screen.getByRole("button", { name: /dictate into/i }));
-    expect(await screen.findByText(/recognised on this device/i)).toBeInTheDocument();
+    expect(await screen.findByTestId("dictation-interim")).toHaveTextContent(/on this device/i);
   });
 
   it("says so rather than silently staying remote when the download fails", async () => {
@@ -407,7 +448,7 @@ describe("saying where the audio goes", () => {
       throw new Error("component never installed");
     };
     render(<DictationNote />);
-    press(await screen.findByRole("button", { name: /keep speech on this device/i }));
+    press(await screen.findByRole("button", { name: /download it/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not be installed/i);
   });
 });

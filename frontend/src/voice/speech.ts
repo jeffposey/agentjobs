@@ -205,6 +205,27 @@ export function modeSentence(mode: DictationMode): string {
 }
 
 /**
+ * The same fact in three or four words, for the line that is only on screen while the
+ * microphone is running.
+ *
+ * task-171's decision is that the control states its mode rather than making a blanket
+ * privacy claim, and the honest moment to state it is while audio is actually being
+ * captured. A full sentence there would wrap on a phone, so the short form carries it
+ * and {@link modeSentence} stays for the once-per-form note.
+ */
+export function modeBadge(mode: DictationMode): string {
+  switch (mode) {
+    case "local":
+      return "on this device";
+    case "installable":
+    case "remote":
+      return "via your browser's speech service";
+    case "unknown":
+      return "";
+  }
+}
+
+/**
  * The transcript so far, rebuilt from the whole list.
  *
  * Deliberately not incremental. See the note at the top of this file: on Android each

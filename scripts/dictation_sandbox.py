@@ -27,6 +27,7 @@ see that half, so this sandbox serves it on a query string:
     /app/                     the browser as it is -- microphones where it can
     /app/?dictation=off       both constructors deleted before the app boots
     /app/?dictation=fake      a scripted recogniser that "hears" a fixed paragraph
+    /app/?dictation=trace     the real one, with every event printed to this terminal
 
 Both are sandbox-only shims injected into the served HTML. No part of either is in the
 application; the application only ever feature-detects what the browser really has.
@@ -36,6 +37,13 @@ task-shaped paragraph in three chunks, ends its session the way Android does at 
 seconds, and gets restarted and stitched exactly as the real one is. It is the only way
 to see the stitching on a desktop with no usable input device, which is the machine this
 was built on. It proves the wiring and proves nothing about audio.
+
+``trace`` is the answer to "I pressed it and it did not work", which is not a reportable
+observation about a microphone: `start` then `audiostart` then `no-speech` means the
+browser heard silence, `start` with nothing after it means it never got the microphone,
+and `result` lines with no text in the box would mean this application dropped them.
+Every event goes to the terminal that started the sandbox, so a reviewer presses the
+microphone, speaks, and has to tell nobody anything.
 
 **To use this from a phone**, which is the device the whole epic is about, put a proxy
 in front rather than widening the bind -- and it has to be HTTPS, because the speech API
@@ -131,6 +139,59 @@ DISABLE_SHIM = """
       Object.defineProperty(window, "SpeechRecognition", { value: undefined });
       Object.defineProperty(window, "webkitSpeechRecognition", { value: undefined });
       flag("Sandbox: this page is pretending the browser has no speech recogniser.");
+      return;
+    }
+
+    if (mode === "trace") {
+      // The real recogniser, with every event it fires written down and posted back to
+      // this server. "It did not work" is not a reportable observation about a
+      // microphone -- start-then-audiostart-then-no-speech and start-then-nothing are
+      // different faults with different fixes, and neither is visible from the page.
+      var C = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!C) { flag("Sandbox: trace mode, but this browser has no recogniser."); return; }
+      var EVENTS = ["start","audiostart","soundstart","speechstart","speechend",
+                    "soundend","audioend","end","nomatch"];
+      function Traced() {
+        var real = new C();
+        var self = this;
+        var t0 = Date.now();
+        function note(line) {
+          var entry = ((Date.now() - t0) / 1000).toFixed(1) + "s  " + line;
+          navigator.sendBeacon("/review/dictation-trace", new Blob([entry], {type: "text/plain"}));
+        }
+        EVENTS.forEach(function (name) {
+          real["on" + name] = function () {
+            note(name);
+            var handler = self["on" + name];
+            if (handler) handler.apply(self, arguments);
+          };
+        });
+        real.onresult = function (event) {
+          var last = event.results[event.results.length - 1];
+          note("result n=" + event.results.length +
+               " final=" + (last && last.isFinal) +
+               " text=" + JSON.stringify(last && last[0] && last[0].transcript));
+          if (self.onresult) self.onresult(event);
+        };
+        real.onerror = function (event) {
+          note("error " + event.error);
+          if (self.onerror) self.onerror(event);
+        };
+        ["lang", "continuous", "interimResults", "maxAlternatives"].forEach(function (prop) {
+          Object.defineProperty(self, prop, {
+            get: function () { return real[prop]; },
+            set: function (value) { real[prop] = value; },
+          });
+        });
+        self.start = function () { note("start() called"); real.start(); };
+        self.stop = function () { note("stop() called"); real.stop(); };
+        self.abort = function () { note("abort() called"); real.abort(); };
+      }
+      Traced.available = C.available ? C.available.bind(C) : undefined;
+      Traced.install = C.install ? C.install.bind(C) : undefined;
+      Object.defineProperty(window, "SpeechRecognition", { value: Traced, configurable: true });
+      Object.defineProperty(window, "webkitSpeechRecognition", { value: Traced, configurable: true });
+      flag("Sandbox: tracing the real recogniser. Press the microphone, speak, and the events are written to the terminal that started this.");
       return;
     }
 
@@ -231,6 +292,22 @@ class InjectDictationShim(BaseHTTPMiddleware):
         )
 
 
+def add_trace_route(app: Any) -> None:
+    """Record what the recogniser did, on the server, so nobody has to be quick.
+
+    ``scripts/review_queue_sandbox.py`` makes the same argument for gestures: an
+    instrument that requires the reviewer to screenshot a panel before their next click
+    is not an instrument. Here the panel is the terminal that started the sandbox.
+    """
+
+    @app.post("/review/dictation-trace")
+    async def record(request: Request) -> dict[str, bool]:
+        line = (await request.body()).decode("utf-8", "replace").strip()
+        if line:
+            print(f"[trace] {line}", flush=True)
+        return {"ok": True}
+
+
 def seed(manager: Any) -> None:
     """Enough of a backlog that the surfaces under review have somewhere to file into.
 
@@ -304,6 +381,7 @@ def main() -> None:
 
     from agentjobs.api.main import app
 
+    add_trace_route(app)
     app.add_middleware(InjectDictationShim)
 
     base = f"http://{host}:{port}"
@@ -313,6 +391,7 @@ def main() -> None:
     print(f"[review]   as a dialog   {base}/app/ - the + beside the header's kebab", flush=True)
     print(f"[review] the no-recogniser half: {base}/app/?dictation=off", flush=True)
     print(f"[review] a scripted recogniser:   {base}/app/?dictation=fake", flush=True)
+    print(f"[review] the real one, traced:    {base}/app/?dictation=trace", flush=True)
     print("[review] on a phone it must be HTTPS -- see the docstring for the proxy.", flush=True)
     print(f"[review] throwaway data under {root}", flush=True)
     print("[review] stop with Ctrl-C; the data is deleted with the process.", flush=True)
