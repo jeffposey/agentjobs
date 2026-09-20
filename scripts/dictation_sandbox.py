@@ -48,6 +48,16 @@ one:
 Turn it off afterwards with ``tailscale serve --https=8445 off``; ``--bg`` persists
 across reboots until you do.
 
+**On the phone you can dictate but not file, and that is the security model rather
+than a bug.** The proxy gives the page a secure context, which is all the speech API
+and the microphone need, so every question about dictation is answerable there. It does
+not give the request an identity: ``tailscale serve`` forwards with the tailnet source
+address, so the socket is not loopback and `principals.py` correctly refuses every write
+with ``no_proven_identity`` -- measured against this sandbox, not inferred. Filing is
+what the loopback address is for. Putting a throwaway sandbox behind the real tailnet
+front door would mean a second Tailscale Service, an auth key and an admin approval,
+which `capture_control_sandbox.py` already declined for the same reason.
+
 What to look for, since "a button appeared" is not the property under review:
 
   * **Dictate into a box you have already typed half a sentence into.** The words must
