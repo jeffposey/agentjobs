@@ -122,6 +122,12 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     "unsubscribe_push_device": RouteRule(Capability.PUSH_MANAGE),
     "send_test_push": RouteRule(Capability.PUSH_MANAGE),
     # ----- spending money ---------------------------------------------------------
+    #
+    # `draft_task_spec` names no task because there is no task yet -- it fills a form
+    # somebody is standing in. Its sibling `get_model_status` is deliberately absent:
+    # it is a read that answers a boolean about this machine's configuration, and
+    # gating it would leave a run unable to discover that it may not draft.
+    "draft_task_spec": RouteRule(Capability.MODEL_DRAFT),
     "dispatch_task_endpoint": RouteRule(Capability.DISPATCH),
     "run_playbook_endpoint": RouteRule(Capability.DISPATCH),
     "cancel_dispatch_run": RouteRule(Capability.DISPATCH),

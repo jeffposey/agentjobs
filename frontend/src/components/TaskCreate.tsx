@@ -1,7 +1,15 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
-import type { Lifecycle, Priority, Task, TaskCreateRequest } from "../api/generated";
+import type { Lifecycle, Priority, SpecDraftResponse, Task, TaskCreateRequest } from "../api/generated";
+import {
+  DRAFTABLE_FIELDS,
+  EMPTY_VALUES,
+  type DraftableField,
+  type DraftableValues,
+  applySpecDraft,
+} from "../report/specDraft";
+import { SpecDraftControl } from "./SpecDraftControl";
 
 type TaskCreateProps = {
   projectId: string;
@@ -37,6 +45,55 @@ export function TaskCreate({ projectId, existingTaskIds, onCreate }: TaskCreateP
   const [error, setError] = useState<string | null>(null);
   const [lifecycle, setLifecycle] = useState<Lifecycle>("draft");
   const [priority, setPriority] = useState<Priority>("medium");
+  // The two collapsed sections, opened when a draft has put something in them. A
+  // generated intent nobody can see is worse than no generated intent: the person has
+  // to read what they are about to file.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [planningOpen, setPlanningOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // The form stays uncontrolled and keeps reading itself through `FormData`. A draft
+  // writes values straight into the inputs, which is why undo can restore the person's
+  // text exactly rather than a re-render of a normalised copy of it.
+  const fieldElement = (name: string) => {
+    const found = formRef.current?.elements.namedItem(name);
+    return found instanceof HTMLInputElement || found instanceof HTMLTextAreaElement ? found : null;
+  };
+
+  const readValues = useCallback((): DraftableValues => {
+    const values: DraftableValues = { ...EMPTY_VALUES };
+    for (const field of DRAFTABLE_FIELDS) values[field] = fieldElement(field)?.value ?? "";
+    return values;
+  }, []);
+
+  const writeValues = useCallback((values: DraftableValues) => {
+    for (const field of DRAFTABLE_FIELDS) {
+      const element = fieldElement(field);
+      if (element) element.value = values[field];
+    }
+  }, []);
+
+  const readInput = useCallback(
+    () => ({
+      title: fieldElement("title")?.value ?? "",
+      description: fieldElement("description")?.value ?? "",
+    }),
+    [],
+  );
+
+  const applyDraft = useCallback(
+    (draft: SpecDraftResponse, current: DraftableValues) => {
+      const outcome = applySpecDraft(current, draft);
+      writeValues(outcome.next);
+      const touched: Array<DraftableField> = [...outcome.filled, ...outcome.replaced];
+      if (touched.some((field) => field === "intent" || field === "constraints" || field === "out_of_scope")) {
+        setMoreOpen(true);
+      }
+      if (touched.includes("acceptance")) setPlanningOpen(true);
+      return outcome;
+    },
+    [writeValues],
+  );
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -85,7 +142,7 @@ export function TaskCreate({ projectId, existingTaskIds, onCreate }: TaskCreateP
   };
 
   return (
-    <form onSubmit={(event) => void submit(event)} className="mx-auto max-w-3xl space-y-6">
+    <form ref={formRef} onSubmit={(event) => void submit(event)} className="mx-auto max-w-3xl space-y-6">
       <header>
         <p className="text-sm font-semibold uppercase tracking-wide text-blue-300">New task</p>
         <h2 className="mt-1 text-3xl font-bold">Give the next reader enough to resume</h2>
@@ -109,6 +166,14 @@ export function TaskCreate({ projectId, existingTaskIds, onCreate }: TaskCreateP
         </label>
       </section>
 
+      <SpecDraftControl
+        projectId={projectId}
+        readValues={readValues}
+        readInput={readInput}
+        onApply={applyDraft}
+        onUndo={writeValues}
+      />
+
       <fieldset className="rounded-lg border border-dark-border bg-dark-surface p-5">
         <legend className="px-1 text-xl font-semibold">Starting state</legend>
         <p className="mb-4 text-sm text-dark-muted">Choose who acts next. This cannot be inferred safely.</p>
@@ -126,7 +191,11 @@ export function TaskCreate({ projectId, existingTaskIds, onCreate }: TaskCreateP
         </div>
       </fieldset>
 
-      <details className="rounded-lg border border-dark-border bg-dark-surface p-5">
+      <details
+        open={moreOpen}
+        onToggle={(event) => setMoreOpen((event.currentTarget as HTMLDetailsElement).open)}
+        className="rounded-lg border border-dark-border bg-dark-surface p-5"
+      >
         <summary className="touch-target cursor-pointer font-semibold">More specification</summary>
         <div className="mt-4 space-y-4">
           <label className="block font-medium">Intent <textarea name="intent" className={textareaClass} placeholder="Why does this task exist?" /></label>
@@ -140,7 +209,11 @@ export function TaskCreate({ projectId, existingTaskIds, onCreate }: TaskCreateP
         </div>
       </details>
 
-      <details className="rounded-lg border border-dark-border bg-dark-surface p-5">
+      <details
+        open={planningOpen}
+        onToggle={(event) => setPlanningOpen((event.currentTarget as HTMLDetailsElement).open)}
+        className="rounded-lg border border-dark-border bg-dark-surface p-5"
+      >
         <summary className="touch-target cursor-pointer font-semibold">Planning and relationships</summary>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block font-medium">Task ID <span className="text-xs font-normal text-dark-muted">(generated if blank)</span><input name="id" className={inputClass} placeholder="task-123-short-name" /></label>

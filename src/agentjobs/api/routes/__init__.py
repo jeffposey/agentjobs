@@ -5,6 +5,7 @@ from __future__ import annotations
 from .analytics import router as analytics_router
 from .history import router as history_router
 from .health import router as health_router
+from .model import router as model_router
 from .dashboard import router as dashboard_router
 from .dispatch import router as dispatch_router
 from .playbooks import router as playbooks_router
@@ -35,6 +36,7 @@ PROJECT_SCOPED_ROUTERS = (
     revision_router,
     playbooks_router,
     push_router,
+    model_router,
 )
 """Routers mounted twice: unscoped at /api, and again under /api/projects/{project_id}.
 
@@ -51,6 +53,7 @@ __all__ = [
     "dispatch_router",
     "health_router",
     "history_router",
+    "model_router",
     "playbooks_router",
     "projects_router",
     "push_router",

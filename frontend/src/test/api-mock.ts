@@ -29,6 +29,28 @@ export const VERSION_IN_STEP = {
  * Shared HTTP boundary for frontend tests. Tests add request handlers explicitly so
  * an unexpected API call fails instead of quietly reaching a real server.
  */
+/**
+ * What `/api/model` answers by default: a machine with no model configured.
+ *
+ * A default handler for the same reason `/api/version` has one -- the drafting control
+ * is on two forms, so a test about something else on either of them would otherwise
+ * fail on an unhandled request. It answers `unconfigured` because that is the state of
+ * every machine that has not opted in, so a test that says nothing about drafting
+ * exercises the form exactly as it behaves today. Tests that are *about* drafting
+ * override it with `apiMockServer.use(...)`.
+ */
+export const MODEL_UNCONFIGURED = {
+  available: false,
+  reason: "unconfigured",
+  detail:
+    "No model is configured on this machine, so AgentJobs cannot draft. " +
+    "Add ~/.agentjobs/model.yaml or set ANTHROPIC_API_KEY for the server process.",
+  model: null,
+  calls_per_hour: null,
+  calls_used: null,
+};
+
 export const apiMockServer = setupServer(
   http.get("*/api/version", () => HttpResponse.json(VERSION_IN_STEP)),
+  http.get("*/api/model", () => HttpResponse.json(MODEL_UNCONFIGURED)),
 );

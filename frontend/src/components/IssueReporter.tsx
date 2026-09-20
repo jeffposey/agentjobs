@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 
@@ -8,8 +8,10 @@ import {
 } from "../api/generated/@tanstack/react-query.gen";
 import { readRefusal } from "../api/mutation-error";
 import { toUploads, type PendingAttachment } from "../report/attachments";
-import { buildIssueTaskRequest, readReportContext } from "../report/issueReport";
+import { buildIssueTaskRequest, readReportContext, type ReportedSpec } from "../report/issueReport";
+import { EMPTY_VALUES, applySpecDraft, type DraftableValues } from "../report/specDraft";
 import { AttachmentPicker } from "./AttachmentPicker";
+import { SpecDraftControl } from "./SpecDraftControl";
 
 /**
  * Report Issue: global chrome that turns something you just noticed into a task.
@@ -65,6 +67,17 @@ function IssueReporterDialog({ onClose }: { onClose: () => void }) {
   const [attachments, setAttachments] = useState<Array<PendingAttachment>>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<Submitted | null>(null);
+  // The spec fields a draft can fill. They start empty and stay empty unless the
+  // reporter draws a draft, so a report typed in fifteen seconds still files in
+  // fifteen seconds and produces exactly the record it produced before.
+  const [spec, setSpec] = useState<ReportedSpec>({
+    summary: "",
+    intent: "",
+    constraints: "",
+    out_of_scope: "",
+    acceptance: [],
+  });
+  const [specShown, setSpecShown] = useState(false);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -96,6 +109,7 @@ function IssueReporterDialog({ onClose }: { onClose: () => void }) {
           context,
           destinationProjectId: effectiveDestination,
           reporter,
+          spec: specShown ? spec : undefined,
           // A retry after a timeout resolves to the task the first attempt made
           // instead of filing the same finding twice.
           operationId: crypto.randomUUID(),
@@ -121,8 +135,46 @@ function IssueReporterDialog({ onClose }: { onClose: () => void }) {
     setActionable(false);
     setAttachments([]);
     setError(null);
+    setSpec({ summary: "", intent: "", constraints: "", out_of_scope: "", acceptance: [] });
+    setSpecShown(false);
     titleRef.current?.focus();
   };
+
+  // The reporter's own two inputs are the draftable `description` and the title; the
+  // rest of the spec lives in state that only a draft or the reporter's edits fill.
+  const readValues = useCallback(
+    (): DraftableValues => ({
+      ...EMPTY_VALUES,
+      summary: spec.summary,
+      intent: spec.intent,
+      description: details,
+      constraints: spec.constraints,
+      out_of_scope: spec.out_of_scope,
+      acceptance: spec.acceptance.join("\n"),
+    }),
+    [details, spec],
+  );
+
+  const writeValues = useCallback((values: DraftableValues) => {
+    setDetails(values.description);
+    setSpec({
+      summary: values.summary,
+      intent: values.intent,
+      constraints: values.constraints,
+      out_of_scope: values.out_of_scope,
+      acceptance: values.acceptance.split("\n").map((line) => line.trim()).filter(Boolean),
+    });
+  }, []);
+
+  const applyDraft = useCallback(
+    (drafted: Parameters<typeof applySpecDraft>[1], current: DraftableValues) => {
+      const outcome = applySpecDraft(current, drafted);
+      writeValues(outcome.next);
+      setSpecShown(true);
+      return outcome;
+    },
+    [writeValues],
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
@@ -227,6 +279,60 @@ function IssueReporterDialog({ onClose }: { onClose: () => void }) {
                 ))}
               </select>
             </label>
+
+            {reporter && effectiveDestination && (
+              <SpecDraftControl
+                projectId={effectiveDestination}
+                readValues={readValues}
+                readInput={() => ({ title, description: details })}
+                onApply={applyDraft}
+                onUndo={writeValues}
+              />
+            )}
+
+            {specShown && (
+              <div className="space-y-3 rounded-lg border border-dark-border bg-dark-bg p-4">
+                <p className="text-xs text-dark-muted">
+                  Drafted spec fields. Edit anything here before you file it; they are saved
+                  with the task exactly as a hand-written one would be.
+                </p>
+                <label className="block font-medium">
+                  Summary
+                  <textarea
+                    value={spec.summary}
+                    onChange={(event) => setSpec({ ...spec, summary: event.target.value })}
+                    className={`${inputClass} min-h-20`}
+                  />
+                </label>
+                <label className="block font-medium">
+                  Intent
+                  <textarea
+                    value={spec.intent}
+                    onChange={(event) => setSpec({ ...spec, intent: event.target.value })}
+                    className={`${inputClass} min-h-20`}
+                  />
+                </label>
+                <label className="block font-medium">
+                  Acceptance criteria
+                  <span className="mt-1 block text-xs font-normal text-dark-muted">
+                    One per line.
+                  </span>
+                  <textarea
+                    value={spec.acceptance.join("\n")}
+                    onChange={(event) =>
+                      setSpec({
+                        ...spec,
+                        acceptance: event.target.value
+                          .split("\n")
+                          .map((line) => line.trim())
+                          .filter(Boolean),
+                      })
+                    }
+                    className={`${inputClass} min-h-20`}
+                  />
+                </label>
+              </div>
+            )}
 
             <label className="flex items-center gap-3 font-medium">
               <input

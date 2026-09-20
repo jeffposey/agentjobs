@@ -2991,6 +2991,60 @@ export type MachinePoint = {
 };
 
 /**
+ * ModelStatusResponse
+ *
+ * Whether this machine can draft a task spec right now, and why not when it cannot.
+ *
+ * **There is no field here that a credential could occupy**, which is the design's
+ * rule expressed as a shape rather than as a promise (`docs/model-access-design.md`
+ * §4): the status route answers a boolean, never the key, a prefix of it, or its
+ * length. `model` is a configured identifier and is shown because a person who asked
+ * for a draft is entitled to know what drafted it.
+ *
+ * `reason` is one of the closed set in `agentjobs.modelaccess.config.REASONS`, and
+ * `detail` is a sentence written in this repository. Neither is ever built from a
+ * provider's response.
+ */
+export type ModelStatusResponse = {
+    /**
+     * Available
+     *
+     * Whether a drafting call can be made now.
+     */
+    available: boolean;
+    /**
+     * Calls Per Hour
+     *
+     * This machine's hourly cap.
+     */
+    calls_per_hour?: number | null;
+    /**
+     * Calls Used
+     *
+     * Calls made inside the rolling hour.
+     */
+    calls_used?: number | null;
+    /**
+     * Detail
+     *
+     * One sentence a person can act on.
+     */
+    detail?: string | null;
+    /**
+     * Model
+     *
+     * The configured model id, when there is one.
+     */
+    model?: string | null;
+    /**
+     * Reason
+     *
+     * Why not, as a stable code. Null when available.
+     */
+    reason?: string | null;
+};
+
+/**
  * MutationResult
  *
  * What a mutation did, for callers that need more than the new task.
@@ -5387,6 +5441,98 @@ export type Spec = {
      * One or two sentences. The only summary, for every audience.
      */
     summary: string;
+};
+
+/**
+ * SpecDraftRequest
+ *
+ * What the human typed, and nothing about where the task should land.
+ *
+ * There is deliberately no field for lifecycle, ball, priority, parent, dependencies
+ * or actor -- not because the server would refuse them, but so that no caller can form
+ * the request that would ask a model to choose one.
+ */
+export type SpecDraftRequest = {
+    /**
+     * Description
+     *
+     * The rough description the human typed.
+     */
+    description?: string;
+    /**
+     * Title
+     *
+     * The title the human typed, possibly empty.
+     */
+    title?: string;
+};
+
+/**
+ * SpecDraftResponse
+ *
+ * One draft, for a form to fill its fields from -- or a refusal saying why not.
+ *
+ * Six spec fields, matching `agentjobs.modelaccess.draft.SpecDraft`. A reply that
+ * named a priority or a parent produced a draft in which those values do not exist;
+ * there is nowhere in this model to put one.
+ *
+ * **A refusal is a 200 with `drafted: false`**, carrying the same `reason`/`detail`
+ * pair as the status route. That is a decision rather than laziness: the person is
+ * standing in a form they are about to file by hand, and "no draft, here is why" is
+ * not the same event as "your task could not be filed". Answering with an error status
+ * would route it through the form's filing-failed path. It also puts the refusal in
+ * the OpenAPI document, so the generated client is typed for it -- which the 409
+ * refusals elsewhere in this API are not.
+ */
+export type SpecDraftResponse = {
+    /**
+     * Acceptance
+     */
+    acceptance?: Array<string>;
+    /**
+     * Constraints
+     */
+    constraints?: string;
+    /**
+     * Description
+     */
+    description?: string;
+    /**
+     * Detail
+     *
+     * One sentence a person can act on.
+     */
+    detail?: string | null;
+    /**
+     * Drafted
+     *
+     * False when no draft was produced.
+     */
+    drafted?: boolean;
+    /**
+     * Intent
+     */
+    intent?: string;
+    /**
+     * Model
+     *
+     * Which model produced this draft.
+     */
+    model?: string | null;
+    /**
+     * Out Of Scope
+     */
+    out_of_scope?: string;
+    /**
+     * Reason
+     *
+     * Why there is no draft, as a stable code.
+     */
+    reason?: string | null;
+    /**
+     * Summary
+     */
+    summary?: string;
 };
 
 /**
@@ -7994,6 +8140,47 @@ export type RecordGateHistoryApiHistoryGatesGateIdPutResponses = {
 
 export type RecordGateHistoryApiHistoryGatesGateIdPutResponse = RecordGateHistoryApiHistoryGatesGateIdPutResponses[keyof RecordGateHistoryApiHistoryGatesGateIdPutResponses];
 
+export type GetModelStatusApiModelGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/model';
+};
+
+export type GetModelStatusApiModelGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ModelStatusResponse;
+};
+
+export type GetModelStatusApiModelGetResponse = GetModelStatusApiModelGetResponses[keyof GetModelStatusApiModelGetResponses];
+
+export type DraftTaskSpecApiModelDraftPostData = {
+    body: SpecDraftRequest;
+    path?: never;
+    query?: never;
+    url: '/api/model/draft';
+};
+
+export type DraftTaskSpecApiModelDraftPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DraftTaskSpecApiModelDraftPostError = DraftTaskSpecApiModelDraftPostErrors[keyof DraftTaskSpecApiModelDraftPostErrors];
+
+export type DraftTaskSpecApiModelDraftPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SpecDraftResponse;
+};
+
+export type DraftTaskSpecApiModelDraftPostResponse = DraftTaskSpecApiModelDraftPostResponses[keyof DraftTaskSpecApiModelDraftPostResponses];
+
 export type GetPlaybooksApiPlaybooksGetData = {
     body?: never;
     path?: never;
@@ -8766,6 +8953,66 @@ export type RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutResponses 
 };
 
 export type RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutResponse = RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutResponses[keyof RecordGateHistoryApiProjectsProjectIdHistoryGatesGateIdPutResponses];
+
+export type GetModelStatusApiProjectsProjectIdModelGetData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/model';
+};
+
+export type GetModelStatusApiProjectsProjectIdModelGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetModelStatusApiProjectsProjectIdModelGetError = GetModelStatusApiProjectsProjectIdModelGetErrors[keyof GetModelStatusApiProjectsProjectIdModelGetErrors];
+
+export type GetModelStatusApiProjectsProjectIdModelGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ModelStatusResponse;
+};
+
+export type GetModelStatusApiProjectsProjectIdModelGetResponse = GetModelStatusApiProjectsProjectIdModelGetResponses[keyof GetModelStatusApiProjectsProjectIdModelGetResponses];
+
+export type DraftTaskSpecApiProjectsProjectIdModelDraftPostData = {
+    body: SpecDraftRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/model/draft';
+};
+
+export type DraftTaskSpecApiProjectsProjectIdModelDraftPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DraftTaskSpecApiProjectsProjectIdModelDraftPostError = DraftTaskSpecApiProjectsProjectIdModelDraftPostErrors[keyof DraftTaskSpecApiProjectsProjectIdModelDraftPostErrors];
+
+export type DraftTaskSpecApiProjectsProjectIdModelDraftPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SpecDraftResponse;
+};
+
+export type DraftTaskSpecApiProjectsProjectIdModelDraftPostResponse = DraftTaskSpecApiProjectsProjectIdModelDraftPostResponses[keyof DraftTaskSpecApiProjectsProjectIdModelDraftPostResponses];
 
 export type GetPlaybooksApiProjectsProjectIdPlaybooksGetData = {
     body?: never;

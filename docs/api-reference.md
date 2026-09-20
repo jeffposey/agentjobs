@@ -60,6 +60,8 @@ the scoped form so switching projects never depends on the server's current dire
 | `POST` | `/api/push/subscribe` | Register a device for mobile push. Takes the browser's own `PushSubscription.toJSON()` plus a `label` and a `detail` mode. Idempotent by endpoint; a device registered mid-episode waits for the next one |
 | `POST` | `/api/push/unsubscribe` | Forget a device, by `subscription_id` from the page or by `endpoint` from a service worker. Idempotent |
 | `POST` | `/api/push/test` | Push one message on purpose, to one device or to all. Does not consume the episode's interruption |
+| `GET` | `/api/model` | Whether this machine can draft a task spec with a model right now, and one sentence saying why not when it cannot. Answers a boolean and a configured model id -- never the credential, a prefix of it, or its length |
+| `POST` | `/api/model/draft` | Expand a title and a rough description into spec fields for a form to fill. **Writes nothing**: the person edits the draft and presses create. Needs `model.draft`, which no run holds. A refusal is a 200 with `drafted: false` and a reason from a closed set |
 | `GET` | `/api/analytics` | Backlog, throughput, aging and where work is stuck, plus the process series (lifecycle segments, cost per task, finishes, gates, runs, the execution journal, review and questions), each with its own coverage, over one range. `range` is `30d`, `90d`, `12m` or `all` |
 | `GET` | `/api/revision` | Return the project revision used for client refresh |
 

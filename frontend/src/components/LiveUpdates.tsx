@@ -65,6 +65,13 @@ export const NON_TASK_PROJECT_QUERY_IDS = new Map([
     "The poller's own endpoint. Refetching it from its own result would loop.",
   ],
   [
+    "getModelStatusApiProjectsProjectIdModelGet",
+    "Whether this machine has a model configured for drafting. It answers from " +
+      "~/.agentjobs/model.yaml and a kill-switch file, neither of which a task write " +
+      "touches, and the app reads it unscoped anyway -- what is configured is a " +
+      "property of the machine, not of a project.",
+  ],
+  [
     "listWebhooksApiProjectsProjectIdWebhooksGet",
     "Webhook subscriptions are configuration, not task data; task writes never change them.",
   ],
