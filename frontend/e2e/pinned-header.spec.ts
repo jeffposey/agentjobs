@@ -18,10 +18,11 @@ const PHONE = { width: 390, height: 844 };
 /** One row is `min-h-16` plus a 1px bottom border; anything taller has wrapped. */
 const ONE_ROW_MAX_PX = 72;
 
+// No "Create": task-346 replaced that destination with the header's capture control,
+// which is an action rather than a place and is deliberately never behind the burger.
 const DESTINATIONS = [
   "Dashboard",
   "Tasks",
-  "Create",
   "Dispatch",
   "Playbooks",
   "Runs",
@@ -246,17 +247,18 @@ test("below the breakpoint the destinations are behind the burger, and all of th
   expect(box.height).toBeLessThanOrEqual(ONE_ROW_MAX_PX);
 });
 
-test("the Report Issue modal still covers the pinned header, and its button still works", async ({
+test("the capture dialog still covers the pinned header, and its trigger still works", async ({
   page,
 }) => {
   for (const viewport of [DESKTOP, PHONE]) {
     await page.setViewportSize(viewport);
     await page.goto("/app/p/_local");
 
-    // The floating button is `z-40` and the header is `z-30`; the button opening at
-    // all is the evidence it is still hit-testable above whatever is beneath it.
-    await page.getByRole("button", { name: "Report issue" }).click();
-    const dialog = page.getByRole("dialog", { name: "Report an issue" });
+    // The trigger is inside the `z-30` header since task-346, so this is no longer
+    // one fixed element over another -- it is that the dialog it opens still covers
+    // the bar the trigger itself lives in.
+    await page.getByRole("button", { name: "New task or issue" }).click();
+    const dialog = page.getByRole("dialog", { name: "New task" });
     await expect(dialog).toBeVisible();
 
     // The header is `z-30` and the overlay `z-50`, so the topmost element over the

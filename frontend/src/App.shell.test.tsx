@@ -176,7 +176,7 @@ describe("the Tasks surface at a landscape viewport", () => {
     expect(detailRegion()).toBeNull();
     // The header nav is the global navigation and this epic does not touch it.
     const nav = screen.getByRole("navigation", { name: "Primary navigation" });
-    for (const label of ["Dashboard", "Tasks", "Create", "Dispatch"]) {
+    for (const label of ["Dashboard", "Tasks", "Dispatch"]) {
       expect(within(nav).getByText(label, { exact: true })).toBeInTheDocument();
     }
   });

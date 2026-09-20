@@ -28,9 +28,12 @@ describe("generated client at the HTTP boundary", () => {
     let created: TaskRead | null = null;
     let received: TaskCreateRequest | null = null;
     apiMockServer.use(
+      // `default_user` is who the task is filed as. Since task-346 the create page is
+      // the capture form, which refuses to file a task it cannot attribute rather than
+      // writing one with an empty log that can never be dispatched.
       http.get("*/api/projects", () => HttpResponse.json([
-        { id: "inbox", name: "Inbox", root: "C:/projects/inbox", task_count: created ? 1 : 0, tasks_directory: "C:/projects/inbox/tasks" },
-        { id: "sample", name: "Sample", root: "C:/projects/sample", task_count: 0, tasks_directory: "C:/projects/sample/tasks" },
+        { id: "inbox", name: "Inbox", root: "C:/projects/inbox", task_count: created ? 1 : 0, tasks_directory: "C:/projects/inbox/tasks", default_user: "Jeff Posey" },
+        { id: "sample", name: "Sample", root: "C:/projects/sample", task_count: 0, tasks_directory: "C:/projects/sample/tasks", default_user: "Jeff Posey" },
       ])),
       http.get("*/api/projects/inbox/tasks", () => HttpResponse.json(created ? [created] : [])),
       http.get("*/api/projects/inbox/tasks/broken", () => HttpResponse.json([])),
@@ -63,10 +66,13 @@ describe("generated client at the HTTP boundary", () => {
     renderApp();
 
     fireEvent.change(await screen.findByRole("textbox", { name: "Title" }), { target: { value: "Created through HTTP" } });
-    fireEvent.change(screen.getByRole("textbox", { name: /Summary/ }), { target: { value: "Exercises the real generated client." } });
-    fireEvent.change(screen.getByRole("textbox", { name: /Working description/ }), { target: { value: "Intercept the request at HTTP, not by replacing the client." } });
-    fireEvent.click(screen.getByRole("radio", { name: /Ready/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+    fireEvent.change(screen.getByRole("textbox", { name: /^Summary/ }), { target: { value: "Exercises the real generated client." } });
+    fireEvent.change(screen.getByRole("textbox", { name: /^What happened/ }), { target: { value: "Intercept the request at HTTP, not by replacing the client." } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ready for an agent/ }));
+    // The projects request decides who the task is filed as, so the form stays
+    // refused until it lands. Waiting on that rather than on a timer.
+    await waitFor(() => expect(screen.getByRole("button", { name: "File it" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
 
     const tasks = await screen.findByRole("region", { name: "Tasks" });
     expect(within(tasks).getByText("Created through HTTP")).toBeVisible();
@@ -75,6 +81,7 @@ describe("generated client at the HTTP boundary", () => {
       title: "Created through HTTP",
       lifecycle: "ready",
       summary: "Exercises the real generated client.",
+      actor: "Jeff Posey",
     })));
   });
 });

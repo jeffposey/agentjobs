@@ -40,16 +40,19 @@ test("pastes a screenshot into a report and renders it back from the stored file
   page,
   request,
 }) => {
-  await page.goto("/app/");
-  await page.getByRole("button", { name: "Report issue" }).click();
-  const dialog = page.getByRole("dialog", { name: "Report an issue" });
+  // The resolved project, not "/app/", which renders a redirect card first: the control
+  // is mounted there too (that is the point of the global mount), and clicking it on
+  // the way through opens a dialog the redirect then unmounts.
+  await page.goto("/app/p/_local");
+  await page.getByRole("button", { name: "New task or issue" }).click();
+  const dialog = page.getByRole("dialog", { name: "New task" });
   await dialog.getByRole("textbox", { name: /^Title/ }).fill("The status badge is unreadable");
   await dialog.getByRole("textbox", { name: /^What happened/ }).fill("See the attached capture.");
 
   await pasteImage(page, 'textarea[name="details"]', PNG_DATA_URL);
   await expect(dialog.getByRole("list", { name: "Attached images" })).toBeVisible();
 
-  await dialog.getByRole("button", { name: "File issue" }).click();
+  await dialog.getByRole("button", { name: "File it" }).click();
   await expect(dialog).toContainText("Filed as");
   const filed = (await dialog.getByRole("status").innerText())
     .replace(/^Filed as\s*/, "")
@@ -85,9 +88,12 @@ test("pastes a screenshot into a report and renders it back from the stored file
 });
 
 test("an oversized paste is refused and the typed prose survives", async ({ page }) => {
-  await page.goto("/app/");
-  await page.getByRole("button", { name: "Report issue" }).click();
-  const dialog = page.getByRole("dialog", { name: "Report an issue" });
+  // The resolved project, not "/app/", which renders a redirect card first: the control
+  // is mounted there too (that is the point of the global mount), and clicking it on
+  // the way through opens a dialog the redirect then unmounts.
+  await page.goto("/app/p/_local");
+  await page.getByRole("button", { name: "New task or issue" }).click();
+  const dialog = page.getByRole("dialog", { name: "New task" });
   const prose = "Prose that must still be here after the image is rejected.";
   await dialog.getByRole("textbox", { name: /^Title/ }).fill("Oversized paste");
   await dialog.getByRole("textbox", { name: /^What happened/ }).fill(prose);

@@ -14,8 +14,10 @@ import { expect, test } from "@playwright/test";
 const DRAFTED_SUMMARY = "The task list pages badly once a project holds a few hundred tasks.";
 
 test("drafts a spec into the create form, and files what the person approves", async ({ page }) => {
-  await page.goto("/app/");
-  await page.getByRole("link", { name: "Create", exact: true }).click();
+  // The create page directly. It is no longer a nav destination -- task-346 replaced
+  // that link with the header's capture control -- and this spec is not about how you
+  // reach the form.
+  await page.goto("/app/p/_local/tasks/new");
 
   const draftCheckbox = page.getByRole("checkbox", { name: /Flesh this out with AI/ });
   await expect(draftCheckbox).toBeEnabled();
@@ -25,7 +27,7 @@ test("drafts a spec into the create form, and files what the person approves", a
   const summary = page.getByRole("textbox", { name: /^Summary/ });
   await summary.fill("The one true sentence I dictated.");
   await page
-    .getByRole("textbox", { name: /^Working description/ })
+    .getByRole("textbox", { name: /^What happened/ })
     .fill("it drags once a project has a few hundred tasks");
 
   await page.getByRole("button", { name: "Draft the spec" }).click();
@@ -49,8 +51,8 @@ test("drafts a spec into the create form, and files what the person approves", a
   await page.getByRole("button", { name: "Draft the spec" }).click();
   await expect(summary).toHaveValue(DRAFTED_SUMMARY);
   await summary.fill(`${DRAFTED_SUMMARY} And a sentence I added myself.`);
-  await page.getByRole("radio", { name: /^Ready/ }).check();
-  await page.getByRole("button", { name: "Create task" }).click();
+  await page.getByRole("checkbox", { name: /^Ready for an agent/ }).check();
+  await page.getByRole("button", { name: "File it" }).click();
 
   await expect(page).toHaveURL(/\/app\/p\/_local\/tasks\?status=all$/);
   await page.getByRole("region", { name: "Tasks" }).getByText("Paging is slow").click();

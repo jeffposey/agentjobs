@@ -27,7 +27,6 @@ const SURFACES = [
   ["/app/p/_local", "Dashboard"],
   ["/app/p/_local/tasks", "Tasks"],
   ["/app/p/_local/analytics", "Analytics"],
-  ["/app/p/_local/tasks/new", "Create"],
   ["/app/p/_local/dispatch", "Dispatch"],
   ["/app/p/_local/playbooks", "Playbooks"],
   ["/app/p/_local/runs", "Runs"],
@@ -128,21 +127,33 @@ test("the paint assertion has teeth: rendering every entry alike makes it fail",
   expect(marked.color).toBe(other.color);
 });
 
-test("Create carries no accent of its own, so colour in the bar means one thing", async ({
+test("no action in the bar is painted like a place, so colour still means one thing", async ({
   page,
 }) => {
-  // The report's actual cause. On the Dashboard, Create was the only coloured entry
-  // in the bar, so it read as the selected tab; it is now painted like every other
-  // destination you are not on.
+  // The report's actual cause. On the Dashboard, Create was the only coloured entry in
+  // the bar, so it read as the selected tab. task-346 removed that link and put the act
+  // behind a button, which must not reintroduce the accent by another route -- so the
+  // capture trigger is painted like the actions kebab beside it, not like the entry you
+  // are on.
   await page.setViewportSize(DESKTOP);
   await page.goto("/app/p/_local");
 
+  expect((await readLinks(page)).map((link) => link.label)).not.toContain("Create");
+
+  const painted = await page.evaluate(() => {
+    const read = (label: string) => {
+      const element = document.querySelector<HTMLElement>(`button[aria-label="${label}"]`)!;
+      return getComputedStyle(element).color;
+    };
+    return { capture: read("New task or issue"), actions: read("Actions") };
+  });
+  expect(painted.capture).toBe(painted.actions);
+
+  // And the entry you are on is still the brightest thing in the row.
   const links = await readLinks(page);
-  const create = links.find((link) => link.label === "Create")!;
-  const tasks = links.find((link) => link.label === "Tasks")!;
-  expect(create.current).toBe(false);
-  expect(create.color).toBe(tasks.color);
-  expect(create.background).toBe(tasks.background);
+  const current = links.find((link) => link.current)!;
+  expect(current.label).toBe("Dashboard");
+  expect(current.color).not.toBe(painted.capture);
 });
 
 test("the burger panel marks the current destination too", async ({ page }) => {
