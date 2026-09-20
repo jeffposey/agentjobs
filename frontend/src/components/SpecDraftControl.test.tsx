@@ -7,12 +7,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { Task } from "../api/generated";
 import { client } from "../api/generated/client.gen";
 import { apiMockServer } from "../test/api-mock";
-import { TaskCreate } from "./TaskCreate";
+import { CaptureForm } from "./CaptureForm";
 
 /**
- * The drafting option on the create form, exercised through the form a person uses.
+ * The drafting option on the capture form, exercised through the form a person uses.
  *
- * Through `TaskCreate` rather than against `SpecDraftControl` on its own, because the
+ * Through `CaptureForm` rather than against `SpecDraftControl` on its own, because the
  * behaviour under test is not the control -- it is what happens to the *form fields*,
  * and a test that rendered the control alone would assert that a callback fired rather
  * than that the description box now holds what the model wrote.
@@ -58,7 +58,7 @@ function createdTask(): Task {
   };
 }
 
-function renderForm(onCreate = vi.fn().mockResolvedValue(createdTask())) {
+function renderForm(expanded = false, onCreate = vi.fn().mockResolvedValue(createdTask())) {
   client.setConfig({ baseUrl: "http://localhost" });
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
@@ -66,7 +66,14 @@ function renderForm(onCreate = vi.fn().mockResolvedValue(createdTask())) {
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <TaskCreate projectId="agentjobs" existingTaskIds={[]} onCreate={onCreate} />
+        <CaptureForm
+          context={{ route: "/p/agentjobs/tasks", projectId: "agentjobs", taskId: null }}
+          destinations={[{ id: "agentjobs", name: "AgentJobs", reporter: "Jeff Posey" }]}
+          existingTaskIds={[]}
+          onSubmit={onCreate}
+          onFiled={() => {}}
+          startExpanded={expanded}
+        />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -92,7 +99,7 @@ async function pressDraft() {
   await waitFor(() => expect(screen.queryByRole("button", { name: "Drafting…" })).toBeNull());
 }
 
-describe("drafting a spec on the create form", () => {
+describe("drafting a spec on the capture form", () => {
   it("offers the option, checked, once the machine has a model", async () => {
     configured();
     renderForm();
@@ -108,11 +115,11 @@ describe("drafting a spec on the create form", () => {
 
     await waitFor(() => expect(checkbox()).toBeEnabled());
     type("Title", "Paging is slow");
-    type(/Working description/, "it drags at 400 tasks");
+    type(/^What happened/, "it drags at 400 tasks");
     await pressDraft();
 
     expect((field(/Summary/) as HTMLTextAreaElement).value).toBe(DRAFT.summary);
-    expect((field(/Working description/) as HTMLTextAreaElement).value).toBe(DRAFT.description);
+    expect((field(/^What happened/) as HTMLTextAreaElement).value).toBe(DRAFT.description);
     expect((field("Intent") as HTMLTextAreaElement).value).toBe(DRAFT.intent);
     expect((field(/Acceptance criteria/) as HTMLTextAreaElement).value).toBe(
       DRAFT.acceptance.join("\n"),
@@ -136,14 +143,15 @@ describe("drafting a spec on the create form", () => {
   });
 
   it("says which of my own text it replaced, and puts it back on undo", async () => {
-    // ac-4, demonstrated with a field that already had content.
+    // ac-4, demonstrated with a field that already had content -- so the
+    // specification starts open, the way `/tasks/new` renders this form.
     configured();
-    renderForm();
+    renderForm(true);
 
     await waitFor(() => expect(checkbox()).toBeEnabled());
     type("Title", "Paging is slow");
     type(/Summary/, "The one true sentence I dictated.");
-    type(/Working description/, "it drags at 400 tasks");
+    type(/^What happened/, "it drags at 400 tasks");
     await pressDraft();
 
     expect(screen.getByText(/Replaced what you had written in Summary/)).toBeInTheDocument();
@@ -154,7 +162,7 @@ describe("drafting a spec on the create form", () => {
     expect((field(/Summary/) as HTMLTextAreaElement).value).toBe(
       "The one true sentence I dictated.",
     );
-    expect((field(/Working description/) as HTMLTextAreaElement).value).toBe(
+    expect((field(/^What happened/) as HTMLTextAreaElement).value).toBe(
       "it drags at 400 tasks",
     );
   });
@@ -174,7 +182,7 @@ describe("drafting a spec on the create form", () => {
     type("Title", "Paging is slow");
     await pressDraft();
 
-    expect(screen.getByRole("radio", { name: /Draft/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Ready for an agent/ })).not.toBeChecked();
     expect((screen.getByLabelText(/Parent task/) as HTMLInputElement).value).toBe("");
     expect((screen.getByLabelText(/Priority/) as HTMLSelectElement).value).toBe("medium");
   });
@@ -192,7 +200,7 @@ describe("drafting a spec on the create form", () => {
       reason: "rate_limited",
       detail: "The model provider is rate-limiting this machine. Try again shortly.",
     });
-    renderForm();
+    renderForm(true);
 
     await waitFor(() => expect(checkbox()).toBeEnabled());
     type("Title", "Paging is slow");
@@ -205,7 +213,7 @@ describe("drafting a spec on the create form", () => {
 
   it("lets me turn it off and file the task by hand", async () => {
     configured();
-    const onCreate = renderForm();
+    const onCreate = renderForm(true);
 
     await waitFor(() => expect(checkbox()).toBeEnabled());
     fireEvent.click(checkbox());
@@ -213,11 +221,11 @@ describe("drafting a spec on the create form", () => {
     expect(screen.queryByRole("button", { name: "Draft the spec" })).toBeNull();
     type("Title", "By hand");
     type(/Summary/, "Written by me.");
-    type(/Working description/, "Also written by me.");
-    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+    type(/^What happened/, "Also written by me.");
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
 
     await waitFor(() => expect(onCreate).toHaveBeenCalled());
-    const [written] = onCreate.mock.calls[0] ?? [];
+    const [, written] = onCreate.mock.calls[0] ?? [];
     expect(written?.summary).toBe("Written by me.");
   });
 });
@@ -227,7 +235,7 @@ describe("when no model is configured", () => {
   // every machine that has not opted in -- including the one this was written on.
 
   it("says why, and leaves the form exactly as it is today", async () => {
-    const onCreate = renderForm();
+    const onCreate = renderForm(true);
 
     // Waiting on the sentence rather than on the disabled state: the control starts
     // disabled before the status arrives, so a test that waited on that alone would
@@ -239,11 +247,11 @@ describe("when no model is configured", () => {
 
     type("Title", "Filed with no model anywhere");
     type(/Summary/, "A summary.");
-    type(/Working description/, "A description.");
-    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+    type(/^What happened/, "A description.");
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
 
     await waitFor(() => expect(onCreate).toHaveBeenCalled());
-    const [filed] = onCreate.mock.calls[0] ?? [];
+    const [, filed] = onCreate.mock.calls[0] ?? [];
     expect(filed?.title).toBe("Filed with no model anywhere");
   });
 });

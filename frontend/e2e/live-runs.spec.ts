@@ -53,14 +53,17 @@ test("a real run appears on both surfaces without a reload, and leaves when it e
   await page.getByRole("button", { name: /enable dispatch/i }).click();
   await expect(page.getByRole("button", { name: /disable dispatch/i })).toBeVisible();
 
-  await page.getByRole("link", { name: "Create", exact: true }).click();
+  // The create page directly. It is no longer a nav destination -- task-346 replaced
+  // that link with the header's capture control -- and this spec is not about how you
+  // reach the form.
+  await page.goto("/app/p/_local/tasks/new");
   await page.getByRole("textbox", { name: "Title", exact: true }).fill("Watch me run");
   await page.getByRole("textbox", { name: /^Summary/ }).fill("Seen from the Runs tab.");
   await page
-    .getByRole("textbox", { name: /^Working description/ })
+    .getByRole("textbox", { name: /^What happened/ })
     .fill("Proves the machine-wide surfaces notice a run they did not start.");
-  await page.getByRole("radio", { name: /^Ready/ }).check();
-  await page.getByRole("button", { name: "Create task" }).click();
+  await page.getByRole("checkbox", { name: /^Ready for an agent/ }).check();
+  await page.getByRole("button", { name: "File it" }).click();
 
   await page.getByRole("region", { name: "Tasks" }).getByText("Watch me run").click();
   const taskUrl = page.url();

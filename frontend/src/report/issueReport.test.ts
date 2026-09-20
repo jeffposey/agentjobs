@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildIssueTaskRequest, readReportContext, REPORTED_ISSUE_TAG } from "./issueReport";
+import { buildCaptureRequest, readReportContext, REPORTED_ISSUE_TAG } from "./issueReport";
 
 const draft = { title: "  Filters match nothing  ", details: "  Every filter returns zero rows.  ", actionable: false };
 
@@ -40,7 +40,7 @@ describe("readReportContext", () => {
   });
 
   it("does not mistake the create page for a task", () => {
-    // "/p/x/tasks/new" is the create form, not a task called "new". Linking it as a
+    // "/p/x/tasks/new" is the capture form as a page, not a task called "new". Linking it as a
     // related dependency would produce a permanently dangling reference.
     expect(readReportContext("/p/agentjobs/tasks/new")).toEqual({
       route: "/p/agentjobs/tasks/new",
@@ -50,11 +50,11 @@ describe("readReportContext", () => {
   });
 });
 
-describe("buildIssueTaskRequest", () => {
+describe("buildCaptureRequest", () => {
   const context = { route: "/p/agentjobs/tasks/task-052", projectId: "agentjobs", taskId: "task-052" };
 
   it("creates a tagged draft attributed to the reporter, linking the task they were viewing", () => {
-    const request = buildIssueTaskRequest({
+    const request = buildCaptureRequest({
       draft,
       context,
       destinationProjectId: "agentjobs",
@@ -77,7 +77,7 @@ describe("buildIssueTaskRequest", () => {
   });
 
   it("marks the task ready when the reporter says it is actionable as it stands", () => {
-    const request = buildIssueTaskRequest({
+    const request = buildCaptureRequest({
       draft: { ...draft, actionable: true },
       context,
       destinationProjectId: "agentjobs",
@@ -91,7 +91,7 @@ describe("buildIssueTaskRequest", () => {
     // A dependency is resolved within one project's corpus, so pointing at a task id
     // from a different project would be a permanently unmet edge. The fact still has
     // to survive, so it goes into the description in words.
-    const request = buildIssueTaskRequest({
+    const request = buildCaptureRequest({
       draft,
       context,
       destinationProjectId: "alpha",
@@ -105,8 +105,63 @@ describe("buildIssueTaskRequest", () => {
     expect(request.description).toContain("not the project this issue was filed into");
   });
 
+  it("adds the captured page's edge after the author's own dependencies", () => {
+    // The `related` edge is provenance, not something the author typed, so it reads
+    // last and can never be mistaken for one of their `needs` lines.
+    const request = buildCaptureRequest({
+      draft,
+      context,
+      destinationProjectId: "agentjobs",
+      reporter: "Jeff Posey",
+      operationId: "op-5",
+      spec: {
+        summary: "",
+        intent: "",
+        constraints: "",
+        out_of_scope: "",
+        acceptance: [],
+        dependencies: [{ task: "task-010", type: "needs", note: "Supplies the API" }],
+      },
+    });
+
+    expect(request.dependencies).toEqual([
+      { task: "task-010", type: "needs", note: "Supplies the API" },
+      { task: "task-052", type: "related", note: "Reported while viewing this task." },
+    ]);
+  });
+
+  it("sends nothing for a specification the author never opened", () => {
+    // The fifteen-second capture has to produce exactly the request it produced when
+    // this was two forms, or the reported-issue population stops being one population.
+    const request = buildCaptureRequest({
+      draft,
+      context,
+      destinationProjectId: "agentjobs",
+      reporter: "Jeff Posey",
+      operationId: "op-6",
+      spec: {
+        summary: "  ",
+        intent: "",
+        constraints: "",
+        out_of_scope: "",
+        acceptance: [],
+        context: [],
+        dependencies: [],
+        category: "general",
+      },
+    });
+
+    expect(request.summary).toBeUndefined();
+    expect(request.intent).toBeUndefined();
+    expect(request.acceptance).toBeUndefined();
+    expect(request.context).toBeUndefined();
+    expect(request.id).toBeUndefined();
+    expect(request.parent).toBeUndefined();
+    expect(request.tags).toEqual([REPORTED_ISSUE_TAG]);
+  });
+
   it("records the project being viewed even when no task was open", () => {
-    const request = buildIssueTaskRequest({
+    const request = buildCaptureRequest({
       draft,
       context: { route: "/p/agentjobs/tasks", projectId: "agentjobs", taskId: null },
       destinationProjectId: "alpha",

@@ -35,14 +35,17 @@ test("turns dispatch on, starts a real agent process, cancels it, and turns it o
 
   // A task whose ball is with an agent, created by a human -- which is what makes it
   // dispatchable at all, since a dispatch may only follow a human's log entry.
-  await page.getByRole("link", { name: "Create", exact: true }).click();
+  // The create page directly. It is no longer a nav destination -- task-346 replaced
+  // that link with the header's capture control -- and this spec is not about how you
+  // reach the form.
+  await page.goto("/app/p/_local/tasks/new");
   await page.getByRole("textbox", { name: "Title", exact: true }).fill("Dispatch me");
   await page.getByRole("textbox", { name: /^Summary/ }).fill("Started from the browser.");
   await page
-    .getByRole("textbox", { name: /^Working description/ })
+    .getByRole("textbox", { name: /^What happened/ })
     .fill("Proves a click in the browser starts a process on this machine.");
-  await page.getByRole("radio", { name: /^Ready/ }).check();
-  await page.getByRole("button", { name: "Create task" }).click();
+  await page.getByRole("checkbox", { name: /^Ready for an agent/ }).check();
+  await page.getByRole("button", { name: "File it" }).click();
 
   const tasks = page.getByRole("region", { name: "Tasks" });
   await tasks.getByText("Dispatch me").click();

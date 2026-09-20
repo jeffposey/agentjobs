@@ -1,4 +1,5 @@
 import type { AttachmentUpload } from "../api/generated";
+import { newOperationId } from "../api/operationId";
 
 /**
  * Turning a pasted screenshot into something the API will accept.
@@ -82,7 +83,7 @@ export async function readImage(file: File, label?: string): Promise<PendingAtta
   const comma = dataUrl.indexOf(",");
   if (comma < 0) throw new AttachmentRejected("That image could not be read.");
   return {
-    id: crypto.randomUUID(),
+    id: newOperationId(),
     label: label || file.name || "Pasted screenshot",
     mediaType: file.type,
     sizeBytes: file.size,

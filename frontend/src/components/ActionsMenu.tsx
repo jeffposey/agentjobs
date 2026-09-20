@@ -31,8 +31,11 @@ import { client } from "../api/generated/client.gen";
  * **It never moves the header.** The popup is `absolute`, so opening it overlays the
  * page instead of pushing it down under a bar that is pinned. Its z-order needs no
  * rule of its own: the header is `z-30`, which is a stacking context, so everything
- * here paints below IssueReporter's `z-40` button and `z-50` modal whatever this file
- * says.
+ * here paints below the capture dialog's `z-50` whatever this file says.
+ *
+ * **It is no longer what right-aligns itself.** task-346's capture trigger sits beside
+ * it, and `ml-auto` moved to the wrapper holding both: two auto margins in one flex row
+ * divide the free space rather than pushing the pair to the edge.
  */
 
 /** Which of the menu's surfaces is on screen. Adding one is a branch, not a popup. */
@@ -256,7 +259,7 @@ export function ActionsMenu({
   };
 
   return (
-    <div ref={rootRef} className="relative ml-auto shrink-0">
+    <div ref={rootRef} className="relative shrink-0">
       <button
         ref={triggerRef}
         type="button"

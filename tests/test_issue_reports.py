@@ -53,7 +53,7 @@ def client() -> TestClient:
 
 
 def report_payload(**overrides: object) -> dict:
-    """The body the Report Issue form sends, matching buildIssueTaskRequest."""
+    """The body the capture form sends, matching buildCaptureRequest."""
     payload: dict = {
         "title": "Task list filters match nothing",
         "description": "Every filter returns zero rows.\n\n---\nReported from the AgentJobs UI.",

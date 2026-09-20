@@ -8,15 +8,17 @@ import { expect, test, type Page } from "@playwright/test";
  */
 
 async function createTask(page: Page, title: string, lifecycle: "Draft" | "Ready") {
-  await page.goto("/app/");
-  // The nav link, not the dashboard's call-to-action button: that one renders only
-  // for some dashboard states, and creating drafts moves the dashboard out of them.
-  await page.getByRole("link", { name: "Create", exact: true }).click();
+  // The create page directly. It is no longer a nav destination -- task-346 replaced
+  // that link with the header's capture control -- and this spec is not about how you
+  // reach the form.
+  await page.goto("/app/p/_local/tasks/new");
   await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
   await page.getByRole("textbox", { name: /^Summary/ }).fill("A task written from the UI.");
-  await page.getByRole("textbox", { name: /^Working description/ }).fill("Exercising the promote control.");
-  await page.getByRole("radio", { name: new RegExp(`^${lifecycle}`) }).check();
-  await page.getByRole("button", { name: "Create task" }).click();
+  await page.getByRole("textbox", { name: /^What happened/ }).fill("Exercising the promote control.");
+  // One checkbox since task-346, not a pair of radios: off is draft, on is ready.
+  const ready = page.getByRole("checkbox", { name: /^Ready for an agent/ });
+  if (lifecycle === "Ready") await ready.check();
+  await page.getByRole("button", { name: "File it" }).click();
   await expect(page).toHaveURL(/\/tasks\?status=all$/);
 }
 

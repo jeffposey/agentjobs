@@ -192,13 +192,13 @@ test("the record's id, title and status stay put while its log scrolls", async (
   expect(after!.status, "the ball is no longer readable from the pinned header").toBeTruthy();
 });
 
-test("Dashboard, Create and Dispatch still fill the window and have no sidebar", async ({
+test("Dashboard, the create page and Dispatch still fill the window and have no sidebar", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   for (const [name, path] of [
     ["Dashboard", ""],
-    ["Create", "/tasks/new"],
+    ["Create page", "/tasks/new"],
     ["Dispatch", "/dispatch"],
   ] as const) {
     await page.goto(`/app/p/_local${path}`);

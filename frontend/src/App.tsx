@@ -54,6 +54,8 @@ import type {
   QueuedDispatchView,
 } from "./api/types";
 import { readRefusal } from "./api/mutation-error";
+import { newOperationId } from "./api/operationId";
+import { readReportContext } from "./report/issueReport";
 import {
   requireSupportedTaskSchemas,
   UnsupportedTaskSchemaError,
@@ -73,8 +75,8 @@ import { DispatchRunOutput } from "./components/DispatchOutput";
 import { finishPollInterval } from "./components/FinishPanel";
 import { TaskList, type ReorderHandlers, type TaskListVariant } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
-import { TaskCreate } from "./components/TaskCreate";
-import { IssueReporter } from "./components/IssueReporter";
+import { CaptureForm } from "./components/CaptureForm";
+import { GlobalCapture } from "./components/CaptureControl";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
 import { LiveRunCount, LiveRunsPage, useLiveRuns } from "./components/LiveRuns";
@@ -430,7 +432,7 @@ function TaskListPage({
           const result = (await move.mutateAsync({
             path: { project_id: projectId, task_id: taskId },
             query: { envelope: true },
-            body: { actor, operation_id: crypto.randomUUID(), ...placement },
+            body: { actor, operation_id: newOperationId(), ...placement },
           })) as MutationResultOutput;
           await invalidateProjectTaskQueries(queryClient, projectId);
           return {
@@ -445,7 +447,7 @@ function TaskListPage({
           // who clicked Keep with no anchor and no explanation.
           await keep.mutateAsync({
             path: { project_id: projectId, task_id: taskId },
-            body: { actor, operation_id: crypto.randomUUID() },
+            body: { actor, operation_id: newOperationId() },
           });
           await invalidateProjectTaskQueries(queryClient, projectId);
         },
@@ -458,7 +460,7 @@ function TaskListPage({
             path: { project_id: projectId, task_id: taskId },
             body: {
               actor,
-              operation_id: crypto.randomUUID(),
+              operation_id: newOperationId(),
               expected_revision: revisionOf(taskId),
               priority: priority as Priority,
               before,
@@ -930,7 +932,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
           await update.mutateAsync({
             path: { project_id: projectId, task_id: taskId },
             query: { actor: user },
-            body: { ...patch, expected_revision: revision, operation_id: crypto.randomUUID() },
+            body: { ...patch, expected_revision: revision, operation_id: newOperationId() },
           });
         } catch (error) {
           const refusal = readRefusal(error);
@@ -997,9 +999,19 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   );
 }
 
+/**
+ * `/tasks/new`: the capture form as a page, with the specification already open.
+ *
+ * The same component the header's capture control opens, not a second authoring form
+ * (task-346). The route stays because links to it do -- the Dashboard's "File a new
+ * task", a bookmark, anything anybody pasted into a task record -- and because the
+ * whole specification is easier to read on a page than in a dialog. What it is *not*
+ * any more is the only way to reach those fields.
+ */
 function TaskCreatePage({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const tasksQuery = useQuery(
     listTasksApiProjectsProjectIdTasksGetOptions({ path: { project_id: projectId } }),
   );
@@ -1008,23 +1020,54 @@ function TaskCreatePage({ projectId }: { projectId: string }) {
   // who asked for it, and, since a dispatch must trace to a human's entry, a task that
   // can never be dispatched. Every task made in this browser had that shape until now.
   const projectsQuery = useQuery(getProjectsApiProjectsGetOptions());
-  const author = projectsQuery.data?.find((entry) => entry.id === projectId)?.default_user ?? null;
   const create = useMutation(createTaskApiProjectsProjectIdTasksPostMutation());
+  const destinations = (projectsQuery.data ?? []).map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    reporter: entry.default_user ?? null,
+  }));
 
   return (
-    <TaskCreate
-      projectId={projectId}
-      existingTaskIds={(tasksQuery.data ?? []).map((task) => task.id)}
-      onCreate={async (request) => {
-        const task = await create.mutateAsync({
-          path: { project_id: projectId },
-          body: { ...request, actor: author },
-        });
-        await queryClient.invalidateQueries();
-        navigate(`/p/${encodeURIComponent(projectId)}/tasks?status=all`);
-        return task;
-      }}
-    />
+    <section className="mx-auto max-w-3xl space-y-6" aria-labelledby="capture-page-heading">
+      <header>
+        <p className="text-sm font-semibold uppercase tracking-wide text-blue-300">New task</p>
+        <h2 id="capture-page-heading" className="mt-1 text-3xl font-bold">
+          Give the next reader enough to resume
+        </h2>
+        <p className="mt-2 text-dark-muted">
+          The summary orients them; the working description tells them what to do.
+        </p>
+      </header>
+      <CaptureForm
+        context={readReportContext(location.pathname)}
+        destinations={destinations}
+        existingTaskIds={(tasksQuery.data ?? []).map((task) => task.id)}
+        startExpanded
+        onSubmit={async (destinationId, request) => {
+          try {
+            return await create.mutateAsync({
+              path: { project_id: destinationId },
+              body: request,
+            });
+          } catch (caught) {
+            const refusal = readRefusal(caught);
+            throw new Error(refusal ? refusal.message : "");
+          }
+        }}
+        onFiled={(destinationId) => {
+          void queryClient.invalidateQueries();
+          navigate(`/p/${encodeURIComponent(destinationId)}/tasks?status=all`);
+        }}
+        cancel={
+          <Link
+            to={`/p/${encodeURIComponent(projectId)}/tasks`}
+            className="touch-target rounded-lg px-4 font-semibold text-dark-muted hover:bg-dark-border"
+          >
+            Cancel
+          </Link>
+        }
+      />
+    </section>
   );
 }
 
@@ -1337,9 +1380,11 @@ export function App() {
         <Route path="not-found" element={<StatusCard title="Page not found"><Link to="/">Return to AgentJobs</Link></StatusCard>} />
         <Route path="*" element={<Navigate to="/not-found" replace />} />
       </Routes>
-      {/* Outside the routes on purpose: a finding is noticed on whatever page you are
-          on, including the ones that render while no project has resolved yet. */}
-      <IssueReporter />
+      {/* Outside the routes on purpose: something is noticed on whatever page you are
+          on, including the ones that render while no project has resolved yet. Inside
+          the project shell the header carries the same control, and this renders
+          nothing. */}
+      <GlobalCapture />
       {/* Beside the routes for the same reason, and one more: a bundle talking to a
           server it was not built against can break the pages that render before any
           project resolves, so the warning cannot live inside one of them. */}

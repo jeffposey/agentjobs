@@ -51,7 +51,6 @@ describe("PrimaryNav", () => {
     for (const label of [
       "Dashboard",
       "Tasks",
-      "Create",
       "Dispatch",
       "Playbooks",
       "Runs",
@@ -162,9 +161,10 @@ describe("currentDestinationPath", () => {
     ["/p/demo/", ""],
     ["/p/demo/tasks", "/tasks"],
     ["/p/demo/tasks/task-042", "/tasks"],
-    // The case the whole longest-match rule exists for: `/tasks` matches this URL
-    // too, and marking both would be no more use than marking neither.
-    ["/p/demo/tasks/new", "/tasks/new"],
+    // The rule's answer with no deeper entry to find. `/tasks/new` had its own
+    // destination until task-346 replaced Create with the capture control; longest
+    // match now lands on `/tasks`, which is where creating a task belongs anyway.
+    ["/p/demo/tasks/new", "/tasks"],
     ["/p/demo/dispatch", "/dispatch"],
     ["/p/demo/playbooks", "/playbooks"],
     ["/p/demo/runs", "/runs"],
@@ -189,7 +189,9 @@ describe("PrimaryNav current destination", () => {
     ["/p/demo", "Dashboard"],
     ["/p/demo/tasks", "Tasks"],
     ["/p/demo/tasks/task-042", "Tasks"],
-    ["/p/demo/tasks/new", "Create"],
+    // No Create destination since task-346: the capture control replaced it, and
+    // longest-match has nothing deeper than Tasks to offer this URL.
+    ["/p/demo/tasks/new", "Tasks"],
     ["/p/demo/dispatch", "Dispatch"],
     ["/p/demo/playbooks", "Playbooks"],
     ["/p/demo/runs", "Runs"],
@@ -226,12 +228,16 @@ describe("PrimaryNav current destination", () => {
     }
   });
 
-  it("gives Create no accent of its own, so colour in the bar means one thing", () => {
+  it("keeps the capture control out of the destinations, so colour still means one thing", () => {
     // The report's actual cause: on the Dashboard, Create was the only coloured entry
-    // in the bar and read as the selected tab. Regression guard, not tidiness.
+    // in the bar and read as the selected tab. task-346 removed that link and put the
+    // act behind a button -- so the guard is now that the button is not a destination
+    // and is not marked as one, whatever page you are on.
     renderNav("/p/demo");
-    const create = screen.getByRole("link", { name: "Create" });
-    const tasks = screen.getByRole("link", { name: "Tasks" });
-    expect(create.className).toBe(tasks.className);
+    const capture = screen.getByRole("button", { name: "New task or issue" });
+    expect(capture).not.toHaveAttribute("aria-current");
+    expect(screen.queryByRole("link", { name: "Create" })).toBeNull();
+    expect(current()).toHaveLength(1);
+    expect(current()[0]).toHaveTextContent("Dashboard");
   });
 });
