@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode, type RefObject } from "react";
 
 import {
   AttachmentRejected,
@@ -33,6 +33,13 @@ type AttachmentPickerProps = {
   name?: string;
   required?: boolean;
   autoFocus?: boolean;
+  /**
+   * The textarea itself, for a caller that needs to write into it -- the dictation
+   * control finds the element this way rather than this file learning about voice.
+   */
+  textareaRef?: RefObject<HTMLTextAreaElement | null>;
+  /** Rendered directly under the box. The microphone goes here; nothing else does. */
+  under?: ReactNode;
 };
 
 export function AttachmentPicker({
@@ -47,6 +54,8 @@ export function AttachmentPicker({
   name,
   required,
   autoFocus,
+  textareaRef,
+  under,
 }: AttachmentPickerProps) {
   const [error, setError] = useState<string | null>(null);
   const fileInputId = useId();
@@ -77,6 +86,7 @@ export function AttachmentPicker({
         {label}
         {hint && <span className="mt-1 block text-xs font-normal text-dark-muted">{hint}</span>}
         <textarea
+          ref={textareaRef}
           // Named explicitly, so the accessible name stays the label alone rather than
           // absorbing the hint and the paste instructions wrapped in the same element.
           aria-label={label}
@@ -104,6 +114,8 @@ export function AttachmentPicker({
           className={textareaClassName}
         />
       </label>
+
+      {under}
 
       {/* A control, not a caption. This started life as one line of muted 12px text
           under the box, and the first person to review it said there was no way to

@@ -290,6 +290,44 @@ transcript quality was not measured because Chrome's speech recogniser does not 
 `--use-file-for-fake-audio-capture` and this machine's default input device captures
 digital silence.
 
+### What was built (task-172)
+
+One control, `frontend/src/components/DictationControl.tsx`, beside every free-text
+field on the capture surfaces: the issue reporter's title and details and its drafted
+spec fields, the create form's title, summary, description, intent, constraints, out of
+scope and acceptance criteria, and the dispatch brief. The recogniser's lifecycle is
+`frontend/src/voice/useDictation.ts`; the browser's API is wrapped once in
+`frontend/src/voice/speech.ts`.
+
+Four things about it are consequences of the measurements above rather than taste.
+
+**Text reaches the field one recogniser session at a time, not one result at a time.**
+`event.results` is read whole and written once when the session ends, which is what
+makes the re-sent-and-lengthened Android result harmless — there is no place left for an
+incremental reader to duplicate from. The cost is that words land in chunks; the interim
+line pays for it by showing what is being heard before it arrives.
+
+**The words go in at the caret, through the field itself.** `insertText` first, so the
+browser's own undo stack takes the insertion and Ctrl+Z takes back a sentence you did
+not mean to say; the native value setter and a dispatched `input` event where that is
+missing. Nothing is intercepted, nothing is cancelled, and the field keeps its own type,
+name, handlers and value — which is the constraint the section above leaves behind.
+
+**The mode is one answer shared by every control on the page**, not one per field. It
+has to be: taking up the one-time download in one place while six other fields go on
+saying the audio leaves would be six wrong sentences, and the wrong ones are the
+sentences about privacy. For the same reason the download is offered once per form
+rather than once per field, and only where `available({processLocally:true})` reported
+`downloadable`.
+
+**`scripts/dictation_sandbox.py` is how this gets looked at.** It serves both halves in
+one browser: `?dictation=off` deletes both constructors before the bundle runs, so the
+Firefox path can be seen without Firefox, and `?dictation=fake` drives a scripted
+recogniser that ends its session the way Android does, so the restart-and-stitch
+behaviour can be seen on a machine with no usable microphone. Both shims are in the
+sandbox and neither is in the application — the application only ever feature-detects
+what the browser really has.
+
 ### Sending audio to a server instead
 
 Rejected for now; see task-173. It is the only path that covers a browser with no speech
