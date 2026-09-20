@@ -576,6 +576,15 @@ class TaskManager:
         """Search tasks by query string."""
         return self.storage.search_tasks(query)
 
+    def search_task_summaries(self, query: str) -> List[TaskSummary]:
+        """:meth:`search_tasks`, projected -- same hits, in the same relevance order.
+
+        No listing filters and no re-sorting, unlike :meth:`list_task_summaries`: a
+        search's order *is* its answer, and the queue's order is not what a reader asked
+        for.
+        """
+        return self.storage.search_task_summaries(query)
+
     def _dependency_states(self) -> Dict[str, bool]:
         """Every task id in this project, mapped to whether it is closed.
 

@@ -9,7 +9,7 @@ import type {
   MachineHolderView,
   QueuedDispatchView,
   StartPauseView,
-  TaskRead,
+  TaskCardRead,
 } from "../api/types";
 import { capacitySentence } from "./LiveRuns";
 import { BOARD_CELL_LIMIT, SlotBoard, boardLayout, orderedRuns } from "./SlotBoard";
@@ -99,7 +99,7 @@ function queued(overrides: Partial<QueuedDispatchView> = {}): QueuedDispatchView
   };
 }
 
-function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
+function task(id: string, overrides: Partial<TaskCardRead> = {}): TaskCardRead {
   return {
     schema: 2,
     id,
@@ -112,7 +112,8 @@ function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
     display_status: "Ready",
     priority: "medium",
     category: "general",
-    spec: { summary: `Summary of ${id}`, description: "Body." },
+    summary: `Summary of ${id}`,
+    can_brief: true,
     ...overrides,
   };
 }

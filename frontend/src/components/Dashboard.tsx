@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-import type { DashboardResponse, TaskRead } from "../api/types";
+import type { DashboardResponse, TaskCardRead } from "../api/types";
 import { BrokenFiles } from "./BrokenFiles";
 import { DependencyState } from "./DependencyState";
 import { QueueBroken } from "./QueueBroken";
@@ -121,7 +121,7 @@ const UPDATES_PREVIEW = 3;
  * Everything a reader picks a row by is still here -- title, summary, priority and
  * whether it is blocked -- on one line each.
  */
-function TaskCard({ task, projectId }: { task: TaskRead; projectId: string }) {
+function TaskCard({ task, projectId }: { task: TaskCardRead; projectId: string }) {
   return (
     <Link
       to={projectPath(projectId, `/tasks/${encodeURIComponent(task.id)}`)}
@@ -130,7 +130,7 @@ function TaskCard({ task, projectId }: { task: TaskRead; projectId: string }) {
       <div className="flex flex-col items-start justify-between gap-1 min-[820px]:flex-row min-[820px]:items-center min-[820px]:gap-4">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-medium">{task.title}</h3>
-          <p className="truncate text-xs text-dark-muted">{truncate(task.spec.summary, 120)}</p>
+          <p className="truncate text-xs text-dark-muted">{truncate(task.summary, 120)}</p>
         </div>
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
           <Badge className={priorityClasses[task.priority ?? "medium"] ?? priorityClasses.medium}>
@@ -202,7 +202,7 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
                         <div className="font-mono text-xs text-blue-400">{task.id}</div>
                         <h3 className="font-medium text-dark-text">{task.title}</h3>
                         <p className="mt-1 text-sm text-dark-muted">
-                          {truncate(task.ball_prompt ?? task.spec.summary, 160)}
+                          {truncate(task.ball_prompt ?? task.summary, 160)}
                         </p>
                       </div>
                       <Badge className="bg-red-900 text-red-200">{task.display_status}</Badge>

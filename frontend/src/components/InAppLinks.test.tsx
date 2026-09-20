@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import type { DashboardResponse, TaskRead } from "../api/types";
+import type { DashboardResponse, TaskCardRead, TaskRead } from "../api/types";
 import { Dashboard } from "./Dashboard";
 import { TaskList } from "./TaskList";
 
@@ -43,6 +43,17 @@ function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
     spec: { summary: `Summary of ${id}`, description: "Body." },
     ...overrides,
   };
+}
+
+/**
+ * The dashboard's row shape: a listing row plus the summary line and one derived bit.
+ *
+ * Separate from `task` above because the dashboard stopped answering with whole records
+ * in task-495 -- a `spec` here would not compile, which is the point.
+ */
+function card(id: string, overrides: Partial<TaskCardRead> = {}): TaskCardRead {
+  const { spec, ...row } = task(id);
+  return { ...row, summary: spec.summary ?? "", can_brief: true, ...overrides };
 }
 
 function dashboard(overrides: Partial<DashboardResponse> = {}): DashboardResponse {
@@ -124,9 +135,9 @@ describe("in-app links keep the router basename", () => {
       <MemoryRouter basename={BASENAME} initialEntries={["/app/p/inbox"]}>
         <Dashboard
           dashboard={dashboard({
-            active_tasks: [task("task-001", { lifecycle: "active", display_status: "In flight" })],
+            active_tasks: [card("task-001", { lifecycle: "active", display_status: "In flight" })],
             waiting_tasks: [
-              task("task-002", {
+              card("task-002", {
                 lifecycle: "active",
                 ball: "human",
                 ball_reason: "review",

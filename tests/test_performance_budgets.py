@@ -450,19 +450,25 @@ class TestTheRevisionPollStaysCheap:
 #: to (``frontend/e2e/perf-budget.spec.ts``, task-487), deliberately: two budgets on one
 #: payload that disagree about what is acceptable is one budget and one argument.
 #:
-#: **Two of these three numbers are the defect, not the target.** ``/dashboard`` and
-#: ``/search`` still answer with whole ``TaskRead`` records -- every task's spec prose,
-#: acceptance criteria and complete log -- which is 5.2 MB each at this corpus and the
-#: same shape task-484 took out of ``/tasks``. They are recorded and held where they
-#: stand rather than fixed, because fixing an endpoint was out of scope for the task
-#: that wrote this file (task-486); the finding is on that task's record. A ceiling
-#: close above a bad number still catches it getting worse, which is more than the file
-#: did before.
+#: **One ceiling, because these are one shape.** All three answer with the listing row --
+#: ``/dashboard`` with the row plus a summary line and one derived bit (task-495) -- so
+#: holding them to three different numbers would be three chances to disagree about what
+#: a row costs. 1,500 is the number ``frontend/e2e/perf-budget.spec.ts`` already holds
+#: ``/tasks`` to (task-487), deliberately: two budgets on one payload that disagree about
+#: what is acceptable is one budget and one argument.
+#:
+#: **Two of these three were the defect when this file was written** (task-486), at
+#: 10,888 and 10,781 bytes per record against a 15,000 ceiling: ``/dashboard`` and
+#: ``/search`` answered with whole ``TaskRead`` records -- every task's spec prose,
+#: acceptance criteria and complete log -- which was 5.2 MB each at this corpus. Fixing an
+#: endpoint was out of scope for that task, so the numbers were recorded and held where
+#: they stood; task-495 brought both down and the ceilings with them, which is the order
+#: that was intended.
 PAYLOAD_BUDGETS: Dict[str, Tuple[int, int]] = {
     # path                        measured  ceiling
     f"{LOCAL}/tasks": (785, 1_500),
-    f"{LOCAL}/dashboard": (10_888, 15_000),
-    f"{LOCAL}/search?q=generated": (10_781, 15_000),
+    f"{LOCAL}/dashboard": (871, 1_500),
+    f"{LOCAL}/search?q=generated": (785, 1_500),
 }
 
 #: Responses whose size is set by one record rather than by the backlog. Held to an
@@ -569,12 +575,16 @@ class TestAPayloadDoesNotGrowWithTheBacklog:
 #: than fixed -- fixing an endpoint is out of scope for the task that wrote this file
 #: (task-486). ``/detail`` assembles the whole corpus twice; ``/dashboard`` asks
 #: ``import_quarantine`` four separate times.
+#:
+#: ``/search`` fell from 17 to 11 when task-495 narrowed it: a search of tasks that are
+#: not parked on a service reads no ``log_entry`` rows at all, and the six statements it
+#: no longer runs were the joins that assembled the logs it was sending.
 QUERY_BUDGETS: Dict[str, Tuple[int, int]] = {
     # path                                  measured  ceiling
     f"{LOCAL}/tasks": (5, 12),
     f"{LOCAL}/dashboard": (14, 24),
     f"{LOCAL}/tasks/{SAMPLE_TASK}/detail": (32, 48),
-    f"{LOCAL}/search?q=generated": (17, 28),
+    f"{LOCAL}/search?q=generated": (11, 20),
     f"{LOCAL}/tasks/next": (11, 20),
     f"{LOCAL}/tasks/broken": (1, 8),
     f"{LOCAL}/revision": (1, 4),

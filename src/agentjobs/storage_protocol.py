@@ -74,6 +74,16 @@ class TaskStore(Protocol):
     def search_tasks(self, query: str) -> List[Task]:
         """Tasks matching free text, most relevant first, exact id matches leading."""
 
+    def search_task_summaries(self, query: str) -> List[TaskSummary]:
+        """:meth:`search_tasks`, projected -- same hits, same order, no prose or log.
+
+        On the boundary for the reason :meth:`list_task_summaries` is: the surface that
+        wants it is a list of results, and it must not have to know which backend
+        answered. A search result has no consumer for a log, so a backend with columns
+        reads the columns; one with no cheaper path projects whole records with
+        ``summary_of`` (task-495).
+        """
+
     def project_revision(self) -> Tuple[str, int]:
         """``(token, count)``, where the token changes whenever any task changes.
 

@@ -26,7 +26,7 @@ from ..models import (
     AttentionResponse,
     DashboardResponse,
     ReviewIdentity,
-    TaskRead,
+    TaskCardRead,
 )
 
 router = APIRouter(tags=["dashboard"])
@@ -59,11 +59,16 @@ async def get_dashboard(
     facts = manager.dependency_facts(corpus=manager.list_tasks())
     identity = current_identity(project, principal)
 
-    def read(task: Optional[Task]) -> Optional[TaskRead]:
-        return TaskRead.from_task(task, facts[task.id]) if task is not None else None
+    # Cards, not records. Each list here is a page of cards drawing a title, a summary
+    # line, a priority chip and a dependency badge; sending the whole record to draw one
+    # was 5.2 MB at 480 tasks and grew with every log entry appended to any of them
+    # (task-495). `TaskCardRead` is the listing row plus the summary line, which is the
+    # only field on a card that a row does not already carry.
+    def read(task: Optional[Task]) -> Optional[TaskCardRead]:
+        return TaskCardRead.from_task(task, facts[task.id]) if task is not None else None
 
-    def reads(tasks: list[Task]) -> list[TaskRead]:
-        return [TaskRead.from_task(task, facts[task.id]) for task in tasks]
+    def reads(tasks: list[Task]) -> list[TaskCardRead]:
+        return TaskCardRead.from_tasks(facts, tasks)
 
     return DashboardResponse(
         **{

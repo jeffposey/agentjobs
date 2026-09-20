@@ -18,3 +18,9 @@ export type { TaskReadOutput as TaskRead } from "./generated";
 // acceptance criteria or the log reads the detail route instead, which is the fetch
 // opening a task already makes.
 export type { TaskSummaryReadOutput as TaskSummaryRead } from "./generated";
+
+// The dashboard's card. A listing row plus the one-line summary every card on that page
+// prints under the title, and nothing else (task-495). `GET /dashboard` answered with
+// whole records until then, which was 5.2 MB at 480 tasks -- every task's spec prose,
+// acceptance criteria and complete log, to draw a title, a summary and two badges.
+export type { TaskCardReadOutput as TaskCardRead } from "./generated";

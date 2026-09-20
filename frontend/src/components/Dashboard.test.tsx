@@ -2,10 +2,10 @@ import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import type { DashboardResponse, TaskRead } from "../api/types";
+import type { DashboardResponse, TaskCardRead } from "../api/types";
 import { Dashboard } from "./Dashboard";
 
-function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
+function task(id: string, overrides: Partial<TaskCardRead> = {}): TaskCardRead {
   return {
     schema: 2,
     id,
@@ -18,7 +18,8 @@ function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
     display_status: "Ready",
     priority: "medium",
     category: "general",
-    spec: { summary: `Summary of ${id}`, description: "Body." },
+    summary: `Summary of ${id}`,
+    can_brief: true,
     ...overrides,
   };
 }

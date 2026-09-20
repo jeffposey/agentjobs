@@ -280,6 +280,87 @@ class TestTheListingIsCheaper:
         )
 
 
+class TestSearchIsProjectedToo:
+    """``search_task_summaries`` against ``search_tasks``: same hits, same order, no log.
+
+    The listing above is task-484's projection; this is the same relation on the search
+    route, which kept answering with whole records for another day (task-495). Held here
+    rather than in an API test because what must not drift is the *store's* two answers:
+    a search that returned different tasks, or the same tasks in a different order, once
+    it stopped reading logs would be a search that changed its answer to get faster.
+    """
+
+    @pytest.fixture
+    def corpus(self, manager: TaskManager) -> List[Task]:
+        first = _task(
+            manager,
+            title="Findable by title",
+            description="Mentions the needle in its description.",
+            priority="high",
+        )
+        second = _task(
+            manager,
+            title="Also findable",
+            description="The needle is in here too.",
+            tags=["performance"],
+        )
+        manager.claim_task(second.id, agent="claude")
+        _task(manager, title="Unrelated", description="Nothing to find here.")
+        return [first, second]
+
+    def test_the_same_hits_in_the_same_order(
+        self, manager: TaskManager, corpus: List[Task]
+    ) -> None:
+        assert corpus
+        full = manager.storage.search_tasks("needle")
+        rows = manager.storage.search_task_summaries("needle")
+
+        assert {task.id for task in full} == {task.id for task in corpus}, (
+            "the fixture's own search did not find both matches, so the comparison below "
+            "would be vacuous"
+        )
+        # The order itself is FTS rank and is not this test's business; that the two
+        # shapes produce the *same* order is.
+        assert [row.id for row in rows] == [task.id for task in full]
+
+    def test_every_shared_field_agrees(self, manager: TaskManager, corpus: List[Task]) -> None:
+        assert corpus
+        full = manager.storage.search_tasks("needle")
+        rows = manager.storage.search_task_summaries("needle")
+        for task, row in zip(full, rows):
+            assert summary_of(task) == row, task.id
+
+    def test_a_blank_query_finds_nothing_in_either_shape(self, manager: TaskManager) -> None:
+        assert manager.storage.search_tasks("  ") == []
+        assert manager.storage.search_task_summaries("  ") == []
+
+    def test_no_log_rows_are_read_for_an_unparked_corpus(
+        self, manager: TaskManager, corpus: List[Task]
+    ) -> None:
+        """The same assertion the listing makes, on the same reasoning.
+
+        A statement count rather than a duration: a search that went back to assembling
+        logs would still be under any wall-clock threshold on a fast day, and it is the
+        joins rather than the milliseconds that this change removed.
+        """
+        assert corpus
+        store = manager.storage
+        connection = store.read_connection()
+        statements: List[str] = []
+        connection.set_trace_callback(statements.append)
+        try:
+            rows = store.search_task_summaries("needle")
+        finally:
+            connection.set_trace_callback(None)
+
+        assert len(rows) == 2
+        touched_the_log = [sql for sql in statements if "log_entry" in sql]
+        assert not touched_the_log, (
+            "the search joined log_entry for a corpus with nothing parked on a service: "
+            f"{touched_the_log}"
+        )
+
+
 def test_a_summary_is_not_a_task() -> None:
     """The projection is a separate type, not a ``Task`` with its collections emptied.
 

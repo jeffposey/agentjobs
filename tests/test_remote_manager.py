@@ -451,6 +451,7 @@ class TestTheSurfacesAgree:
             "release_task",
             "repair_queue",
             "reprioritize",
+            "search_task_summaries",
             "search_tasks",
             "update_task",
         }

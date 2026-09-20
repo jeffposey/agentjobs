@@ -305,8 +305,18 @@ class RemoteTaskManager:
         return [TaskSummary.model_validate(row) for row in self.client.read_tasks(**filters)]
 
     def search_tasks(self, query: str) -> List[Task]:
-        """Free-text search, most relevant first."""
+        """Free-text search, whole records, most relevant first."""
         return self.client.search_tasks(query)
+
+    def search_task_summaries(self, query: str) -> List[TaskSummary]:
+        """The same hits as rows, read from the search route itself.
+
+        Genuinely cheaper over the wire rather than the same call renamed: ``GET
+        /search`` answers with rows, so the projection crosses the wire projected
+        (task-495). Whole records are ``GET /search/full``, which is what
+        :meth:`search_tasks` above asks for.
+        """
+        return [TaskSummary.model_validate(row) for row in self.client.read_search(query)]
 
     def get_next_task(
         self,

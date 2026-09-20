@@ -1292,18 +1292,18 @@
         "type": "object"
       },
       "DashboardResponse": {
-        "description": "The complete Python-computed dashboard contract.",
+        "description": "The complete Python-computed dashboard contract.\n\nEvery task list here is a :class:`TaskCardRead`, not a whole record. It answered\nwith whole ``TaskRead`` records until task-495 -- spec prose, acceptance criteria and\nthe complete log of every task on the page -- which measured 10,888 bytes per record\nand 5.2 MB in total against a generated corpus of 480, to draw cards showing a title,\na summary line, a priority chip and a dependency badge.",
         "properties": {
           "active_tasks": {
             "items": {
-              "$ref": "#/components/schemas/TaskRead-Output"
+              "$ref": "#/components/schemas/TaskCardRead-Output"
             },
             "title": "Active Tasks",
             "type": "array"
           },
           "backlog_tasks": {
             "items": {
-              "$ref": "#/components/schemas/TaskRead-Output"
+              "$ref": "#/components/schemas/TaskCardRead-Output"
             },
             "title": "Backlog Tasks",
             "type": "array"
@@ -1333,7 +1333,7 @@
           "next_task": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TaskRead-Output"
+                "$ref": "#/components/schemas/TaskCardRead-Output"
               },
               {
                 "type": "null"
@@ -1353,7 +1353,7 @@
           "queue_preview": {
             "description": "The head of the claimable queue, in the queue's own order. `next_task` is its first element. Sent as a list because the slot board offers a way to *start* each of them, one per free run slot -- so it is at least `QUEUE_PREVIEW_LIMIT` long and grows with this machine's `max_concurrent_runs`, which is what decides how many cells the board has.",
             "items": {
-              "$ref": "#/components/schemas/TaskRead-Output"
+              "$ref": "#/components/schemas/TaskCardRead-Output"
             },
             "title": "Queue Preview",
             "type": "array"
@@ -1370,7 +1370,7 @@
           },
           "waiting_tasks": {
             "items": {
-              "$ref": "#/components/schemas/TaskRead-Output"
+              "$ref": "#/components/schemas/TaskCardRead-Output"
             },
             "title": "Waiting Tasks",
             "type": "array"
@@ -8049,6 +8049,477 @@
         "title": "Task",
         "type": "object"
       },
+      "TaskCardRead-Input": {
+        "additionalProperties": false,
+        "description": "A dashboard card: a listing row, plus the one line a card prints.\n\nThe dashboard is a page of cards rather than a table, and every one of them --\n``TaskCard`` on the panels, the free cells of the slot board -- draws the task's\none-sentence summary under its title. That is the single field the listing row does\nnot carry, so it is the single field added here.\n\n**Why a fourth read model rather than putting ``summary`` on ``TaskSummary``.** That\nwould have put it on ``GET /tasks`` as well, where nothing draws it: the summary\naverages 293 bytes on this repository's own backlog, which is a third again on top\nof a row that task-484 had just cut to 785, spent on a field no consumer reads. A\nsurface gets the fields it draws, which is the whole of task-483's argument, and\n\"one more field, everywhere\" is how a projection grows back into a record.\n\nBuilt from whole records rather than from rows, because the dashboard has them in\nhand: its recent-updates panel is the ten newest log entries in the project, so the\nsnapshot behind this reads logs whatever the cards need. See\n:func:`agentjobs.dashboard.build_dashboard_snapshot`.",
+        "properties": {
+          "actionable": {
+            "default": false,
+            "title": "Actionable",
+            "type": "boolean"
+          },
+          "archived": {
+            "default": false,
+            "description": "Visibility flag, orthogonal to how the task ended.",
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/Assignment"
+          },
+          "ball": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ball"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who acts next. Required while open."
+          },
+          "ball_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ask, addressed to whoever holds the ball. Required when ball is set.",
+            "title": "Ball Prompt"
+          },
+          "ball_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BallReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why they hold it, scoped to the holder."
+          },
+          "can_brief": {
+            "title": "Can Brief",
+            "type": "boolean"
+          },
+          "category": {
+            "description": "Project taxonomy; validated against config.",
+            "title": "Category",
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free text. An estimate, not a contract.",
+            "title": "Effort"
+          },
+          "id": {
+            "description": "Unique task identifier.",
+            "title": "Id",
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle",
+            "default": "draft"
+          },
+          "needs_cycles": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Needs Cycles",
+            "type": "array"
+          },
+          "open_children_count": {
+            "default": 0,
+            "title": "Open Children Count",
+            "type": "integer"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Outcome"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How it ended. Set only when closed."
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Task id of the umbrella task, if any.",
+            "title": "Parent"
+          },
+          "posture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DispatchPosture"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This task's request for a dispatch envelope. A request, not a grant."
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority",
+            "default": "medium"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Order within the priority band. Present if and only if the task is open.",
+            "title": "Queue Position"
+          },
+          "queued_dispatch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueuedDispatchState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schema": {
+            "default": 2,
+            "description": "Schema version stamp. Always 2 for this model (D3).",
+            "title": "Schema",
+            "type": "integer"
+          },
+          "self_clearing_wait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelfClearingWait"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "description": "Task title.",
+            "title": "Title",
+            "type": "string"
+          },
+          "unblocks_count": {
+            "default": 0,
+            "title": "Unblocks Count",
+            "type": "integer"
+          },
+          "unmet_needs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unmet Needs",
+            "type": "array"
+          },
+          "updated": {
+            "format": "date-time",
+            "title": "Updated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created",
+          "updated",
+          "category",
+          "summary",
+          "can_brief"
+        ],
+        "title": "TaskCardRead",
+        "type": "object"
+      },
+      "TaskCardRead-Output": {
+        "additionalProperties": false,
+        "description": "A dashboard card: a listing row, plus the one line a card prints.\n\nThe dashboard is a page of cards rather than a table, and every one of them --\n``TaskCard`` on the panels, the free cells of the slot board -- draws the task's\none-sentence summary under its title. That is the single field the listing row does\nnot carry, so it is the single field added here.\n\n**Why a fourth read model rather than putting ``summary`` on ``TaskSummary``.** That\nwould have put it on ``GET /tasks`` as well, where nothing draws it: the summary\naverages 293 bytes on this repository's own backlog, which is a third again on top\nof a row that task-484 had just cut to 785, spent on a field no consumer reads. A\nsurface gets the fields it draws, which is the whole of task-483's argument, and\n\"one more field, everywhere\" is how a projection grows back into a record.\n\nBuilt from whole records rather than from rows, because the dashboard has them in\nhand: its recent-updates panel is the ten newest log entries in the project, so the\nsnapshot behind this reads logs whatever the cards need. See\n:func:`agentjobs.dashboard.build_dashboard_snapshot`.",
+        "properties": {
+          "actionable": {
+            "default": false,
+            "title": "Actionable",
+            "type": "boolean"
+          },
+          "archived": {
+            "default": false,
+            "description": "Visibility flag, orthogonal to how the task ended.",
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/Assignment"
+          },
+          "ball": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ball"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who acts next. Required while open."
+          },
+          "ball_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ask, addressed to whoever holds the ball. Required when ball is set.",
+            "title": "Ball Prompt"
+          },
+          "ball_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BallReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why they hold it, scoped to the holder."
+          },
+          "can_brief": {
+            "title": "Can Brief",
+            "type": "boolean"
+          },
+          "category": {
+            "description": "Project taxonomy; validated against config.",
+            "title": "Category",
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "display_status": {
+            "description": "The record's label, with a waiting dispatch named where there is one.",
+            "readOnly": true,
+            "title": "Display Status",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free text. An estimate, not a contract.",
+            "title": "Effort"
+          },
+          "id": {
+            "description": "Unique task identifier.",
+            "title": "Id",
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle",
+            "default": "draft"
+          },
+          "needs_cycles": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Needs Cycles",
+            "type": "array"
+          },
+          "open_children_count": {
+            "default": 0,
+            "title": "Open Children Count",
+            "type": "integer"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Outcome"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How it ended. Set only when closed."
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Task id of the umbrella task, if any.",
+            "title": "Parent"
+          },
+          "posture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DispatchPosture"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This task's request for a dispatch envelope. A request, not a grant."
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority",
+            "default": "medium"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Order within the priority band. Present if and only if the task is open.",
+            "title": "Queue Position"
+          },
+          "queued_dispatch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueuedDispatchState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schema": {
+            "default": 2,
+            "description": "Schema version stamp. Always 2 for this model (D3).",
+            "title": "Schema",
+            "type": "integer"
+          },
+          "self_clearing_wait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelfClearingWait"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "description": "Task title.",
+            "title": "Title",
+            "type": "string"
+          },
+          "unblocks_count": {
+            "default": 0,
+            "title": "Unblocks Count",
+            "type": "integer"
+          },
+          "unmet_needs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unmet Needs",
+            "type": "array"
+          },
+          "updated": {
+            "format": "date-time",
+            "title": "Updated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created",
+          "updated",
+          "category",
+          "summary",
+          "can_brief",
+          "display_status"
+        ],
+        "title": "TaskCardRead",
+        "type": "object"
+      },
       "TaskCreateRequest": {
         "additionalProperties": false,
         "description": "Payload for creating a new task.",
@@ -12972,8 +13443,64 @@
     },
     "/api/projects/{project_id}/search": {
       "get": {
-        "description": "Search tasks using a case-insensitive substring query.\n\nRows carry the same computed dependency facts as ``GET /tasks`` -- ``actionable``,\n``unmet_needs``, ``open_children_count`` -- so a result can be acted on without a\nsecond request per row.",
+        "description": "Search tasks using a case-insensitive substring query.\n\nRows, in the same shape and for the same reason ``GET /tasks`` returns rows: a\nresult list draws a title, a badge and a place in line. It answered with whole\n``TaskRead`` records until task-495 -- every matched task's spec prose, acceptance\ncriteria and complete log -- which was 10,781 bytes per record and 5.2 MB for 480\nmatches. Whole records are at ``GET /search/full``.\n\nRows carry the same computed dependency facts as ``GET /tasks`` -- ``actionable``,\n``unmet_needs``, ``open_children_count`` -- so a result can be acted on without a\nsecond request per row.",
         "operationId": "search_tasks_api_projects__project_id__search_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskSummaryRead-Output"
+                  },
+                  "title": "Response Search Tasks Api Projects  Project Id  Search Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Tasks",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/search/full": {
+      "get": {
+        "description": "The same hits, in the same order, as whole records.\n\nNamed so the expensive shape is the one a caller asks for by name -- task-484's\ndecision, applied to the second endpoint that had it by default.\n``TaskClient.search_tasks`` is the caller that needs it: it parses each item into a\n``Task``, and a row would parse with an empty log, which is a wrong answer rather\nthan an error.",
+        "operationId": "search_tasks_full_api_projects__project_id__search_full_get",
         "parameters": [
           {
             "in": "path",
@@ -13002,7 +13529,7 @@
                   "items": {
                     "$ref": "#/components/schemas/TaskRead-Output"
                   },
-                  "title": "Response Search Tasks Api Projects  Project Id  Search Get",
+                  "title": "Response Search Tasks Full Api Projects  Project Id  Search Full Get",
                   "type": "array"
                 }
               }
@@ -13020,7 +13547,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Search Tasks",
+        "summary": "Search Tasks Full",
         "tags": [
           "search"
         ]
@@ -15996,7 +16523,7 @@
     },
     "/api/search": {
       "get": {
-        "description": "Search tasks using a case-insensitive substring query.\n\nRows carry the same computed dependency facts as ``GET /tasks`` -- ``actionable``,\n``unmet_needs``, ``open_children_count`` -- so a result can be acted on without a\nsecond request per row.",
+        "description": "Search tasks using a case-insensitive substring query.\n\nRows, in the same shape and for the same reason ``GET /tasks`` returns rows: a\nresult list draws a title, a badge and a place in line. It answered with whole\n``TaskRead`` records until task-495 -- every matched task's spec prose, acceptance\ncriteria and complete log -- which was 10,781 bytes per record and 5.2 MB for 480\nmatches. Whole records are at ``GET /search/full``.\n\nRows carry the same computed dependency facts as ``GET /tasks`` -- ``actionable``,\n``unmet_needs``, ``open_children_count`` -- so a result can be acted on without a\nsecond request per row.",
         "operationId": "search_tasks_api_search_get",
         "parameters": [
           {
@@ -16015,7 +16542,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/TaskRead-Output"
+                    "$ref": "#/components/schemas/TaskSummaryRead-Output"
                   },
                   "title": "Response Search Tasks Api Search Get",
                   "type": "array"
@@ -16036,6 +16563,53 @@
           }
         },
         "summary": "Search Tasks",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/api/search/full": {
+      "get": {
+        "description": "The same hits, in the same order, as whole records.\n\nNamed so the expensive shape is the one a caller asks for by name -- task-484's\ndecision, applied to the second endpoint that had it by default.\n``TaskClient.search_tasks`` is the caller that needs it: it parses each item into a\n``Task``, and a row would parse with an empty log, which is a wrong answer rather\nthan an error.",
+        "operationId": "search_tasks_full_api_search_full_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskRead-Output"
+                  },
+                  "title": "Response Search Tasks Full Api Search Full Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Tasks Full",
         "tags": [
           "search"
         ]
