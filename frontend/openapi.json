@@ -7910,6 +7910,457 @@
         "title": "TaskRead",
         "type": "object"
       },
+      "TaskSummaryRead-Input": {
+        "additionalProperties": false,
+        "description": "A listing row: the task without its prose, its criteria or its log.\n\nWhat ``GET /tasks`` returns. It carries the same server-computed dependency state\n``TaskRead`` does, because a list is where the claim gate is drawn -- a row is greyed\nout by ``actionable`` and explained by ``unmet_needs``, and a client that had to work\nthose out for itself would need the corpus the projection exists to avoid sending.\n\nWhole records are still on offer, at ``GET /tasks/full``; see the route.",
+        "properties": {
+          "actionable": {
+            "default": false,
+            "title": "Actionable",
+            "type": "boolean"
+          },
+          "archived": {
+            "default": false,
+            "description": "Visibility flag, orthogonal to how the task ended.",
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/Assignment"
+          },
+          "ball": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ball"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who acts next. Required while open."
+          },
+          "ball_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ask, addressed to whoever holds the ball. Required when ball is set.",
+            "title": "Ball Prompt"
+          },
+          "ball_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BallReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why they hold it, scoped to the holder."
+          },
+          "category": {
+            "description": "Project taxonomy; validated against config.",
+            "title": "Category",
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free text. An estimate, not a contract.",
+            "title": "Effort"
+          },
+          "id": {
+            "description": "Unique task identifier.",
+            "title": "Id",
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle",
+            "default": "draft"
+          },
+          "needs_cycles": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Needs Cycles",
+            "type": "array"
+          },
+          "open_children_count": {
+            "default": 0,
+            "title": "Open Children Count",
+            "type": "integer"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Outcome"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How it ended. Set only when closed."
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Task id of the umbrella task, if any.",
+            "title": "Parent"
+          },
+          "posture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DispatchPosture"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This task's request for a dispatch envelope. A request, not a grant."
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority",
+            "default": "medium"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Order within the priority band. Present if and only if the task is open.",
+            "title": "Queue Position"
+          },
+          "queued_dispatch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueuedDispatchState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schema": {
+            "default": 2,
+            "description": "Schema version stamp. Always 2 for this model (D3).",
+            "title": "Schema",
+            "type": "integer"
+          },
+          "self_clearing_wait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelfClearingWait"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "description": "Task title.",
+            "title": "Title",
+            "type": "string"
+          },
+          "unblocks_count": {
+            "default": 0,
+            "title": "Unblocks Count",
+            "type": "integer"
+          },
+          "unmet_needs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unmet Needs",
+            "type": "array"
+          },
+          "updated": {
+            "format": "date-time",
+            "title": "Updated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created",
+          "updated",
+          "category"
+        ],
+        "title": "TaskSummaryRead",
+        "type": "object"
+      },
+      "TaskSummaryRead-Output": {
+        "additionalProperties": false,
+        "description": "A listing row: the task without its prose, its criteria or its log.\n\nWhat ``GET /tasks`` returns. It carries the same server-computed dependency state\n``TaskRead`` does, because a list is where the claim gate is drawn -- a row is greyed\nout by ``actionable`` and explained by ``unmet_needs``, and a client that had to work\nthose out for itself would need the corpus the projection exists to avoid sending.\n\nWhole records are still on offer, at ``GET /tasks/full``; see the route.",
+        "properties": {
+          "actionable": {
+            "default": false,
+            "title": "Actionable",
+            "type": "boolean"
+          },
+          "archived": {
+            "default": false,
+            "description": "Visibility flag, orthogonal to how the task ended.",
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/Assignment"
+          },
+          "ball": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ball"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who acts next. Required while open."
+          },
+          "ball_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ask, addressed to whoever holds the ball. Required when ball is set.",
+            "title": "Ball Prompt"
+          },
+          "ball_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BallReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why they hold it, scoped to the holder."
+          },
+          "category": {
+            "description": "Project taxonomy; validated against config.",
+            "title": "Category",
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/Dependency"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "display_status": {
+            "description": "The record's label, with a waiting dispatch named where there is one.",
+            "readOnly": true,
+            "title": "Display Status",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free text. An estimate, not a contract.",
+            "title": "Effort"
+          },
+          "id": {
+            "description": "Unique task identifier.",
+            "title": "Id",
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle",
+            "default": "draft"
+          },
+          "needs_cycles": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Needs Cycles",
+            "type": "array"
+          },
+          "open_children_count": {
+            "default": 0,
+            "title": "Open Children Count",
+            "type": "integer"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Outcome"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How it ended. Set only when closed."
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Task id of the umbrella task, if any.",
+            "title": "Parent"
+          },
+          "posture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DispatchPosture"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This task's request for a dispatch envelope. A request, not a grant."
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority",
+            "default": "medium"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Order within the priority band. Present if and only if the task is open.",
+            "title": "Queue Position"
+          },
+          "queued_dispatch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueuedDispatchState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schema": {
+            "default": 2,
+            "description": "Schema version stamp. Always 2 for this model (D3).",
+            "title": "Schema",
+            "type": "integer"
+          },
+          "self_clearing_wait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelfClearingWait"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "description": "Task title.",
+            "title": "Title",
+            "type": "string"
+          },
+          "unblocks_count": {
+            "default": 0,
+            "title": "Unblocks Count",
+            "type": "integer"
+          },
+          "unmet_needs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unmet Needs",
+            "type": "array"
+          },
+          "updated": {
+            "format": "date-time",
+            "title": "Updated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created",
+          "updated",
+          "category",
+          "display_status"
+        ],
+        "title": "TaskSummaryRead",
+        "type": "object"
+      },
       "TaskUpdateRequest": {
         "additionalProperties": false,
         "description": "Payload for partially updating a task.\n\nThe state axes are deliberately absent: lifecycle, ball and outcome move only\nthrough the claim/handoff/release/close verbs, which log their transitions.",
@@ -11326,7 +11777,7 @@
     },
     "/api/projects/{project_id}/tasks": {
       "get": {
-        "description": "List tasks filtered along the state axes.\n\n``?ball=human`` is the human inbox: everything waiting on a person, each row\ncarrying its ``ball_prompt``. ``?ball=external`` is the blocked list.\n``?parent=task-063-schema-v2`` is one umbrella's children.",
+        "description": "List tasks filtered along the state axes, as listing rows.\n\n``?ball=human`` is the human inbox: everything waiting on a person, each row\ncarrying its ``ball_prompt``. ``?ball=external`` is the blocked list.\n``?parent=task-063-schema-v2`` is one umbrella's children.\n\n**A row, not a record.** This used to answer with complete tasks -- spec prose,\nacceptance criteria and the entire log of each -- which on the agentjobs backlog was\n10.4 MB and four full corpus loads to draw a column of titles, and grew with every\nlog entry appended to any task (task-484). It now answers with the fields a listing\nreads. Open a task and ``/{task_id}/detail`` carries the rest, which is the fetch\nevery surface that shows a task already makes.\n\nWhole records are at ``/tasks/full``, unchanged. Narrowing *this* route rather than\nadding a narrow sibling is deliberate: the expensive shape should be the one a caller\nasks for by name, so a new surface that never thought about it gets the cheap one.",
         "operationId": "list_tasks_api_projects__project_id__tasks_get",
         "parameters": [
           {
@@ -11411,7 +11862,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/TaskRead-Output"
+                    "$ref": "#/components/schemas/TaskSummaryRead-Output"
                   },
                   "title": "Response List Tasks Api Projects  Project Id  Tasks Get",
                   "type": "array"
@@ -11625,6 +12076,119 @@
           }
         },
         "summary": "Get Claimable Tasks",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/full": {
+      "get": {
+        "description": "Every matching task as a complete record -- what ``GET /tasks`` used to return.\n\nKept because two callers genuinely need whole records for a listing, and neither is\na browser: ``TaskClient.list_tasks`` is the surface the CLI's ``TaskManager``\nequivalent is built on, so it must return ``Task`` and not a shape missing a log;\nand ``agentjobs branches`` reads ``branches[]`` off every task, which no listing\nprojection carries.\n\nExpensive, and named so a caller has to choose it. Declared before ``/{task_id}``\nfor the reason ``/next`` and ``/broken`` are: otherwise \"full\" is captured as a task\nid.",
+        "operationId": "list_full_tasks_api_projects__project_id__tasks_full_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lifecycle",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Lifecycle"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lifecycle"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ball",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Ball"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ball"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "description": "Return only the children of this umbrella task.",
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only the children of this umbrella task.",
+              "title": "Parent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskRead-Output"
+                  },
+                  "title": "Response List Full Tasks Api Projects  Project Id  Tasks Full Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Full Tasks",
         "tags": [
           "tasks"
         ]
@@ -14292,7 +14856,7 @@
     },
     "/api/tasks": {
       "get": {
-        "description": "List tasks filtered along the state axes.\n\n``?ball=human`` is the human inbox: everything waiting on a person, each row\ncarrying its ``ball_prompt``. ``?ball=external`` is the blocked list.\n``?parent=task-063-schema-v2`` is one umbrella's children.",
+        "description": "List tasks filtered along the state axes, as listing rows.\n\n``?ball=human`` is the human inbox: everything waiting on a person, each row\ncarrying its ``ball_prompt``. ``?ball=external`` is the blocked list.\n``?parent=task-063-schema-v2`` is one umbrella's children.\n\n**A row, not a record.** This used to answer with complete tasks -- spec prose,\nacceptance criteria and the entire log of each -- which on the agentjobs backlog was\n10.4 MB and four full corpus loads to draw a column of titles, and grew with every\nlog entry appended to any task (task-484). It now answers with the fields a listing\nreads. Open a task and ``/{task_id}/detail`` carries the rest, which is the fetch\nevery surface that shows a task already makes.\n\nWhole records are at ``/tasks/full``, unchanged. Narrowing *this* route rather than\nadding a narrow sibling is deliberate: the expensive shape should be the one a caller\nasks for by name, so a new surface that never thought about it gets the cheap one.",
         "operationId": "list_tasks_api_tasks_get",
         "parameters": [
           {
@@ -14368,7 +14932,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/TaskRead-Output"
+                    "$ref": "#/components/schemas/TaskSummaryRead-Output"
                   },
                   "title": "Response List Tasks Api Tasks Get",
                   "type": "array"
@@ -14541,6 +15105,110 @@
           }
         },
         "summary": "Get Claimable Tasks",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/full": {
+      "get": {
+        "description": "Every matching task as a complete record -- what ``GET /tasks`` used to return.\n\nKept because two callers genuinely need whole records for a listing, and neither is\na browser: ``TaskClient.list_tasks`` is the surface the CLI's ``TaskManager``\nequivalent is built on, so it must return ``Task`` and not a shape missing a log;\nand ``agentjobs branches`` reads ``branches[]`` off every task, which no listing\nprojection carries.\n\nExpensive, and named so a caller has to choose it. Declared before ``/{task_id}``\nfor the reason ``/next`` and ``/broken`` are: otherwise \"full\" is captured as a task\nid.",
+        "operationId": "list_full_tasks_api_tasks_full_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lifecycle",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Lifecycle"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lifecycle"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ball",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Ball"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ball"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "description": "Return only the children of this umbrella task.",
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only the children of this umbrella task.",
+              "title": "Parent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskRead-Output"
+                  },
+                  "title": "Response List Full Tasks Api Tasks Full Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Full Tasks",
         "tags": [
           "tasks"
         ]

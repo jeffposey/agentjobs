@@ -44,7 +44,8 @@ the scoped form so switching projects never depends on the server's current dire
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/tasks` | List tasks; filter with `lifecycle`, `ball`, `priority`, or `parent` |
+| `GET` | `/api/tasks` | List tasks as listing rows; filter with `lifecycle`, `ball`, `priority`, or `parent` |
+| `GET` | `/api/tasks/full` | The same listing as complete records. Expensive; see below |
 | `GET` | `/api/tasks/next` | Return the next claimable task; accepts `agent` and `priority` |
 | `GET` | `/api/tasks/next/explain` | Why that task is next, and every open task ahead of it |
 | `GET` | `/api/tasks/claimable` | Every task that may be worked now, in the queue's order; `/next` is its head. Accepts `agent`, `priority`, `parent` |
@@ -65,6 +66,19 @@ the scoped form so switching projects never depends on the server's current dire
 The human inbox is `GET /api/tasks?ball=human`; external blockers are
 `GET /api/tasks?ball=external`. These are derived from schema-v2 axes, not legacy status
 strings.
+
+**`GET /api/tasks` answers with rows, not records.** A row carries the state axes, the
+queue position, the label and the dependency facts -- everything a listing draws -- and
+leaves out `spec`, `log`, `acceptance`, `deliverables`, `links` and `branches`. Opening a
+task fetches those from `GET /api/tasks/{id}/detail`, which every surface that shows a
+task already calls.
+
+The reason is that the listing used to carry them: on a 479-task backlog that was
+10.4 MB, and it grew with every log entry appended to any task (task-484). The rows are
+427 KB. `GET /api/tasks/full` returns the old shape for the two callers that need whole
+records -- `TaskClient.list_tasks`, which must return `Task`, and `agentjobs branches`,
+which reads `branches[]` off every task. It is the expensive one deliberately, so a new
+caller has to ask for it by name.
 
 ## Finish and gate history
 

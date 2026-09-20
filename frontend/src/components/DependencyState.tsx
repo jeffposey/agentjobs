@@ -1,4 +1,4 @@
-import type { TaskRead } from "../api/types";
+import type { TaskSummaryRead } from "../api/types";
 
 export const STATE_CLASSES = {
   actionable: "border-emerald-700 bg-emerald-950/40 text-emerald-300",
@@ -13,7 +13,7 @@ export const STATE_CLASSES = {
   waiting: "border-dark-border bg-dark-bg text-dark-muted",
 } as const;
 
-export function dependencyState(task: TaskRead) {
+export function dependencyState(task: TaskSummaryRead) {
   if ((task.needs_cycles?.length ?? 0) > 0) {
     return {
       kind: "cycle" as const,
@@ -116,7 +116,7 @@ export function dependencyState(task: TaskRead) {
   };
 }
 
-export function DependencyState({ task, compact = false }: { task: TaskRead; compact?: boolean }) {
+export function DependencyState({ task, compact = false }: { task: TaskSummaryRead; compact?: boolean }) {
   const state = dependencyState(task);
   // Most of these reasons are a `ball_prompt`, which is written for someone who has the
   // task open -- routinely several paragraphs. In a list column that is not a summary,

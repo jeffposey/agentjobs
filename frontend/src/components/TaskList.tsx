@@ -5,7 +5,7 @@ import type {
   QueueMovePlacement,
   QueueMoveWarning,
   QueueProblemRead,
-  TaskRead,
+  TaskSummaryRead,
 } from "../api/types";
 import { DependencyState, dependencyState, STATE_CLASSES } from "./DependencyState";
 import { startDragAutoScroll } from "./dragAutoScroll";
@@ -201,7 +201,7 @@ function taskPath(projectId: string, taskId: string) {
 }
 
 /** A fingerprint of the order the server last sent, used to expire a prediction. */
-function orderSignature(tasks: Array<TaskRead>) {
+function orderSignature(tasks: Array<TaskSummaryRead>) {
   return tasks.map((task) => `${task.id}:${task.queue_position ?? ""}`).join("|");
 }
 
@@ -214,7 +214,7 @@ function orderSignature(tasks: Array<TaskRead>) {
  * self-clearing waits and `external` now excludes them, so each is reachable on its own.
  * Before this they shared one option and a reader could filter to neither.
  */
-function matchesStatus(task: TaskRead, status: string) {
+function matchesStatus(task: TaskSummaryRead, status: string) {
   const selfClearing = task.self_clearing_wait != null;
   if (status === "all") return true;
   if (status === "open") return task.lifecycle !== "closed";
@@ -223,7 +223,7 @@ function matchesStatus(task: TaskRead, status: string) {
   return task.lifecycle === status || task.ball === status;
 }
 
-function matchesTask(task: TaskRead, search: string, status: string, priority: string, scope: string) {
+function matchesTask(task: TaskSummaryRead, search: string, status: string, priority: string, scope: string) {
   const term = search.trim().toLowerCase();
   // The id is searched as well as the title because the id is what people quote:
   // "058" and "task-058" both have to find task-058-multi-project-gui. Summary and
@@ -261,7 +261,7 @@ function revealRow(element: HTMLElement) {
   }
 }
 
-type PendingMove = { signature: string; tasks: Array<TaskRead> };
+type PendingMove = { signature: string; tasks: Array<TaskSummaryRead> };
 type MoveNotice = { taskId: string } & MoveVerdict;
 type BandChange = { taskId: string; from: string; to: string; before: string };
 /** Where focus goes after the next render, and whether to scroll it into view. */
@@ -275,7 +275,7 @@ export function TaskList({
   reorderUnavailable = null,
   variant = "table",
 }: {
-  tasks: Array<TaskRead>;
+  tasks: Array<TaskSummaryRead>;
   projectId: string;
   queueProblems?: Array<QueueProblemRead>;
   reorder?: ReorderHandlers | null;
@@ -663,10 +663,10 @@ export function TaskList({
   };
 
   /** Whether this row's place in line is a thing anybody may change right now. */
-  const movableRow = (task: TaskRead) =>
+  const movableRow = (task: TaskSummaryRead) =>
     Boolean(handlers) && isInQueue(task) && !brokenBands.has(bandOf(task));
 
-  const onRowKeyDown = (event: React.KeyboardEvent<HTMLElement>, task: TaskRead) => {
+  const onRowKeyDown = (event: React.KeyboardEvent<HTMLElement>, task: TaskSummaryRead) => {
     const direction = STEP_KEYS[event.key];
     if (!event.altKey || !direction || !movableRow(task)) return;
     // Alt+Home and Alt+End would otherwise scroll the page away from the row that just
@@ -733,7 +733,7 @@ export function TaskList({
     }
   };
 
-  const onRowDrop = (task: TaskRead) => {
+  const onRowDrop = (task: TaskSummaryRead) => {
     const sourceId = dragging;
     setDragging(null);
     if (!handlers || !sourceId || sourceId === task.id || !movableRow(task)) return;
@@ -762,7 +762,7 @@ export function TaskList({
    * same thing as dropping on any other row", which is a decision rather than an
    * accident.
    */
-  const renderGrip = (task: TaskRead) => (
+  const renderGrip = (task: TaskSummaryRead) => (
     <button
       type="button"
       id={gripId(task.id)}
@@ -798,7 +798,7 @@ export function TaskList({
     </button>
   );
 
-  const dragProps = (task: TaskRead) => ({
+  const dragProps = (task: TaskSummaryRead) => ({
     onDragOver: (event: React.DragEvent) => {
       if (movableRow(task) && dragging && dragging !== task.id) event.preventDefault();
     },

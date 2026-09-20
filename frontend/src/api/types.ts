@@ -11,3 +11,10 @@
 
 export * from "./generated";
 export type { TaskReadOutput as TaskRead } from "./generated";
+
+// The listing row. `GET /tasks` answers with these rather than whole records: a list
+// draws a title, a badge and a place in line, and the log it was being sent with every
+// row is the bulk of the response (task-484). A component that needs the spec, the
+// acceptance criteria or the log reads the detail route instead, which is the fetch
+// opening a task already makes.
+export type { TaskSummaryReadOutput as TaskSummaryRead } from "./generated";

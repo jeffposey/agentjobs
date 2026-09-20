@@ -39,7 +39,7 @@ from pydantic import ValidationError
 
 from .attachments import AttachmentStore
 from .instrumentation import record_task_parse
-from .models_v2 import SchemaVersionError, Task
+from .models_v2 import SchemaVersionError, Task, TaskSummary, summary_of
 from .models_v2 import load_task as _validate_v2
 from .projects import contained_path
 from .receipts import ReceiptStore
@@ -278,6 +278,24 @@ class TaskFileCorpus:
     def list_tasks(self) -> List[Task]:
         """Every task that loads. Use :meth:`load_all` when the broken ones matter too."""
         return self.load_all().tasks
+
+    def load_errors(self) -> List[TaskLoadError]:
+        """The files that exist but cannot be read as tasks.
+
+        Reads the corpus to find out, because a file backend has no index of its
+        failures -- the only way to learn a file is broken is to try it.
+        """
+        return self.load_all().errors
+
+    def list_task_summaries(self) -> List[TaskSummary]:
+        """Every task as a listing needs it, projected from the whole records.
+
+        No cheaper path exists here: a task is a file and the file holds the log, so
+        reading less is not on offer. The projection is still worth making, because it
+        is the shape the boundary promises and the caller must not have to ask which
+        backend it reached (task-484).
+        """
+        return [summary_of(task) for task in self.list_tasks()]
 
     # ----- writing ---------------------------------------------------------
 

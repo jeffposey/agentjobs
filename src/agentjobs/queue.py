@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, Collection, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from .models_v2 import PRIORITY_RANK, Priority, Task
+from .models_v2 import PRIORITY_RANK, LabelledTask, Priority, Task
 from .taskfiles import TaskFileCorpus, load_yaml
 
 __all__ = [
@@ -116,7 +116,7 @@ def order_key(task: Task) -> Tuple[int, int]:
     return (task.priority_rank(), position)
 
 
-def listing_key(task: Task) -> Tuple[int, int, bool, int, float, str]:
+def listing_key(task: LabelledTask) -> Tuple[int, int, bool, int, float, str]:
     """The order a *listing* renders in: the queue first, then everything else.
 
     ``order_key`` is the scheduler's order and covers only open, placed work -- it

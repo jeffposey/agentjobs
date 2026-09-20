@@ -27,6 +27,7 @@ from agentjobs.models_v2 import (
     SelfClearingWait,
     Spec,
     Task,
+    TaskSummary,
     queued_display_status,
     self_clearing_wait,
 )
@@ -131,6 +132,68 @@ class TaskRead(Task):
                 "open_children_count": facts.open_children_count,
             }
         )
+
+
+class TaskSummaryRead(TaskSummary):
+    """A listing row: the task without its prose, its criteria or its log.
+
+    What ``GET /tasks`` returns. It carries the same server-computed dependency state
+    ``TaskRead`` does, because a list is where the claim gate is drawn -- a row is greyed
+    out by ``actionable`` and explained by ``unmet_needs``, and a client that had to work
+    those out for itself would need the corpus the projection exists to avoid sending.
+
+    Whole records are still on offer, at ``GET /tasks/full``; see the route.
+    """
+
+    unmet_needs: List[str] = Field(default_factory=list)
+    actionable: bool = False
+    needs_cycles: List[List[str]] = Field(default_factory=list)
+    unblocks_count: int = 0
+    open_children_count: int = 0
+    queued_dispatch: Optional[QueuedDispatchState] = None
+    """Set when a dispatch of this task is waiting for a free slot on this machine.
+
+    Filled by the same request-scoped binding ``TaskRead`` reads, and for the same
+    reason: the fact lives in the machine's execution store rather than in the record,
+    so no amount of the record would carry it.
+    """
+
+    @model_validator(mode="after")
+    def _fill_queued_dispatch(self) -> "TaskSummaryRead":
+        """Ask this request's dispatch queue about the task, overwriting what was passed."""
+        self.queued_dispatch = queued_dispatch_for(self.id)
+        return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def display_status(self) -> str:
+        """The record's label, with a waiting dispatch named where there is one."""
+        return queued_display_status(self, self.queued_dispatch)
+
+    @classmethod
+    def from_summaries(
+        cls, facts: Dict[str, DependencyFacts], summaries: List[TaskSummary]
+    ) -> List["TaskSummaryRead"]:
+        """Attach dependency facts to each row.
+
+        The facts are passed in rather than fetched, unlike ``TaskRead.from_tasks``,
+        because the caller has already had to list the corpus to produce ``summaries``
+        and computing them from that one listing is what stops this route loading the
+        project four times over (task-484).
+        """
+        return [
+            cls.model_validate(
+                {
+                    **summary.model_dump(mode="python", by_alias=True, exclude={"display_status"}),
+                    "unmet_needs": list(facts[summary.id].unmet_needs),
+                    "actionable": facts[summary.id].actionable,
+                    "needs_cycles": [list(cycle) for cycle in facts[summary.id].needs_cycles],
+                    "unblocks_count": facts[summary.id].unblocks_count,
+                    "open_children_count": facts[summary.id].open_children_count,
+                }
+            )
+            for summary in summaries
+        ]
 
 
 class DependencyRelation(BaseModel):
