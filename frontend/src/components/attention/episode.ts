@@ -1,4 +1,8 @@
 import type { AttentionResponse } from "../../api/types";
+// Type-only, so there is no runtime cycle: `shell.ts` imports this module's types the
+// same way. The outcome is the shell's vocabulary and the record of it is storage,
+// which is this module's.
+import type { DeliveryOutcome } from "./shell";
 
 /**
  * What a client does with an attention episode, as functions of data (task-422).
@@ -167,6 +171,84 @@ export function writeLastNotified(episodeId: string, storage?: StorageLike | nul
     // Nothing to do and nothing to report. The cost is a repeated notification for
     // this episode on the next cold start, which is noise rather than a defect.
   }
+}
+
+export const DELIVERY_STORAGE_KEY = "agentjobs.attention.delivery";
+
+export type DeliveryRecord = { episodeId: string; outcome: DeliveryOutcome; at: string };
+
+/**
+ * What became of the last attempt to raise a notification.
+ *
+ * **Kept because nothing recorded it, and that is how this feature stayed silent for
+ * two days while every screen looked correct** (task-421). The marker above says an
+ * episode has been dealt with; it says nothing about whether a banner was ever raised,
+ * and a delivery that was refused, unsupported or thrown out by the worker used to be
+ * indistinguishable from one the person saw.
+ *
+ * Deliberately not a log. One record, overwritten, because the question it answers is
+ * "is the desktop channel working right now" and an older answer is not evidence about
+ * that. A history of attempts belongs where the episodes themselves are.
+ */
+export function recordDelivery(record: DeliveryRecord, storage?: StorageLike | null): void {
+  try {
+    const store = storage ?? window.localStorage;
+    store.setItem(DELIVERY_STORAGE_KEY, JSON.stringify(record));
+  } catch {
+    // Same bargain as the marker: unreadable storage costs observability, not delivery.
+  }
+  cached = record;
+  for (const listener of deliveryListeners) listener();
+}
+
+export function readDelivery(storage?: StorageLike | null): DeliveryRecord | null {
+  try {
+    const store = storage ?? window.localStorage;
+    const raw = store.getItem(DELIVERY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<DeliveryRecord>;
+    if (typeof parsed?.outcome !== "string" || typeof parsed?.episodeId !== "string") return null;
+    return { episodeId: parsed.episodeId, outcome: parsed.outcome, at: parsed.at ?? "" };
+  } catch {
+    return null;
+  }
+}
+
+const deliveryListeners = new Set<() => void>();
+let cached: DeliveryRecord | null | undefined;
+
+/**
+ * The record as a stable value, read from storage once.
+ *
+ * Stable because `useSyncExternalStore` compares snapshots by identity, and a fresh
+ * object parsed out of `localStorage` on every render is an infinite loop rather than a
+ * subscription.
+ */
+export function currentDelivery(storage?: StorageLike | null): DeliveryRecord | null {
+  if (cached === undefined) cached = readDelivery(storage);
+  return cached;
+}
+
+/** Forget the cached snapshot. For a test that has just rewritten the storage. */
+export function forgetDeliverySnapshot(): void {
+  cached = undefined;
+  for (const listener of deliveryListeners) listener();
+}
+
+/**
+ * Watch the record above, so a panel can say a delivery failed without a reload.
+ *
+ * The notifier and the panel that reports on it are mounted in different places -- one
+ * in the project shell, one on the Dashboard -- so neither can hold this in React state
+ * for the other. `storage` events are not enough on their own: a browser fires them at
+ * *other* tabs, never at the one that wrote, which is precisely the tab that needs to
+ * re-render here.
+ */
+export function subscribeToDelivery(listener: () => void): () => void {
+  deliveryListeners.add(listener);
+  return () => {
+    deliveryListeners.delete(listener);
+  };
 }
 
 export type DeliveryState =

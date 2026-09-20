@@ -3,7 +3,12 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AttentionResponse } from "../../api/types";
-import { NOTIFIED_STORAGE_KEY } from "./episode";
+import {
+  DELIVERY_STORAGE_KEY,
+  NOTIFIED_STORAGE_KEY,
+  forgetDeliverySnapshot,
+  readLastNotified,
+} from "./episode";
 
 const applyAppBadge = vi.fn().mockResolvedValue("set");
 const paintFavicon = vi.fn();
@@ -55,11 +60,16 @@ beforeEach(() => {
   applyAppBadge.mockClear();
   paintFavicon.mockClear();
   deliver.mockClear();
+  deliver.mockResolvedValue("shown");
   window.localStorage.removeItem(NOTIFIED_STORAGE_KEY);
+  window.localStorage.removeItem(DELIVERY_STORAGE_KEY);
+  forgetDeliverySnapshot();
 });
 
 afterEach(() => {
   window.localStorage.removeItem(NOTIFIED_STORAGE_KEY);
+  window.localStorage.removeItem(DELIVERY_STORAGE_KEY);
+  forgetDeliverySnapshot();
 });
 
 describe("the persistent indicator", () => {
@@ -160,6 +170,41 @@ describe("the notification", () => {
 
     await waitFor(() => expect(deliver).toHaveBeenCalledTimes(1));
     expect(deliver.mock.calls[0]?.[0]?.title).toBe("5 tasks are waiting on you");
+  });
+
+  it("marks the episode drawn only once it actually was", async () => {
+    /**
+     * The marker records a delivery, not an attempt (task-421). Written before the
+     * attempt -- as it was -- a refusal, an unsupported browser or a thrown worker
+     * consumed the one interruption the episode is owed, and nothing anywhere recorded
+     * which of those had happened.
+     */
+    deliver.mockResolvedValueOnce("blocked");
+    const { unmount } = render(
+      <AttentionNotifier projectId="agentjobs" attention={attention()} />,
+    );
+    await waitFor(() => expect(deliver).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => expect(readLastNotified()).toBeNull());
+    unmount();
+
+    // A fresh mount -- a reload, or a permission the person has since granted -- is
+    // allowed another attempt at an episode nobody has been told about.
+    render(<AttentionNotifier projectId="agentjobs" attention={attention()} />);
+    await waitFor(() => expect(deliver).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(readLastNotified()).toBe("att_one"));
+  });
+
+  it("records what became of the attempt", async () => {
+    deliver.mockResolvedValueOnce("failed");
+    render(<AttentionNotifier projectId="agentjobs" attention={attention()} />);
+
+    await waitFor(() =>
+      expect(JSON.parse(window.localStorage.getItem(DELIVERY_STORAGE_KEY) ?? "{}")).toMatchObject({
+        episodeId: "att_one",
+        outcome: "failed",
+      }),
+    );
   });
 
   it("does not retry an episode whose delivery failed", async () => {
@@ -381,6 +426,44 @@ describe("the degraded state", () => {
         configurable: true,
         value: undefined,
       });
+      restore();
+    }
+  });
+
+  it("reports an attempt that failed even though the permission is granted", () => {
+    /**
+     * The one failure with no other surface. `blocked` and `unsupported` each have a
+     * section above; a granted permission whose delivery threw used to show nothing at
+     * all, which is how this feature was silent for two days with every screen looking
+     * correct (task-421).
+     */
+    const restore = withNotificationPermission("granted");
+    window.localStorage.setItem(
+      DELIVERY_STORAGE_KEY,
+      JSON.stringify({ episodeId: "att_one", outcome: "failed", at: "2026-09-20T00:00:00Z" }),
+    );
+    forgetDeliverySnapshot();
+    try {
+      render(<NotificationDelivery />);
+      const notice = screen.getByTestId("attention-delivery");
+      expect(notice).toHaveAttribute("data-delivery", "failed");
+      expect(notice).toHaveTextContent(/could not be raised/);
+    } finally {
+      restore();
+    }
+  });
+
+  it("goes quiet again once a later delivery is shown", () => {
+    const restore = withNotificationPermission("granted");
+    window.localStorage.setItem(
+      DELIVERY_STORAGE_KEY,
+      JSON.stringify({ episodeId: "att_two", outcome: "shown", at: "2026-09-20T00:00:00Z" }),
+    );
+    forgetDeliverySnapshot();
+    try {
+      const { container } = render(<NotificationDelivery />);
+      expect(container).toBeEmptyDOMElement();
+    } finally {
       restore();
     }
   });
