@@ -41,12 +41,21 @@ faster" is not evidence.
 ## Reading the report
 
 ```
+  corpus      synthetic: 112 tasks served (imported from 112 files, 1,209,921 bytes)
+
 API
 ------------------------------------------------------------------------------
   surface                                   p50        p95   parses   srv ms
   GET /tasks                           3786.2ms   3801.0ms      476   3694.0
 ```
 
+The `GET /tasks` row is a **2026-07 figure from the file era**, kept because it is the
+one that makes the parse column legible: 476 parses of a 119-file corpus. Nothing
+resembling it can be produced today — see
+[Figures from before the cutover](#figures-from-before-the-cutover).
+
+- **corpus** — how many task rows the server held, and the files they were imported
+  from. Rows, because a file count says nothing about what was served (task-408).
 - **p50 / p95** — median and 95th-percentile wall time from the client, over the
   configured iterations, after one discarded warmup request.
 - **parses** — how many task files the server read and parsed from disk to answer.
@@ -84,10 +93,10 @@ request never parses the same file twice.
 
 ## Choosing a corpus
 
-The benchmark never runs against your live project. It copies task files into a
-temporary project, serves that on its own port, and deletes it afterwards, so a run
-cannot write to the real backlog and is unaffected by whatever a long-running server
-happens to hold in memory.
+The benchmark never runs against your live project. It writes task files into a
+temporary project, **imports them into a database named from that directory**, serves
+that on its own port, and deletes it afterwards — so a run cannot write to the real
+backlog and is unaffected by whatever a long-running server happens to hold in memory.
 
 ```bash
 poetry run python scripts/bench.py --corpus synthetic --tasks 200
@@ -95,12 +104,15 @@ poetry run python scripts/bench.py --corpus real --source <a directory of task Y
 ```
 
 `--corpus real` copied this repository's own tracked records until task-380 retired them,
-so it now needs a directory naming: `agentjobs storage export <dir>` writes one.
+so it now needs a directory naming: `agentjobs storage export <dir>` writes one. Both
+modes take the same road in — the YAML is an import *source*, never a backlog, because
+records have been rows since task-402.
 
-**Numbers from either mode are not currently trustworthy — see task-408.** The benchmark
-seeds a directory of YAML, which stopped being a backlog when the file backend was
-deleted, so a run today times an empty store: zero parses on every surface, and a 404 from
-the detail endpoint. Every figure below was measured before that and is kept as history.
+**A run proves the corpus is served before it times anything** (task-408). It asserts
+that the running server lists tasks and that the sample task's detail endpoint answers
+200, and exits non-zero if either fails. That is not decoration: between the cutover and
+task-408 the benchmark wrote its YAML into a directory nothing read, and every run timed
+an empty store while printing a corpus line that said 112 files.
 
 The synthetic corpus is generated at a size you choose, with realistically sized
 records — prose, a multi-entry log, acceptance criteria, a dependency. Use it whenever
@@ -108,8 +120,50 @@ a number needs to stay stable over time: a threshold tuned against today's backl
 becomes a failing test when the backlog grows, through no fault of the code.
 
 **Two runs are only comparable if they measured the same corpus.** Every report states
-the file count and total bytes in its header, and `--compare` warns when the two do
-not match.
+the rows the server held as well as the file count and total bytes it imported them
+from, and `--compare` warns when the two do not match — or when the baseline has no row
+count at all, which marks it as one of the empty-store runs below.
+
+### Figures from before the cutover
+
+**No `scripts/bench.py` figure recorded before 2026-09-19 is comparable with one
+recorded after it**, and they are not comparable with each other either. Three eras, and
+the middle one is the trap:
+
+| When | What a run measured |
+| --- | --- |
+| Before 2026-09-07 | A real corpus, read from task YAML by the file backend. Sound in their own terms; they measure a backend that no longer exists. |
+| 2026-09-07 to 2026-09-19 | **An empty store.** The file backend was gone (task-402) and the benchmark was still seeding a directory, so the server held nothing however large the corpus line said. Zero parses on every surface and a 404 from the detail endpoint were the only signs, and neither stopped the table printing. |
+| From 2026-09-19 | The seeded rows, asserted to be served before any timing (task-408). |
+
+Two consequences worth stating plainly, because a JSON baseline from any era still
+loads:
+
+- A `--compare` against a baseline with no `tasks` key in its corpus block is comparing
+  against an empty store. The tool says so; do not quote the factor.
+- The figures recorded elsewhere in this document under **What the gate costs** and
+  **Where agent time goes** come from `scripts/check.py` and `scripts/run_report.py`,
+  which read the suite and the run records. Neither seeds a corpus, so neither is
+  affected by any of this.
+
+The first post-fix run, for the record — this checkout, 112 synthetic tasks, 5
+iterations, 2026-09-19:
+
+```
+  corpus      synthetic: 112 tasks served (imported from 112 files, 1,209,921 bytes)
+  GET /dashboard                                    372.8ms    583.3ms        0    340.9
+  GET /tasks                                        217.3ms    353.4ms        0    346.3
+  GET /tasks/{id}/detail                            157.4ms    186.4ms        0     92.8
+  click task row -> detail rendered (warm app)      470.0ms    526.0ms
+  cold load -> task detail rendered                1383.0ms   1411.0ms
+```
+
+**It is a baseline, not a regression.** The numbers are far larger than anything the
+middle era produced, and no factor should be computed from that: the middle era was
+serving nothing. The empty-store run task-408 was filed on is the illustration — five
+files, one iteration, `GET /dashboard` at 12.5ms, `0 parses` everywhere and the detail
+endpoint 404ing. A run that answers for no records is fast, and that is all such a
+figure says.
 
 ## The browser measurement
 

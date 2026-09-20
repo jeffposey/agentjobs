@@ -9,19 +9,29 @@ recorded before/after numbers, and this is where those numbers come from.
     poetry run python scripts/bench.py --compare before.json
     poetry run python scripts/bench.py --corpus real --source <an exported directory>
 
-**Read task-408 before trusting a number from this.** Since the file backend was deleted
-the seeded directory is not a backlog the server reads, so both corpus kinds currently
-measure an empty store; the run reports zero parses on every surface and the detail
-endpoint 404s. The `--corpus real` default source went with this repository's tracked
-records in task-380, which is why that mode now asks for a directory.
+**The corpus is seeded into the store, not written beside it** (task-408). Records are
+rows since task-402, so a directory of task YAML is inert to the server: every run
+between that cutover and this one timed an empty database and said nothing about it.
+The YAML is now an import *source* -- written into a throwaway project, imported with
+``CorpusImporter`` into the database the benchmark server will open, and then proved to
+be served before a single timing is taken. A run that seeded nothing, or whose sample
+task the running server does not hold, exits non-zero rather than printing a table.
+
+The ``--corpus real`` default source went with this repository's tracked records in
+task-380, which is why that mode asks for a directory; ``agentjobs storage export``
+writes one.
 
 ## What it measures
 
 **API** -- each endpoint from task-130's table, warmed once and then timed over N
-iterations, reported as p50/p95. Alongside the wall-clock figure it reports the number
-of task files the server parsed to answer, read from the ``X-Task-Parses`` response
-header. That count is the more durable number: it means the same thing on every
-machine, and it is what the corpus-loading work is actually about.
+iterations, reported as p50/p95. Alongside the wall-clock figure it reports the
+``X-Task-Parses`` response header: task files the server read from disk to answer.
+
+Since task-402 that number is **expected to be zero**, and it is reported for exactly
+that reason -- it is the cheap standing assertion that no request has quietly started
+reading a directory again. It is not evidence that a corpus loaded, because an empty
+store reports zero too; that a corpus loaded is asserted against the store and the
+running server instead, before any timing runs.
 
 **CLI** -- cold processes, including interpreter startup, because that is what a
 person waiting at a terminal experiences.
@@ -33,15 +43,17 @@ slow, and only the rendered timing would notice.
 
 ## Why it builds its own corpus
 
-The benchmark never runs against the live project. It copies the task files into a
-temporary project and serves that, so a run cannot write to the real backlog and is
-not affected by whatever the long-running server on port 8876 happens to hold. The
-synthetic mode generates a corpus of a stated size instead, which is what fixed
-performance budgets need: a threshold tuned against 112 files becomes a failing test
-at 300 through no fault of the code.
+The benchmark never runs against the live project. It writes the task files into a
+temporary project, imports them into a database named from that temporary directory,
+and serves that -- so a run cannot write to the real backlog, and is not affected by
+whatever the long-running server on port 8876 happens to hold. The synthetic mode
+generates a corpus of a stated size instead, which is what fixed performance budgets
+need: a threshold tuned against 112 files becomes a failing test at 300 through no
+fault of the code.
 
 Two runs are only comparable if the corpus is the same, so every report states the
-file count and total bytes it measured.
+number of task rows the server held, and the file count and total bytes they were
+imported from.
 """
 
 from __future__ import annotations
@@ -66,7 +78,13 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from agentjobs.__version__ import __version__  # noqa: E402
 from agentjobs.project_setup import build_project_config  # noqa: E402
+from agentjobs.sqlstore import SqlTaskStore  # noqa: E402
+from agentjobs.sqlstore.connection import Database  # noqa: E402
+from agentjobs.sqlstore.importer import CorpusImporter  # noqa: E402
+from agentjobs.sqlstore.migrations import upgrade  # noqa: E402
+from agentjobs.store_factory import LOCAL_PROJECT_ID, local_database  # noqa: E402
 from agentjobs.taskfiles import yaml_loader_name  # noqa: E402
 
 BENCH_PORT_ENV = "AGENTJOBS_BENCH_PORT"
@@ -98,7 +116,24 @@ def checkout_port(root: Path) -> int:
 DEFAULT_PORT = checkout_port(ROOT)
 DEFAULT_ITERATIONS = 10
 DEFAULT_SYNTHETIC_TASKS = 112
-PROJECT_ID = "_local"
+PROJECT_ID = LOCAL_PROJECT_ID
+"""The id the server gives a directory nobody registered.
+
+Taken from ``store_factory`` rather than spelled again here: a store is keyed on (file,
+project id), so a second spelling would seed rows under an id the server never asks
+about and leave it serving an empty project -- the same silent-empty failure task-408
+was, one layer down.
+"""
+
+HOME_DIRNAME = ".agentjobs-home"
+"""The throwaway AgentJobs home, under the run's temporary root.
+
+Three processes have to agree on it -- this one, which seeds the store, the server
+subprocess, and the CLI subprocesses -- because it is what ``local_database`` names the
+database from. A disagreement would not raise: each side would quietly open a different
+empty file.
+"""
+
 SERVER_START_TIMEOUT = 60.0
 
 
@@ -181,6 +216,11 @@ def measure(
 # ---------------------------------------------------------------------------------
 # Corpus
 # ---------------------------------------------------------------------------------
+
+
+def bench_home(root: Path) -> Path:
+    """The throwaway AgentJobs home for a run rooted at ``root``."""
+    return root / HOME_DIRNAME
 
 
 SYNTHETIC_LOG_ENTRIES = 6
@@ -312,7 +352,7 @@ class BenchServer:
         print(f"[bench] checkout {ROOT} serving {self.base_url}", flush=True)
         env = dict(os.environ)
         env["AGENTJOBS_PROJECT_ROOT"] = str(self.root)
-        env["AGENTJOBS_HOME"] = str(self.root / ".agentjobs-home")
+        env["AGENTJOBS_HOME"] = str(bench_home(self.root))
         env["PYTHONPATH"] = str(ROOT / "src") + os.pathsep + env.get("PYTHONPATH", "")
         self._process = subprocess.Popen(
             [
@@ -362,7 +402,11 @@ class BenchServer:
 
 
 def prepare_project(root: Path, *, kind: str, count: int, source: Optional[Path]) -> Path:
-    """Write a project config and its corpus under ``root``; return the tasks dir."""
+    """Write a project config and its corpus under ``root``; return the tasks dir.
+
+    The directory it returns is an import source, not a backlog. Nothing serves it --
+    see :func:`seed_store`, which is what makes the records reachable.
+    """
     config_path = root / ".agentjobs" / "config.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
@@ -375,6 +419,115 @@ def prepare_project(root: Path, *, kind: str, count: int, source: Optional[Path]
     tasks_dir = root / "tasks"
     build_corpus(tasks_dir, kind=kind, count=count, source=source)
     return tasks_dir
+
+
+@dataclass
+class SeededCorpus:
+    """The corpus the store holds, and the files it was built from."""
+
+    kind: str
+    files: int
+    bytes: int
+    tasks: int
+    database: Path
+    sample_task_id: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        """The report's ``corpus`` block: what two runs are compared on."""
+        return {"kind": self.kind, "files": self.files, "bytes": self.bytes, "tasks": self.tasks}
+
+
+def seed_store(root: Path, tasks_dir: Path, *, kind: str) -> SeededCorpus:
+    """Import the corpus into the database the benchmark server will open.
+
+    **Importing rather than building records through the manager** (task-408). The two
+    would produce comparable rows, and the import is the closer match to what this
+    benchmark measured before the cutover -- the same documents through the same
+    validation -- while exercising the import path as a bonus. It is also the only one
+    of the two that gives ``--corpus real`` an answer, since what a real corpus is
+    available as today is a directory from ``agentjobs storage export``.
+
+    The file is the one the server will resolve for itself: ``local_database`` names it
+    from the tasks directory, which is the only identity a project nobody registered
+    has. Both sides computing it from the same directory is what stops this process
+    seeding one database while the server serves another.
+
+    Raises ``SystemExit`` if the import wrote no rows or quarantined anything. A
+    benchmark that reports plausible numbers for a corpus it never loaded is worse than
+    no benchmark.
+    """
+    database_path = local_database(tasks_dir)
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    database = Database(database_path)
+    try:
+        # No snapshot: the database was created three lines ago, and a VACUUM INTO of
+        # an empty file is a backup of nothing.
+        upgrade(database, agentjobs_version=__version__, snapshot_before=False)
+        store = SqlTaskStore(database, PROJECT_ID)
+        store.ensure_project(root=str(root))
+        report = CorpusImporter(store, tasks_dir).run()
+        task_ids = sorted(task.id for task in store.list_tasks())
+    finally:
+        # The server is a separate process opening this same file, and this process
+        # holds a write connection until the database is closed.
+        database.close()
+
+    size = corpus_size(tasks_dir)
+    if report.quarantined:
+        raise SystemExit(
+            "The benchmark corpus did not import cleanly, so the numbers would be "
+            "measured over less than was asked for:\n" + report.render()
+        )
+    if not task_ids:
+        raise SystemExit(
+            f"Seeded no tasks into {database_path} from {size['files']} file(s) in "
+            f"{tasks_dir}. There is nothing to measure."
+        )
+    return SeededCorpus(
+        kind=kind,
+        files=size["files"],
+        bytes=size["bytes"],
+        tasks=len(task_ids),
+        database=database_path,
+        sample_task_id=task_ids[0],
+    )
+
+
+def assert_corpus_is_served(server: BenchServer, corpus: SeededCorpus) -> int:
+    """Prove the running server answers for the seeded corpus. Returns the rows it listed.
+
+    Two questions, in the order that makes a failure legible. Does the list endpoint
+    return anything -- a server that resolved a different database answers ``[]`` here,
+    which is what every run between task-402 and task-408 was really reporting. And does
+    the sample task's detail endpoint return 200 -- that surface 404'd on every one of
+    those runs, because the id came from a glob over YAML the store had never read.
+
+    Asked before any measurement, so a benchmark with nothing to measure exits instead
+    of printing a table of timings for an empty store.
+    """
+    prefix = f"/api/projects/{PROJECT_ID}"
+    with httpx.Client(base_url=server.base_url, timeout=120.0) as client:
+        listed = client.get(f"{prefix}/tasks")
+        if listed.status_code != 200:
+            raise SystemExit(
+                f"The benchmark server answered {listed.status_code} for {prefix}/tasks; "
+                f"{corpus.tasks} task(s) were seeded into {corpus.database}."
+            )
+        rows = len(listed.json())
+        if rows == 0:
+            raise SystemExit(
+                f"The benchmark server lists no tasks, though {corpus.tasks} were "
+                f"imported into {corpus.database}. It is serving a different store, so "
+                "every timing below would be of an empty one."
+            )
+        detail = client.get(f"{prefix}/tasks/{corpus.sample_task_id}/detail")
+        if detail.status_code != 200:
+            raise SystemExit(
+                f"The benchmark server answered {detail.status_code} for the sample "
+                f"task {corpus.sample_task_id}, which was imported into "
+                f"{corpus.database}. Nothing measured against it would mean anything."
+            )
+    return rows
 
 
 # ---------------------------------------------------------------------------------
@@ -412,7 +565,11 @@ def bench_api(server: BenchServer, *, iterations: int, sample_task_id: str) -> S
     try:
         return Section(
             name="API",
-            note="parses is the X-Task-Parses response header: task files read from disk.",
+            note=(
+                "parses is the X-Task-Parses response header: task files read from "
+                "disk. Zero is the expected value since task-402 -- it says no request "
+                "read a directory, not that the corpus is empty."
+            ),
             measurements=[
                 measure(name, make_call(url), iterations=iterations) for name, url in endpoints
             ],
@@ -422,10 +579,18 @@ def bench_api(server: BenchServer, *, iterations: int, sample_task_id: str) -> S
 
 
 def bench_cli(root: Path, *, iterations: int, sample_task_id: str) -> Section:
-    """Time cold CLI processes, interpreter startup included."""
+    """Time cold CLI processes, interpreter startup included.
+
+    **Run from the benchmark project, not from this checkout** (task-408).
+    ``AGENTJOBS_PROJECT_ROOT`` is read by the API and by nothing else: the CLI resolves
+    its project from the working directory. Started in this repository it answered for
+    *this* checkout's project -- which, under the throwaway ``AGENTJOBS_HOME`` the rest
+    of the run uses, is an unregistered directory with an empty database. `list` said
+    "No tasks found" and exited 0, and the timing went into the table looking ordinary.
+    """
     env = dict(os.environ)
     env["AGENTJOBS_PROJECT_ROOT"] = str(root)
-    env["AGENTJOBS_HOME"] = str(root / ".agentjobs-home")
+    env["AGENTJOBS_HOME"] = str(bench_home(root))
     env["PYTHONPATH"] = str(ROOT / "src") + os.pathsep + env.get("PYTHONPATH", "")
 
     commands: Sequence[tuple[str, List[str]]] = (
@@ -438,11 +603,20 @@ def bench_cli(root: Path, *, iterations: int, sample_task_id: str) -> Section:
         def call() -> Dict[str, Any]:
             completed = subprocess.run(
                 [sys.executable, "-m", "agentjobs.cli", *args],
-                cwd=str(ROOT),
+                cwd=str(root),
                 env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
+            if completed.returncode != 0:
+                # `measure` turns this into an ERROR row rather than ending the run:
+                # a broken CLI should not cost the API numbers. But it must not be
+                # timed silently either -- a command that fails fast is fast.
+                detail = completed.stderr.decode("utf-8", "replace").strip()
+                raise RuntimeError(
+                    f"`agentjobs {' '.join(args)}` exited {completed.returncode} against "
+                    f"the benchmark store:\n{detail[-800:]}"
+                )
             return {"exit_code": completed.returncode}
 
         return call
@@ -528,7 +702,10 @@ def format_report(report: Dict[str, Any]) -> str:
     lines.append("AgentJobs benchmark")
     lines.append("=" * 90)
     lines.append(f"  when        {report['started_at']}")
-    lines.append(f"  corpus      {meta['kind']}: {meta['files']} files, {meta['bytes']:,} bytes")
+    lines.append(
+        f"  corpus      {meta['kind']}: {meta.get('tasks', '?')} tasks served"
+        f" (imported from {meta['files']} files, {meta['bytes']:,} bytes)"
+    )
     lines.append(f"  iterations  {report['iterations']} (after 1 discarded warmup)")
     lines.append(f"  yaml loader {report['yaml_loader']}")
     lines.append(f"  python      {report['python']}")
@@ -569,19 +746,29 @@ def format_comparison(baseline: Dict[str, Any], current: Dict[str, Any]) -> str:
     lines.append("=" * 90)
     before_corpus = baseline["corpus"]
     after_corpus = current["corpus"]
-    lines.append(
-        f"  baseline corpus  {before_corpus['kind']}: "
-        f"{before_corpus['files']} files, {before_corpus['bytes']:,} bytes"
-    )
-    lines.append(
-        f"  current corpus   {after_corpus['kind']}: "
-        f"{after_corpus['files']} files, {after_corpus['bytes']:,} bytes"
-    )
+
+    def describe(corpus: Dict[str, Any]) -> str:
+        return (
+            f"{corpus['kind']}: {corpus.get('tasks', '?')} tasks served "
+            f"(from {corpus['files']} files, {corpus['bytes']:,} bytes)"
+        )
+
+    lines.append(f"  baseline corpus  {describe(before_corpus)}")
+    lines.append(f"  current corpus   {describe(after_corpus)}")
     if (before_corpus["files"], before_corpus["bytes"]) != (
         after_corpus["files"],
         after_corpus["bytes"],
     ):
         lines.append("  WARNING: the two runs measured different corpora. Not comparable.")
+    # A baseline with no `tasks` key predates task-408, which means it was taken against
+    # a store nothing had been seeded into: the corpus line said 112 files and the
+    # server held none. Such a pair is not a before/after of anything, and saying so is
+    # the whole reason the key is checked rather than defaulted quietly.
+    if "tasks" not in before_corpus:
+        lines.append(
+            "  WARNING: the baseline predates task-408 and was measured against an "
+            "empty store, whatever its corpus line says. Not comparable."
+        )
     lines.append("")
 
     before = {
@@ -668,14 +855,25 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
 
-    with TemporaryDirectory(prefix="agentjobs-bench-") as directory:
+    # ``ignore_cleanup_errors`` because the run now leaves a SQLite database in here,
+    # and on Windows the handle a just-terminated server held is not always released by
+    # the time the directory is removed. Losing the whole report to a failed rmtree of a
+    # directory the OS will reap anyway is the wrong trade.
+    with TemporaryDirectory(prefix="agentjobs-bench-", ignore_cleanup_errors=True) as directory:
         root = Path(directory)
+        # Set in this process, not only in the subprocess environments below: it is
+        # what `local_database` reads to place the file, so the seeding here and the
+        # server's own resolution have to be answering the same question. It also
+        # guarantees nothing in this run can reach the real home.
+        os.environ["AGENTJOBS_HOME"] = str(bench_home(root))
+
         tasks_dir = prepare_project(root, kind=args.corpus, count=args.tasks, source=args.source)
-        size = corpus_size(tasks_dir)
-        sample_task_id = sorted(path.stem for path in tasks_dir.glob("*.yaml"))[0]
+        corpus = seed_store(root, tasks_dir, kind=args.corpus)
+        sample_task_id = corpus.sample_task_id
 
         sections: List[Section] = []
         with BenchServer(root, args.port) as server:
+            served = assert_corpus_is_served(server, corpus)
             sections.append(
                 bench_api(server, iterations=args.iterations, sample_task_id=sample_task_id)
             )
@@ -691,7 +889,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "iterations": args.iterations,
             "python": sys.version.split()[0],
             "yaml_loader": yaml_loader_name(),
-            "corpus": {"kind": args.corpus, **size},
+            "corpus": {**corpus.to_dict(), "served": served},
             "sections": [
                 {
                     "name": section.name,
