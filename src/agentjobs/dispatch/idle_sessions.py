@@ -45,7 +45,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 SWEEP_INTERVAL_SECONDS = 300
 """How often the poller's tick runs the sweep. The tick itself is ten seconds; enumerating
@@ -100,13 +100,16 @@ COMMAND_VERBS = frozenset(
 )
 """First arguments that make a short-lived command rather than a session."""
 
-AGENTJOBS_SESSION_NAME = re.compile(r"^[^/\s]+/task-\d+(?:[@/][0-9a-f]{8}|#\d+)?$")
+AGENTJOBS_SESSION_NAME = re.compile(r"^(?:[^/\s]+/)?task-\d+(?:[@/][0-9a-f]{8}|#\d+)?(?:\s.*)?$")
 """A session name this module should recognise as a dispatch and leave to the dispatcher.
 
 Every shape ``runner.session_name`` has ever produced, because the sweep meets *live*
 sessions and a long-running one outlives the release that named it:
 
-* ``agentjobs/task-324`` and ``agentjobs/task-324#2`` -- since task-452.
+* ``task-499 nav breakpoint`` and ``task-499#2 nav breakpoint`` -- since task-500, where
+  the project prefix became conditional and a slug from the title was added.
+* ``agentjobs/task-324`` and ``agentjobs/task-324#2`` -- since task-452, and still what
+  task-500 emits when another project holds a live session for the same task id.
 * ``agentjobs/task-324@11085a50`` -- task-324's original, carried by any run started
   before task-452.
 * ``agentjobs/task-324/11085a50`` -- the ``/`` separator, matched because task-451 was in
@@ -114,7 +117,9 @@ sessions and a long-running one outlives the release that named it:
   protection lost if it is not.
 
 Matching too widely is the safe direction: a name this matches is *protected* from the
-sweep, never stopped by it.
+sweep, never stopped by it. It is deliberately a *recogniser* and not the grammar --
+``runner.SESSION_NAME_PATTERN`` is that, and it captures the parts a caller needs to act
+on, which this never does.
 """
 UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -612,31 +617,15 @@ def command_line_of(
     return None
 
 
-def live_session_names(directory: Optional[Path] = None) -> Set[str]:
-    """Every name the live-session roster currently holds.
-
-    The cheap half of :func:`ledger_rows`: the same set of live sessions, read as files
-    rather than by spawning ``claude agents --json``, which costs a second or more and is
-    on the dispatch path that needs this. Nothing here needs the rest of a registration,
-    so nothing else is returned.
-
-    **The roster itself belongs to** :mod:`agentjobs.dispatch.peers`, which reads the same
-    ``~/.claude/sessions/<pid>.json`` files whole so the wake can find one session by id.
-    Task-451 and task-452 arrived at that directory within a day of each other from
-    opposite ends -- naming a session, and messaging one -- and two readers of one
-    undocumented file layout is one too many: the next CLI release that changes it would
-    have to be found twice. This is the projection.
-
-    **Every failure is an empty result, deliberately.** The caller
-    (``runner.choose_session_name``) is choosing a cosmetic discriminator; a roster that
-    cannot be read, a file being written as it is read, or a registration in a shape
-    nobody anticipated must cost at worst a name Claude Code disambiguates itself, never
-    a dispatch that will not start. ``peers.roster`` already drops each of those, and a
-    registration with no readable name contributes nothing here.
-    """
-    from agentjobs.dispatch.peers import roster
-
-    return {row.name for row in roster(directory) if row.name}
+# There was a `live_session_names` here, and task-500 removed it rather than leaving it.
+#
+# It projected `peers.roster` down to a set of names for its one caller,
+# `runner.choose_session_name`, on the argument that two readers of one undocumented file
+# layout is one too many. That caller now needs a row's `cwd` as well as its name -- it is
+# what says which project an unprefixed `task-499` belongs to -- so a name-only projection
+# no longer serves it, and it reads `peers.roster` directly, which is the module that owns
+# the layout anyway. A projection kept for nobody, with a docstring naming a caller that
+# has stopped calling it, is worse than no projection.
 
 
 def ledger_rows(executable: str = "claude") -> List[Dict[str, Any]]:

@@ -101,10 +101,11 @@ CAPABILITIES: Mapping[Tuple[str, str], DriverCapabilities] = {
         authoritative_absence=False,
         evidence=(
             "`claude agents --json --all` returns each background session's `name`, and a "
-            "dispatch launches with `--name <project>/<task>` (verified on Claude Code "
-            "2.1.270, 2026-09-13, when the name ended `@<run>`; the run stub came off in "
-            "task-452 and the correlation is unchanged, because it matches the name the "
-            "launch recorded rather than parsing one). A launcher orphaned by its "
+            "dispatch launches with `--name <task> <slug>` (verified on Claude Code "
+            "2.1.270, 2026-09-13, when the name was `<project>/<task>@<run>`; the run stub "
+            "came off in task-452 and the project prefix became conditional in task-500, "
+            "and the correlation is unchanged through both, because it matches the name "
+            "the launch recorded rather than parsing one). A launcher orphaned by its "
             "coordinator can still register, so absence from the listing proves nothing."
         ),
     ),
