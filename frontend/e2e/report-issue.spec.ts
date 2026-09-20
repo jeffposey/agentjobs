@@ -101,6 +101,44 @@ test("offers exactly one capture control, and nothing in the bottom-right corner
   expect(floating).toBe(0);
 });
 
+test("files from an origin with no crypto.randomUUID, which is what a phone has", async ({
+  page,
+  request,
+}) => {
+  // The defect this reproduces: `crypto.randomUUID` is secure-context-only, so on a
+  // plain-HTTP origin -- a LAN address, or a review sandbox bound to a tailnet IP -- it
+  // does not exist at all, and every mutation that minted an operation_id threw before
+  // its request was sent. Nothing here could see it: this server binds 127.0.0.1, which
+  // the browser treats as a secure context by origin. (The dashboard served through the
+  // front door is https, so it was never one of the origins that broke.)
+  //
+  // So the function is taken away before the page loads, which is the only way a
+  // loopback-bound harness can represent that origin.
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, "randomUUID", { value: undefined, configurable: true });
+  });
+  await page.goto("/app/p/_local");
+  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe("undefined");
+
+  await page.getByRole("button", { name: "New task or issue" }).click();
+  const dialog = page.getByRole("dialog", { name: "New task" });
+  await dialog.getByRole("combobox", { name: "File into project" }).waitFor();
+  await dialog.getByRole("textbox", { name: /^Title/ }).fill("Filed from an insecure origin");
+  await dialog
+    .getByRole("textbox", { name: /^What happened/ })
+    .fill("No randomUUID here, which is every phone on the tailnet.");
+  await dialog.getByRole("button", { name: "File it" }).click();
+
+  await expect(dialog).toContainText("Filed as");
+  const filed = (await dialog.getByRole("status").innerText())
+    .replace(/^Filed as\s*/, "")
+    .replace(/\.$/, "");
+  // The record exists on the server, so the operation_id it carried was one the API
+  // accepted as a UUID rather than merely a unique string.
+  const record = await (await request.get(`/api/tasks/${filed}`)).json();
+  expect(record.title).toBe("Filed from an insecure origin");
+});
+
 test("stays one tap away at 375px, where the burger takes the destinations", async ({ page }) => {
   // The narrowest phone this app is read on. Every destination is behind the burger at
   // this width, and the whole argument for moving capture into the bar is that it is

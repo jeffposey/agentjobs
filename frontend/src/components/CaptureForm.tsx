@@ -7,6 +7,7 @@ import type {
   TaskCreateRequest,
 } from "../api/generated";
 import { toUploads, type PendingAttachment } from "../report/attachments";
+import { newOperationId } from "../api/operationId";
 import {
   REPORTED_ISSUE_TAG,
   buildCaptureRequest,
@@ -237,7 +238,7 @@ export function CaptureForm({
         reporter,
         // A retry after a timeout resolves to the task the first attempt made instead
         // of filing the same thing twice.
-        operationId: crypto.randomUUID(),
+        operationId: newOperationId(),
         attachments: toUploads(attachments),
         tags,
         priority,

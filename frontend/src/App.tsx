@@ -54,6 +54,7 @@ import type {
   QueuedDispatchView,
 } from "./api/types";
 import { readRefusal } from "./api/mutation-error";
+import { newOperationId } from "./api/operationId";
 import { readReportContext } from "./report/issueReport";
 import {
   requireSupportedTaskSchemas,
@@ -431,7 +432,7 @@ function TaskListPage({
           const result = (await move.mutateAsync({
             path: { project_id: projectId, task_id: taskId },
             query: { envelope: true },
-            body: { actor, operation_id: crypto.randomUUID(), ...placement },
+            body: { actor, operation_id: newOperationId(), ...placement },
           })) as MutationResultOutput;
           await invalidateProjectTaskQueries(queryClient, projectId);
           return {
@@ -446,7 +447,7 @@ function TaskListPage({
           // who clicked Keep with no anchor and no explanation.
           await keep.mutateAsync({
             path: { project_id: projectId, task_id: taskId },
-            body: { actor, operation_id: crypto.randomUUID() },
+            body: { actor, operation_id: newOperationId() },
           });
           await invalidateProjectTaskQueries(queryClient, projectId);
         },
@@ -459,7 +460,7 @@ function TaskListPage({
             path: { project_id: projectId, task_id: taskId },
             body: {
               actor,
-              operation_id: crypto.randomUUID(),
+              operation_id: newOperationId(),
               expected_revision: revisionOf(taskId),
               priority: priority as Priority,
               before,
@@ -931,7 +932,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
           await update.mutateAsync({
             path: { project_id: projectId, task_id: taskId },
             query: { actor: user },
-            body: { ...patch, expected_revision: revision, operation_id: crypto.randomUUID() },
+            body: { ...patch, expected_revision: revision, operation_id: newOperationId() },
           });
         } catch (error) {
           const refusal = readRefusal(error);
