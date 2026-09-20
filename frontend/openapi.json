@@ -277,7 +277,7 @@
         "type": "object"
       },
       "AnalyticsResponse": {
-        "description": "One request for the whole analytics page (section 7.1).\n\nNot seventeen endpoints: the panels share a range, a timezone and a coverage\nstatement that must be identical across all of them, and the storage cost of the\nwhole set was measured at 6.3 ms -- so splitting it would buy nothing and cost\nseventeen chances to render half a page.",
+        "description": "One request for the whole analytics page (section 7.1).\n\nNot seventeen endpoints: the panels share a range, a timezone and a coverage\nstatement that must be identical across all of them, and the storage cost of the\nwhole set was measured at 6.3 ms -- so splitting it would buy nothing and cost\nseventeen chances to render half a page.\n\nThe second set (section 21) adds the process series. Each carries its own\n``SeriesCoverage``; the page-level ``coverage`` still describes the task history.",
         "properties": {
           "aging": {
             "items": {
@@ -294,8 +294,38 @@
             "title": "Backlog",
             "type": "array"
           },
+          "cost_coverage": {
+            "$ref": "#/components/schemas/SeriesCoverage"
+          },
+          "cost_per_task": {
+            "items": {
+              "$ref": "#/components/schemas/CostPerTaskPoint"
+            },
+            "title": "Cost Per Task",
+            "type": "array"
+          },
           "coverage": {
             "$ref": "#/components/schemas/AnalyticsCoverage"
+          },
+          "finishes": {
+            "items": {
+              "$ref": "#/components/schemas/FinishPoint"
+            },
+            "title": "Finishes",
+            "type": "array"
+          },
+          "finishes_coverage": {
+            "$ref": "#/components/schemas/SeriesCoverage"
+          },
+          "gates": {
+            "items": {
+              "$ref": "#/components/schemas/GatePoint"
+            },
+            "title": "Gates",
+            "type": "array"
+          },
+          "gates_coverage": {
+            "$ref": "#/components/schemas/SeriesCoverage"
           },
           "holders": {
             "description": "The same spine.",
@@ -305,6 +335,23 @@
             "title": "Holders",
             "type": "array"
           },
+          "in_review": {
+            "items": {
+              "$ref": "#/components/schemas/InReview"
+            },
+            "title": "In Review",
+            "type": "array"
+          },
+          "machine": {
+            "items": {
+              "$ref": "#/components/schemas/MachinePoint"
+            },
+            "title": "Machine",
+            "type": "array"
+          },
+          "machine_coverage": {
+            "$ref": "#/components/schemas/SeriesCoverage"
+          },
           "oldest": {
             "description": "Ten, open and not archived.",
             "items": {
@@ -313,8 +360,45 @@
             "title": "Oldest",
             "type": "array"
           },
+          "open_questions": {
+            "items": {
+              "$ref": "#/components/schemas/OpenQuestion"
+            },
+            "title": "Open Questions",
+            "type": "array"
+          },
           "range": {
             "$ref": "#/components/schemas/AnalyticsRange"
+          },
+          "review": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewPoint"
+            },
+            "title": "Review",
+            "type": "array"
+          },
+          "review_coverage": {
+            "$ref": "#/components/schemas/SeriesCoverage"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunPoint"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "runs_coverage": {
+            "$ref": "#/components/schemas/SeriesCoverage"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentPoint"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "segments_coverage": {
+            "$ref": "#/components/schemas/SeriesCoverage"
           },
           "stuck": {
             "items": {
@@ -1084,6 +1168,92 @@
           "why"
         ],
         "title": "ContextPointer",
+        "type": "object"
+      },
+      "CostPerTaskPoint": {
+        "description": "What a completed task cost the machine: runs, finishes and gate minutes (S4, F5, G4).\n\nBucketed by the task's close. ``without_gate`` counts the tasks with no full gate\nat all -- hand closes and recorded decisions -- so a low median is not read as a\nfast gate.",
+        "properties": {
+          "bucket": {
+            "format": "date",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "estimated": {
+            "default": false,
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "finishes_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishes Mean"
+          },
+          "gate_minutes_p50": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gate Minutes P50"
+          },
+          "gate_minutes_p90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gate Minutes P90"
+          },
+          "runs_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs Mean"
+          },
+          "runs_mode": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs Mode"
+          },
+          "sample": {
+            "description": "Completed tasks closed in this bucket.",
+            "title": "Sample",
+            "type": "integer"
+          },
+          "without_gate": {
+            "default": 0,
+            "title": "Without Gate",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bucket",
+          "sample"
+        ],
+        "title": "CostPerTaskPoint",
         "type": "object"
       },
       "DashboardRecentUpdate": {
@@ -2320,6 +2490,104 @@
         "title": "FinishHistoryWrite",
         "type": "object"
       },
+      "FinishPoint": {
+        "description": "The scripted finish, per week of start (F1 to F4).\n\nDuration percentiles are over ``finished`` rows only: a finish that stopped at the\ngate is measuring the gate. ``steps_p50_s`` lists the steps with a nonzero median,\nand ``runway_waited`` is how many finishes queued behind another for the merge\nrunway (task-223).",
+        "properties": {
+          "bucket": {
+            "format": "date",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "declined": {
+            "default": 0,
+            "title": "Declined",
+            "type": "integer"
+          },
+          "duration_p50_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration P50 Min"
+          },
+          "duration_p90_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration P90 Min"
+          },
+          "escalated": {
+            "default": 0,
+            "title": "Escalated",
+            "type": "integer"
+          },
+          "estimated": {
+            "default": false,
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "finished": {
+            "default": 0,
+            "title": "Finished",
+            "type": "integer"
+          },
+          "interrupted": {
+            "default": 0,
+            "title": "Interrupted",
+            "type": "integer"
+          },
+          "reasons": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Escalation reasons.",
+            "title": "Reasons",
+            "type": "object"
+          },
+          "runway_p90_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runway P90 S"
+          },
+          "runway_waited": {
+            "default": 0,
+            "title": "Runway Waited",
+            "type": "integer"
+          },
+          "sample": {
+            "default": 0,
+            "title": "Sample",
+            "type": "integer"
+          },
+          "steps_p50_s": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Steps P50 S",
+            "type": "object"
+          }
+        },
+        "required": [
+          "bucket"
+        ],
+        "title": "FinishPoint",
+        "type": "object"
+      },
       "FinishRecordWrite": {
         "additionalProperties": false,
         "description": "The ``finish`` row a scripted finish indexes itself as (task-472).\n\nDerived from the finish's ``meta.yaml`` by ``agentjobs.history``; the field names are\nthe column names. ``source`` says who is writing: ``native`` upserts, ``imported``\nnever overwrites a row that exists.",
@@ -2561,6 +2829,84 @@
           "record"
         ],
         "title": "GateHistoryWrite",
+        "type": "object"
+      },
+      "GatePoint": {
+        "description": "Full gates, per week of start (G1 to G3).\n\nDuration percentiles are over green full gates: a red gate stops early and says\nnothing about cost. ``failed_stages`` is where the red ones stopped and\n``origins`` says whose gates they were: the finisher's, a run's, or somebody's at a\nshell.",
+        "properties": {
+          "bucket": {
+            "format": "date",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "duration_p50_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration P50 Min"
+          },
+          "duration_p90_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration P90 Min"
+          },
+          "estimated": {
+            "default": false,
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "failed_stages": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Failed Stages",
+            "type": "object"
+          },
+          "full": {
+            "default": 0,
+            "title": "Full",
+            "type": "integer"
+          },
+          "origins": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Origins",
+            "type": "object"
+          },
+          "passed": {
+            "default": 0,
+            "title": "Passed",
+            "type": "integer"
+          },
+          "sample": {
+            "default": 0,
+            "title": "Sample",
+            "type": "integer"
+          },
+          "stages_p50_s": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Stages P50 S",
+            "type": "object"
+          }
+        },
+        "required": [
+          "bucket"
+        ],
+        "title": "GatePoint",
         "type": "object"
       },
       "GateRunWrite": {
@@ -3313,6 +3659,30 @@
         "title": "IdleSessionsView",
         "type": "object"
       },
+      "InReview": {
+        "description": "One open task waiting on review, with how long the ball has sat there (R1).",
+        "properties": {
+          "hours_waiting": {
+            "title": "Hours Waiting",
+            "type": "number"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "title",
+          "hours_waiting"
+        ],
+        "title": "InReview",
+        "type": "object"
+      },
       "Lifecycle": {
         "description": "Where a task is in its life (design doc section 3).",
         "enum": [
@@ -3811,6 +4181,85 @@
         "title": "MachineHolderView",
         "type": "object"
       },
+      "MachinePoint": {
+        "description": "What the execution journal says about this project, per week (R-5, R-6).\n\nIts own series because its source is another database with its own baseline.\n``start_latency`` is admission to launch; ``queue_wait`` is the time a queued\ndispatch waited for a slot; ``paused_run_hours`` is run-hours lost to usage-limit\npauses, not wall-clock -- three runs stalled for one reset count three times.",
+        "properties": {
+          "admitted": {
+            "default": 0,
+            "title": "Admitted",
+            "type": "integer"
+          },
+          "bucket": {
+            "format": "date",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "paused_run_hours": {
+            "default": 0.0,
+            "title": "Paused Run Hours",
+            "type": "number"
+          },
+          "paused_waiters": {
+            "default": 0,
+            "title": "Paused Waiters",
+            "type": "integer"
+          },
+          "queue_wait_p50_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Wait P50 S"
+          },
+          "queue_wait_p90_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Wait P90 S"
+          },
+          "queued": {
+            "default": 0,
+            "title": "Queued",
+            "type": "integer"
+          },
+          "start_latency_p50_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Latency P50 S"
+          },
+          "start_latency_p90_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Latency P90 S"
+          }
+        },
+        "required": [
+          "bucket"
+        ],
+        "title": "MachinePoint",
+        "type": "object"
+      },
       "MutationResult-Input": {
         "description": "What a mutation did, for callers that need more than the new task.\n\nReturned only when a request asks for it with `?envelope=true`, so the existing\ntask-shaped responses stay exactly as they were. `replayed` is the field that\ncannot be derived any other way: a caller retrying after a timeout has no way to\ntell \"I did that\" from \"you already had\".",
         "properties": {
@@ -4026,6 +4475,30 @@
           "user"
         ],
         "title": "NoteActionRequest",
+        "type": "object"
+      },
+      "OpenQuestion": {
+        "description": "One question on an open task with no threaded answer (Q-1).",
+        "properties": {
+          "entry_id": {
+            "title": "Entry Id",
+            "type": "integer"
+          },
+          "hours_open": {
+            "title": "Hours Open",
+            "type": "number"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "entry_id",
+          "hours_open"
+        ],
+        "title": "OpenQuestion",
         "type": "object"
       },
       "Outcome": {
@@ -6400,6 +6873,171 @@
         "title": "ReviewIdentity",
         "type": "object"
       },
+      "ReviewPoint": {
+        "description": "How long a person took, per week (R2, R3, Q-2).\n\n``exits`` is every departure from review in the bucket, approval or not, because a\nrevise request is also the owner answering; ``wait_*`` is measured over all of them.\nAn approval is an exit to agent/work or a close from review (section 17.2), and a\nfirst-time approval is one on the task's first review round. Questions are\nbucketed by when they were asked.",
+        "properties": {
+          "answer_p50_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer P50 Hours"
+          },
+          "answer_p90_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer P90 Hours"
+          },
+          "answered": {
+            "default": 0,
+            "title": "Answered",
+            "type": "integer"
+          },
+          "approvals": {
+            "default": 0,
+            "title": "Approvals",
+            "type": "integer"
+          },
+          "bucket": {
+            "format": "date",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "estimated": {
+            "default": false,
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "exits": {
+            "default": 0,
+            "title": "Exits",
+            "type": "integer"
+          },
+          "first_time_approvals": {
+            "default": 0,
+            "title": "First Time Approvals",
+            "type": "integer"
+          },
+          "questions": {
+            "default": 0,
+            "title": "Questions",
+            "type": "integer"
+          },
+          "wait_p50_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wait P50 Hours"
+          },
+          "wait_p90_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wait P90 Hours"
+          }
+        },
+        "required": [
+          "bucket"
+        ],
+        "title": "ReviewPoint",
+        "type": "object"
+      },
+      "RunPoint": {
+        "description": "Dispatched runs per bucket of start, at the spine grain (R-1 to R-4).\n\nA run is attributed whole to the bucket it started in. ``in_flight`` is the runs\nwith no end yet, which are in ``runs`` and in no outcome.",
+        "properties": {
+          "agent_hours": {
+            "default": 0.0,
+            "title": "Agent Hours",
+            "type": "number"
+          },
+          "bucket": {
+            "format": "date",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "duration_p50_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration P50 Min"
+          },
+          "duration_p90_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration P90 Min"
+          },
+          "estimated": {
+            "default": false,
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "in_flight": {
+            "default": 0,
+            "title": "In Flight",
+            "type": "integer"
+          },
+          "outcomes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Outcomes",
+            "type": "object"
+          },
+          "runs": {
+            "default": 0,
+            "title": "Runs",
+            "type": "integer"
+          },
+          "sample": {
+            "default": 0,
+            "title": "Sample",
+            "type": "integer"
+          },
+          "triggers": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Triggers",
+            "type": "object"
+          }
+        },
+        "required": [
+          "bucket"
+        ],
+        "title": "RunPoint",
+        "type": "object"
+      },
       "ScopedDependencyEdge": {
         "description": "A sequence arrow in one umbrella's contained task graph.",
         "properties": {
@@ -6449,6 +7087,238 @@
           "target_contained"
         ],
         "title": "ScopedDependencyEdge",
+        "type": "object"
+      },
+      "SegmentAmong": {
+        "description": "Per segment: how many of the bucket's tasks had any time in it, and their median.",
+        "properties": {
+          "p50_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Hours"
+          },
+          "tasks": {
+            "title": "Tasks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "title": "SegmentAmong",
+        "type": "object"
+      },
+      "SegmentPoint": {
+        "description": "Where a completed task's time went, per week of close (sections 17 and 18.1).\n\nFive segments -- queue, work, waiting, review, finish -- partition each task's open\nlife exactly, so ``queue + work + waiting + review + finish = total`` per task to\nthe second. The percentiles here are per segment over the bucket's tasks, so the\nstack's height is a sum of medians and not the median total; ``total_p50_hours``\nis the latter. ``first_review_*`` is the owner's dispatch-to-handoff (S3): first\nclaim to first review entry, bucketed by the review entry.",
+        "properties": {
+          "among": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SegmentAmong"
+            },
+            "description": "Per segment, the tasks with a nonzero value.",
+            "title": "Among",
+            "type": "object"
+          },
+          "bucket": {
+            "description": "First day of the week, in the reporting zone.",
+            "format": "date",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "estimated": {
+            "description": "A task in this bucket has a reconstructed boundary row.",
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "excluded": {
+            "description": "Closed by an import row: close time unknown.",
+            "title": "Excluded",
+            "type": "integer"
+          },
+          "finish_p50_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish P50 Hours"
+          },
+          "finish_p90_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish P90 Hours"
+          },
+          "first_review_p50_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Review P50 Hours"
+          },
+          "first_review_p90_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Review P90 Hours"
+          },
+          "first_review_sample": {
+            "default": 0,
+            "title": "First Review Sample",
+            "type": "integer"
+          },
+          "queue_p50_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue P50 Hours"
+          },
+          "queue_p90_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue P90 Hours"
+          },
+          "review_p50_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review P50 Hours"
+          },
+          "review_p90_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review P90 Hours"
+          },
+          "sample": {
+            "description": "Completed tasks closed in this bucket, in the sample.",
+            "title": "Sample",
+            "type": "integer"
+          },
+          "total_p50_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total P50 Hours"
+          },
+          "total_p90_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total P90 Hours"
+          },
+          "unreviewed": {
+            "description": "Tasks with no review handoff (section 17.3).",
+            "title": "Unreviewed",
+            "type": "integer"
+          },
+          "waiting_p50_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting P50 Hours"
+          },
+          "waiting_p90_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting P90 Hours"
+          },
+          "work_p50_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work P50 Hours"
+          },
+          "work_p90_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work P90 Hours"
+          }
+        },
+        "required": [
+          "bucket",
+          "sample",
+          "excluded",
+          "unreviewed",
+          "estimated"
+        ],
+        "title": "SegmentPoint",
         "type": "object"
       },
       "SelfClearingWait": {
@@ -6512,6 +7382,68 @@
           "feedback"
         ],
         "title": "SendBackActionRequest",
+        "type": "object"
+      },
+      "SeriesCoverage": {
+        "description": "What one series can honestly claim, independent of the page-level coverage.\n\nA series whose source is younger than the range starts where the source starts and\nsays so here, rather than drawing zero over history nobody recorded (section 21.1).\n``bucket`` is the grain the series is aggregated at, so a client never infers it.",
+        "properties": {
+          "bucket": {
+            "default": "week",
+            "description": "The grain this series is aggregated at.",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Bucket",
+            "type": "string"
+          },
+          "complete": {
+            "default": false,
+            "description": "True when the window starts at or after native_from.",
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "native_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First row written at the moment it happened.",
+            "title": "Native From"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One sentence for the caption, or null when none is needed.",
+            "title": "Note"
+          },
+          "recorded_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First row of any source. Null means no rows at all.",
+            "title": "Recorded From"
+          }
+        },
+        "title": "SeriesCoverage",
         "type": "object"
       },
       "SkippedTaskRead": {
@@ -8593,6 +9525,18 @@
               }
             ],
             "title": "Cycle P90 Days"
+          },
+          "estimated": {
+            "default": false,
+            "description": "This bucket contains a reconstructed close or reopen.",
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "reopened": {
+            "default": 0,
+            "description": "Tasks reopened in this bucket (T1).",
+            "title": "Reopened",
+            "type": "integer"
           },
           "sample": {
             "description": "Tasks behind the percentiles.",
