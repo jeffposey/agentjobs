@@ -200,6 +200,46 @@ The benchmark is deliberately **not** part of `scripts/check.py`. It starts serv
 a browser and takes minutes; the repository gate has to stay fast enough that people
 actually run it.
 
+### The gate's own browser budget
+
+**The benchmark stayed out of the gate and the browser went unguarded for a month, so
+the gate now carries a budget of its own** (task-487). `frontend/e2e/perf-budget.spec.ts`
+runs inside the existing `e2e` stage — no new stage, because that stage has already
+built the bundle, started the packaged app and opened a browser — and times the same
+interaction against the same stop condition this benchmark uses, so a figure from either
+is the same measurement.
+
+It is **not** a second benchmark. It is an order-of-magnitude catastrophe check, set to
+catch task-135's 263ms becoming 2.6 seconds and explicitly not to catch it becoming
+320ms: a wall-clock assertion on a machine that routinely runs three gates at once
+cannot be held tighter than that without becoming the flaky test somebody disables. It
+prints its median on a pass as well as a failure, so drift shows up in gate output
+rather than only at the moment it breaks.
+
+Two things about what it can and cannot see:
+
+- **The corpus is sixty tasks, seeded by the spec.** That is enough for a
+  per-interaction collapse and not enough for a per-record one — the class task-131
+  fixed, where a single request walked the corpus — which at sixty records would cost a
+  few milliseconds and hide inside the threshold.
+- **So the spec asserts a byte count alongside the clock.** Bytes per task in the list
+  response are exact — the same fixtures produce the same payload on every machine and
+  under any load — so that assertion is held *close* rather than loose, and it is where
+  the per-record class is caught. It currently guards task-484's listing projection:
+  601 bytes per row against a ceiling of 1,500, where a list answering with whole
+  records again measures 3,735.
+
+**It costs the `e2e` stage about 5.5 seconds** — 1.7s seeding the sixty fixtures, 1.9s
+timing the clicks, 0.4s on the payload, 1.5s closing the fixtures again, measured on
+2026-09-19. The stage's own before/after totals on that day were 125.0s and 146.7s, and
+**that difference is not the cost**: both runs lost a browser to task-404's flake and
+the retry took 5.5s in one and 35.8s in the other, which swamps everything this spec
+does. The per-hook figures the spec prints are the number to quote.
+
+Quote it for what it is: a guard against a collapse, not evidence the interaction is
+good. Playwright's synthetic click proves the render, and ENGINEERING.md's verification
+section says what it does not prove.
+
 ---
 
 ## What the gate costs
