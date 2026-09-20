@@ -8,6 +8,7 @@ import {
   attentionFaviconHref,
   deliver,
   paintFavicon,
+  shouldRenotify,
 } from "./shell";
 
 /**
@@ -122,7 +123,7 @@ describe("delivering the notification", () => {
     expect(showNotification).toHaveBeenCalledWith(note.title, expect.objectContaining({
       body: note.body,
       tag: note.tag,
-      renotify: false,
+      renotify: true,
     }));
   });
 
@@ -197,5 +198,77 @@ describe("delivering the notification", () => {
     });
 
     expect(outcome).toBe("shown");
+  });
+});
+
+describe("whether a replacement interrupts", () => {
+  /**
+   * The defect this rule exists for, reproduced in the owner's own Chrome (task-421).
+   *
+   * One tag per project means Windows replaces rather than stacks, and a replacement is
+   * silent unless `renotify` asks otherwise. With it fixed at `false`, the first
+   * attention toast of all time drew a banner and every later one overwrote an entry
+   * nobody had dismissed -- no banner, no sound, for days. Fixed at `true` it would buzz
+   * twice for one episode on an installed desktop PWA, which receives both the page's
+   * toast and a push. So the question is whether the episode on screen is *this* one.
+   */
+  const standing = (episodeId: string | null) => [{ data: episodeId ? { episodeId } : {} }];
+
+  it("interrupts when the standing notification is a different episode", () => {
+    expect(shouldRenotify(standing("att_old"), "att_new")).toBe(true);
+  });
+
+  it("stays quiet when the same episode is being re-drawn", () => {
+    expect(shouldRenotify(standing("att_one"), "att_one")).toBe(false);
+  });
+
+  it("interrupts when nothing is on screen at all", () => {
+    expect(shouldRenotify([], "att_one")).toBe(true);
+  });
+
+  it("stays quiet for a notification with no episode", () => {
+    // The worker's "nothing is waiting any more" notice. Good news is not an
+    // interruption.
+    expect(shouldRenotify([], null)).toBe(false);
+  });
+
+  it("asks the shell what is standing before it draws", async () => {
+    const showNotification = vi.fn().mockResolvedValue(undefined);
+    const getNotifications = vi.fn().mockResolvedValue([{ data: { episodeId: "att_one" } }]);
+
+    await deliver(note, {
+      notification: { permission: "granted" } as unknown as {
+        permission: NotificationPermission;
+        new (title: string, options?: NotificationOptions): Notification;
+      },
+      serviceWorker: {
+        getRegistration: vi
+          .fn()
+          .mockResolvedValue({ showNotification, getNotifications } as unknown as ServiceWorkerRegistration),
+      },
+    });
+
+    expect(getNotifications).toHaveBeenCalledWith({ tag: note.tag });
+    expect(showNotification.mock.calls[0]?.[1]?.renotify).toBe(false);
+  });
+
+  it("draws anyway when the browser will not say what is standing", async () => {
+    const showNotification = vi.fn().mockResolvedValue(undefined);
+    const getNotifications = vi.fn().mockRejectedValue(new Error("no"));
+
+    const outcome = await deliver(note, {
+      notification: { permission: "granted" } as unknown as {
+        permission: NotificationPermission;
+        new (title: string, options?: NotificationOptions): Notification;
+      },
+      serviceWorker: {
+        getRegistration: vi
+          .fn()
+          .mockResolvedValue({ showNotification, getNotifications } as unknown as ServiceWorkerRegistration),
+      },
+    });
+
+    expect(outcome).toBe("shown");
+    expect(showNotification.mock.calls[0]?.[1]?.renotify).toBe(true);
   });
 });

@@ -102,6 +102,7 @@ function pushFallback(payload) {
     body: (payload && payload.body) || "Open AgentJobs to see what has stopped.",
     url: (payload && payload.url) || "/app/",
     tag: (payload && payload.tag) || "agentjobs-attention",
+    episodeId: (payload && payload.episode) || null,
   };
 }
 
@@ -120,6 +121,30 @@ async function currentAttention(projectId) {
   }
 }
 
+// Whether this push is owed a *fresh* interruption, given what is already on screen.
+//
+// The same rule as `shouldRenotify` in `components/attention/shell.ts`, duplicated
+// because this file is plain JavaScript shipped whole and cannot import it;
+// `push.test.ts` reads this source and asserts the two still agree. A tagged
+// notification replaces its predecessor silently unless `renotify` says otherwise, so
+// a fixed `false` meant every attention notification after the very first one
+// overwrote an undismissed entry with no banner and no sound (task-421). An episode
+// already on screen is an update of a number and stays quiet; anything else is a new
+// run of attention. No episode at all is the "nothing is waiting any more" notice,
+// which is good news and not worth waking anybody for.
+function renotifyFor(standing, episodeId) {
+  if (!episodeId) return false;
+  return !standing.some((entry) => entry.data && entry.data.episodeId === episodeId);
+}
+
+async function standingFor(tag) {
+  try {
+    return (await self.registration.getNotifications({ tag })) || [];
+  } catch {
+    return [];
+  }
+}
+
 function notificationFromAttention(attention, payload) {
   const count = attention.blocking || 0;
   const episode = attention.episode;
@@ -132,6 +157,7 @@ function notificationFromAttention(attention, payload) {
       body: "Nothing is waiting on you any more.",
       url: "/app/",
       tag: pushFallback(payload).tag,
+      episodeId: null,
     };
   }
   const title = count === 1 ? "1 task is waiting on you" : `${count} tasks are waiting on you`;
@@ -144,6 +170,10 @@ function notificationFromAttention(attention, payload) {
     body: pushFallback(payload).body,
     url: episode.deep_link || pushFallback(payload).url,
     tag: pushFallback(payload).tag,
+    // The live episode rather than the payload's: a push held for twelve hours can
+    // arrive after the episode it was sent for has been replaced, and it is the one on
+    // screen now that decides whether this is an update or a new interruption.
+    episodeId: episode.id || pushFallback(payload).episodeId,
   };
 }
 
@@ -155,20 +185,22 @@ self.addEventListener("push", (event) => {
     payload = null;
   }
   event.waitUntil(
-    currentAttention(payload && payload.project).then((attention) => {
+    (async () => {
+      const attention = await currentAttention(payload && payload.project);
       const note = attention ? notificationFromAttention(attention, payload) : pushFallback(payload);
+      const standing = await standingFor(note.tag);
       return self.registration.showNotification(note.title, {
         body: note.body,
         tag: note.tag,
-        // Never true, for the reason the desktop toast never sets it: a repeat of the
-        // same tag is an update of a number, and renotify would buzz for every task
-        // joining an episode the person has already been told about.
-        renotify: false,
-        data: { url: note.url },
+        renotify: renotifyFor(standing, note.episodeId),
+        // The episode rides in `data` so the next notification under this tag can tell
+        // an update from a new run of attention -- the page's own toast writes the same
+        // key, because on an installed desktop PWA both channels draw here.
+        data: { url: note.url, episodeId: note.episodeId },
         icon: "/app/icons/icon-192.png",
         badge: "/app/icons/icon-192.png",
       });
-    }),
+    })(),
   );
 });
 

@@ -113,6 +113,44 @@ type ServiceWorkerLike = {
   getRegistration?: (scope?: string) => Promise<ServiceWorkerRegistration | undefined>;
 };
 
+/** Just enough of a delivered notification to tell which episode drew it. */
+export type StandingNotification = { data?: unknown };
+
+/**
+ * Whether raising this notification is owed a *fresh* interruption.
+ *
+ * The tag makes Windows replace rather than stack, and a replacement is silent unless
+ * `renotify` says otherwise. Hard-coding it either way is wrong in one direction each:
+ *
+ * * `false` always -- what this shipped with -- means the first attention toast of all
+ *   time draws a banner and every later one silently overwrites it, for as long as the
+ *   earlier entry is never dismissed. Sitting unread in the Action Center counts as
+ *   undismissed, so nothing a person does in the normal course clears it. Reproduced in
+ *   the owner's own Chrome: a probe under the project's real tag replaced a live
+ *   notification in place with no banner and no sound (task-421).
+ * * `true` always would buzz again every time the same episode is re-drawn -- an
+ *   installed desktop PWA receives both the page's own toast and a push for one
+ *   episode -- which is the fatigue the episode model exists to prevent.
+ *
+ * So the question is not "is this a replacement" but "is this a replacement *of the
+ * same episode*". A standing notification carries its episode in `data`; if one is
+ * already on screen for this episode, this is an update of a number and stays quiet.
+ * Anything else is a new run of attention and is owed the banner.
+ *
+ * An unknown or missing episode id is treated as an update, because the only caller
+ * that has none is the service worker's "nothing is waiting any more" notice, and good
+ * news is not worth an interruption.
+ */
+export function shouldRenotify(
+  standing: ReadonlyArray<StandingNotification>,
+  episodeId: string | null | undefined,
+): boolean {
+  if (!episodeId) return false;
+  return !standing.some(
+    (entry) => (entry?.data as { episodeId?: string } | null | undefined)?.episodeId === episodeId,
+  );
+}
+
 /**
  * Raise the bottom-right Windows notification, and say what became of the attempt.
  *
@@ -143,17 +181,17 @@ export async function deliver(
   if (!Ctor) return "unsupported";
   if (Ctor.permission !== "granted") return "blocked";
 
-  const options: NotificationOptions = {
-    body: note.body,
-    tag: note.tag,
-    // Never `true`: a repeat of the same tag is an *update* of a number, and renotify
-    // would make every task joining an open episode buzz again, which is the fatigue
-    // the episode model exists to prevent.
-    renotify: false,
-    data: { url: note.url, episodeId: note.episodeId },
-    icon: QUIET_FAVICON,
-    badge: QUIET_FAVICON,
-  } as NotificationOptions;
+  const options = (renotify: boolean): NotificationOptions =>
+    ({
+      body: note.body,
+      tag: note.tag,
+      // Asked of the notifications already on screen rather than fixed here --
+      // see {@link shouldRenotify}.
+      renotify,
+      data: { url: note.url, episodeId: note.episodeId },
+      icon: QUIET_FAVICON,
+      badge: QUIET_FAVICON,
+    }) as NotificationOptions;
 
   const container =
     deps?.serviceWorker ??
@@ -164,12 +202,37 @@ export async function deliver(
   try {
     const registration = await container?.getRegistration?.("/app/");
     if (registration?.showNotification) {
-      await registration.showNotification(note.title, options);
+      const standing = await standingFor(registration, note.tag);
+      await registration.showNotification(note.title, options(shouldRenotify(standing, note.episodeId)));
       return "shown";
     }
-    new Ctor(note.title, options);
+    // A page notification cannot read what the worker has already drawn, so it asks for
+    // the interruption. It is the fallback for a browser with no worker at all, where
+    // there is no second channel to double up with.
+    new Ctor(note.title, options(true));
     return "shown";
   } catch {
     return "failed";
+  }
+}
+
+/**
+ * The notifications already on screen under this tag, or none.
+ *
+ * Its own function because every part of it is optional at runtime: a registration
+ * predating `getNotifications`, a browser that rejects it, a test double that omits
+ * it. A browser that will not say gets treated as having nothing standing, which
+ * errs towards interrupting -- the failure this whole change exists to fix is the
+ * silent one.
+ */
+async function standingFor(
+  registration: ServiceWorkerRegistration,
+  tag: string,
+): Promise<ReadonlyArray<StandingNotification>> {
+  try {
+    if (!registration.getNotifications) return [];
+    return (await registration.getNotifications({ tag })) ?? [];
+  } catch {
+    return [];
   }
 }
