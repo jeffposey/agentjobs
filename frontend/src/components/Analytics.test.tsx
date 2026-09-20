@@ -2,7 +2,17 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AnalyticsResponse, BacklogPoint, ThroughputPoint } from "../api/types";
+import type {
+  AnalyticsResponse,
+  BacklogPoint,
+  CostPerTaskPoint,
+  FinishPoint,
+  GatePoint,
+  RunPoint,
+  ReviewPoint,
+  SegmentPoint,
+  ThroughputPoint,
+} from "../api/types";
 import { Analytics } from "./Analytics";
 
 /**
@@ -33,9 +43,21 @@ function throughputPoint(bucket: string, over: Partial<ThroughputPoint> = {}): T
     tasks_completed: 0,
     completion_events: 0,
     cancelled: 0,
-    cycle_p50_days: null,
-    cycle_p90_days: null,
+    reopened: 0,
+    estimated: false,
+    ...over,
+  };
+}
+
+function segmentPoint(bucket: string, over: Partial<SegmentPoint> = {}): SegmentPoint {
+  return {
+    bucket,
     sample: 0,
+    excluded: 0,
+    unreviewed: 0,
+    first_review_sample: 0,
+    estimated: false,
+    among: {},
     ...over,
   };
 }
@@ -48,7 +70,8 @@ function fullHistory(over: Partial<AnalyticsResponse> = {}): AnalyticsResponse {
       start: "2026-06-21T05:00:00Z",
       end: "2026-09-18T18:50:00Z",
       bucket: "day",
-      throughput_bucket: "week",
+      // §19.2: throughput is the spine grain now, so the two agree.
+      throughput_bucket: "day",
       timezone: "America/Chicago",
     },
     coverage: {
@@ -80,22 +103,216 @@ function fullHistory(over: Partial<AnalyticsResponse> = {}): AnalyticsResponse {
       { day: "2026-09-18", agent: 118, human: 29, external: 2 },
     ],
     throughput: [
-      throughputPoint("2026-09-07", {
-        tasks_completed: 9,
-        completion_events: 10,
-        cancelled: 1,
-        cycle_p50_days: 3.2,
-        cycle_p90_days: 8.4,
-        sample: 9,
+      throughputPoint("2026-09-16", { tasks_completed: 9, completion_events: 10, cancelled: 1, reopened: 1 }),
+      throughputPoint("2026-09-17", { tasks_completed: 0, completion_events: 0 }),
+      throughputPoint("2026-09-18", { tasks_completed: 2, completion_events: 2 }),
+    ],
+    segments: [
+      segmentPoint("2026-09-07", {
+        sample: 22,
+        excluded: 1,
+        unreviewed: 12,
+        queue_p50_hours: 1.1,
+        queue_p90_hours: 96,
+        work_p50_hours: 0.6,
+        work_p90_hours: 1.5,
+        waiting_p50_hours: 0,
+        waiting_p90_hours: 2.1,
+        review_p50_hours: 0,
+        review_p90_hours: 0.2,
+        finish_p50_hours: 0,
+        finish_p90_hours: 0.1,
+        total_p50_hours: 4.8,
+        total_p90_hours: 300,
+        first_review_p50_hours: 0.8,
+        first_review_p90_hours: 4,
+        first_review_sample: 9,
       }),
-      throughputPoint("2026-09-14", {
-        tasks_completed: 2,
-        completion_events: 2,
-        cancelled: 0,
-        cycle_p50_days: 1.1,
-        cycle_p90_days: 1.9,
-        sample: 2,
-      }),
+      // Two completions: under the minimum sample, so no median exists for it.
+      segmentPoint("2026-09-14", { sample: 2 }),
+    ],
+    segments_coverage: { bucket: "week", complete: false, recorded_from: "2025-10-25T19:00:00Z", note: null },
+    finishes: [
+      {
+        bucket: "2026-09-07",
+        finished: 7,
+        escalated: 2,
+        declined: 0,
+        interrupted: 1,
+        reasons: { gate_failed: 2 },
+        duration_p50_min: 4.8,
+        duration_p90_min: 8.3,
+        sample: 7,
+        steps_p50_s: { gate: 253, merge: 1.2 },
+        runway_waited: 2,
+        runway_p90_s: 359,
+        estimated: false,
+      } satisfies FinishPoint,
+      {
+        bucket: "2026-09-14",
+        finished: 3,
+        escalated: 0,
+        declined: 0,
+        interrupted: 0,
+        reasons: {},
+        duration_p50_min: 5.2,
+        duration_p90_min: 6.1,
+        sample: 3,
+        steps_p50_s: {},
+        runway_waited: 0,
+        runway_p90_s: null,
+        estimated: false,
+      } satisfies FinishPoint,
+    ],
+    finishes_coverage: {
+      bucket: "week",
+      complete: false,
+      recorded_from: "2026-08-23T00:00:00Z",
+      note: "Finishes are recorded from 23 Aug 2026.",
+    },
+    gates: [
+      {
+        bucket: "2026-09-07",
+        full: 9,
+        passed: 7,
+        failed_stages: { pytest: 2 },
+        duration_p50_min: 4.0,
+        duration_p90_min: 6.1,
+        sample: 7,
+        stages_p50_s: { pytest: 125, e2e: 107 },
+        origins: { finish: 7, run: 2 },
+        estimated: false,
+      } satisfies GatePoint,
+      {
+        bucket: "2026-09-14",
+        full: 3,
+        passed: 3,
+        failed_stages: {},
+        duration_p50_min: 3.6,
+        duration_p90_min: 4.2,
+        sample: 3,
+        stages_p50_s: { pytest: 120 },
+        origins: { finish: 3 },
+        estimated: false,
+      } satisfies GatePoint,
+    ],
+    gates_coverage: {
+      bucket: "week",
+      complete: false,
+      recorded_from: "2026-08-23T00:00:00Z",
+      note: "Agent-side gates are recorded only from 19 Sep 2026.",
+    },
+    runs: [
+      {
+        bucket: "2026-09-16",
+        runs: 12,
+        triggers: { manual: 9, child: 3 },
+        agent_hours: 6.4,
+        outcomes: { completed: 10, interrupted: 2 },
+        in_flight: 0,
+        duration_p50_min: 27,
+        duration_p90_min: 97,
+        sample: 12,
+        estimated: false,
+      } satisfies RunPoint,
+      {
+        bucket: "2026-09-17",
+        runs: 4,
+        triggers: { manual: 4 },
+        agent_hours: 1.2,
+        outcomes: { completed: 3, cancelled: 1 },
+        in_flight: 1,
+        duration_p50_min: 18,
+        duration_p90_min: 30,
+        sample: 3,
+        estimated: false,
+      } satisfies RunPoint,
+    ],
+    runs_coverage: {
+      bucket: "day",
+      complete: false,
+      recorded_from: "2026-09-07T19:06:00Z",
+      note: "Runs are recorded from 7 Sep 2026.",
+    },
+    machine: [
+      {
+        bucket: "2026-09-16",
+        admitted: 12,
+        start_latency_p50_s: 2.2,
+        start_latency_p90_s: 3.1,
+        queued: 2,
+        queue_wait_p50_s: 90,
+        queue_wait_p90_s: 140,
+        paused_run_hours: 6.9,
+        paused_waiters: 5,
+      },
+    ],
+    machine_coverage: {
+      bucket: "day",
+      complete: false,
+      recorded_from: "2026-09-13T00:00:00Z",
+      note: "The execution journal is recorded from 13 Sep 2026.",
+    },
+    review: [
+      {
+        bucket: "2026-09-07",
+        exits: 34,
+        approvals: 24,
+        wait_p50_hours: 0.07,
+        wait_p90_hours: 5.1,
+        first_time_approvals: 14,
+        questions: 5,
+        answered: 4,
+        answer_p50_hours: 0.27,
+        answer_p90_hours: 30,
+        estimated: false,
+      } satisfies ReviewPoint,
+      {
+        bucket: "2026-09-14",
+        exits: 2,
+        approvals: 2,
+        wait_p50_hours: 0.5,
+        wait_p90_hours: 0.9,
+        first_time_approvals: 2,
+        questions: 0,
+        answered: 0,
+        answer_p50_hours: null,
+        answer_p90_hours: null,
+        estimated: false,
+      } satisfies ReviewPoint,
+    ],
+    review_coverage: { bucket: "week", complete: false, recorded_from: "2025-10-25T19:00:00Z", note: null },
+    cost_per_task: [
+      {
+        bucket: "2026-09-07",
+        sample: 22,
+        runs_mean: 1.4,
+        runs_mode: 1,
+        finishes_mean: 1.3,
+        gate_minutes_p50: 4.4,
+        gate_minutes_p90: 6.9,
+        without_gate: 2,
+        estimated: false,
+      } satisfies CostPerTaskPoint,
+      {
+        bucket: "2026-09-14",
+        sample: 0,
+        runs_mean: null,
+        runs_mode: null,
+        finishes_mean: null,
+        gate_minutes_p50: null,
+        gate_minutes_p90: null,
+        without_gate: 0,
+        estimated: false,
+      } satisfies CostPerTaskPoint,
+    ],
+    cost_coverage: { bucket: "week", complete: false, recorded_from: "2026-08-23T00:00:00Z", note: null },
+    in_review: [
+      { task_id: "task-231", title: "The review queue, reordered", hours_waiting: 5.4 },
+      { task_id: "task-240", title: "A second thing to look at", hours_waiting: 0.3 },
+    ],
+    open_questions: [
+      { task_id: "task-409", entry_id: 7, hours_open: 52 },
     ],
     aging: [
       { label: "0-6d", tasks: 25, mean_age_days: 4.84 },
@@ -113,7 +330,18 @@ function fullHistory(over: Partial<AnalyticsResponse> = {}): AnalyticsResponse {
         age_days: 50.92,
       },
     ],
+    // Deliberately out of §19.3's order, and with the queue holding the most tasks --
+    // which is what the API's own count-descending sort returns and what the page has
+    // to reorder.
     stuck: [
+      {
+        ball: "agent",
+        ball_reason: "available",
+        tasks: 96,
+        mean_days_held: 12.1,
+        max_days_held: 40.5,
+        oldest_task_id: "task-053",
+      },
       {
         ball: "human",
         ball_reason: "spec",
@@ -121,6 +349,22 @@ function fullHistory(over: Partial<AnalyticsResponse> = {}): AnalyticsResponse {
         mean_days_held: 23.72,
         max_days_held: 34.2,
         oldest_task_id: "task-101",
+      },
+      {
+        ball: "agent",
+        ball_reason: "work",
+        tasks: 3,
+        mean_days_held: 0.4,
+        max_days_held: 1.1,
+        oldest_task_id: "task-474",
+      },
+      {
+        ball: "external",
+        ball_reason: "dependency",
+        tasks: 2,
+        mean_days_held: 6.0,
+        max_days_held: 9.3,
+        oldest_task_id: "task-207",
       },
     ],
     ...over,
@@ -151,6 +395,15 @@ function noHistory(): AnalyticsResponse {
     backlog: [],
     holders: [],
     throughput: [],
+    segments: [],
+    finishes: [],
+    gates: [],
+    runs: [],
+    machine: [],
+    review: [],
+    cost_per_task: [],
+    in_review: [],
+    open_questions: [],
     aging: [],
     oldest: [],
     stuck: [],
@@ -197,8 +450,8 @@ function seriesRows(testId: string): string[][] {
   );
 }
 
-describe("the page's six regions", () => {
-  it("renders them in the order of the four questions (ac-1)", () => {
+describe("the page's panels (ac-1, ac-2)", () => {
+  it("renders them in §19.4's order", () => {
     renderPage(fullHistory());
     const regions = screen
       .getAllByRole("region")
@@ -206,12 +459,29 @@ describe("the page's six regions", () => {
     expect(regions).toEqual([
       "Counts and their change",
       "Backlog",
-      "Throughput and cycle time",
+      "Throughput",
+      "Where the time goes",
+      "Review and questions",
+      "Finishes and gates",
+      "Runs",
+      "Cost per completed task",
       "Aging",
       "The ten oldest open tasks",
       "Stuck",
       "What this page can claim",
     ]);
+  });
+
+  it("puts the calls to action above the machine, and the right-now lists last", () => {
+    // §19.4's argument: "Review" is a list of things waiting on the reader, and a call
+    // to action belongs above a report. Aging and stuck are snapshots, and the owner's
+    // ask was trends.
+    renderPage(fullHistory());
+    const order = screen
+      .getAllByRole("region")
+      .map((region) => region.getAttribute("aria-label") ?? "");
+    expect(order.indexOf("Review and questions")).toBeLessThan(order.indexOf("Runs"));
+    expect(order.indexOf("Runs")).toBeLessThan(order.indexOf("Stuck"));
   });
 
   it("says what it is doing rather than rendering an empty page while the request is out", () => {
@@ -220,13 +490,56 @@ describe("the page's six regions", () => {
   });
 });
 
-describe("the summary row (ac-2)", () => {
+describe("the summary row (ac-3)", () => {
   it("shows each count with its change over the range", () => {
     renderPage(fullHistory());
     const open = screen.getByTestId("summary-open");
     expect(open).toHaveTextContent("149");
     // 16 opened less 6 closed across the three buckets.
     expect(open).toHaveTextContent("▲ 10 more");
+  });
+
+  it("names the date native history begins, not the backfilled floor (§19.1)", () => {
+    renderPage(fullHistory());
+    expect(screen.getByTestId("summary-open")).toHaveTextContent("since 7 Sep 2026");
+    expect(screen.getByTestId("summary-open")).not.toHaveTextContent("Jun");
+  });
+
+  it("shows no tile whose delta silently equals its own count", () => {
+    // The failure section 19.1 replaces: a 90-day window differenced against an
+    // October 2025 backfill reported *"149 open with 145 more"*, which is the total
+    // with an arrow on it. Asserted over every tile rather than over the one that
+    // failed -- and it is the *silent* form that is the defect, so a rise the page
+    // labels as the whole count is allowed by the next test and by this one.
+    renderPage(fullHistory());
+    for (const key of ["open", "created", "completed", "human", "external"]) {
+      const tile = screen.getByTestId(`summary-${key}`);
+      const count = tile.querySelector("span:nth-of-type(2)")?.textContent ?? "";
+      const change = tile.querySelector("span:nth-of-type(3)")?.textContent ?? "";
+      const restated = new RegExp("(^|[^0-9])" + count + "([^0-9]|$)").test(change);
+      expect(
+        restated && !change.includes("all of them"),
+        `${key} restated its own total: "${change}"`,
+      ).toBe(false);
+    }
+  });
+
+  it("says so where a rise really is the whole count, rather than leaving it ambiguous", () => {
+    // Against a native baseline this shape is sometimes simply true: every blocked
+    // task became blocked inside the window. The tile is then unreadable only if it
+    // does not say which of the two it is.
+    const data = fullHistory();
+    renderPage({
+      ...data,
+      totals: { ...data.totals, blocked: 3 },
+      holders: [
+        { day: "2026-09-16", agent: 110, human: 25, external: 0 },
+        { day: "2026-09-18", agent: 118, human: 29, external: 3 },
+      ],
+    });
+    expect(screen.getByTestId("summary-external")).toHaveTextContent(
+      "3 more since 7 Sep 2026 — all of them",
+    );
   });
 
   it("says the direction in words as well as in the glyph and the colour", () => {
@@ -236,20 +549,16 @@ describe("the summary row (ac-2)", () => {
     renderPage(fullHistory());
     expect(screen.getByTestId("summary-external")).toHaveTextContent("▼ 3 fewer");
     expect(screen.getByRole("link", { name: /Completed: 273/ })).toHaveAccessibleName(
-      /\+11 since 21 Jun 2026/,
+      /\+11 since 7 Sep 2026/,
     );
   });
 
-  it("attributes the change to the window it really covers, not the one asked for", () => {
-    // §9.3: `coverage.complete` is false here, so "in 90 days" would claim a window
-    // the store cannot answer for.
-    renderPage(fullHistory());
-    expect(screen.getByTestId("summary-open")).toHaveTextContent("since 21 Jun 2026");
-  });
-
-  it("uses the nominal window once coverage reaches all of it", () => {
+  it("uses the nominal window once native history is older than it", () => {
     const data = fullHistory();
-    renderPage({ ...data, coverage: { ...data.coverage, complete: true } });
+    renderPage({
+      ...data,
+      coverage: { ...data.coverage, native_from: "2026-01-01T00:00:00Z", complete: true },
+    });
     expect(screen.getByTestId("summary-open")).toHaveTextContent("in 90 days");
   });
 
@@ -262,7 +571,7 @@ describe("the summary row (ac-2)", () => {
   });
 });
 
-describe("the backlog panel (ac-3)", () => {
+describe("the backlog panel", () => {
   it("draws the level and both flows against a zero-based axis", () => {
     renderPage(fullHistory());
     expect(seriesRows("backlog-series")).toEqual([
@@ -278,16 +587,7 @@ describe("the backlog panel (ac-3)", () => {
 
   it("hatches the reconstructed span rather than drawing it as though it were measured", () => {
     renderPage(fullHistory());
-    expect(screen.getByTestId("reconstructed-span")).toBeInTheDocument();
-  });
-
-  it("hatches nothing when every bucket is exact", () => {
-    const data = fullHistory();
-    renderPage({
-      ...data,
-      backlog: (data.backlog ?? []).map((point) => ({ ...point, estimated: false })),
-    });
-    expect(screen.queryByTestId("reconstructed-span")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("reconstructed-span").length).toBeGreaterThan(0);
   });
 
   it("names what it shows and its headline value", () => {
@@ -298,23 +598,294 @@ describe("the backlog panel (ac-3)", () => {
   });
 });
 
-describe("every chart exposes its series (ac-4)", () => {
-  it("gives a hidden table to each of the four", () => {
+describe("throughput, on its own axis (ac-1)", () => {
+  it("carries no cycle-time column at all", () => {
+    // §19.2. The percentile line, its band and the second axis are gone; the fields
+    // they were drawn from were removed from the response by the same change, so a
+    // column here would have nothing behind it.
     renderPage(fullHistory());
-    for (const id of ["backlog-series", "throughput-series", "aging-series", "holders-series"]) {
+    const header = Array.from(
+      screen.getByTestId("throughput-series").querySelectorAll("thead th"),
+      (cell) => cell.textContent,
+    );
+    expect(header).toEqual([
+      "Bucket",
+      "Completed",
+      "Completion events",
+      "Cancelled",
+      "Reopened",
+    ]);
+    expect(screen.queryByTestId("cycle-p50")).not.toBeInTheDocument();
+    expect(screen.getByTestId("throughput-readout")).not.toHaveTextContent("median");
+  });
+
+  it("draws no label inside its plot area", () => {
+    // §19.2's other half: the first page printed *"median cycle, 0-40d"* over its own
+    // bars. Every label now sits in the padding, above or beside the plot rectangle.
+    renderPage(fullHistory());
+    const chart = screen.getByTestId("throughput-chart");
+    const labels = Array.from(chart.querySelectorAll("text"), (node) => ({
+      text: node.textContent ?? "",
+      x: Number(node.getAttribute("x")),
+      y: Number(node.getAttribute("y")),
+    }));
+    // COUNT_PADDING against the 400x166 viewBox: the plot is x 28..392, y 18..148.
+    // A label may sit in any margin; what it may not do is land in that rectangle.
+    const inside = labels.filter(
+      (label) => label.x > 28 && label.x < 392 && label.y > 18 && label.y < 148,
+    );
+    expect(
+      inside.map((label) => `"${label.text}" at ${label.x},${label.y}`),
+      "every label is in a margin, not over the data",
+    ).toEqual([]);
+  });
+
+  it("marks a reopening without counting it as a completion", () => {
+    renderPage(fullHistory());
+    expect(screen.getAllByTestId("reopened-marker")).toHaveLength(1);
+    expect(seriesRows("throughput-series")[0]).toEqual(["16 Sep", "9", "10", "1", "1"]);
+  });
+
+  it("is bucketed at the spine grain, so a 30-day range is completed-per-day", () => {
+    renderPage(fullHistory());
+    expect(screen.getByTestId("throughput-readout")).toHaveTextContent("18 Sep · 2 completed");
+    expect(screen.getByTestId("throughput-readout")).not.toHaveTextContent("week of");
+  });
+});
+
+describe("where the time goes (ac-2)", () => {
+  it("renders the five segments with their medians and the total beside them", () => {
+    renderPage(fullHistory());
+    expect(seriesRows("segments-series")[0]).toEqual([
+      "week of 7 Sep",
+      "1.1 h",
+      "36 min",
+      "0",
+      "0",
+      "0",
+      "4.8 h",
+      "12.5 d",
+      "22",
+    ]);
+  });
+
+  it("leaves a bucket under the minimum sample blank rather than drawing five noughts", () => {
+    renderPage(fullHistory());
+    expect(seriesRows("segments-series")[1]).toEqual([
+      "week of 14 Sep",
+      "not measured",
+      "not measured",
+      "not measured",
+      "not measured",
+      "not measured",
+      "not measured",
+      "not measured",
+      "2",
+    ]);
+    expect(screen.getAllByTestId("blank-buckets").length).toBeGreaterThan(0);
+  });
+
+  it("carries the 90th percentile in the readout, which is what a tap reaches", () => {
+    // §19.5: the p50-to-p90 band is gone and the tap replaced it. The readout always
+    // describes the selected bucket, so a tap is how a reader gets the p90.
+    renderPage(fullHistory());
+    const chart = screen.getByTestId("segments-chart");
+    fireEvent.click(within(chart).getByLabelText(/week of 7 Sep/));
+    const readout = screen.getByTestId("segments-readout");
+    expect(readout).toHaveTextContent("queue 1.1 h/4.0 d");
+    expect(readout).toHaveTextContent("total p50 4.8 h · p90 12.5 d");
+    expect(readout).toHaveTextContent("22 tasks");
+  });
+
+  it("says once that the stack is not the median total", () => {
+    renderPage(fullHistory());
+    expect(screen.getByLabelText("Where the time goes")).toHaveTextContent(
+      "five medians added together, which is not the median total",
+    );
+  });
+});
+
+describe("review and questions (ac-2)", () => {
+  it("lists what is waiting on the reader, with how long it has waited", () => {
+    renderPage(fullHistory());
+    const list = within(screen.getByTestId("in-review"));
+    expect(list.getByRole("link", { name: "The review queue, reordered" })).toHaveAttribute(
+      "href",
+      "/p/demo/tasks/task-231",
+    );
+    expect(screen.getByTestId("in-review")).toHaveTextContent("waiting 5.4 h");
+    expect(screen.getByTestId("in-review")).toHaveTextContent("waiting 18 min");
+  });
+
+  it("counts the open questions in the panel's heading and lists them", () => {
+    renderPage(fullHistory());
+    expect(screen.getByTestId("open-questions-count")).toHaveTextContent("1 open question");
+    expect(screen.getByTestId("open-questions")).toHaveTextContent("unanswered for 2 days");
+  });
+
+  it("carries the approval latency, the first-time rate and the answer wait", () => {
+    renderPage(fullHistory());
+    const chart = screen.getByTestId("review-chart");
+    fireEvent.click(within(chart).getByLabelText(/week of 7 Sep/));
+    const readout = screen.getByTestId("review-readout");
+    expect(readout).toHaveTextContent("34 reviews answered · waited p50 4 min · p90 5.1 h");
+    expect(readout).toHaveTextContent("14 of 24 approved first time");
+    expect(readout).toHaveTextContent("5 questions asked, 4 answered");
+  });
+});
+
+describe("finishes and gates (ac-2)", () => {
+  it("splits finishes by outcome and names the escalation reasons", () => {
+    renderPage(fullHistory());
+    expect(seriesRows("finishes-series")[0]).toEqual([
+      "week of 7 Sep",
+      "7",
+      "2",
+      "0",
+      "1",
+      "4.8 min",
+      "8.3 min",
+    ]);
+    const chart = screen.getByTestId("finishes-chart");
+    fireEvent.click(within(chart).getByLabelText(/week of 7 Sep/));
+    expect(screen.getByTestId("finishes-readout")).toHaveTextContent("escalations: gate_failed 2");
+    expect(screen.getByTestId("finishes-readout")).toHaveTextContent(
+      "2 waited for the runway, p90 6.0 min",
+    );
+  });
+
+  it("puts the step split and the stage split in the readout, on tap", () => {
+    // F3 and G2: not charts. A value that is `gate 253 s and everything else under two
+    // seconds` is a list, and a chart of it would be one bar and eleven slivers.
+    renderPage(fullHistory());
+    const chart = screen.getByTestId("durations-chart");
+    fireEvent.click(within(chart).getByLabelText(/week of 7 Sep/));
+    expect(screen.getByTestId("durations-readout")).toHaveTextContent("steps: gate 4.2 min");
+    expect(screen.getByTestId("durations-readout")).toHaveTextContent(
+      "stages: pytest 2.1 min, e2e 1.8 min",
+    );
+    expect(screen.getByTestId("durations-readout")).toHaveTextContent("7 green (78%)");
+  });
+
+  it("draws the finish and its gate on one axis, so the difference is readable", () => {
+    renderPage(fullHistory());
+    expect(screen.getByTestId("finish-duration-line")).toBeInTheDocument();
+    expect(screen.getByTestId("gate-duration-line")).toBeInTheDocument();
+    expect(seriesRows("durations-series")[0]).toEqual([
+      "week of 7 Sep",
+      "4.8 min",
+      "8.3 min",
+      "4.0 min",
+      "6.1 min",
+      "7 of 9",
+    ]);
+  });
+
+  it("says when the gate series cannot speak for the whole window", () => {
+    renderPage(fullHistory());
+    expect(screen.getByTestId("gates-caption")).toHaveTextContent(
+      "Agent-side gates are recorded only from 19 Sep 2026.",
+    );
+  });
+});
+
+describe("runs (ac-2)", () => {
+  it("draws the runs and their hours on two axes, and the paused hours above them", () => {
+    renderPage(fullHistory());
+    expect(screen.getAllByTestId("run-bar").length).toBe(2);
+    expect(screen.getAllByTestId("agent-hours-bar").length).toBe(2);
+    expect(screen.getAllByTestId("paused-hours-bar").length).toBe(1);
+    expect(seriesRows("runs-series")[0]).toEqual(["16 Sep", "12", "6.4", "6.9", "27.0 min", "0"]);
+  });
+
+  it("carries the triggers, the queue wait and the paused hours in the readout", () => {
+    renderPage(fullHistory());
+    const chart = screen.getByTestId("runs-chart");
+    fireEvent.click(within(chart).getByLabelText(/16 Sep/));
+    const readout = screen.getByTestId("runs-readout");
+    expect(readout).toHaveTextContent("12 runs · 6.4 agent-hours");
+    expect(readout).toHaveTextContent("triggers: manual 9, child 3");
+    expect(readout).toHaveTextContent("2 queued, waited p50 1.5 min");
+    expect(readout).toHaveTextContent("6.9 run-hours paused on a usage limit across 5 waiters");
+  });
+
+  it("splits the outcome mix and keeps a run still in the air out of the bars", () => {
+    renderPage(fullHistory());
+    expect(seriesRows("run-outcomes-series")[1]).toEqual([
+      "17 Sep",
+      "3",
+      "0",
+      "1",
+      "0",
+      "1",
+    ]);
+  });
+});
+
+describe("cost per completed task (ac-2)", () => {
+  it("draws three charts, one per unit, and blanks a bucket that completed nothing", () => {
+    renderPage(fullHistory());
+    for (const id of ["cost-runs-chart", "cost-finishes-chart", "cost-gate-chart"]) {
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    }
+    expect(screen.getAllByTestId("cost-runs-chart-bar")).toHaveLength(1);
+    expect(seriesRows("cost-series")[1]).toEqual([
+      "week of 14 Sep",
+      "0",
+      "—",
+      "—",
+      "—",
+      "—",
+      "0",
+    ]);
+  });
+
+  it("names the owner's three numbers in one line", () => {
+    renderPage(fullHistory());
+    const chart = screen.getByTestId("cost-runs-chart");
+    fireEvent.click(within(chart).getByLabelText(/week of 7 Sep/));
+    const readout = screen.getByTestId("cost-readout");
+    expect(readout).toHaveTextContent("1.4 runs each, most often 1");
+    expect(readout).toHaveTextContent("1.3 finishes each");
+    expect(readout).toHaveTextContent("gate p50 4.4 min · p90 6.9 min");
+    expect(readout).toHaveTextContent("2 with no gate at all");
+  });
+});
+
+describe("every chart exposes its series (ac-2)", () => {
+  it("gives a hidden table to each panel", () => {
+    renderPage(fullHistory());
+    for (const id of [
+      "backlog-series",
+      "throughput-series",
+      "segments-series",
+      "review-series",
+      "finishes-series",
+      "durations-series",
+      "runs-series",
+      "run-outcomes-series",
+      "cost-series",
+      "aging-series",
+      "holders-series",
+    ]) {
       expect(screen.getByTestId(id)).toHaveClass("sr-only");
     }
   });
 
-  it("says a percentile is not measured rather than printing a zero", () => {
-    // §9.3, and §8.4's rule that a bucket under three completions has no percentile.
-    // A zero there would be a two-day median that nobody computed.
-    const rows = (() => {
-      renderPage(fullHistory());
-      return seriesRows("throughput-series");
-    })();
-    expect(rows[0]).toEqual(["week of 7 Sep", "9", "10", "1", "3.2d", "8.4d"]);
-    expect(rows[1]).toEqual(["week of 14 Sep", "2", "2", "0", "not measured", "not measured"]);
+  it("gives each chart an aria-label naming what it shows", () => {
+    renderPage(fullHistory());
+    for (const id of [
+      "backlog-chart",
+      "throughput-chart",
+      "segments-chart",
+      "review-chart",
+      "finishes-chart",
+      "durations-chart",
+      "runs-chart",
+      "run-outcomes-chart",
+    ]) {
+      expect(screen.getByTestId(id).getAttribute("aria-label")).toBeTruthy();
+    }
   });
 
   it("carries the mean age of every band, including an empty one", () => {
@@ -328,7 +899,42 @@ describe("every chart exposes its series (ac-4)", () => {
   });
 });
 
-describe("the three states (ac-5)", () => {
+describe("per-series coverage (ac-5)", () => {
+  it("says where a series that is younger than the range starts", () => {
+    renderPage(fullHistory());
+    const panel = screen.getByLabelText("Finishes and gates");
+    expect(panel).toHaveTextContent("Finishes are recorded from 23 Aug 2026.");
+  });
+
+  it("draws no axis and says so for a series with no rows at all", () => {
+    const data = fullHistory();
+    renderPage({
+      ...data,
+      finishes: [],
+      finishes_coverage: {
+        bucket: "week",
+        complete: false,
+        recorded_from: null,
+        note: "No finishes recorded yet.",
+      },
+    });
+    expect(screen.queryByTestId("finishes-chart")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("no-series")[0]).toHaveTextContent("No finishes recorded yet.");
+  });
+
+  it("gives the footer one line per source family, because five baselines are five sentences", () => {
+    renderPage(fullHistory());
+    const sources = screen.getByTestId("coverage-sources");
+    expect(sources).toHaveTextContent("Finishes: Finishes are recorded from 23 Aug 2026.");
+    expect(sources).toHaveTextContent("Runs: Runs are recorded from 7 Sep 2026.");
+    expect(sources).toHaveTextContent(
+      "Execution journal: The execution journal is recorded from 13 Sep 2026.",
+    );
+    expect(sources).toHaveTextContent("Task history: complete for this window");
+  });
+});
+
+describe("the three states", () => {
   it("says nothing has happened, and does not draw an empty axis", () => {
     renderPage(noHistory());
     expect(screen.getByTestId("no-history")).toHaveTextContent("No history yet.");
@@ -347,17 +953,14 @@ describe("the three states (ac-5)", () => {
     expect(screen.getByTestId("summary-open")).toHaveTextContent(
       "no comparison — only 9 days of history",
     );
-    // The percentile line is a trend; the completion bars beside it are not.
-    expect(screen.queryByTestId("cycle-p50")).not.toBeInTheDocument();
     expect(screen.getAllByTestId("completed-bar").length).toBeGreaterThan(0);
-    expect(screen.getByTestId("throughput-readout")).not.toHaveTextContent("median");
   });
 
   it("carries the coverage sentence on an unknown history, always", () => {
     renderPage(fullHistory());
     const footer = screen.getByTestId("coverage-footer");
     expect(footer).toHaveTextContent("History from 25 Oct 2025");
-    expect(footer).toHaveTextContent("Buckets are days in America/Chicago.");
+    expect(footer).toHaveTextContent("Buckets are days in America/Chicago");
   });
 
   it("never draws an impossible backlog, and says so where it had to floor one", () => {
@@ -416,19 +1019,16 @@ describe("selecting a bucket", () => {
     expect(screen.getByTestId("backlog-readout")).toHaveTextContent("16 Sep");
   });
 
-  it("mentions a reopening in the readout only where one happened", () => {
+  it("selects each panel independently, so one tap does not move eight readouts", () => {
     renderPage(fullHistory());
-    const chart = screen.getByTestId("throughput-chart");
-    fireEvent.click(within(chart).getByLabelText(/week of 7 Sep/));
-    expect(screen.getByTestId("throughput-readout")).toHaveTextContent(
-      "10 completion events — a task was reopened",
-    );
-    fireEvent.click(within(chart).getByLabelText(/week of 14 Sep/));
-    expect(screen.getByTestId("throughput-readout")).not.toHaveTextContent("completion events");
+    const throughput = screen.getByTestId("throughput-chart");
+    fireEvent.click(within(throughput).getByLabelText(/^16 Sep/));
+    expect(screen.getByTestId("throughput-readout")).toHaveTextContent("16 Sep");
+    expect(screen.getByTestId("backlog-readout")).toHaveTextContent("18 Sep");
   });
 });
 
-describe("the aging and stuck panels", () => {
+describe("the aging and stuck panels (ac-4)", () => {
   it("links each of the oldest open tasks to its record", () => {
     renderPage(fullHistory());
     const oldest = within(screen.getByTestId("oldest-tasks"));
@@ -439,9 +1039,33 @@ describe("the aging and stuck panels", () => {
     expect(screen.getByTestId("oldest-tasks")).toHaveTextContent("51 days, with an agent");
   });
 
-  it("reads a stuck group as a sentence in the app's own vocabulary", () => {
+  it("puts waiting-on-you and blocked above the queue, whatever the counts are", () => {
+    // §19.3. The API sorts by count descending, which put *96 ready, unclaimed* at the
+    // top of a panel called "Stuck" -- and a backlog waiting its turn is not stuck.
     renderPage(fullHistory());
-    expect(screen.getByTestId("stuck-groups")).toHaveTextContent(
+    const bands = Array.from(
+      screen.getByTestId("stuck-groups").querySelectorAll("[data-testid^='stuck-band-']"),
+      (node) => node.getAttribute("data-testid"),
+    );
+    expect(bands).toEqual([
+      "stuck-band-human",
+      "stuck-band-blocked",
+      "stuck-band-agent",
+      "stuck-band-queue",
+    ]);
+  });
+
+  it("names the queue as the queue rather than as stuck work", () => {
+    renderPage(fullHistory());
+    const queue = screen.getByTestId("stuck-band-queue");
+    expect(queue).toHaveTextContent("The queue");
+    expect(queue).toHaveTextContent("the backlog waiting its turn");
+    expect(queue).toHaveTextContent("96 tasks ready, unclaimed · longest 41 days");
+  });
+
+  it("keeps §8.6's wording for work that really has stopped", () => {
+    renderPage(fullHistory());
+    expect(screen.getByTestId("stuck-band-human")).toHaveTextContent(
       "29 tasks waiting on you — spec · longest 34 days",
     );
   });

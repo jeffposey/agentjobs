@@ -59,6 +59,7 @@ import {
   UnsupportedTaskSchemaError,
 } from "./api/schema-version";
 import { Analytics } from "./components/Analytics";
+import { DEFAULT_ANALYTICS_RANGE } from "./components/analyticsSecondSet";
 import { BrokenFiles } from "./components/BrokenFiles";
 import { Dashboard } from "./components/Dashboard";
 import { ConnectionUnavailable } from "./components/ConnectionUnavailable";
@@ -1037,7 +1038,7 @@ function TaskCreatePage({ projectId }: { projectId: string }) {
  * them costs nothing after the first look.
  */
 function AnalyticsPage({ projectId }: { projectId: string }) {
-  const [range, setRange] = useState("90d");
+  const [range, setRange] = useState(DEFAULT_ANALYTICS_RANGE);
   const analytics = useQuery(
     getAnalyticsApiProjectsProjectIdAnalyticsGetOptions({
       path: { project_id: projectId },
