@@ -464,10 +464,16 @@ class TestTheRevisionPollStaysCheap:
 #: endpoint was out of scope for that task, so the numbers were recorded and held where
 #: they stood; task-495 brought both down and the ceilings with them, which is the order
 #: that was intended.
+#:
+#: ``/dashboard``'s measured figure was 871 and is 888. Neither number is task-498's
+#: doing -- the same corpus measures 888 on the commit before it as on the commit after,
+#: because that work changed what the dashboard *reads* and not a byte of what it sends.
+#: It is a figure that went stale between being written and being read, which is what a
+#: measured figure beside a ceiling is for.
 PAYLOAD_BUDGETS: Dict[str, Tuple[int, int]] = {
     # path                        measured  ceiling
     f"{LOCAL}/tasks": (785, 1_500),
-    f"{LOCAL}/dashboard": (871, 1_500),
+    f"{LOCAL}/dashboard": (888, 1_500),
     f"{LOCAL}/search?q=generated": (785, 1_500),
 }
 
@@ -566,6 +572,11 @@ class TestAPayloadDoesNotGrowWithTheBacklog:
 
 #: Statements per request, measured 2026-09-20, with the ceiling each is held to.
 #:
+#: ``/dashboard`` fell from 14 to 10 on task-498, which is the one thing that work was
+#: *not* trying to do: what it removed was the rows those statements read, and the count
+#: falling as well is a side effect of the reads it replaced being the expensive kind.
+#: The assertion that speaks for that work is the log-row budget below.
+#:
 #: **Every one of these is a constant**, and :class:`TestTheQueryCountIsAConstant` is
 #: what says so. The number that would break them is a query per record: at this corpus
 #: that is 480 rather than 32, so the ceilings are set for headroom on a route that
@@ -582,7 +593,7 @@ class TestAPayloadDoesNotGrowWithTheBacklog:
 QUERY_BUDGETS: Dict[str, Tuple[int, int]] = {
     # path                                  measured  ceiling
     f"{LOCAL}/tasks": (5, 12),
-    f"{LOCAL}/dashboard": (14, 24),
+    f"{LOCAL}/dashboard": (10, 24),
     f"{LOCAL}/tasks/{SAMPLE_TASK}/detail": (32, 48),
     f"{LOCAL}/search?q=generated": (11, 20),
     f"{LOCAL}/tasks/next": (11, 20),
@@ -646,6 +657,117 @@ class TestTheQueryCountIsAConstant:
             + "\nA statement count that follows the corpus is a query in a loop. The "
             "ceilings in QUERY_BUDGETS would not have caught it: they are sized for a "
             "constant, and a fan-out passes them at a small corpus."
+        )
+
+
+# ---------------------------------------------------------------------------------
+# What a request reads *of the log*
+# ---------------------------------------------------------------------------------
+
+
+#: Log rows one ``GET /dashboard`` may read, against a ceiling it is held to.
+#:
+#: **A row count, not a statement count, and that is the whole point of this pair.** The
+#: dashboard's recent-updates panel shows ten entries, and it used to find them by
+#: loading every record in the project -- which joins every ``log_entry`` row there is --
+#: and discarding the rest (task-498). That regression costs no extra statements. It
+#: costs rows, so rows are the unit: the panel's own bounded window, plus the one handoff
+#: row per task parked on a service that decides a quota-wait label.
+#:
+#: The ceiling is loose against the measured figure on purpose. The window is the ten the
+#: panel draws plus whatever ties them in the same whole second, which is a property of
+#: the corpus rather than of the code; the defect this catches is a number near the
+#: project's *entire* log, which is 12,479 rows at this corpus size.
+LOG_ROWS_BUDGET: Dict[str, Tuple[int, int]] = {
+    # path                        measured  ceiling
+    f"{LOCAL}/dashboard": (11, 64),
+}
+
+
+def _log_rows_read(project: Path, queries: List[str]) -> Dict[str, int]:
+    """Re-run each statement that touched ``log_entry`` and count the rows it returns.
+
+    The trace callback hands back statements with their parameters already bound, so
+    they can be replayed verbatim against a read-only connection to the same database.
+    Replaying is what makes this a row count rather than a guess from the SQL text: a
+    ``LIMIT`` in a statement bounds what comes *back*, and a join that reads the whole
+    table to produce ten rows would look identical.
+    """
+    connection = sqlite3.connect(f"file:{local_database(project / 'tasks')}?mode=ro", uri=True)
+    try:
+        return {
+            sql: len(connection.execute(sql).fetchall()) for sql in queries if "log_entry" in sql
+        }
+    finally:
+        connection.close()
+
+
+def _log_rows_in(project: Path) -> int:
+    """Every log row in the generated project, which is what unbounded would mean."""
+    connection = sqlite3.connect(f"file:{local_database(project / 'tasks')}?mode=ro", uri=True)
+    try:
+        return int(connection.execute("SELECT count(*) FROM log_entry").fetchone()[0])
+    finally:
+        connection.close()
+
+
+class TestTheDashboardReadsABoundedSliceOfTheLog:
+    """The read task-498 removed, in the units it happened in.
+
+    ``GET /dashboard`` answered a ten-entry panel by assembling every record in the
+    project, log entries and all. Nothing in this file noticed: the payload had already
+    been cut to a card (task-495), the statement count did not move, and a request that
+    runs one query and reads twelve thousand rows out of it parses no files.
+    """
+
+    @pytest.mark.parametrize("path", sorted(LOG_ROWS_BUDGET))
+    def test_no_statement_reads_an_unbounded_slice_of_the_log(
+        self, budget_project: Path, monkeypatch, count_sql: StatementLog, path: str
+    ) -> None:
+        measured, ceiling = LOG_ROWS_BUDGET[path]
+        with client_for(budget_project, monkeypatch) as client:
+            queries = measure(client, count_sql, path).queries
+        rows = _log_rows_read(budget_project, queries)
+        total = sum(rows.values())
+        whole_log = _log_rows_in(budget_project)
+        # Say out loud that an unbounded read would be a much bigger number here, so a
+        # generator that stopped writing logs cannot turn this budget into nothing.
+        assert whole_log > ceiling * 10, (
+            f"the generated project holds {whole_log:,} log rows, which is not enough "
+            f"more than the {ceiling} ceiling for this to be measuring anything."
+        )
+        assert total <= ceiling, (
+            f"{path} read {total:,} log_entry rows over {CORPUS_SIZE} records, against a "
+            f"ceiling of {ceiling} and {measured} when this budget was written -- out of "
+            f"{whole_log:,} in the project. A count near that total is the whole-corpus "
+            "read task-498 removed: the panel shows ten entries, so it asks the store "
+            "for ten. The statements were:\n"
+            + "\n".join(
+                f"    {count:>6} rows  {' '.join(sql.split())[:100]}" for sql, count in rows.items()
+            )
+        )
+
+    def test_the_log_rows_read_do_not_move_with_the_corpus(
+        self, tmp_path_factory, monkeypatch, count_sql: StatementLog
+    ) -> None:
+        """Eight times the corpus, the same slice of the log.
+
+        The ceiling above says the number is small today. This says it is not a function
+        of how much history the project has, which is the property that fails on the
+        shape of the code rather than on how big the backlog got.
+        """
+        read: Dict[int, int] = {}
+        for count in (COMPARISON_CORPUS_SIZE, CORPUS_SIZE):
+            root = build_budget_project(tmp_path_factory.mktemp(f"log-{count}"), count)
+            with client_for(root, monkeypatch) as client:
+                queries = measure(client, count_sql, f"{LOCAL}/dashboard").queries
+            read[count] = sum(_log_rows_read(root, queries).values())
+        small, large = read[COMPARISON_CORPUS_SIZE], read[CORPUS_SIZE]
+        assert large == small, (
+            f"GET /dashboard read {small} log rows over {COMPARISON_CORPUS_SIZE} records "
+            f"and {large} over {CORPUS_SIZE}. A number of log rows that follows the "
+            "corpus is the whole-corpus read arriving back: the panel draws ten entries "
+            "whatever the project's history is."
         )
 
 
