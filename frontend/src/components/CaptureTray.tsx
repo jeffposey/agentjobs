@@ -24,6 +24,13 @@ import {
  * button again sends only what is still here, each item carrying the `operation_id` it
  * was collected with, so a success the browser never saw resolves to the task the first
  * attempt made rather than to a duplicate.
+ *
+ * **It sits above the form, and the card list has a ceiling.** Below it and unbounded was
+ * the first arrangement, and three findings on a 1100px-tall window already put both the
+ * list and the button off the bottom of the dialog: the badge said three and there was
+ * nothing on screen to press or to check. So the count and the one button that files
+ * them are the first thing in the dialog, and the cards scroll within a bounded box
+ * rather than pushing the form somewhere a review pass has to hunt for it.
  */
 
 type CaptureTrayProps = {
@@ -78,19 +85,37 @@ export function CaptureTray({
           aria-label="Collected findings"
           className="rounded-lg border border-dark-border bg-dark-bg p-4"
         >
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
+          {/*
+            The count and the button, before the cards: these two are what has to be on
+            screen at every length of list, and putting them after fifteen cards is what
+            put them off the bottom of the dialog.
+          */}
+          <div className="mobile-action-row flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-lg font-semibold">
               Collected findings{" "}
               <span className="text-sm font-normal text-dark-muted">({ordered.length})</span>
             </h3>
-            {!durable && (
-              <p className="text-xs text-amber-300">
-                This browser is not storing the list; a reload will lose it.
-              </p>
-            )}
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={busy}
+              className="touch-target rounded-lg bg-blue-600 px-5 font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
+            >
+              {busy ? "Creating…" : submitLabel(ordered.length)}
+            </button>
           </div>
+          {!durable && (
+            <p className="mt-1 text-xs text-amber-300">
+              This browser is not storing the list; a reload will lose it.
+            </p>
+          )}
 
-          <ul className="mt-3 space-y-2">
+          {/*
+            Bounded and scrolling. A review pass collects into a list it does not need to
+            read, and an unbounded one pushes the form -- the thing it is typing into --
+            off the screen by the fourth finding.
+          */}
+          <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto">
             {ordered.map((item) => {
               const error = errorFor(item.id, lastBatch);
               return (
@@ -153,16 +178,6 @@ export function CaptureTray({
             })}
           </ul>
 
-          <div className="mobile-action-row mt-3 flex justify-end">
-            <button
-              type="button"
-              onClick={onSubmit}
-              disabled={busy}
-              className="touch-target rounded-lg bg-blue-600 px-5 font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
-            >
-              {busy ? "Creating…" : submitLabel(ordered.length)}
-            </button>
-          </div>
         </section>
       )}
 

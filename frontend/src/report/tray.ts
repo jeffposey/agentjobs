@@ -115,8 +115,9 @@ export function batchSummary(batch: ReadonlyArray<TrayFiling>): string {
     return lost === 1
       ? "Nothing was created. The finding is still here, with its error."
       : `Nothing was created. All ${lost} findings are still here, each with its error.`;
-  return (
-    `${won} of ${won + lost} created. The ${lost === 1 ? "one that failed is" : `${lost} that failed are`} ` +
-    "still here with their text and images; fix and press the button again."
-  );
+  return lost === 1
+    ? `${won} of ${batch.length} created. The one that failed is still here, with its text ` +
+        "and images. Fix it and press the button again."
+    : `${won} of ${batch.length} created. The ${lost} that failed are still here, with their ` +
+        "text and images. Fix them and press the button again.";
 }

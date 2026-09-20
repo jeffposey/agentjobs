@@ -331,6 +331,30 @@ function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTr
           this to the list and keep going.
         </p>
 
+        {/*
+          Above the form, not below it. Below and unbounded was the first arrangement and
+          it failed the only test that matters here: three findings on a tall desktop
+          window already put the list and its button off the bottom of the dialog, so the
+          badge said three and there was nothing on screen to press. It also stays on
+          screen through the single-capture receipt, so a list collected earlier is not
+          lost behind a "Filed as" card.
+        */}
+        <div className="mt-5">
+          <CaptureTray
+            items={tray.items}
+            filedInSession={filedInSession}
+            lastBatch={lastBatch}
+            progress={progress}
+            durable={tray.durable}
+            projectName={(projectId) =>
+              destinations.find((entry) => entry.id === projectId)?.name ?? projectId
+            }
+            onSubmit={() => void submitTray()}
+            onRemove={tray.remove}
+            onNavigate={onClose}
+          />
+        </div>
+
         {filed ? (
           <div className="mt-5 space-y-4">
             <FiledNotice
@@ -420,27 +444,6 @@ function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTr
           </div>
         )}
 
-        {/*
-          Below the form, not above it: the reading order of a review pass is compose,
-          then see what you have built, then file the lot. It stays on screen through the
-          single-capture receipt too, so a tray collected earlier cannot be lost behind a
-          "Filed as" card.
-        */}
-        <div className="mt-5">
-          <CaptureTray
-            items={tray.items}
-            filedInSession={filedInSession}
-            lastBatch={lastBatch}
-            progress={progress}
-            durable={tray.durable}
-            projectName={(projectId) =>
-              destinations.find((entry) => entry.id === projectId)?.name ?? projectId
-            }
-            onSubmit={() => void submitTray()}
-            onRemove={tray.remove}
-            onNavigate={onClose}
-          />
-        </div>
       </section>
     </div>
   );

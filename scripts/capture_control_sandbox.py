@@ -48,6 +48,19 @@ Then file one of each yourself, which is the actual review:
 * ``/not-found``, which has no header -- the control is pinned there instead, because
   a finding about a page with no project has nowhere else to go.
 
+**The tray (task-121)** is the other half, and only a pass through the product reviews
+it: type a title and a note, press Ctrl+Enter, and keep going. The measure is whether
+that beats saying it out loud -- so collect four or five findings from different pages,
+reload the browser to check the list is still there, and file the lot in one press.
+
+The one state that cannot be constructed by hand is a **partial failure**, so the
+sandbox stages it: any finding whose title contains the word ``boom`` is refused with an
+ordinary structured refusal while its siblings file normally. Collect three, call one of
+them ``boom something``, and press *Create 3 tasks*. Two leave the list as links; the
+third keeps its prose, its screenshots and its own error. Take the word out and press
+again -- it files, and nothing that already landed is filed twice. That cue is in this
+file only; nothing about it is in the application.
+
 Nothing here touches the live corpus or the 8876 dashboard. Everything lives under a
 temporary directory with its own ``AGENTJOBS_HOME`` registry, deleted when this process
 stops. Stop it with Ctrl-C.
@@ -55,6 +68,7 @@ stops. Stop it with Ctrl-C.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -62,11 +76,16 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import yaml
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 
 DEFAULT_PORT = 8921
+
+#: A title holding this word is refused, so a partial batch is reviewable (task-121).
+REFUSAL_CUE = "boom"
 
 
 def tailnet_address() -> Optional[str]:
@@ -183,6 +202,61 @@ def build_project(root: Path, *, project_id: str, name: str) -> Path:
     return project_root
 
 
+class RefuseOnCue(BaseHTTPMiddleware):
+    """Refuse any create whose title holds ``REFUSAL_CUE``, so a partial batch can be seen.
+
+    task-121's tray files N tasks in one press and reports each one's fate on its own
+    card. **The interesting state is the one where some of them failed**, and it is the
+    one state a reviewer cannot construct by hand: collecting findings is easy, reloading
+    the page is easy, making the server refuse exactly the third of five is not.
+
+    So the sandbox gives it a cue. Name a finding with the word below and its create is
+    refused with an ordinary structured refusal -- the same shape a real 400 carries --
+    while its siblings are filed normally. What that shows, in one press: the ones that
+    landed leave the list and appear as links, the one that did not keeps its prose, its
+    screenshots and its own error, and the summary says two of three rather than
+    implying atomicity. Take the word out of the title and press the button again: it
+    files, and nothing that already landed is filed twice.
+
+    Sandbox-only, and deliberately not a feature flag in the application: nothing about
+    this reaches `src/`. It exists in this file because a review of a partial failure
+    otherwise requires stopping the server mid-batch, which reviews the wrong thing.
+    """
+
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
+        creating = request.method == "POST" and request.url.path.endswith("/tasks")
+        if not creating:
+            return await call_next(request)
+        # The body has to be read to see the title, and reading it once would leave the
+        # route with nothing to parse -- so it is put back on the receive channel.
+        body = await request.body()
+
+        async def replay() -> dict[str, Any]:
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        request._receive = replay
+        try:
+            title = str(json.loads(body or b"{}").get("title") or "")
+        except (ValueError, AttributeError):
+            title = ""
+        if REFUSAL_CUE.lower() in title.lower():
+            return Response(
+                content=json.dumps(
+                    {
+                        "code": "sandbox_refusal",
+                        "message": (
+                            f"The sandbox refuses anything titled with '{REFUSAL_CUE}'. "
+                            "Take the word out of the title and press the button again."
+                        ),
+                        "detail": f"Sandbox cue '{REFUSAL_CUE}' in the title.",
+                    }
+                ),
+                status_code=400,
+                media_type="application/json",
+            )
+        return await call_next(request)
+
+
 def serve(*, port: int, remote: Optional[str]) -> None:
     """Serve loopback, and the tailnet address too when there is one.
 
@@ -197,6 +271,8 @@ def serve(*, port: int, remote: Optional[str]) -> None:
     import uvicorn
 
     from agentjobs.api.main import app
+
+    app.add_middleware(RefuseOnCue)
 
     def server(host: str) -> uvicorn.Server:
         return uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
@@ -253,6 +329,22 @@ def main() -> None:
         flush=True,
     )
     print("[capture]   task-102 is a quick report; task-103 is a specified one", flush=True)
+    print(
+        "[capture]   the tray: title, note, Ctrl+Enter, repeat -- then Create N tasks",
+        flush=True,
+    )
+    print(
+        "[capture]   reload mid-pass; the list and its screenshots should still be there",
+        flush=True,
+    )
+    print(
+        f"[capture]   to see a partial failure, title one finding '{REFUSAL_CUE} ...' -- the",
+        flush=True,
+    )
+    print(
+        "[capture]   sandbox refuses that one and files the rest; then rename it and retry",
+        flush=True,
+    )
     print(f"[capture]   the same form as a page: {base}/tasks/new", flush=True)
     print(
         f"[capture]   no header, so the control is pinned instead: "
