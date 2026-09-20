@@ -26,7 +26,7 @@ const note: AttentionNotification = {
   title: "2 tasks are waiting on you",
   body: "task-001: Review the branch — and 1 other.",
   tag: "agentjobs-attention-agentjobs",
-  url: "/app/p/agentjobs/tasks?status=human&attention_ack=att_one",
+  url: "/app/p/agentjobs/tasks?status=attention&attention_ack=att_one",
 };
 
 describe("the taskbar badge", () => {

@@ -836,6 +836,14 @@
                 "type": "null"
               }
             ]
+          },
+          "stalled": {
+            "description": "The members of the waiting set that are there because nobody is working them, quietest first. A subset of `episode.tasks`, never a second list of its own -- there is one waiting set and one episode over it.",
+            "items": {
+              "$ref": "#/components/schemas/StalledTaskRead"
+            },
+            "title": "Stalled",
+            "type": "array"
           }
         },
         "required": [
@@ -1368,6 +1376,14 @@
               "$ref": "#/components/schemas/DashboardRecentUpdate"
             },
             "title": "Recent Updates",
+            "type": "array"
+          },
+          "stalled": {
+            "description": "Which of `waiting_tasks` are there because nobody is working them. The same list `/attention` carries, from the same derivation, so the panel and the badge above it cannot disagree.",
+            "items": {
+              "$ref": "#/components/schemas/StalledTaskRead"
+            },
+            "title": "Stalled",
             "type": "array"
           },
           "stats": {
@@ -7720,6 +7736,52 @@
           }
         },
         "title": "SpecDraftResponse",
+        "type": "object"
+      },
+      "StalledTaskRead": {
+        "description": "Why a task in the waiting set is there because nobody is working it (task-499).\n\nStructure rather than a sentence, for the reason ``self_clearing_wait`` is: the\nDashboard draws a chip from ``reason`` and a duration from ``quiet_seconds``, and a\nclient matching on the words of a label is what ENGINEERING.md's rendered-value rule\nexists to prevent.\n\nDerived on every read and never stored. The task itself reads ``agent``/``work``\nthroughout -- that is precisely why nothing noticed for twenty-two hours on\n2026-09-19 -- so there is no field on the record for this to be a stale copy of, and\na log entry landing makes it disappear with nothing to retract.",
+        "properties": {
+          "quiet_seconds": {
+            "title": "Quiet Seconds",
+            "type": "number"
+          },
+          "quiet_since": {
+            "description": "The newest log entry the threshold is measured from.",
+            "format": "date-time",
+            "title": "Quiet Since",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "no_agent",
+              "undelivered_handback"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "run_id": {
+            "default": "",
+            "description": "The live run the undelivered feedback is addressed to. Empty for `no_agent`, where the point is that there is no run.",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "threshold_seconds": {
+            "title": "Threshold Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "task_id",
+          "reason",
+          "quiet_since",
+          "quiet_seconds",
+          "threshold_seconds"
+        ],
+        "title": "StalledTaskRead",
         "type": "object"
       },
       "StartPauseView": {

@@ -653,6 +653,12 @@ export type AttentionResponse = {
      */
     blocking: number;
     episode?: AttentionEpisodeView | null;
+    /**
+     * Stalled
+     *
+     * The members of the waiting set that are there because nobody is working them, quietest first. A subset of `episode.tasks`, never a second list of its own -- there is one waiting set and one episode over it.
+     */
+    stalled?: Array<StalledTaskRead>;
 };
 
 /**
@@ -1016,6 +1022,12 @@ export type DashboardResponse = {
      * Recent Updates
      */
     recent_updates: Array<DashboardRecentUpdate>;
+    /**
+     * Stalled
+     *
+     * Which of `waiting_tasks` are there because nobody is working them. The same list `/attention` carries, from the same derivation, so the panel and the badge above it cannot disagree.
+     */
+    stalled?: Array<StalledTaskRead>;
     stats: DashboardStats;
     /**
      * Waiting Tasks
@@ -5549,6 +5561,52 @@ export type SpecDraftResponse = {
 };
 
 /**
+ * StalledTaskRead
+ *
+ * Why a task in the waiting set is there because nobody is working it (task-499).
+ *
+ * Structure rather than a sentence, for the reason ``self_clearing_wait`` is: the
+ * Dashboard draws a chip from ``reason`` and a duration from ``quiet_seconds``, and a
+ * client matching on the words of a label is what ENGINEERING.md's rendered-value rule
+ * exists to prevent.
+ *
+ * Derived on every read and never stored. The task itself reads ``agent``/``work``
+ * throughout -- that is precisely why nothing noticed for twenty-two hours on
+ * 2026-09-19 -- so there is no field on the record for this to be a stale copy of, and
+ * a log entry landing makes it disappear with nothing to retract.
+ */
+export type StalledTaskRead = {
+    /**
+     * Quiet Seconds
+     */
+    quiet_seconds: number;
+    /**
+     * Quiet Since
+     *
+     * The newest log entry the threshold is measured from.
+     */
+    quiet_since: string;
+    /**
+     * Reason
+     */
+    reason: 'no_agent' | 'undelivered_handback';
+    /**
+     * Run Id
+     *
+     * The live run the undelivered feedback is addressed to. Empty for `no_agent`, where the point is that there is no run.
+     */
+    run_id?: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Threshold Seconds
+     */
+    threshold_seconds: number;
+};
+
+/**
  * StartPauseView
  *
  * One open incident, as the reason the machine is starting nothing on a credential.
@@ -7428,6 +7486,12 @@ export type DashboardResponseWritable = {
      * Recent Updates
      */
     recent_updates: Array<DashboardRecentUpdate>;
+    /**
+     * Stalled
+     *
+     * Which of `waiting_tasks` are there because nobody is working them. The same list `/attention` carries, from the same derivation, so the panel and the badge above it cannot disagree.
+     */
+    stalled?: Array<StalledTaskRead>;
     stats: DashboardStats;
     /**
      * Waiting Tasks

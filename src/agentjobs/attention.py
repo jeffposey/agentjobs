@@ -7,7 +7,7 @@ state that a desktop shell, and later a phone, can be driven from without either
 them inventing its own idea of "new".
 
 **One predicate, one order.** The waiting set is
-:func:`~agentjobs.dashboard.human_waiting_tasks` and nothing else, so a notification can
+:func:`~agentjobs.dashboard.attention_waiting` and nothing else, so a notification can
 never disagree with the number on the page it links to. That was the whole finding of
 ``tests/test_attention_tiers.py``: three surfaces each computing "blocked on you" gave
 three different answers, and the one that counted drafts never reached zero.
@@ -53,11 +53,12 @@ from pathlib import Path
 from urllib.parse import quote
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from .dashboard import human_waiting_tasks
+from .dashboard import attention_waiting
 from .dispatch.atomic_yaml import merge_yaml_atomically, read_yaml_resiliently
 from .manager import TaskManager
 from .models_v2 import BallReason, Task
 from .projects import default_home
+from .stalled import Stall, stalled_in
 
 ATTENTION_DIRNAME = "attention"
 """Directory under the AgentJobs home holding one document per project."""
@@ -120,6 +121,16 @@ class AttentionState:
     blocking: int
     waiting: Tuple[Task, ...]
     episode: Optional[Episode]
+    stalls: Tuple[Stall, ...] = ()
+    """Why any of ``waiting`` is there because nobody is working it (task-499).
+
+    Carried alongside rather than folded into the task, because a stall is a fact about
+    this machine at this instant and the record says nothing about it: the task reads
+    ``agent``/``work`` throughout, which is the whole reason nothing noticed. A surface
+    that draws a stalled task in a panel headed "blocked on you" has to be able to say
+    *why*, and the alternative -- matching on the prose of a label -- is what
+    ENGINEERING.md's rendered-value rule exists to prevent.
+    """
 
     @property
     def alerting(self) -> bool:
@@ -229,9 +240,15 @@ def waiting_path(project_id: str, episode: Episode) -> str:
     """Where a person should land from a notification for *episode*.
 
     One waiting task goes straight to it; several go to the filtered list, which is the
-    same ``status=human`` view the Dashboard's alarm links to. Not the Dashboard
-    itself -- the notification already said the number, and the thing it is for is
-    getting to the work.
+    same view the Dashboard's alarm links to. Not the Dashboard itself -- the
+    notification already said the number, and the thing it is for is getting to the work.
+
+    The filter is ``status=attention`` rather than ``status=human`` since task-499. A
+    stalled task is in the waiting set and is not human-held -- its ball reads
+    ``agent`` -- so the old filter would have landed a person on a list shorter than the
+    number the notification had just told them, which is the disagreement this module's
+    one-predicate rule exists to prevent. ``attention`` is the waiting set itself, read
+    off the episode the client already holds.
 
     The episode id rides along as ``attention_ack`` because activating a notification
     is one of the three acknowledging acts, and the click may arrive at a window that
@@ -247,7 +264,7 @@ def waiting_path(project_id: str, episode: Episode) -> str:
     lead = episode.members[0] if len(episode.members) == 1 else None
     if lead:
         return f"{base}/tasks/{quote(lead, safe='')}?{ack}"
-    return f"{base}/tasks?status=human&{ack}"
+    return f"{base}/tasks?status=attention&{ack}"
 
 
 # ----- persistence -------------------------------------------------------------
@@ -346,6 +363,15 @@ def reconcile(
 ) -> AttentionState:
     """Read the waiting set, move the episode to match, and answer with both.
 
+    Since task-499 the waiting set has two halves: tasks a person holds, and claimed
+    tasks nobody is working. The second half is derived here, on this read, from the
+    task records and the run ledger -- nothing is written to a task to mark it, and a
+    log entry landing on a stalled task takes it out of the set on the next reconcile
+    with nothing to retract. That is also what makes this loop matter: the push watcher
+    reconciles every fifteen seconds whether or not anybody is looking, so a stall that
+    crosses the threshold at three in the morning opens an episode at three in the
+    morning.
+
     Called by the endpoint the header already polls, so the episode advances whenever
     anything is watching and stays put when nothing is. That is the right dependency:
     the state is a fact about what a *person* has been told, and it is durable, so a
@@ -357,13 +383,23 @@ def reconcile(
     and skipping the write when nothing changed would mean deciding what "changed"
     means in two places instead of one.
     """
-    waiting = human_waiting_tasks(manager)
+    # One listing for both halves of the set. `human_waiting_tasks` would load the
+    # corpus again to filter it by ball, and the stall check needs the same rows to read
+    # each candidate's newest log entry.
+    tasks = manager.list_tasks()
+    stalls = stalled_in(tasks, project_id=project_id, home=home, now=now)
+    waiting = attention_waiting(tasks, manager.get_subtasks, {stall.task_id for stall in stalls})
     ids = [task.id for task in waiting]
     episode = _write_locked(
         episode_path(project_id, home=home),
         lambda previous: advance(previous, ids, now=now),
     )
-    return AttentionState(blocking=len(waiting), waiting=tuple(waiting), episode=episode)
+    return AttentionState(
+        blocking=len(waiting),
+        waiting=tuple(waiting),
+        episode=episode,
+        stalls=tuple(stalls),
+    )
 
 
 def acknowledge(

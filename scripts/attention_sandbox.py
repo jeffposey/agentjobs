@@ -14,6 +14,12 @@ Two projects, so both states can be compared without constructing either:
     attention-waiting   three tasks already stopped on you, in an episode nobody has
                         acknowledged. Opening it cold is the restart case -- **one**
                         notification summarising three, never three notifications.
+    attention-stalled   both sides of task-499 in one panel: one task at the merge gate,
+                        which is an ordinary ask, and one claimed twenty-two hours ago
+                        that nothing is working. The second reads `agent`/`work` on its
+                        own record -- that is the whole finding -- so the point to look
+                        at is whether the row says so rather than reading as work in
+                        flight filed in the wrong place.
 
 The panel in the bottom-left corner is injected by this script and is no part of the
 application. It stops one more task on you, clears everything, and prints the episode as
@@ -87,8 +93,44 @@ def _stop_on_human(manager, task_id: str, prompt: str) -> None:
     )
 
 
-def seed(manager, *, waiting: int) -> None:
-    """A small backlog, with `waiting` of it already stopped on the person."""
+ABANDONED_HOURS = 22
+"""How long ago the abandoned task was claimed. The length of the 2026-09-19 outage."""
+
+
+def _abandon(manager, task_id: str) -> None:
+    """Claim a task and then leave it, the way a session that died leaves one (task-499).
+
+    The claim goes through the verb, so the record is exactly what the incident left
+    behind: `active`/`agent`/`work`, a `ball_prompt` addressed to an agent, and nothing
+    after it.
+
+    The backdating does not, and cannot. The log is append-only by design and
+    ``_replace_log`` silently declines to rewrite an entry that already exists, which is
+    the right rule for the product and leaves a sandbox no way to say "this happened
+    yesterday" -- and it has to, because the signal is measured from the newest log entry
+    and nobody is going to wait twenty-two hours to look at a screen. So the timestamps
+    are moved with SQL, against this sandbox's own throwaway database, which
+    ``sandbox_store`` has already refused to open anywhere near the real one.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    manager.claim_task(task_id, agent="claude")
+    stale = (datetime.now(timezone.utc) - timedelta(hours=ABANDONED_HOURS)).isoformat()
+    store = manager.storage
+    with store.database.write() as connection:
+        connection.execute(
+            "UPDATE log_entry SET ts = ? WHERE project_id = ? AND task_id = ?",
+            (stale, store.project_id, task_id),
+        )
+        connection.execute(
+            "UPDATE task SET updated_at = ?, last_activity_at = ? "
+            "WHERE project_id = ? AND task_id = ?",
+            (stale, stale, store.project_id, task_id),
+        )
+
+
+def seed(manager, *, waiting: int, abandoned: int = 0) -> None:
+    """A small backlog, with `waiting` of it stopped on the person and `abandoned` on nobody."""
     from agentjobs.models_v2 import Priority
 
     titles = [
@@ -107,6 +149,9 @@ def seed(manager, *, waiting: int) -> None:
     for index in range(waiting):
         task_id = titles[index][0]
         _stop_on_human(manager, task_id, "Read it and say whether it ships.")
+
+    for index in range(waiting, waiting + abandoned):
+        _abandon(manager, titles[index][0])
 
 
 class InjectPanel(BaseHTTPMiddleware):
@@ -185,7 +230,7 @@ def add_control_routes(app: Any) -> None:
         return {"message": f"cleared {len(cleared)}", "tasks": cleared}
 
 
-def build(root: Path, *, project_id: str, name: str, waiting: int) -> Path:
+def build(root: Path, *, project_id: str, name: str, waiting: int, abandoned: int = 0) -> Path:
     from agentjobs.manager import TaskManager
     from agentjobs.project_setup import build_project_config
     from sandbox_store import sandbox_store  # type: ignore[import-not-found]
@@ -197,7 +242,7 @@ def build(root: Path, *, project_id: str, name: str, waiting: int) -> Path:
         encoding="utf-8",
     )
     manager = TaskManager(sandbox_store(project_root / "tasks", project_id=project_id))
-    seed(manager, waiting=waiting)
+    seed(manager, waiting=waiting, abandoned=abandoned)
     return project_root
 
 
@@ -214,12 +259,19 @@ def main() -> None:
 
     registry = ProjectRegistry(home)
     projects = [
-        ("attention-quiet", "Sandbox: nothing waiting", 0),
-        ("attention-waiting", "Sandbox: three already waiting", 3),
+        ("attention-quiet", "Sandbox: nothing waiting", 0, 0),
+        ("attention-waiting", "Sandbox: three already waiting", 3, 0),
+        ("attention-stalled", "Sandbox: one waiting, one abandoned", 1, 1),
     ]
-    for project_id, name, waiting in projects:
+    for project_id, name, waiting, abandoned in projects:
         registry.add(
-            build(root, project_id=project_id, name=name, waiting=waiting),
+            build(
+                root,
+                project_id=project_id,
+                name=name,
+                waiting=waiting,
+                abandoned=abandoned,
+            ),
             project_id=project_id,
             name=name,
         )
@@ -233,7 +285,7 @@ def main() -> None:
     add_control_routes(app)
 
     print(f"[review] attention sandbox at http://127.0.0.1:{port}/app/", flush=True)
-    for project_id, name, _waiting in projects:
+    for project_id, name, _waiting, _abandoned in projects:
         print(f"[review]   {name}: http://127.0.0.1:{port}/app/p/{project_id}", flush=True)
     print("[review] install it as an app to see the taskbar badge:", flush=True)
     print("[review]   Chrome menu -> Cast, save and share -> Install page as app", flush=True)

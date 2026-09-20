@@ -72,7 +72,7 @@ export function undoMove(placement: QueueMovePlacement | null): QueueMove | null
   return placement.kind === "before" ? { before: placement.target } : { after: placement.target };
 }
 
-const STATUS_FILTERS = new Set(["all", "open", "draft", "ready", "active", "human", "external", "reset", "closed"]);
+const STATUS_FILTERS = new Set(["all", "open", "attention", "draft", "ready", "active", "human", "external", "reset", "closed"]);
 const PRIORITY_FILTERS = new Set(["all", "critical", "high", "medium", "low"]);
 const SCOPE_FILTERS = new Set(["all", "project", "test"]);
 const PRIORITY_CLASSES: Record<string, string> = {
@@ -214,16 +214,24 @@ function orderSignature(tasks: Array<TaskSummaryRead>) {
  * self-clearing waits and `external` now excludes them, so each is reachable on its own.
  * Before this they shared one option and a reader could filter to neither.
  */
-function matchesStatus(task: TaskSummaryRead, status: string) {
+function matchesStatus(task: TaskSummaryRead, status: string, waiting: ReadonlySet<string>) {
   const selfClearing = task.self_clearing_wait != null;
   if (status === "all") return true;
   if (status === "open") return task.lifecycle !== "closed";
+  if (status === "attention") return waiting.has(task.id);
   if (status === "reset") return selfClearing;
   if (status === "external") return task.ball === "external" && !selfClearing;
   return task.lifecycle === status || task.ball === status;
 }
 
-function matchesTask(task: TaskSummaryRead, search: string, status: string, priority: string, scope: string) {
+function matchesTask(
+  task: TaskSummaryRead,
+  search: string,
+  status: string,
+  priority: string,
+  scope: string,
+  waiting: ReadonlySet<string>,
+) {
   const term = search.trim().toLowerCase();
   // The id is searched as well as the title because the id is what people quote:
   // "058" and "task-058" both have to find task-058-multi-project-gui. Summary and
@@ -233,7 +241,7 @@ function matchesTask(task: TaskSummaryRead, search: string, status: string, prio
   const titleMatches = term === ""
     || task.title.toLowerCase().includes(term)
     || task.id.toLowerCase().includes(term);
-  const statusMatches = matchesStatus(task, status);
+  const statusMatches = matchesStatus(task, status, waiting);
   const priorityMatches = priority === "all" || task.priority === priority;
   const tags = task.tags ?? [];
   const isTest = tags.includes("test") || tags.includes("example");
@@ -261,6 +269,8 @@ function revealRow(element: HTMLElement) {
   }
 }
 
+const EMPTY_WAITING: ReadonlySet<string> = new Set();
+
 type PendingMove = { signature: string; tasks: Array<TaskSummaryRead> };
 type MoveNotice = { taskId: string } & MoveVerdict;
 type BandChange = { taskId: string; from: string; to: string; before: string };
@@ -274,6 +284,7 @@ export function TaskList({
   reorder = null,
   reorderUnavailable = null,
   variant = "table",
+  waitingOnYou = EMPTY_WAITING,
 }: {
   tasks: Array<TaskSummaryRead>;
   projectId: string;
@@ -281,6 +292,16 @@ export function TaskList({
   reorder?: ReorderHandlers | null;
   reorderUnavailable?: string | null;
   variant?: TaskListVariant;
+  /**
+   * The attention episode's members: everything work has stopped on, waiting on you.
+   *
+   * A prop rather than a query of this component's own, because half of the set is
+   * derived from the machine's run ledger and none of it is readable from a row
+   * (task-499) -- and because the page above already holds the attention answer that
+   * draws the header badge, so fetching it twice would give the badge and the filter
+   * two chances to disagree about the same number.
+   */
+  waitingOnYou?: ReadonlySet<string>;
 }) {
   const tree = variant === "tree";
   const [params, setParams] = useSearchParams();
@@ -368,8 +389,8 @@ export function TaskList({
   const ordered = pending && pending.signature === signature ? pending.tasks : tasks;
 
   const matching = useMemo(
-    () => ordered.filter((task) => matchesTask(task, search, status, priority, scope)),
-    [ordered, search, status, priority, scope],
+    () => ordered.filter((task) => matchesTask(task, search, status, priority, scope, waitingOnYou)),
+    [ordered, search, status, priority, scope, waitingOnYou],
   );
   // Two groupings of the same rows, and the difference is *what is grouped*.
   //
@@ -387,7 +408,7 @@ export function TaskList({
   const visibleRows = tree
     ? unfoldedRows(treeRows, isFolded)
     : tableRows.filter((row) => {
-        if (!matchesTask(row.task, search, status, priority, scope)) return false;
+        if (!matchesTask(row.task, search, status, priority, scope, waitingOnYou)) return false;
         return flattened || row.ancestors.every((ancestor) => expanded.has(ancestor));
       });
 
@@ -1028,7 +1049,7 @@ export function TaskList({
               >
                 <label className="sr-only" htmlFor="status-filter">Status</label>
                 <select ref={firstFilterRef} id="status-filter" aria-label="Status" value={status} onChange={(event) => updateParam("status", event.target.value, "open")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
-                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Active</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="reset">Waiting on a reset</option><option value="closed">Closed</option>
+                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="attention">Waiting on you</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Active</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="reset">Waiting on a reset</option><option value="closed">Closed</option>
                 </select>
                 <label className="sr-only" htmlFor="priority-filter">Priority</label>
                 <select id="priority-filter" aria-label="Priority" value={priority} onChange={(event) => updateParam("priority", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">

@@ -447,7 +447,7 @@ class TestTheAttentionEndpoint:
         response = client.get("/api/projects/inbox/attention")
 
         assert response.status_code == 200
-        assert response.json() == {"blocking": 0, "episode": None}
+        assert response.json() == {"blocking": 0, "episode": None, "stalled": []}
 
     def test_a_task_at_the_merge_gate_raises_a_badge_of_one(self, client_for) -> None:
         client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE])
@@ -486,12 +486,15 @@ class TestTheAttentionEndpoint:
         `ball_reason`, bounded at about fifteen characters and not copied from the
         record. It is deliberately *not* `ball_prompt`, which is the complete ask, is
         unbounded, and is exactly the kind of field this test exists to keep out.
+
+        task-499 added `stalled`, which is an id, a reason and two numbers per stalled
+        task, and is empty on every project where nothing has been abandoned.
         """
         client, base = client_for([BLOCKED_ON_HUMAN, PARKED_DRAFT, CLAIMABLE, FINISHED])
 
         payload = client.get("/api/projects/inbox/attention").json()
 
-        assert set(payload) == {"blocking", "episode"}
+        assert set(payload) == {"blocking", "episode", "stalled"}
         assert set(payload["episode"]) == {
             "id",
             "started_at",

@@ -1023,6 +1023,45 @@ class IdleSessionSettings:
 
 
 @dataclass(frozen=True)
+class StalledTaskSettings:
+    """When a claimed task with nobody on it should be reported to its owner (task-499).
+
+    A report, never a write: :mod:`agentjobs.stalled` derives the signal on read and
+    :mod:`agentjobs.attention` folds it into the waiting set the badge already shows.
+    Nothing here can move a ball, so the only thing these numbers change is how soon a
+    person is told.
+    """
+
+    enabled: bool = True
+    """On by default, unlike ``idle_sessions.enforce`` beside it, and for the reason that
+    one is off: this reports and stops nothing."""
+
+    minutes: int = 60
+    """How long a claimed, agent-held task may go without a log entry before the owner is
+    told nobody is on it.
+
+    Sixty, measured on this repository's own corpus on 2026-09-20 rather than taken from
+    the spec: across 3,101 quiet stretches on tasks that were ``active`` and agent-held,
+    the 95th percentile is 29.5 minutes, the 98th is 50.5 and the 99th is 85.5. An hour
+    reports 1.55% of them -- 48 stretches across two months -- and the longest of those
+    are the outages themselves, task-421's twenty-two hours at the top of the list. The
+    threshold has to sit above a full gate and a long refactor, which p98 says it does,
+    and below the point where a person has stopped expecting an answer.
+    """
+
+    handback_minutes: int = 30
+    """The same, for a task whose feedback is queued for a live run that has not moved.
+
+    Shorter because the record already names the run the handback is addressed to, so
+    this is a delivery failure rather than an absence, and because the person on the
+    other end has just clicked something and is waiting for it to take effect. Thirty
+    sits between the 90th percentile of quiet stretches at ``agent``/``revise`` (23
+    minutes) and the 95th (41), so an agent that takes the feedback in its own time is
+    not reported for doing so.
+    """
+
+
+@dataclass(frozen=True)
 class DispatchConfig:
     """The parsed contents of ``~/.agentjobs/dispatch.yaml``."""
 
@@ -1045,6 +1084,7 @@ class DispatchConfig:
     path: Optional[Path] = None
     execution: "ExecutionSettings" = field(default_factory=lambda: ExecutionSettings())
     idle_sessions: IdleSessionSettings = field(default_factory=IdleSessionSettings)
+    stalled_tasks: StalledTaskSettings = field(default_factory=StalledTaskSettings)
     explicit_keys: frozenset = frozenset()
     """Which ``limits.*`` and ``execution.*`` keys the file set, so a report can say whether
     a value is this machine's choice or the default."""
@@ -1194,6 +1234,8 @@ def _parse(raw: dict, path: Path) -> DispatchConfig:
     explicit |= {f"execution.{key}" for key in execution_raw}
     idle_raw = _mapping(raw.get("idle_sessions"), "idle_sessions", path)
     explicit |= {f"idle_sessions.{key}" for key in idle_raw}
+    stalled_raw = _mapping(raw.get("stalled_tasks"), "stalled_tasks", path)
+    explicit |= {f"stalled_tasks.{key}" for key in stalled_raw}
     return DispatchConfig(
         version=version,
         enabled=_bool(raw.get("enabled"), "enabled", path, default=False),
@@ -1206,6 +1248,7 @@ def _parse(raw: dict, path: Path) -> DispatchConfig:
         path=path,
         execution=_parse_execution(execution_raw, path),
         idle_sessions=_parse_idle_sessions(idle_raw, path),
+        stalled_tasks=_parse_stalled_tasks(stalled_raw, path),
         explicit_keys=frozenset(explicit),
     )
 
@@ -1223,6 +1266,21 @@ def _parse_idle_sessions(raw: Mapping[str, object], path: Path) -> IdleSessionSe
             "idle_sessions.max_stops_per_sweep",
             path,
             defaults.max_stops_per_sweep,
+        ),
+    )
+
+
+def _parse_stalled_tasks(raw: Mapping[str, object], path: Path) -> StalledTaskSettings:
+    """Validate the ``stalled_tasks:`` block, defaulting anything absent."""
+    defaults = StalledTaskSettings()
+    return StalledTaskSettings(
+        enabled=_bool(raw.get("enabled"), "stalled_tasks.enabled", path, default=defaults.enabled),
+        minutes=_positive_int(raw.get("minutes"), "stalled_tasks.minutes", path, defaults.minutes),
+        handback_minutes=_positive_int(
+            raw.get("handback_minutes"),
+            "stalled_tasks.handback_minutes",
+            path,
+            defaults.handback_minutes,
         ),
     )
 

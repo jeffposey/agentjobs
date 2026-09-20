@@ -252,7 +252,7 @@ class TestThePayload:
         payload = payload_for(state, PROJECT, detail="count")
 
         assert payload is not None
-        assert payload.url.startswith("/app/p/inbox/tasks?status=human&attention_ack=att_")
+        assert payload.url.startswith("/app/p/inbox/tasks?status=attention&attention_ack=att_")
 
     def test_the_deep_link_matches_what_the_endpoint_publishes(self, home: Path) -> None:
         """One rule, one authority. The service worker reads `deep_link`; this is it."""

@@ -354,6 +354,36 @@ class AttentionEpisodeView(BaseModel):
     """
 
 
+class StalledTaskRead(BaseModel):
+    """Why a task in the waiting set is there because nobody is working it (task-499).
+
+    Structure rather than a sentence, for the reason ``self_clearing_wait`` is: the
+    Dashboard draws a chip from ``reason`` and a duration from ``quiet_seconds``, and a
+    client matching on the words of a label is what ENGINEERING.md's rendered-value rule
+    exists to prevent.
+
+    Derived on every read and never stored. The task itself reads ``agent``/``work``
+    throughout -- that is precisely why nothing noticed for twenty-two hours on
+    2026-09-19 -- so there is no field on the record for this to be a stale copy of, and
+    a log entry landing makes it disappear with nothing to retract.
+    """
+
+    task_id: str
+    reason: Literal["no_agent", "undelivered_handback"]
+    quiet_since: datetime = Field(
+        description="The newest log entry the threshold is measured from."
+    )
+    quiet_seconds: float
+    threshold_seconds: float
+    run_id: str = Field(
+        default="",
+        description=(
+            "The live run the undelivered feedback is addressed to. Empty for "
+            "`no_agent`, where the point is that there is no run."
+        ),
+    )
+
+
 class AttentionResponse(BaseModel):
     """How much of this project is stopped waiting on a person, and whether they know.
 
@@ -369,6 +399,14 @@ class AttentionResponse(BaseModel):
 
     blocking: int
     episode: Optional[AttentionEpisodeView] = None
+    stalled: List[StalledTaskRead] = Field(
+        default_factory=list,
+        description=(
+            "The members of the waiting set that are there because nobody is working "
+            "them, quietest first. A subset of `episode.tasks`, never a second list of "
+            "its own -- there is one waiting set and one episode over it."
+        ),
+    )
 
 
 class PushSubscriptionKeys(BaseModel):
@@ -566,6 +604,14 @@ class DashboardResponse(BaseModel):
     broken_files: List[BrokenTaskFile]
     queue_broken: Optional[QueueBrokenRead] = None
     identity: ReviewIdentity
+    stalled: List[StalledTaskRead] = Field(
+        default_factory=list,
+        description=(
+            "Which of `waiting_tasks` are there because nobody is working them. The "
+            "same list `/attention` carries, from the same derivation, so the panel and "
+            "the badge above it cannot disagree."
+        ),
+    )
 
 
 class TaskDetailResponse(BaseModel):

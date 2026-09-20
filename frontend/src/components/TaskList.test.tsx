@@ -31,10 +31,14 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}{location.search}</output>;
 }
 
-function renderList(tasks: Array<TaskRead>, entry = "/p/inbox/tasks") {
+function renderList(
+  tasks: Array<TaskRead>,
+  entry = "/p/inbox/tasks",
+  waitingOnYou: ReadonlySet<string> = new Set(),
+) {
   render(
     <MemoryRouter initialEntries={[entry]}>
-      <TaskList tasks={tasks} projectId="inbox" />
+      <TaskList tasks={tasks} projectId="inbox" waitingOnYou={waitingOnYou} />
       <LocationProbe />
     </MemoryRouter>,
   );
@@ -180,6 +184,71 @@ describe("TaskList filtering", () => {
       const table = screen.getByRole("region", { name: "Tasks" });
       expect(within(table).getByText("task-on-a-quota")).toBeVisible();
       expect(within(table).getByText("task-on-a-vendor")).toBeVisible();
+    });
+  });
+
+  describe("Waiting on you (task-499)", () => {
+    /**
+     * The one filter this list cannot compute from its own rows. Half the waiting set is
+     * derived from the machine's run ledger: a claimed task nobody is working reads
+     * `active`/`agent`/`work` on every field it has, which is precisely why nothing
+     * noticed one for twenty-two hours on 2026-09-19. So the set arrives as the
+     * attention episode's membership -- the same answer the header badge draws -- and a
+     * notification saying "2 tasks are waiting on you" and the list it links to are the
+     * same two by construction.
+     */
+    const review = () =>
+      task("task-at-the-gate", {
+        lifecycle: "active",
+        ball: "human",
+        ball_reason: "review",
+        ball_prompt: "Approve or request changes.",
+        display_status: "Waiting for review",
+        assignment: { owner: "claude", eligible: [] },
+      });
+    const stalled = () =>
+      task("task-421", {
+        lifecycle: "active",
+        ball: "agent",
+        ball_reason: "revise",
+        ball_prompt: "Address the review feedback.",
+        display_status: "In progress (claude)",
+        assignment: { owner: "claude", eligible: [] },
+      });
+
+    it("holds a stalled task that no ball on the record would select", () => {
+      renderList(
+        [review(), stalled(), task("task-idle")],
+        "/p/inbox/tasks?status=attention",
+        new Set(["task-at-the-gate", "task-421"]),
+      );
+
+      const table = screen.getByRole("region", { name: "Tasks" });
+      expect(within(table).getByText("task-421")).toBeVisible();
+      expect(within(table).getByText("task-at-the-gate")).toBeVisible();
+      expect(within(table).queryByText("task-idle")).not.toBeInTheDocument();
+    });
+
+    it("selects nothing when nothing is waiting, rather than falling back to a ball", () => {
+      renderList([review(), stalled()], "/p/inbox/tasks?status=attention");
+
+      const table = screen.getByRole("region", { name: "Tasks" });
+      expect(within(table).queryByText("task-at-the-gate")).not.toBeInTheDocument();
+      expect(within(table).queryByText("task-421")).not.toBeInTheDocument();
+    });
+
+    it("offers the option to a reader who opens the filters", () => {
+      renderList([review(), stalled()], "/p/inbox/tasks?status=all", new Set(["task-421"]));
+      const popover = openFilters();
+
+      fireEvent.change(within(popover).getByLabelText("Status"), {
+        target: { value: "attention" },
+      });
+
+      expect(screen.getByTestId("location")).toHaveTextContent("status=attention");
+      const table = screen.getByRole("region", { name: "Tasks" });
+      expect(within(table).getByText("task-421")).toBeVisible();
+      expect(within(table).queryByText("task-at-the-gate")).not.toBeInTheDocument();
     });
   });
 

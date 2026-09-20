@@ -84,7 +84,7 @@ import { LiveRunCount, LiveRunsPage, useLiveRuns } from "./components/LiveRuns";
 import { RecentlyFinished, useRecentClosures } from "./components/RecentlyFinished";
 import { IdleSessionsSection } from "./components/IdleSessions";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
-import { AttentionBadge, useAttention } from "./components/AttentionBadge";
+import { AttentionBadge, useAttention, useWaitingOnYou } from "./components/AttentionBadge";
 import {
   AttentionNotifier,
   NotificationDelivery,
@@ -396,6 +396,10 @@ function TaskListPage({
     getQueueApiProjectsProjectIdQueueGetOptions({ path: { project_id: projectId } }),
   );
   const projectsQuery = useQuery(getProjectsApiProjectsGetOptions());
+  // The same attention answer the header badge draws, so the "Waiting on you" filter and
+  // the number above it are the same set by construction (task-499). Half of that set --
+  // the claimed tasks nobody is working -- is not readable from a row at any price.
+  const waitingOnYou = useWaitingOnYou(projectId);
   const actor = projectsQuery.data?.find((entry) => entry.id === projectId)?.default_user ?? null;
   const move = useMutation(queueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostMutation());
   const keep = useMutation(queueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostMutation());
@@ -480,6 +484,7 @@ function TaskListPage({
       tasks={tasks}
       projectId={projectId}
       variant={variant}
+      waitingOnYou={waitingOnYou}
       queueProblems={queueQuery.data?.problems ?? []}
       reorder={reorder}
       reorderUnavailable={

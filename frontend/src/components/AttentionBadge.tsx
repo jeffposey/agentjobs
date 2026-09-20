@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
@@ -54,6 +55,26 @@ export function useAttention(projectId: string): AttentionResponse | null {
     getAttentionApiProjectsProjectIdAttentionGetOptions({ path: { project_id: projectId } }),
   );
   return query.data ?? null;
+}
+
+/** Joins the ids into the memo key below. A character a task id cannot contain. */
+const SEPARATOR = "|";
+
+/**
+ * The ids of everything waiting on you, as one set (task-499).
+ *
+ * The episode's membership *is* the waiting set -- `advance` is given the ids and keeps
+ * them -- so this is not a second derivation, and the "Waiting on you" filter on the
+ * task list cannot disagree with the badge above it. It has to come from here rather
+ * than from the rows because half the set is not readable from a row at any price: a
+ * claimed task nobody is working reads `agent`/`work` on every field it has.
+ *
+ * Memoised on the joined ids rather than on the response, because the query object is
+ * new on every poll and a fresh Set each time would re-run every filter downstream.
+ */
+export function useWaitingOnYou(projectId: string): ReadonlySet<string> {
+  const key = (useAttention(projectId)?.episode?.tasks ?? []).join(SEPARATOR);
+  return useMemo(() => new Set(key ? key.split(SEPARATOR) : []), [key]);
 }
 
 /** The badge number alone, for callers that want nothing else. */

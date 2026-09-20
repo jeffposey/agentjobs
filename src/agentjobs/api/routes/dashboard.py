@@ -7,7 +7,7 @@ and belongs beside it (task-422).
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Sequence
 
 from fastapi import APIRouter, Depends
 
@@ -24,6 +24,7 @@ from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Task
 from agentjobs.principals import Principal
 from agentjobs.projects import Project
+from agentjobs.stalled import Stall, stalled_in
 
 from ..dependencies import current_identity, get_project, get_principal, get_task_manager
 from ..models import (
@@ -32,6 +33,7 @@ from ..models import (
     AttentionResponse,
     DashboardResponse,
     ReviewIdentity,
+    StalledTaskRead,
     TaskCardRead,
 )
 
@@ -57,7 +59,15 @@ async def get_dashboard(
     # `GET /api/runs/live` reports the ceiling with, so the board's cell count and the
     # supply of tasks for it cannot come from two different readings of one file.
     ceiling, _configured = machine_ceiling()
-    snapshot = build_dashboard_snapshot(manager, preview_limit=ceiling)
+    # Which claimed tasks have nobody on them, read off this machine's run ledger
+    # (task-499). Computed here rather than inside the projection for the same reason
+    # the ceiling is: `dashboard.py` is a projection over task records and must not
+    # reach into the user's home. `list_tasks` is free inside the request's corpus
+    # scope, which the snapshot below opens against the same rows.
+    stalls = stalled_in(manager.list_tasks(), project_id=project.id)
+    snapshot = build_dashboard_snapshot(
+        manager, preview_limit=ceiling, stalled_ids={stall.task_id for stall in stalls}
+    )
     # The corpus the snapshot was built from, handed to the facts rather than letting
     # them list the project again in the other shape (task-485). `list_tasks` is free
     # here: the request's corpus scope already holds it, and this is what says so at the
@@ -90,16 +100,34 @@ async def get_dashboard(
                 problem=identity.problem,
                 detail=identity.detail,
             ),
+            "stalled": _stalled_views(stalls),
         }
     )
 
 
+def _stalled_views(stalls: Sequence[Stall]) -> list[StalledTaskRead]:
+    """Render derived stalls for a client, quietest first as the derivation ordered them."""
+    return [
+        StalledTaskRead(
+            task_id=stall.task_id,
+            reason=stall.reason,
+            quiet_since=stall.quiet_since,
+            quiet_seconds=stall.quiet_seconds,
+            threshold_seconds=stall.threshold_seconds,
+            run_id=stall.run_id,
+        )
+        for stall in stalls
+    ]
+
+
 def _attention_view(state: AttentionState, project_id: str) -> AttentionResponse:
     """Render reconciled attention state for a client."""
+    stalled = _stalled_views(state.stalls)
     if state.episode is None:
-        return AttentionResponse(blocking=state.blocking, episode=None)
+        return AttentionResponse(blocking=state.blocking, episode=None, stalled=stalled)
     lead = state.waiting[0] if state.waiting else None
     return AttentionResponse(
+        stalled=stalled,
         blocking=state.blocking,
         episode=AttentionEpisodeView(
             id=state.episode.id,
