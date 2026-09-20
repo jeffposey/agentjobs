@@ -205,6 +205,9 @@ export type AnalyticsRange = {
  * statement that must be identical across all of them, and the storage cost of the
  * whole set was measured at 6.3 ms -- so splitting it would buy nothing and cost
  * seventeen chances to render half a page.
+ *
+ * The second set (section 21) adds the process series. Each carries its own
+ * ``SeriesCoverage``; the page-level ``coverage`` still describes the task history.
  */
 export type AnalyticsResponse = {
     /**
@@ -217,7 +220,22 @@ export type AnalyticsResponse = {
      * One entry per bucket in range, gaps filled.
      */
     backlog?: Array<BacklogPoint>;
+    cost_coverage?: SeriesCoverage;
+    /**
+     * Cost Per Task
+     */
+    cost_per_task?: Array<CostPerTaskPoint>;
     coverage: AnalyticsCoverage;
+    /**
+     * Finishes
+     */
+    finishes?: Array<FinishPoint>;
+    finishes_coverage?: SeriesCoverage;
+    /**
+     * Gates
+     */
+    gates?: Array<GatePoint>;
+    gates_coverage?: SeriesCoverage;
     /**
      * Holders
      *
@@ -225,12 +243,40 @@ export type AnalyticsResponse = {
      */
     holders?: Array<HolderPoint>;
     /**
+     * In Review
+     */
+    in_review?: Array<InReview>;
+    /**
+     * Machine
+     */
+    machine?: Array<MachinePoint>;
+    machine_coverage?: SeriesCoverage;
+    /**
      * Oldest
      *
      * Ten, open and not archived.
      */
     oldest?: Array<AgingTask>;
+    /**
+     * Open Questions
+     */
+    open_questions?: Array<OpenQuestion>;
     range: AnalyticsRange;
+    /**
+     * Review
+     */
+    review?: Array<ReviewPoint>;
+    review_coverage?: SeriesCoverage;
+    /**
+     * Runs
+     */
+    runs?: Array<RunPoint>;
+    runs_coverage?: SeriesCoverage;
+    /**
+     * Segments
+     */
+    segments?: Array<SegmentPoint>;
+    segments_coverage?: SeriesCoverage;
     /**
      * Stuck
      */
@@ -845,6 +891,56 @@ export type ContextPointer = {
      * Why a reader should open this first.
      */
     why: string;
+};
+
+/**
+ * CostPerTaskPoint
+ *
+ * What a completed task cost the machine: runs, finishes and gate minutes (S4, F5, G4).
+ *
+ * Bucketed by the task's close. ``without_gate`` counts the tasks with no full gate
+ * at all -- hand closes and recorded decisions -- so a low median is not read as a
+ * fast gate.
+ */
+export type CostPerTaskPoint = {
+    /**
+     * Bucket
+     */
+    bucket: string;
+    /**
+     * Estimated
+     */
+    estimated?: boolean;
+    /**
+     * Finishes Mean
+     */
+    finishes_mean?: number | null;
+    /**
+     * Gate Minutes P50
+     */
+    gate_minutes_p50?: number | null;
+    /**
+     * Gate Minutes P90
+     */
+    gate_minutes_p90?: number | null;
+    /**
+     * Runs Mean
+     */
+    runs_mean?: number | null;
+    /**
+     * Runs Mode
+     */
+    runs_mode?: number | null;
+    /**
+     * Sample
+     *
+     * Completed tasks closed in this bucket.
+     */
+    sample: number;
+    /**
+     * Without Gate
+     */
+    without_gate?: number;
 };
 
 /**
@@ -1741,6 +1837,77 @@ export type FinishHistoryWrite = {
 };
 
 /**
+ * FinishPoint
+ *
+ * The scripted finish, per week of start (F1 to F4).
+ *
+ * Duration percentiles are over ``finished`` rows only: a finish that stopped at the
+ * gate is measuring the gate. ``steps_p50_s`` lists the steps with a nonzero median,
+ * and ``runway_waited`` is how many finishes queued behind another for the merge
+ * runway (task-223).
+ */
+export type FinishPoint = {
+    /**
+     * Bucket
+     */
+    bucket: string;
+    /**
+     * Declined
+     */
+    declined?: number;
+    /**
+     * Duration P50 Min
+     */
+    duration_p50_min?: number | null;
+    /**
+     * Duration P90 Min
+     */
+    duration_p90_min?: number | null;
+    /**
+     * Escalated
+     */
+    escalated?: number;
+    /**
+     * Estimated
+     */
+    estimated?: boolean;
+    /**
+     * Finished
+     */
+    finished?: number;
+    /**
+     * Interrupted
+     */
+    interrupted?: number;
+    /**
+     * Reasons
+     *
+     * Escalation reasons.
+     */
+    reasons?: {
+        [key: string]: number;
+    };
+    /**
+     * Runway P90 S
+     */
+    runway_p90_s?: number | null;
+    /**
+     * Runway Waited
+     */
+    runway_waited?: number;
+    /**
+     * Sample
+     */
+    sample?: number;
+    /**
+     * Steps P50 S
+     */
+    steps_p50_s?: {
+        [key: string]: number;
+    };
+};
+
+/**
  * FinishRecordWrite
  *
  * The ``finish`` row a scripted finish indexes itself as (task-472).
@@ -1883,6 +2050,65 @@ export type GateHistoryWrite = {
      * Stages
      */
     stages?: Array<GateStageWrite>;
+};
+
+/**
+ * GatePoint
+ *
+ * Full gates, per week of start (G1 to G3).
+ *
+ * Duration percentiles are over green full gates: a red gate stops early and says
+ * nothing about cost. ``failed_stages`` is where the red ones stopped and
+ * ``origins`` says whose gates they were: the finisher's, a run's, or somebody's at a
+ * shell.
+ */
+export type GatePoint = {
+    /**
+     * Bucket
+     */
+    bucket: string;
+    /**
+     * Duration P50 Min
+     */
+    duration_p50_min?: number | null;
+    /**
+     * Duration P90 Min
+     */
+    duration_p90_min?: number | null;
+    /**
+     * Estimated
+     */
+    estimated?: boolean;
+    /**
+     * Failed Stages
+     */
+    failed_stages?: {
+        [key: string]: number;
+    };
+    /**
+     * Full
+     */
+    full?: number;
+    /**
+     * Origins
+     */
+    origins?: {
+        [key: string]: number;
+    };
+    /**
+     * Passed
+     */
+    passed?: number;
+    /**
+     * Sample
+     */
+    sample?: number;
+    /**
+     * Stages P50 S
+     */
+    stages_p50_s?: {
+        [key: string]: number;
+    };
 };
 
 /**
@@ -2316,6 +2542,26 @@ export type IdleSessionsView = {
 };
 
 /**
+ * InReview
+ *
+ * One open task waiting on review, with how long the ball has sat there (R1).
+ */
+export type InReview = {
+    /**
+     * Hours Waiting
+     */
+    hours_waiting: number;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
  * Lifecycle
  *
  * Where a task is in its life (design doc section 3).
@@ -2696,6 +2942,55 @@ export type MachineHolderView = {
 };
 
 /**
+ * MachinePoint
+ *
+ * What the execution journal says about this project, per week (R-5, R-6).
+ *
+ * Its own series because its source is another database with its own baseline.
+ * ``start_latency`` is admission to launch; ``queue_wait`` is the time a queued
+ * dispatch waited for a slot; ``paused_run_hours`` is run-hours lost to usage-limit
+ * pauses, not wall-clock -- three runs stalled for one reset count three times.
+ */
+export type MachinePoint = {
+    /**
+     * Admitted
+     */
+    admitted?: number;
+    /**
+     * Bucket
+     */
+    bucket: string;
+    /**
+     * Paused Run Hours
+     */
+    paused_run_hours?: number;
+    /**
+     * Paused Waiters
+     */
+    paused_waiters?: number;
+    /**
+     * Queue Wait P50 S
+     */
+    queue_wait_p50_s?: number | null;
+    /**
+     * Queue Wait P90 S
+     */
+    queue_wait_p90_s?: number | null;
+    /**
+     * Queued
+     */
+    queued?: number;
+    /**
+     * Start Latency P50 S
+     */
+    start_latency_p50_s?: number | null;
+    /**
+     * Start Latency P90 S
+     */
+    start_latency_p90_s?: number | null;
+};
+
+/**
  * MutationResult
  *
  * What a mutation did, for callers that need more than the new task.
@@ -2854,6 +3149,26 @@ export type NoteActionRequest = {
      * User performing the action
      */
     user: string;
+};
+
+/**
+ * OpenQuestion
+ *
+ * One question on an open task with no threaded answer (Q-1).
+ */
+export type OpenQuestion = {
+    /**
+     * Entry Id
+     */
+    entry_id: number;
+    /**
+     * Hours Open
+     */
+    hours_open: number;
+    /**
+     * Task Id
+     */
+    task_id: string;
 };
 
 /**
@@ -4637,6 +4952,119 @@ export type ReviewIdentity = {
 };
 
 /**
+ * ReviewPoint
+ *
+ * How long a person took, per week (R2, R3, Q-2).
+ *
+ * ``exits`` is every departure from review in the bucket, approval or not, because a
+ * revise request is also the owner answering; ``wait_*`` is measured over all of them.
+ * An approval is an exit to agent/work or a close from review (section 17.2), and a
+ * first-time approval is one on the task's first review round. Questions are
+ * bucketed by when they were asked.
+ */
+export type ReviewPoint = {
+    /**
+     * Answer P50 Hours
+     */
+    answer_p50_hours?: number | null;
+    /**
+     * Answer P90 Hours
+     */
+    answer_p90_hours?: number | null;
+    /**
+     * Answered
+     */
+    answered?: number;
+    /**
+     * Approvals
+     */
+    approvals?: number;
+    /**
+     * Bucket
+     */
+    bucket: string;
+    /**
+     * Estimated
+     */
+    estimated?: boolean;
+    /**
+     * Exits
+     */
+    exits?: number;
+    /**
+     * First Time Approvals
+     */
+    first_time_approvals?: number;
+    /**
+     * Questions
+     */
+    questions?: number;
+    /**
+     * Wait P50 Hours
+     */
+    wait_p50_hours?: number | null;
+    /**
+     * Wait P90 Hours
+     */
+    wait_p90_hours?: number | null;
+};
+
+/**
+ * RunPoint
+ *
+ * Dispatched runs per bucket of start, at the spine grain (R-1 to R-4).
+ *
+ * A run is attributed whole to the bucket it started in. ``in_flight`` is the runs
+ * with no end yet, which are in ``runs`` and in no outcome.
+ */
+export type RunPoint = {
+    /**
+     * Agent Hours
+     */
+    agent_hours?: number;
+    /**
+     * Bucket
+     */
+    bucket: string;
+    /**
+     * Duration P50 Min
+     */
+    duration_p50_min?: number | null;
+    /**
+     * Duration P90 Min
+     */
+    duration_p90_min?: number | null;
+    /**
+     * Estimated
+     */
+    estimated?: boolean;
+    /**
+     * In Flight
+     */
+    in_flight?: number;
+    /**
+     * Outcomes
+     */
+    outcomes?: {
+        [key: string]: number;
+    };
+    /**
+     * Runs
+     */
+    runs?: number;
+    /**
+     * Sample
+     */
+    sample?: number;
+    /**
+     * Triggers
+     */
+    triggers?: {
+        [key: string]: number;
+    };
+};
+
+/**
  * ScopedDependencyEdge
  *
  * A sequence arrow in one umbrella's contained task graph.
@@ -4670,6 +5098,135 @@ export type ScopedDependencyEdge = {
      * Target Exists
      */
     target_exists: boolean;
+};
+
+/**
+ * SegmentAmong
+ *
+ * Per segment: how many of the bucket's tasks had any time in it, and their median.
+ */
+export type SegmentAmong = {
+    /**
+     * P50 Hours
+     */
+    p50_hours?: number | null;
+    /**
+     * Tasks
+     */
+    tasks: number;
+};
+
+/**
+ * SegmentPoint
+ *
+ * Where a completed task's time went, per week of close (sections 17 and 18.1).
+ *
+ * Five segments -- queue, work, waiting, review, finish -- partition each task's open
+ * life exactly, so ``queue + work + waiting + review + finish = total`` per task to
+ * the second. The percentiles here are per segment over the bucket's tasks, so the
+ * stack's height is a sum of medians and not the median total; ``total_p50_hours``
+ * is the latter. ``first_review_*`` is the owner's dispatch-to-handoff (S3): first
+ * claim to first review entry, bucketed by the review entry.
+ */
+export type SegmentPoint = {
+    /**
+     * Among
+     *
+     * Per segment, the tasks with a nonzero value.
+     */
+    among?: {
+        [key: string]: SegmentAmong;
+    };
+    /**
+     * Bucket
+     *
+     * First day of the week, in the reporting zone.
+     */
+    bucket: string;
+    /**
+     * Estimated
+     *
+     * A task in this bucket has a reconstructed boundary row.
+     */
+    estimated: boolean;
+    /**
+     * Excluded
+     *
+     * Closed by an import row: close time unknown.
+     */
+    excluded: number;
+    /**
+     * Finish P50 Hours
+     */
+    finish_p50_hours?: number | null;
+    /**
+     * Finish P90 Hours
+     */
+    finish_p90_hours?: number | null;
+    /**
+     * First Review P50 Hours
+     */
+    first_review_p50_hours?: number | null;
+    /**
+     * First Review P90 Hours
+     */
+    first_review_p90_hours?: number | null;
+    /**
+     * First Review Sample
+     */
+    first_review_sample?: number;
+    /**
+     * Queue P50 Hours
+     */
+    queue_p50_hours?: number | null;
+    /**
+     * Queue P90 Hours
+     */
+    queue_p90_hours?: number | null;
+    /**
+     * Review P50 Hours
+     */
+    review_p50_hours?: number | null;
+    /**
+     * Review P90 Hours
+     */
+    review_p90_hours?: number | null;
+    /**
+     * Sample
+     *
+     * Completed tasks closed in this bucket, in the sample.
+     */
+    sample: number;
+    /**
+     * Total P50 Hours
+     */
+    total_p50_hours?: number | null;
+    /**
+     * Total P90 Hours
+     */
+    total_p90_hours?: number | null;
+    /**
+     * Unreviewed
+     *
+     * Tasks with no review handoff (section 17.3).
+     */
+    unreviewed: number;
+    /**
+     * Waiting P50 Hours
+     */
+    waiting_p50_hours?: number | null;
+    /**
+     * Waiting P90 Hours
+     */
+    waiting_p90_hours?: number | null;
+    /**
+     * Work P50 Hours
+     */
+    work_p50_hours?: number | null;
+    /**
+     * Work P90 Hours
+     */
+    work_p90_hours?: number | null;
 };
 
 /**
@@ -4722,6 +5279,48 @@ export type SendBackActionRequest = {
      * User performing the action
      */
     user: string;
+};
+
+/**
+ * SeriesCoverage
+ *
+ * What one series can honestly claim, independent of the page-level coverage.
+ *
+ * A series whose source is younger than the range starts where the source starts and
+ * says so here, rather than drawing zero over history nobody recorded (section 21.1).
+ * ``bucket`` is the grain the series is aggregated at, so a client never infers it.
+ */
+export type SeriesCoverage = {
+    /**
+     * Bucket
+     *
+     * The grain this series is aggregated at.
+     */
+    bucket?: 'day' | 'week' | 'month';
+    /**
+     * Complete
+     *
+     * True when the window starts at or after native_from.
+     */
+    complete?: boolean;
+    /**
+     * Native From
+     *
+     * First row written at the moment it happened.
+     */
+    native_from?: string | null;
+    /**
+     * Note
+     *
+     * One sentence for the caption, or null when none is needed.
+     */
+    note?: string | null;
+    /**
+     * Recorded From
+     *
+     * First row of any source. Null means no rows at all.
+     */
+    recorded_from?: string | null;
 };
 
 /**
@@ -5982,6 +6581,18 @@ export type ThroughputPoint = {
      * Cycle P90 Days
      */
     cycle_p90_days?: number | null;
+    /**
+     * Estimated
+     *
+     * This bucket contains a reconstructed close or reopen.
+     */
+    estimated?: boolean;
+    /**
+     * Reopened
+     *
+     * Tasks reopened in this bucket (T1).
+     */
+    reopened?: number;
     /**
      * Sample
      *

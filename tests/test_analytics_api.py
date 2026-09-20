@@ -352,6 +352,23 @@ class TestTheEndpoint:
             "aging",
             "oldest",
             "stuck",
+            # The second set (section 21), each series with its own coverage.
+            "segments",
+            "segments_coverage",
+            "cost_per_task",
+            "cost_coverage",
+            "finishes",
+            "finishes_coverage",
+            "gates",
+            "gates_coverage",
+            "runs",
+            "runs_coverage",
+            "machine",
+            "machine_coverage",
+            "review",
+            "review_coverage",
+            "in_review",
+            "open_questions",
         }
 
     def test_the_scoped_mount_answers_for_the_project_it_names(self, served) -> None:
@@ -970,11 +987,13 @@ class TestQueryPlans:
         steps = [row["detail"] for row in rows]
         assert steps
         for step in steps:
-            assert (
-                "USING INDEX" in step
-                or "USING COVERING INDEX" in step
-                or (step.startswith("BLOOM FILTER"))
-            ), f"{name}: {step}"
+            # A temp b-tree for a sort or a group, or a subquery header, is how the
+            # planner structures an indexed read; it is not a scan. A SCAN is what
+            # this test exists to refuse, and no task-store query is exempt from it.
+            if step.startswith(("USE TEMP B-TREE", "CORRELATED SCALAR SUBQUERY", "BLOOM FILTER")):
+                continue
+            assert not step.startswith("SCAN"), f"{name}: {step}"
+            assert "USING INDEX" in step or "USING COVERING INDEX" in step, f"{name}: {step}"
 
     @pytest.mark.parametrize("name", sorted(QUERIES))
     def test_the_query_touches_no_json_column(self, name: str) -> None:
@@ -992,7 +1011,8 @@ class TestQueryPlans:
     def test_the_whole_payload_is_one_bounded_set_of_reads(self, store: SqlTaskStore) -> None:
         """A guard on the shape of the read, not on its speed.
 
-        Twelve statements is what §7.1's "one request for the whole page" costs. A
+        Twelve statements is what §7.1's "one request for the whole page" costs, and
+        the second set (§21) adds twenty over the task store: thirty-two in all. A
         regression that put a query inside a loop -- one per task, one per bucket --
         would not change any plan above and would change this.
         """
@@ -1004,7 +1024,7 @@ class TestQueryPlans:
         finally:
             connection.set_trace_callback(None)
 
-        assert len(executed) <= 15, executed
+        assert len(executed) <= 34, executed
 
 
 class TestSpineHelpers:

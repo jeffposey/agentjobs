@@ -1574,6 +1574,10 @@ class ThroughputPoint(BaseModel):
     cycle_p50_days: Optional[float] = None
     cycle_p90_days: Optional[float] = None
     sample: int = Field(..., description="Tasks behind the percentiles.")
+    reopened: int = Field(default=0, description="Tasks reopened in this bucket (T1).")
+    estimated: bool = Field(
+        default=False, description="This bucket contains a reconstructed close or reopen."
+    )
 
 
 class AgeBucket(BaseModel):
@@ -1606,6 +1610,231 @@ class StuckGroup(BaseModel):
     oldest_task_id: str
 
 
+# Analytics, second set (docs/analytics-design.md sections 17, 18 and 21)
+#
+# The same rule -- every model named -- and one new convention: every series carries its
+# own `SeriesCoverage`, because the sources now have five different baselines (task
+# events, finishes, gates, runs, the execution journal) and one page-level coverage
+# cannot describe them. Units are in the field names: hours for task-scale durations,
+# minutes for finishes and gates, seconds for latencies (section 21.2).
+#
+# No field here is keyed by runner or agent (section 16, decision 12);
+# `tests/test_analytics_api.py` greps these models for either name and fails on it.
+# ---------------------------------------------------------------------------
+
+
+class SeriesCoverage(BaseModel):
+    """What one series can honestly claim, independent of the page-level coverage.
+
+    A series whose source is younger than the range starts where the source starts and
+    says so here, rather than drawing zero over history nobody recorded (section 21.1).
+    ``bucket`` is the grain the series is aggregated at, so a client never infers it.
+    """
+
+    recorded_from: Optional[datetime] = Field(
+        default=None, description="First row of any source. Null means no rows at all."
+    )
+    native_from: Optional[datetime] = Field(
+        default=None, description="First row written at the moment it happened."
+    )
+    complete: bool = Field(
+        default=False, description="True when the window starts at or after native_from."
+    )
+    bucket: Literal["day", "week", "month"] = Field(
+        default="week", description="The grain this series is aggregated at."
+    )
+    note: Optional[str] = Field(
+        default=None, description="One sentence for the caption, or null when none is needed."
+    )
+
+
+class SegmentAmong(BaseModel):
+    """Per segment: how many of the bucket's tasks had any time in it, and their median."""
+
+    tasks: int
+    p50_hours: Optional[float] = None
+
+
+class SegmentPoint(BaseModel):
+    """Where a completed task's time went, per week of close (sections 17 and 18.1).
+
+    Five segments -- queue, work, waiting, review, finish -- partition each task's open
+    life exactly, so ``queue + work + waiting + review + finish = total`` per task to
+    the second. The percentiles here are per segment over the bucket's tasks, so the
+    stack's height is a sum of medians and not the median total; ``total_p50_hours``
+    is the latter. ``first_review_*`` is the owner's dispatch-to-handoff (S3): first
+    claim to first review entry, bucketed by the review entry.
+    """
+
+    bucket: date = Field(..., description="First day of the week, in the reporting zone.")
+    sample: int = Field(..., description="Completed tasks closed in this bucket, in the sample.")
+    excluded: int = Field(..., description="Closed by an import row: close time unknown.")
+    unreviewed: int = Field(..., description="Tasks with no review handoff (section 17.3).")
+    queue_p50_hours: Optional[float] = None
+    queue_p90_hours: Optional[float] = None
+    work_p50_hours: Optional[float] = None
+    work_p90_hours: Optional[float] = None
+    waiting_p50_hours: Optional[float] = None
+    waiting_p90_hours: Optional[float] = None
+    review_p50_hours: Optional[float] = None
+    review_p90_hours: Optional[float] = None
+    finish_p50_hours: Optional[float] = None
+    finish_p90_hours: Optional[float] = None
+    total_p50_hours: Optional[float] = None
+    total_p90_hours: Optional[float] = None
+    first_review_p50_hours: Optional[float] = None
+    first_review_p90_hours: Optional[float] = None
+    first_review_sample: int = 0
+    among: Dict[str, SegmentAmong] = Field(
+        default_factory=dict, description="Per segment, the tasks with a nonzero value."
+    )
+    estimated: bool = Field(
+        ..., description="A task in this bucket has a reconstructed boundary row."
+    )
+
+
+class CostPerTaskPoint(BaseModel):
+    """What a completed task cost the machine: runs, finishes and gate minutes (S4, F5, G4).
+
+    Bucketed by the task's close. ``without_gate`` counts the tasks with no full gate
+    at all -- hand closes and recorded decisions -- so a low median is not read as a
+    fast gate.
+    """
+
+    bucket: date
+    sample: int = Field(..., description="Completed tasks closed in this bucket.")
+    runs_mean: Optional[float] = None
+    runs_mode: Optional[int] = None
+    finishes_mean: Optional[float] = None
+    gate_minutes_p50: Optional[float] = None
+    gate_minutes_p90: Optional[float] = None
+    without_gate: int = 0
+    estimated: bool = False
+
+
+class FinishPoint(BaseModel):
+    """The scripted finish, per week of start (F1 to F4).
+
+    Duration percentiles are over ``finished`` rows only: a finish that stopped at the
+    gate is measuring the gate. ``steps_p50_s`` lists the steps with a nonzero median,
+    and ``runway_waited`` is how many finishes queued behind another for the merge
+    runway (task-223).
+    """
+
+    bucket: date
+    finished: int = 0
+    escalated: int = 0
+    declined: int = 0
+    interrupted: int = 0
+    reasons: Dict[str, int] = Field(default_factory=dict, description="Escalation reasons.")
+    duration_p50_min: Optional[float] = None
+    duration_p90_min: Optional[float] = None
+    sample: int = 0
+    steps_p50_s: Dict[str, float] = Field(default_factory=dict)
+    runway_waited: int = 0
+    runway_p90_s: Optional[float] = None
+    estimated: bool = False
+
+
+class GatePoint(BaseModel):
+    """Full gates, per week of start (G1 to G3).
+
+    Duration percentiles are over green full gates: a red gate stops early and says
+    nothing about cost. ``failed_stages`` is where the red ones stopped and
+    ``origins`` says whose gates they were: the finisher's, a run's, or somebody's at a
+    shell.
+    """
+
+    bucket: date
+    full: int = 0
+    passed: int = 0
+    failed_stages: Dict[str, int] = Field(default_factory=dict)
+    duration_p50_min: Optional[float] = None
+    duration_p90_min: Optional[float] = None
+    sample: int = 0
+    stages_p50_s: Dict[str, float] = Field(default_factory=dict)
+    origins: Dict[str, int] = Field(default_factory=dict)
+    estimated: bool = False
+
+
+class RunPoint(BaseModel):
+    """Dispatched runs per bucket of start, at the spine grain (R-1 to R-4).
+
+    A run is attributed whole to the bucket it started in. ``in_flight`` is the runs
+    with no end yet, which are in ``runs`` and in no outcome.
+    """
+
+    bucket: date
+    runs: int = 0
+    triggers: Dict[str, int] = Field(default_factory=dict)
+    agent_hours: float = 0.0
+    outcomes: Dict[str, int] = Field(default_factory=dict)
+    in_flight: int = 0
+    duration_p50_min: Optional[float] = None
+    duration_p90_min: Optional[float] = None
+    sample: int = 0
+    estimated: bool = False
+
+
+class MachinePoint(BaseModel):
+    """What the execution journal says about this project, per week (R-5, R-6).
+
+    Its own series because its source is another database with its own baseline.
+    ``start_latency`` is admission to launch; ``queue_wait`` is the time a queued
+    dispatch waited for a slot; ``paused_run_hours`` is run-hours lost to usage-limit
+    pauses, not wall-clock -- three runs stalled for one reset count three times.
+    """
+
+    bucket: date
+    admitted: int = 0
+    start_latency_p50_s: Optional[float] = None
+    start_latency_p90_s: Optional[float] = None
+    queued: int = 0
+    queue_wait_p50_s: Optional[float] = None
+    queue_wait_p90_s: Optional[float] = None
+    paused_run_hours: float = 0.0
+    paused_waiters: int = 0
+
+
+class ReviewPoint(BaseModel):
+    """How long a person took, per week (R2, R3, Q-2).
+
+    ``exits`` is every departure from review in the bucket, approval or not, because a
+    revise request is also the owner answering; ``wait_*`` is measured over all of them.
+    An approval is an exit to agent/work or a close from review (section 17.2), and a
+    first-time approval is one on the task's first review round. Questions are
+    bucketed by when they were asked.
+    """
+
+    bucket: date
+    exits: int = 0
+    approvals: int = 0
+    wait_p50_hours: Optional[float] = None
+    wait_p90_hours: Optional[float] = None
+    first_time_approvals: int = 0
+    questions: int = 0
+    answered: int = 0
+    answer_p50_hours: Optional[float] = None
+    answer_p90_hours: Optional[float] = None
+    estimated: bool = False
+
+
+class InReview(BaseModel):
+    """One open task waiting on review, with how long the ball has sat there (R1)."""
+
+    task_id: str
+    title: str
+    hours_waiting: float
+
+
+class OpenQuestion(BaseModel):
+    """One question on an open task with no threaded answer (Q-1)."""
+
+    task_id: str
+    entry_id: int
+    hours_open: float
+
+
 class AnalyticsResponse(BaseModel):
     """One request for the whole analytics page (section 7.1).
 
@@ -1613,6 +1842,9 @@ class AnalyticsResponse(BaseModel):
     statement that must be identical across all of them, and the storage cost of the
     whole set was measured at 6.3 ms -- so splitting it would buy nothing and cost
     seventeen chances to render half a page.
+
+    The second set (section 21) adds the process series. Each carries its own
+    ``SeriesCoverage``; the page-level ``coverage`` still describes the task history.
     """
 
     range: AnalyticsRange
@@ -1626,3 +1858,19 @@ class AnalyticsResponse(BaseModel):
     aging: List[AgeBucket] = Field(default_factory=list)
     oldest: List[AgingTask] = Field(default_factory=list, description="Ten, open and not archived.")
     stuck: List[StuckGroup] = Field(default_factory=list)
+    segments: List[SegmentPoint] = Field(default_factory=list)
+    segments_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
+    cost_per_task: List[CostPerTaskPoint] = Field(default_factory=list)
+    cost_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
+    finishes: List[FinishPoint] = Field(default_factory=list)
+    finishes_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
+    gates: List[GatePoint] = Field(default_factory=list)
+    gates_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
+    runs: List[RunPoint] = Field(default_factory=list)
+    runs_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
+    machine: List[MachinePoint] = Field(default_factory=list)
+    machine_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
+    review: List[ReviewPoint] = Field(default_factory=list)
+    review_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
+    in_review: List[InReview] = Field(default_factory=list)
+    open_questions: List[OpenQuestion] = Field(default_factory=list)
