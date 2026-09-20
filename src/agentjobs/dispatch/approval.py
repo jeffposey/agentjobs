@@ -201,6 +201,48 @@ def newest_human_handoff(task: Task, project_config: Mapping[str, object]) -> Op
     return None
 
 
+def ball_prompt_author(task: Task) -> str:
+    """The actor of the newest entry that can have written the current ``ball_prompt``.
+
+    Empty when the log names no such entry, which every caller must read as *"who wrote
+    this is not recorded"* and never as *"nobody"* -- the field is writable and the
+    absence of an entry explaining it is exactly the case worth being careful about.
+
+    Three kinds of entry move the prompt and no others. ``handoff`` sets it and is the
+    ordinary case: an Approve or a Request Changes click writes one, and the feedback
+    rides into the field and the entry body together. Every ``transition`` moves it too
+    -- ``claim`` overwrites it with the work prompt, ``promote`` with the drafting one,
+    ``release`` and ``close`` clear it -- so a transition after a handoff means the
+    handoff's text is gone and attributing the field to that person would be wrong. And
+    ``update_content`` can set the field directly, recording a ``note`` whose ``data``
+    lists ``ball_prompt`` among the fields it changed.
+
+    Newest first, because the last writer is the one whose text is in the field.
+    """
+    for entry in reversed(task.log):
+        if entry.type in (LogEntryType.HANDOFF, LogEntryType.TRANSITION):
+            return entry.actor
+        data = entry.data if isinstance(entry.data, Mapping) else {}
+        fields = data.get("fields")
+        if isinstance(fields, (list, tuple)) and "ball_prompt" in fields:
+            return entry.actor
+    return ""
+
+
+def author_is_human(project_config: Mapping[str, object], actor_id: str) -> bool:
+    """Whether the project's vocabulary says this actor is a person.
+
+    **False for every doubt**: a blank id, an actor the vocabulary does not know, a
+    project that has configured no actors at all. A reader of this asks it in order to
+    decide whether to tell an agent that a human said something, and the honest answer
+    to "we cannot tell" is "do not claim it".
+    """
+    if not actor_id:
+        return False
+    kind = actor_kind(dict(project_config), actor_id)
+    return kind is not None and kind.is_human
+
+
 def human_handoffs_since(
     task: Task, project_config: Mapping[str, object], *, after_entry: Optional[int]
 ) -> List[LogEntry]:
@@ -484,6 +526,8 @@ __all__ = [
     "approval_standing_on",
     "project_config_for",
     "approval_in",
+    "author_is_human",
+    "ball_prompt_author",
     "dispose",
     "feed_timestamp",
     "human_handoffs_since",
