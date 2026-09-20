@@ -41,6 +41,7 @@ from agentjobs.dispatch.config import (
     ResolvedPosture,
     RunnerMode,
 )
+from agentjobs.dispatch.ledger import list_runs
 from agentjobs.dispatch.peers import SESSIONS_DIR_ENV, LiveSession, PeerDelivery
 from agentjobs.dispatch.runner import DispatchRunner, RunDirectory
 from agentjobs.dispatch.wake import (
@@ -50,6 +51,8 @@ from agentjobs.dispatch.wake import (
     WakeTarget,
     build_wake_prompt,
     find_wake_target,
+    newest_session_run,
+    newest_session_runs,
     resume_refusal,
     session_uuids,
     wake_argv,
@@ -371,6 +374,56 @@ class TestFindWakeTarget:
             )
             is None
         )
+
+
+class TestNewestSessionRuns:
+    """The batch form, which is where the "which conversation is newest" rule now lives.
+
+    It exists because the reaper asks the question for every task at once (task-503),
+    and asking one at a time re-read the whole runs directory per task. The rule must
+    be the same one either way, so these pin the batch form against the single-pair
+    form that used to hold it.
+    """
+
+    def test_the_newest_run_wins_per_project_and_task(self, workspace: Path) -> None:
+        home = workspace / "home"
+        seed_finished_run(
+            home, "task-001", run_id="run_old", started_at="2026-08-20T08:00:00+00:00"
+        )
+        seed_finished_run(
+            home, "task-001", run_id="run_new", started_at="2026-08-21T08:00:00+00:00"
+        )
+        seed_finished_run(home, "task-002", run_id="run_other")
+
+        newest = newest_session_runs(list_runs(home))
+
+        assert newest[("sandbox", "task-001")].run_id == "run_new"
+        assert newest[("sandbox", "task-002")].run_id == "run_other"
+
+    def test_a_batch_run_is_not_a_conversation(self, workspace: Path) -> None:
+        home = workspace / "home"
+        directory = seed_finished_run(home, "task-001", run_id="run_batch")
+        meta = yaml.safe_load((directory.path / "meta.yaml").read_text(encoding="utf-8"))
+        meta["mode"] = "batch"
+        (directory.path / "meta.yaml").write_text(yaml.safe_dump(meta), encoding="utf-8")
+
+        assert newest_session_runs(list_runs(home)) == {}
+
+    def test_it_answers_what_the_single_pair_form_answers(self, workspace: Path) -> None:
+        """One rule, two callers -- a disagreement here is a wake into a deleted session."""
+        home = workspace / "home"
+        seed_finished_run(
+            home, "task-001", run_id="run_old", started_at="2026-08-20T08:00:00+00:00"
+        )
+        seed_finished_run(
+            home, "task-001", run_id="run_new", started_at="2026-08-21T08:00:00+00:00"
+        )
+
+        batch = newest_session_runs(list_runs(home))[("sandbox", "task-001")]
+        single = newest_session_run(home, "task-001", project_id="sandbox")
+
+        assert single is not None
+        assert batch.run_id == single.run_id
 
 
 class TestSessionUuids:
