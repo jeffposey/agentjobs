@@ -6,12 +6,15 @@ import { Link, useLocation, useMatch } from "react-router-dom";
 import type { Task } from "../api/generated";
 import {
   createTaskApiProjectsProjectIdTasksPostMutation,
+  dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation,
+  getDispatchStateApiProjectsProjectIdDispatchGetOptions,
   getProjectsApiProjectsGetOptions,
   listTasksApiProjectsProjectIdTasksGetOptions,
 } from "../api/generated/@tanstack/react-query.gen";
 import { readRefusal } from "../api/mutation-error";
 import { readReportContext } from "../report/issueReport";
 import { CaptureForm, type CaptureDestination } from "./CaptureForm";
+import { FiledNotice, type FiledOutcome } from "./DispatchOnCreate";
 
 /**
  * The one capture control (task-346): the single place anything becomes a task.
@@ -101,7 +104,7 @@ export function CaptureControl({ className = "" }: { className?: string }) {
   );
 }
 
-type Filed = { projectId: string; task: Task };
+type Filed = { projectId: string; outcome: FiledOutcome };
 
 function CaptureDialog({ onClose }: { onClose: () => void }) {
   const location = useLocation();
@@ -133,12 +136,27 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
     name: project.name,
     reporter: project.default_user ?? null,
   }));
+  /** The human a run filed into this project would be attributed to. */
+  const reporterFor = (projectId: string) =>
+    destinations.find((entry) => entry.id === projectId)?.reporter ?? null;
 
   // Only for the Parent field's completions, so it is not asked for until the
   // specification is open and that field is on screen. Most captures never expand, and
   // fetching a project's whole task list to put a dialog up would be a request nobody
   // asked for.
   const [wantsTaskIds, setWantsTaskIds] = useState(false);
+  // Which project the form is pointed at now, so the start-an-agent box is gated on the
+  // gates of the project actually selected rather than the one the capture started in.
+  const [destination, setDestination] = useState(context.projectId ?? "");
+  const dispatchState = useQuery({
+    ...getDispatchStateApiProjectsProjectIdDispatchGetOptions({
+      path: { project_id: destination },
+    }),
+    enabled: Boolean(destination),
+  });
+  const start = useMutation(
+    dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation(),
+  );
   const tasksQuery = useQuery({
     ...listTasksApiProjectsProjectIdTasksGetOptions({
       path: { project_id: context.projectId ?? "" },
@@ -164,20 +182,14 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
 
         {filed ? (
           <div className="mt-5 space-y-4">
-            <p
-              role="status"
-              className="rounded-lg border border-green-600/60 bg-green-950/40 p-4 text-green-200"
-            >
-              Filed as <strong>{filed.task.id}</strong>.
-            </p>
+            <FiledNotice
+              taskId={filed.outcome.task.id}
+              taskTitle={filed.outcome.task.title}
+              taskHref={`/p/${encodeURIComponent(filed.projectId)}/tasks/${encodeURIComponent(filed.outcome.task.id)}`}
+              start={filed.outcome.start}
+              onNavigate={onClose}
+            />
             <div className="mobile-action-row flex items-center justify-end gap-3">
-              <Link
-                to={`/p/${encodeURIComponent(filed.projectId)}/tasks/${encodeURIComponent(filed.task.id)}`}
-                onClick={onClose}
-                className="touch-target rounded-lg px-4 font-semibold text-blue-300 hover:bg-dark-border"
-              >
-                Open the task
-              </Link>
               <button
                 type="button"
                 onClick={() => {
@@ -221,9 +233,20 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
                   throw new Error(refusal ? refusal.message : "");
                 }
               }}
-              onFiled={(projectId, task) => {
+              dispatchState={dispatchState.data ?? null}
+              onDestinationChange={setDestination}
+              // The ordinary dispatch call, with the ordinary body: `user` names the
+              // human filing, and the guard layer writes their authorising entry and
+              // checks it like any other. Nothing here is exempt from anything.
+              onStart={(projectId, taskId) =>
+                start.mutateAsync({
+                  path: { project_id: projectId, task_id: taskId },
+                  body: reporterFor(projectId) ? { user: reporterFor(projectId)! } : {},
+                })
+              }
+              onFiled={(projectId, outcome) => {
                 void queryClient.invalidateQueries();
-                setFiled({ projectId, task });
+                setFiled({ projectId, outcome });
               }}
               cancel={
                 <button
