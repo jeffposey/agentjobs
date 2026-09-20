@@ -32,6 +32,14 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * entry is now the brightest thing in the row, tinted and ringed, and carries
  * `aria-current="page"`; see {@link currentDestinationPath} for which entry that is.
  *
+ * **It carries navigation and nothing else (task-345).** The row had been added to one
+ * entry at a time and never subtracted from, so its contents were the union of every
+ * feature that wanted a link. Dispatch settings is a settings page, Playbooks is a
+ * launcher and API Docs is somebody else's reference document; none of the three is
+ * somewhere you go while working, and standing beside the ones that are made those
+ * harder to see. All three are now in {@link ActionsMenu}, one interaction from every
+ * page the bar is on. What is left is what a reader navigates *to*.
+ *
  * The burger is at the **left** end on purpose. The *actions* end is the top-right --
  * task-346's capture trigger and task-168's {@link ActionsMenu}, grouped;
  * navigation-left/actions-right keeps the two apart, and keeps navigation out of the
@@ -70,37 +78,57 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  *
  * **Re-measured for task-168's actions menu**, which adds a 44px trigger plus a
  * gap at the right end -- and unlike a destination it is there at *every* width, since
- * a menu that vanishes on a phone is not somewhere task-345 can move Dispatch settings
- * to. Dropped straight in, the row fitted only at 1278 of the 1280 the `max-w-7xl`
- * header can ever reach, and a 2px margin is not one. So the **outer** gap went from
- * `gap-6` to `gap-4` at the breakpoint -- the lever task-465 pulled on the inline
- * group, four gaps here rather than seven, 32px back -- and the last overflow landed
- * at 1244.
+ * a menu that vanishes on a phone is not somewhere Dispatch settings could move to.
+ * Dropped straight in, the row fitted only at 1278 of the 1280 the `max-w-7xl` header
+ * can ever reach, and a 2px margin is not one. So the **outer** gap went from `gap-6`
+ * to `gap-4` at the breakpoint -- the lever task-465 pulled on the inline group, four
+ * gaps here rather than seven, 32px back -- and the last overflow landed at 1244, for
+ * a constant of 1256.
  *
- * 1244px is where the bar last overflows, with the project switcher at the 224px
- * (`max-w-56`) it reaches for a long project name -- the case the constant has to hold
- * for, not the four-character one a sandbox happens to have. Overflow, not wrapping, is
- * how this now fails: `flex-nowrap` and `min-w-0` mean the switcher is squeezed and then
- * the row runs off the right edge, so a header measured only by its height would have
- * called every width below this fine. 1256 for a margin over 1244, measured in Chromium
- * with the switcher pinned to its maximum, the attention badge showing and every link
- * forced `nowrap`, at 1200 to 1290 in 2px steps.
+ * Overflow, not wrapping, is how this fails: `flex-nowrap` and `min-w-0` mean the
+ * switcher is squeezed and then the row runs off the right edge, so a header measured
+ * only by its height would call every width below the breakpoint fine.
+ *
+ * **Re-measured for task-345, the first change that subtracts from this row.**
+ * Dispatch, Playbooks and API Docs left it for the actions menu. The bar last
+ * overflows at **940px**, so the constant is **952** -- the same 12px of margin over
+ * the last overflow that 1256 kept over 1244, and 304px below the number it replaces.
+ * Measured in Chromium against the `e2e/run_server.py` sandbox on 2026-09-20, with the
+ * project switcher pinned to the 224px (`max-w-56`) it reaches for a long project name,
+ * the attention badge showing, every link forced `nowrap`, and the breakpoint itself
+ * temporarily set to 360 so the inline row was laid out at every width under test;
+ * swept 600 to 1300 in 2px steps, then 850 to 1000 in 1px steps. The switcher is
+ * pinned because that is the case this constant has to hold for, not the
+ * four-character project a sandbox happens to have.
+ *
+ * **The prize the task hoped for is not there, and the same sweep says why.** A row
+ * this short was expected to fit a phone, which would have retired the burger. It does
+ * not, and nor would the three-entry row the spec described: with Create hidden the
+ * last overflow is 859, and with Analytics hidden as well -- Dashboard, Tasks and Runs
+ * alone -- it is **762**, still nearly twice a 390px phone. What this row costs is
+ * mostly not its destinations. The wordmark, the 224px switcher, the badge and the
+ * kebab are some 500px of fixed furniture before the first link is drawn, so deleting
+ * links has a floor well above a phone. Shrinking *those* is the only lever that would
+ * reach one, and it is nobody's task yet.
+ *
+ * 859 is recorded rather than left to be re-derived: task-346 takes Create out of this
+ * row, and that is the last overflow it will be moving this constant against.
  *
  * **The badge is why this first moved and it is also why the move is cheap.** It
  * renders only when work has actually stopped on you, so the 34px is spent on the rare
  * screen rather than every screen -- but the constant has to hold for the screen that
  * spends it, since that is the one a person is being asked to read.
  *
- * The cost is the 960-1255 band -- landscape tablets, split-screen desktop windows --
- * moving from an inline row to the burger. That is the trade task-292 already made once
- * at 960, and the burger keeps every destination one tap away. Task-345 intends to
- * take the bar down to three destinations, which would move this number back down.
+ * The cost is now the 940-951 band rather than the 960-1255 one task-168 left behind:
+ * landscape tablets and split-screen desktop windows are back to an inline row. The
+ * burger is still the phone's experience, and still keeps every destination one tap
+ * away.
  *
  * Kept as a constant beside the class names that encode it so a reader can find both
  * at once; Tailwind needs the literal in the class, so the two are checked against
  * each other by a test rather than by the compiler.
  */
-export const NAV_INLINE_MIN_PX = 1256;
+export const NAV_INLINE_MIN_PX = 952;
 
 /** Shown inline above the breakpoint, and inside the panel below it. */
 const DESTINATIONS: ReadonlyArray<{
@@ -115,20 +143,15 @@ const DESTINATIONS: ReadonlyArray<{
   // That placement was chosen to keep this constant's measurement unchanged, and the
   // owner could not find the page (task-465): a text link in a heading row is not an
   // entry point for a whole surface. Beside Tasks because it is the other place you
-  // go to *read* the project rather than act on it. Expected to move again when
-  // task-345 reduces the bar to Dashboard, Tasks and Runs.
+  // go to *read* the project rather than act on it -- which is also why task-345 kept
+  // it here rather than sweeping it into the actions menu with the settings page and
+  // the reference document. Burying it is the arrangement task-465 was filed to undo.
   { path: "/analytics", label: "Analytics" },
-  // Its own nav entry, not buried in a menu: this is where the switch that stops
-  // every future run lives, and a kill switch you cannot reach is not one. Below the
-  // breakpoint it is one tap behind the burger, which is the most the width allows.
-  { path: "/dispatch", label: "Dispatch" },
-  // Beside Dispatch rather than under it: a playbook run *is* a dispatch, and the two
-  // gates a reader needs are the same ones.
-  { path: "/playbooks", label: "Playbooks" },
-  // Beside them again, and carrying the only badge in the bar (task-328). Dispatch is
-  // the switch and Playbooks is what to start; this is what is *already* running, which
-  // is the question the other two cannot answer. The badge is here rather than on the
-  // Dashboard link because the count matters most while you are somewhere else --
+  // Carrying the only badge in the bar (task-328). The Dashboard shows the slots;
+  // this is the unconstrained view -- every run, other projects' included, with
+  // history -- which is a question the board structurally cannot answer, and that is
+  // what makes it a destination rather than a panel. The badge is here rather than on
+  // the Dashboard link because the count matters most while you are somewhere else --
   // reading a task, watching a queue -- and it is the only number in the app that is
   // about the machine rather than about the project the bar is scoped to.
   { path: "/runs", label: "Runs", badge: true },
@@ -143,10 +166,21 @@ function projectPath(projectId: string | undefined, path = "") {
 /**
  * Which destination the current URL belongs to, or `null` when none of them owns it.
  *
- * **Longest match wins**, which is what makes `/tasks/new` mark Create rather than
- * lighting up Tasks as well -- both entries match that URL and only the deeper one
- * should win. It also makes Dashboard, whose path is `""`, the fallback for anything
- * under the project that no other entry claims, without needing a rule of its own.
+ * **Longest match wins**, so an entry that owns a prefix never lights up alongside a
+ * deeper one that owns the whole path. Nothing in the row exercises it today --
+ * `/tasks/new` did until task-346 took Create out and left `/tasks` as the deepest
+ * entry matching it -- and the rule stays because the next nested destination would
+ * otherwise mark two.
+ *
+ * **Dashboard's `""` matches the project root and nothing else** (task-345). It used
+ * to be the fallback for every URL under the project that no other entry claimed,
+ * which cost nothing while every route had an entry. Once Dispatch settings and
+ * Playbooks moved into the actions menu it became a liar: standing on `/dispatch`, the
+ * bar would tell you confidently that you were on the Dashboard -- which is task-336's
+ * original bug wearing a different hat, and worse than the honest answer, because a
+ * reader can recover from a bar that marks nothing and cannot recover from one that
+ * marks the wrong thing. So a route with no entry now marks no entry; see the task's
+ * decision entry for what was rejected.
  *
  * A match is compared at a segment boundary in both halves, so project `demo2` is not
  * a match for project `demo`, and a hypothetical `/tasksomething` is not one for
@@ -161,7 +195,11 @@ export function currentDestinationPath(pathname: string, projectId: string): str
   const rest = pathname.slice(prefix.length);
   let best: string | null = null;
   for (const { path } of DESTINATIONS) {
-    const matches = rest === path || rest.startsWith(`${path}/`);
+    // The empty path is spelled out rather than falling through the general rule,
+    // because `"/anything".startsWith("/")` is true and that is exactly the
+    // catch-all this no longer wants to be.
+    const matches =
+      path === "" ? rest === "" || rest === "/" : rest === path || rest.startsWith(`${path}/`);
     if (matches && (best === null || path.length > best.length)) best = path;
   }
   return best;
@@ -294,13 +332,11 @@ export function PrimaryNav({
     );
   });
 
-  // Outside the router: /docs is FastAPI's, not a route this app owns, so it is never
-  // the current page however the app got here.
-  const apiDocs = (
-    <a href="/docs" className={`${linkClass} ${restClass}`}>
-      API Docs
-    </a>
-  );
+  // The API Docs anchor used to be built here and rendered beside the destinations.
+  // task-345 moved it into the actions menu, where task-168 argued it belonged: it is
+  // FastAPI's own page rather than a route this app owns, so it could never be the
+  // current entry however the app got here, and a row whose members are not all the
+  // same kind of thing is the shape this task was filed to undo.
 
   return (
     <header
@@ -308,18 +344,18 @@ export function PrimaryNav({
       className="sticky top-0 z-30 border-b border-dark-border bg-dark-surface"
     >
       <nav
-        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[1256px]:gap-4 sm:px-6 lg:px-8"
+        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[952px]:gap-4 sm:px-6 lg:px-8"
         aria-label="Primary navigation"
       >
         {/*
           The breakpoint lives on this wrapper rather than on the button, and that is
           not a stylistic choice. `styles.css` carries `.touch-target:not(.block) {
           display: inline-flex }`, whose specificity (0,2,0) beats a Tailwind utility's
-          (0,1,0) -- so `min-[1256px]:hidden` on a `touch-target` element loses, and the
+          (0,1,0) -- so `min-[952px]:hidden` on a `touch-target` element loses, and the
           burger stays visible at every width. Caught in a browser at 1280px; jsdom
           would never have shown it.
         */}
-        <div className="shrink-0 min-[1256px]:hidden">
+        <div className="shrink-0 min-[952px]:hidden">
           <button
             ref={triggerRef}
             type="button"
@@ -343,14 +379,14 @@ export function PrimaryNav({
         <ProjectSwitcher projectId={projectId} />
         {attention}
         {/*
-          `gap-4`, not the `gap-6` the bar itself uses between its regions: eight links
-          at 24px apart do not fit inside `max-w-7xl` with the switcher at its widest
-          and the badge showing (task-465). See NAV_INLINE_MIN_PX for the measurement.
+          `gap-4`, not the `gap-6` the bar itself uses between its regions. task-465
+          took it to 16px to buy width back from a row of eight; task-345 left it
+          there rather than restoring 24px on a row of four, because the spare width
+          is worth more as a lower NAV_INLINE_MIN_PX than as spacing -- the whole
+          point of shortening the row was to move that number down. The task's
+          constraint is not to restyle the bar, and reverting this would be one.
         */}
-        <div className="hidden items-center gap-4 min-[1256px]:flex">
-          {destinations}
-          {apiDocs}
-        </div>
+        <div className="hidden items-center gap-4 min-[952px]:flex">{destinations}</div>
         {/*
           The actions end: the capture trigger (task-346) and the actions menu
           (task-168), at the opposite end from the burger and present at every width.
@@ -371,14 +407,13 @@ export function PrimaryNav({
           // Absolute rather than in flow, so opening the panel overlays the page
           // instead of pushing it down under a bar that is already pinned. `sticky`
           // is a positioned value, so the header is the containing block already.
-          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[1256px]:hidden"
+          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[952px]:hidden"
         >
           <div
             className="mx-auto flex max-w-7xl flex-col px-4 py-2 sm:px-6"
             onClick={close}
           >
             {destinations}
-            {apiDocs}
           </div>
         </div>
       )}

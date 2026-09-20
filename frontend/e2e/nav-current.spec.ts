@@ -21,16 +21,22 @@ const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 1256;
+const NAV_INLINE_MIN_PX = 952;
 
 const SURFACES = [
   ["/app/p/_local", "Dashboard"],
   ["/app/p/_local/tasks", "Tasks"],
   ["/app/p/_local/analytics", "Analytics"],
-  ["/app/p/_local/dispatch", "Dispatch"],
-  ["/app/p/_local/playbooks", "Playbooks"],
   ["/app/p/_local/runs", "Runs"],
 ] as const;
+
+/**
+ * Routes the bar no longer has an entry for (task-345).
+ *
+ * Both still work and both are reached from the actions menu; what changed is the
+ * bar's answer to "where am I" on them, which is now *nothing*. See ac-4.
+ */
+const UNOWNED_SURFACES = ["/app/p/_local/dispatch", "/app/p/_local/playbooks"] as const;
 
 /** The nav, addressed by its label rather than by a tag: pages carry headers too. */
 function nav(page: Page) {
@@ -159,7 +165,7 @@ test("no action in the bar is painted like a place, so colour still means one th
 test("the burger panel marks the current destination too", async ({ page }) => {
   await page.setViewportSize(PHONE);
   expect(PHONE.width).toBeLessThan(NAV_INLINE_MIN_PX);
-  await page.goto("/app/p/_local/dispatch");
+  await page.goto("/app/p/_local/analytics");
 
   await page.getByRole("button", { name: "Navigation" }).click();
   const panel = page.locator("#primary-nav-destinations");
@@ -167,6 +173,35 @@ test("the burger panel marks the current destination too", async ({ page }) => {
 
   const marked = panel.locator('[aria-current="page"]');
   await expect(marked).toHaveCount(1);
-  await expect(marked).toHaveText("Dispatch");
+  await expect(marked).toHaveText("Analytics");
   await expect(marked).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+});
+
+test("a route with no entry marks nothing, rather than lighting up the Dashboard", async ({
+  page,
+}) => {
+  // ac-4, measured. Until task-345, `currentDestinationPath` fell back to Dashboard's
+  // `""` for anything under the project no other entry claimed -- harmless while every
+  // route had an entry, and a confident lie the moment Dispatch settings and Playbooks
+  // moved into the actions menu. Marking nothing is recoverable; marking the wrong
+  // thing is task-336's original defect again.
+  for (const viewport of [DESKTOP, PHONE]) {
+    await page.setViewportSize(viewport);
+    for (const surface of UNOWNED_SURFACES) {
+      await page.goto(surface);
+      await expect(nav(page)).toBeVisible();
+      await expect(
+        nav(page).locator('[aria-current="page"]'),
+        `${surface} at ${viewport.width}px marks no entry in the bar`,
+      ).toHaveCount(0);
+
+      if (viewport.width >= NAV_INLINE_MIN_PX) continue;
+      // The panel is the phone's whole bar, so an unmarked row there is the half that
+      // actually matters on the surface this app is read on.
+      await page.getByRole("button", { name: "Navigation" }).click();
+      const panel = page.locator("#primary-nav-destinations");
+      await expect(panel).toBeVisible();
+      await expect(panel.locator('[aria-current="page"]')).toHaveCount(0);
+    }
+  }
 });
