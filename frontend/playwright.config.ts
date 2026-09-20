@@ -76,6 +76,26 @@ export default defineConfig({
     baseURL,
     browserName: "chromium",
     trace: "retain-on-failure",
+    launchOptions: {
+      // Chromium's on-device speech component, switched off because in a headless
+      // Chromium it takes the renderer with it.
+      //
+      // Measured on Chromium 151.0.7922.34, the build Playwright bundles:
+      // `SpeechRecognition.available({langs, processLocally: true})` crashes the
+      // renderer outright -- "Target crashed", no exception, nothing a `try` can
+      // catch. The same call in the same build **headed** answers `downloadable`,
+      // and so does real Chrome 153 headless, so this is a headless-Chromium bug in
+      // that component and not something a person filing a task can reach. The
+      // dictation control asks that question once per page (task-172), which turned
+      // twenty-three capture-form tests red and none of them for their own reason.
+      //
+      // With the feature off, `available` is simply absent, which is a state the
+      // control already has to handle -- Safari and every pre-139 Chrome are in it --
+      // and it takes the same path: the microphone is still rendered and still
+      // usable, and the page says the audio goes to the browser's speech service.
+      // So this hides no behaviour the suite was covering.
+      args: ["--disable-features=OnDeviceWebSpeech,OnDeviceWebSpeechAvailable"],
+    },
   },
   webServer: {
     command: "poetry run python e2e/run_server.py",
