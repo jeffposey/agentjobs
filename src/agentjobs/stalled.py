@@ -51,9 +51,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Literal, Mapping, Optional, Protocol, Sequence
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    cast,
+)
 
-from .models_v2 import Ball, BallReason, Lifecycle, Task
+from .models_v2 import Ball, BallReason, LabelledTask, Lifecycle, Task
 
 StallReason = Literal["no_agent", "undelivered_handback"]
 """The two ways a task can be in this set. A closed alphabet, because the API model
@@ -135,11 +145,37 @@ def last_activity(task: Task) -> datetime:
     all write, which makes it the honest measure of "an agent is doing something here".
     """
     newest = max((entry.ts for entry in task.log), default=None)
-    moment = newest or task.created
+    return _aware(newest or task.created)
+
+
+def _aware(moment: datetime) -> datetime:
+    """A stored timestamp as an aware one, so a subtraction cannot raise."""
     return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
 
 
-def is_candidate(task: Task) -> bool:
+def quiet_since(task: LabelledTask, newest: Optional[Mapping[str, datetime]]) -> datetime:
+    """:func:`last_activity`, for a record or for a row plus a lookup.
+
+    The detector reads six things off a task and five of them are on a listing row; the
+    sixth is this, and it is the only reason the dashboard would have to load every
+    record in the project to find out whether anything is stalled (task-498). So the
+    caller may pass the newest log timestamp per task id instead, read in one bounded
+    query over the handful of tasks :func:`is_candidate` admitted.
+
+    **The answer is the same either way, and that is the point.** ``max(ts)`` over a
+    task's rows is ``max(ts)`` over its log; a task with no rows is absent from the
+    lookup and falls back to ``created``, which is exactly what :func:`last_activity`
+    does for an empty log. The denormalised ``last_activity_at`` column would have been
+    cheaper still and is *not* this: it holds the last entry appended rather than the
+    newest one, and ``tests/test_stalled_tasks.py`` pins the difference on purpose.
+    """
+    if newest is None:
+        return last_activity(cast(Task, task))
+    found = newest.get(task.id)
+    return _aware(found) if found is not None else _aware(task.created)
+
+
+def is_candidate(task: LabelledTask) -> bool:
     """Whether this task is one an agent is supposed to be working right now.
 
     Claimed and held by an agent, and not deliberately parked. See the module docstring
@@ -155,12 +191,13 @@ def is_candidate(task: Task) -> bool:
 
 
 def stall_for(
-    task: Task,
+    task: LabelledTask,
     run: Optional[LiveRun],
     *,
     minutes: int,
     handback_minutes: int,
     now: Optional[datetime] = None,
+    since: Optional[datetime] = None,
 ) -> Optional[Stall]:
     """Whether *task* is stalled, given the live run against it (or the absence of one).
 
@@ -178,7 +215,7 @@ def stall_for(
         return None
     reason = NO_AGENT if run is None else UNDELIVERED_HANDBACK
     limit = minutes if run is None else handback_minutes
-    since = last_activity(task)
+    since = since if since is not None else last_activity(cast(Task, task))
     moment = now or datetime.now(timezone.utc)
     quiet = (moment - since).total_seconds()
     if quiet < timedelta(minutes=limit).total_seconds():
@@ -194,12 +231,13 @@ def stall_for(
 
 
 def stalls(
-    tasks: Sequence[Task],
+    tasks: Sequence[LabelledTask],
     runs: Mapping[str, LiveRun],
     *,
     minutes: int,
     handback_minutes: int,
     now: Optional[datetime] = None,
+    newest: Optional[Mapping[str, datetime]] = None,
 ) -> List[Stall]:
     """Every stalled task in *tasks*, quietest first.
 
@@ -214,6 +252,7 @@ def stalls(
             minutes=minutes,
             handback_minutes=handback_minutes,
             now=now,
+            since=quiet_since(task, newest),
         )
         for task in tasks
     ]
@@ -267,12 +306,13 @@ def live_runs_by_task(project_id: str, *, home: Optional[Path] = None) -> Dict[s
 
 
 def stalled_in(
-    tasks: Sequence[Task],
+    tasks: Sequence[LabelledTask],
     *,
     project_id: str,
     home: Optional[Path] = None,
     now: Optional[datetime] = None,
     settings: Optional["StalledSettings"] = None,
+    newest_log_ts: Optional[Callable[[Sequence[str]], Mapping[str, datetime]]] = None,
 ) -> List[Stall]:
     """The stalled tasks in a corpus already in hand, reading the ledger only if needed.
 
@@ -286,16 +326,25 @@ def stalled_in(
     that has not been quiet long enough to be stalled under *either* threshold is
     filtered before the ledger is opened, because whichever branch it takes it cannot be
     reported yet.
+
+    ``newest_log_ts`` lets the corpus be listing rows rather than records. The five other
+    things this reads are on a row; the sixth is the newest log timestamp, and a caller
+    that passes this resolves it for the handful of ids :func:`is_candidate` admitted
+    instead of handing over every log in the project to have one number taken from each
+    (task-498). Both short-circuits survive it, and it is asked only about candidates --
+    so a corpus with nothing claimed runs no extra query either.
     """
     active = settings or load_settings(home)
     if not active.enabled:
         return []
     moment = now or datetime.now(timezone.utc)
     floor = timedelta(minutes=min(active.minutes, active.handback_minutes)).total_seconds()
+    claimed = [task for task in tasks if is_candidate(task)]
+    if not claimed:
+        return []
+    newest = newest_log_ts([task.id for task in claimed]) if newest_log_ts is not None else None
     candidates = [
-        task
-        for task in tasks
-        if is_candidate(task) and (moment - last_activity(task)).total_seconds() >= floor
+        task for task in claimed if (moment - quiet_since(task, newest)).total_seconds() >= floor
     ]
     if not candidates:
         return []
@@ -305,6 +354,7 @@ def stalled_in(
         minutes=active.minutes,
         handback_minutes=active.handback_minutes,
         now=moment,
+        newest=newest,
     )
 
 

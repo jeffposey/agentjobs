@@ -371,6 +371,33 @@ class SqlTaskStore:
             for row in newest
         ]
 
+    def newest_log_ts(self, task_ids: Sequence[str]) -> Dict[str, datetime]:
+        """The newest log timestamp for each of ``task_ids`` that has one.
+
+        One statement, bounded by the caller's list and served by ``log_entry``'s primary
+        key. The stalled-task detector wants this for the handful of tasks an agent is
+        supposed to be working right now; before this it got it by being handed every
+        record in the project and taking one number out of each log (task-498).
+
+        A task with no log rows is **absent** from the answer rather than present with a
+        default, because the caller's fallback for that case is ``created`` and this
+        method does not know it.
+        """
+        if not task_ids:
+            return {}
+        ids = list(task_ids)
+        placeholders = ",".join("?" for _ in ids)
+        rows = (
+            self._connection()
+            .execute(
+                f"SELECT task_id, max(ts) AS newest FROM log_entry WHERE project_id = ? "
+                f"AND task_id IN ({placeholders}) GROUP BY task_id",
+                (self.project_id, *ids),
+            )
+            .fetchall()
+        )
+        return {row["task_id"]: _parsed(row["newest"]) for row in rows}
+
     def _search_ids(self, connection: sqlite3.Connection, text: str) -> List[str]:
         """The ids matching free text, in relevance order, exact id matches leading.
 

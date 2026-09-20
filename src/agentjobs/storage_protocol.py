@@ -28,7 +28,7 @@ What a SQL backend is not asked for, and why:
     read. The file backend keeps its own raw readers; nothing in this Protocol requires
     the SQL one to be able to return an invalid task.
 
-What every backend must do is below. It is deliberately small: ten reads, five
+What every backend must do is below. It is deliberately small: eleven reads, five
 writes, the redaction primitive, and a transaction.
 """
 
@@ -42,9 +42,12 @@ from typing import (
     List,
     Optional,
     Protocol,
+    Sequence,
     Tuple,
     runtime_checkable,
 )
+
+from datetime import datetime
 
 from .models_v2 import RecentLogEntry, Task, TaskCard, TaskSummary
 
@@ -97,6 +100,19 @@ class TaskStore(Protocol):
         the whole-record form produced, because a stable ``nlargest`` over that walk
         produces exactly that. A backend answering this some other way changes what the
         panel shows.
+        """
+
+    def newest_log_ts(self, task_ids: Sequence[str]) -> Dict[str, datetime]:
+        """The newest log timestamp for each of ``task_ids`` that has one.
+
+        The second log-shaped read on this boundary, and it exists for the same reason
+        the first does: the stalled-task detector reads six things off a task and five of
+        them are on a listing row, so without this the dashboard loads every record in
+        the project to take one timestamp from each (task-498). Bounded by the caller's
+        list, which is the handful of tasks an agent is supposed to be working.
+
+        A task with no log rows is absent from the answer rather than present with a
+        default: the caller's fallback is ``created``, which a store need not know about.
         """
 
     def search_tasks(self, query: str) -> List[Task]:

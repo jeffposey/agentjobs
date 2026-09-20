@@ -535,6 +535,10 @@ class TaskManager:
         """The newest ``limit`` log entries in the project, newest first."""
         return self.storage.recent_log_entries(limit)
 
+    def newest_log_ts(self, task_ids: Sequence[str]) -> Dict[str, datetime]:
+        """The newest log timestamp for each of ``task_ids`` that has one."""
+        return self.storage.newest_log_ts(task_ids)
+
     def listing_rows(
         self,
         *,

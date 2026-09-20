@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import pytest
 import yaml
@@ -48,6 +48,8 @@ from agentjobs.models_v2 import (
     Priority,
     Spec,
     Task,
+    TaskSummary,
+    summary_of,
 )
 from agentjobs.projects import ProjectRegistry
 from agentjobs.stalled import (
@@ -56,6 +58,7 @@ from agentjobs.stalled import (
     StalledSettings,
     last_activity,
     load_settings,
+    quiet_since,
     stall_for,
     stalled_in,
     stalls,
@@ -295,6 +298,93 @@ class TestTheSet:
     def test_no_runs_in_hand_is_an_answer_and_not_a_failure(self) -> None:
         """A machine that has never dispatched still has tasks that can be abandoned."""
         assert stalls([task()], {}, minutes=60, handback_minutes=30, now=NOW)
+
+
+class TestARowAnswersTheSameAsARecord:
+    """The detector reads five fields off a listing row and one off the log.
+
+    That sixth thing was the whole reason the dashboard loaded every record in the
+    project -- one timestamp taken from each log, on the most-polled endpoint in the
+    product (task-498). A caller may hand over rows plus the newest timestamp per id
+    instead, and these hold the two paths to the same answer.
+    """
+
+    def _rows(self, records: List[Task]) -> Tuple[List[TaskSummary], Dict[str, datetime]]:
+        """The same corpus as listing rows, with the lookup a store would supply."""
+        newest = {
+            record.id: max(item.ts for item in record.log) for record in records if record.log
+        }
+        return [summary_of(record) for record in records], newest
+
+    def test_the_quiet_is_measured_from_the_same_instant(self) -> None:
+        record = task(
+            quiet_minutes=200,
+            log=[entry(400, entry_id=1), entry(90, entry_id=2), entry(200, entry_id=3)],
+        )
+        rows, newest = self._rows([record])
+        assert quiet_since(rows[0], newest) == last_activity(record)
+
+    def test_a_task_with_no_log_falls_back_to_created_either_way(self) -> None:
+        record = task(log=[])
+        rows, newest = self._rows([record])
+        assert newest == {}, "the fixture's task really does have no log"
+        assert quiet_since(rows[0], newest) == last_activity(record)
+
+    def test_the_same_set_is_reported_from_rows_as_from_records(self, tmp_path) -> None:
+        """The end-to-end shape: one corpus, two forms, one answer."""
+        records = [
+            task("task-401", quiet_minutes=300),
+            task("task-402", quiet_minutes=10),
+            task("task-403", lifecycle=Lifecycle.READY, ball=Ball.AGENT, quiet_minutes=900),
+            task("task-404", ball_reason=BallReason.HOLD, quiet_minutes=900),
+        ]
+        rows, newest = self._rows(records)
+        settings = StalledSettings(enabled=True, minutes=60, handback_minutes=10)
+
+        from_records = stalled_in(
+            records, project_id="p", home=tmp_path, now=NOW, settings=settings
+        )
+        from_rows = stalled_in(
+            rows,
+            project_id="p",
+            home=tmp_path,
+            now=NOW,
+            settings=settings,
+            newest_log_ts=lambda ids: {i: newest[i] for i in ids if i in newest},
+        )
+        assert [stall.task_id for stall in from_records] == ["task-401"]
+        assert from_rows == from_records
+
+    def test_the_lookup_is_asked_only_about_candidates(self, tmp_path) -> None:
+        """A row corpus of a thousand ready tasks asks for nothing at all.
+
+        The property the bounded read rests on: ``is_candidate`` runs first, so what the
+        lookup costs follows the number of tasks an agent is supposed to be working
+        rather than the size of the backlog.
+        """
+        records = [
+            task(f"task-{index:03d}", lifecycle=Lifecycle.READY, ball=Ball.AGENT)
+            for index in range(1, 6)
+        ] + [task("task-900", quiet_minutes=300)]
+        rows, newest = self._rows(records)
+        asked: List[Sequence[str]] = []
+
+        def lookup(ids: Sequence[str]) -> Dict[str, datetime]:
+            asked.append(list(ids))
+            return {i: newest[i] for i in ids if i in newest}
+
+        stalled_in(
+            rows,
+            project_id="p",
+            home=tmp_path,
+            now=NOW,
+            settings=StalledSettings(enabled=True, minutes=60, handback_minutes=10),
+            newest_log_ts=lookup,
+        )
+        assert asked == [["task-900"]], (
+            "the lookup was asked about tasks is_candidate had already excluded, so its "
+            f"cost follows the backlog rather than the claimed set: {asked}"
+        )
 
 
 class TestTheThresholdIsConfigurable:
