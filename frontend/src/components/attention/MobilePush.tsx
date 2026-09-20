@@ -10,12 +10,15 @@ import {
 import type { PushDeviceView, PushStatusResponse } from "../../api/types";
 import {
   clearPushContext,
+  detailFor,
   deviceLabel,
   pushAvailability,
   readDeviceId,
   readEnvironment,
+  readPrivacy,
   subscribePayload,
   writeDeviceId,
+  writePrivacy,
   writePushContext,
   type PushAvailability,
 } from "./push";
@@ -85,14 +88,27 @@ function statusLine(device: PushDeviceView): string {
   return "waiting for the first alert";
 }
 
+/**
+ * Registering *this* device for push, shown only on a phone or tablet.
+ *
+ * The gate is `isHandheld`, and it is about which answer applies rather than what the
+ * browser can do -- a desktop Chrome will take a push subscription perfectly well. On a
+ * desktop the local notification `NotificationDelivery` offers is the better answer to
+ * the same question and arrives without a round trip through a push service, so
+ * offering both there is two ways to do one thing. Before task-421's revision this
+ * panel rendered everywhere, which is how a Windows desktop came to be given
+ * instructions for adding AgentJobs to an iPhone Home Screen.
+ */
 export function MobilePush({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
+  const [handheld] = useState(() => readEnvironment().isHandheld);
   const [availability, setAvailability] = useState<PushAvailability>(() =>
     pushAvailability(readEnvironment()),
   );
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tested, setTested] = useState<string | null>(null);
+  const [privacy, setPrivacy] = useState(() => readPrivacy());
   const device = useThisDevice();
 
   const status = useQuery({
@@ -150,9 +166,10 @@ export function MobilePush({ projectId }: { projectId: string }) {
         applicationServerKey: key,
       });
       const label = deviceLabel(navigator.userAgent);
+      const detail = detailFor(privacy);
       const payload = subscribePayload(
         subscription.toJSON() as { endpoint: string; keys?: Record<string, string> },
-        { label },
+        { label, detail },
       );
       if (!payload) {
         setProblem("This browser returned a subscription without keys, which cannot be used.");
@@ -166,7 +183,7 @@ export function MobilePush({ projectId }: { projectId: string }) {
         projectId,
         applicationServerKey: key,
         label,
-        detail: "count",
+        detail,
       });
       device.refresh();
       refresh();
@@ -175,7 +192,47 @@ export function MobilePush({ projectId }: { projectId: string }) {
     } finally {
       setBusy(false);
     }
-  }, [body, device, projectId, refresh, subscribeMutation]);
+  }, [body, device, privacy, projectId, refresh, subscribeMutation]);
+
+  /**
+   * Change what a push on this device is allowed to say.
+   *
+   * The preference is stored locally and the subscription is re-posted, which is what
+   * moves `detail` on the row the server delivers against. Re-posting a registered
+   * endpoint replaces it in place -- same id, same episode -- so this is not a re-arm
+   * and does not cost the person a notification. A device that is not registered yet
+   * only records the preference; `enable` carries it.
+   */
+  const choosePrivacy = useCallback(
+    async (next: boolean) => {
+      setPrivacy(next);
+      writePrivacy(next);
+      const json = device.json;
+      const key = body?.vapid_public_key;
+      if (!json || !key) return;
+      setBusy(true);
+      setProblem(null);
+      try {
+        const label = deviceLabel(navigator.userAgent);
+        const detail = detailFor(next);
+        const payload = subscribePayload(json, { label, detail });
+        if (!payload) return;
+        await subscribeMutation.mutateAsync({
+          path: { project_id: projectId },
+          body: payload,
+        });
+        await writePushContext({ projectId, applicationServerKey: key, label, detail });
+        refresh();
+      } catch (error) {
+        setProblem(
+          error instanceof Error ? error.message : "Could not change what a push may say.",
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [body, device.json, projectId, refresh, subscribeMutation],
+  );
 
   const disable = useCallback(async () => {
     setBusy(true);
@@ -249,6 +306,8 @@ export function MobilePush({ projectId }: { projectId: string }) {
       setBusy(false);
     }
   }, [projectId, refresh, testMutation]);
+
+  if (!handheld) return null;
 
   // A read that 403s is a run asking, which is the capability boundary working. Say
   // nothing rather than render a refusal into a person's Dashboard.
@@ -365,9 +424,29 @@ export function MobilePush({ projectId }: { projectId: string }) {
         </ul>
       )}
 
+      {availability === "available" && (
+        <label
+          data-testid="push-privacy"
+          data-privacy={privacy ? "on" : "off"}
+          className="touch-target mt-2 flex items-center gap-2 text-xs"
+        >
+          <input
+            type="checkbox"
+            data-testid="push-privacy-toggle"
+            checked={privacy}
+            disabled={busy}
+            onChange={(event) => void choosePrivacy(event.target.checked)}
+            className="h-4 w-4 rounded border-dark-border bg-dark-bg"
+          />
+          <span>
+            Private on this device — a push says what is wanted but not which task.
+          </span>
+        </label>
+      )}
+
       <p className="mt-2 text-xs">
-        A push says how many tasks are waiting and nothing about what they are. The complete
-        ask is on the task.
+        A push names the waiting task, so it tells you whether to get up. The complete ask
+        is on the task record.
       </p>
     </section>
   );

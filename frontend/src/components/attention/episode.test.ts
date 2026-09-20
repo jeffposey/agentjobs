@@ -33,6 +33,7 @@ function attention(overrides: Partial<AttentionResponse> = {}): AttentionRespons
       tasks: ["task-001"],
       lead_task_id: "task-001",
       lead_task_title: "Review the branch",
+      lead_ask: "Needs review",
     },
     ...overrides,
   } as AttentionResponse;
@@ -70,21 +71,36 @@ describe("shouldNotify", () => {
 });
 
 describe("notificationFor", () => {
-  it("names the task when exactly one is waiting", () => {
+  /**
+   * task-421: the body used to name the task and stop there. A task title says which
+   * work is stopped and never what is wanted of you, so the one decision a person makes
+   * from a lock screen -- go and find a computer, or not -- was the one it did not help
+   * with. The ask leads for that reason.
+   */
+  it("leads with what is being asked, then names the task", () => {
     const note = notificationFor(attention(), "agentjobs");
 
     expect(note?.title).toBe("1 task is waiting on you");
-    expect(note?.body).toBe("task-001: Review the branch");
+    expect(note?.body).toBe("Needs review — task-001: Review the branch");
   });
 
-  it("summarises the aggregate when several are", () => {
+  it("keeps the ask in front when several are waiting", () => {
     const several = attention({ blocking: 4 });
     several.episode!.tasks = ["task-001", "task-002", "task-003", "task-004"];
 
     const note = notificationFor(several, "agentjobs");
 
     expect(note?.title).toBe("4 tasks are waiting on you");
-    expect(note?.body).toBe("task-001: Review the branch — and 3 others.");
+    expect(note?.body).toBe("Needs review — task-001: Review the branch — and 3 others.");
+  });
+
+  it("falls back to naming the task where the server sends no ask", () => {
+    const older = attention();
+    delete (older.episode as { lead_ask?: string }).lead_ask;
+
+    const note = notificationFor(older, "agentjobs");
+
+    expect(note?.body).toBe("task-001: Review the branch");
   });
 
   it("gets the grammar right for exactly two", () => {
@@ -92,7 +108,7 @@ describe("notificationFor", () => {
     two.episode!.tasks = ["task-001", "task-002"];
 
     expect(notificationFor(two, "agentjobs")?.body).toBe(
-      "task-001: Review the branch — and 1 other.",
+      "Needs review — task-001: Review the branch — and 1 other.",
     );
   });
 

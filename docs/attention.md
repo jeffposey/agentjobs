@@ -81,9 +81,15 @@ notifications off.
 
 The three acts that acknowledge an episode, and nothing else does:
 
-1. activating the Windows notification;
+1. activating the notification — the desktop banner or a phone push;
 2. clicking the red badge in the header;
 3. opening the detail of a task the episode names.
+
+Which notification a device offers is decided by the device, not by what its browser can
+do. A desktop gets the local banner (`NotificationDelivery`); a phone or tablet gets push
+(`MobilePush`). Both panels used to render everywhere, which told a phone its Windows
+notifications were off and offered a desktop the iPhone Home Screen instructions; the
+signal that separates them is `isHandheld` in `push.ts`.
 
 ### What acknowledgment does and does not do
 
@@ -138,6 +144,11 @@ rather than an accident:
   is what greets you when quiet hours end.
 * **A denied permission** costs the notification and nothing else. The Dashboard says
   so, in a notice that names the Chrome setting, and the badge keeps working.
+* **An attempt that fails is recorded rather than assumed.** The marker that says this
+  browser has drawn an episode is written only once the shell has actually taken the
+  notification, so a refusal, an unsupported browser or a worker that throws no longer
+  spends the one interruption an episode is owed. A granted permission whose last
+  attempt failed is the one state with no other surface, so the Dashboard says so.
 
 The consequence worth stating plainly: a notification is a wake-up signal. The task
 record is the complete account of what happened and what you have to do, and nothing in
@@ -149,7 +160,7 @@ a toast is the only copy of anything.
 |---|---|---|
 | Taskbar icon | `navigator.setAppBadge()` / `clearAppBadge()` | The supported Windows mechanism for an installed PWA. Chrome draws the overlay and Windows keeps drawing it while the app is closed. In an ordinary tab the call resolves and does nothing. |
 | Tab icon | a red SVG data URL swapped into `<link rel="icon">` | The colour AgentJobs actually controls. The taskbar badge is painted by Chrome, so its colour is the browser's; this one is `#ef4444`, the same red as the header badge and the Dashboard alarm. |
-| Bottom-right notification | `ServiceWorkerRegistration.showNotification()` | Through the worker, not the page: the case this exists for is a window that is minimised, behind something, or closed, and a page's notification dies with the page. One `tag` per project, so the Action Center holds one entry that updates rather than a stack of stale numbers. Falls back to a page `Notification` where there is no worker. |
+| Bottom-right notification | `ServiceWorkerRegistration.showNotification()` | Through the worker, not the page: the case this exists for is a window that is minimised, behind something, or closed, and a page's notification dies with the page. One `tag` per project, so the Action Center holds one entry that updates rather than a stack of stale numbers. A tagged replacement is silent unless `renotify` asks otherwise, so that is asked of what is already on screen: an entry for *this* episode means a number is being updated and stays quiet, anything else is a new run of attention and draws the banner. Falls back to a page `Notification` where there is no worker. |
 | The click | `notificationclick` in `service-worker.js` | Focuses an existing AgentJobs window and navigates it, or opens one. One waiting task goes to the task; several go to the `status=human` list. The episode rides in an `attention_ack` query parameter, which the app acts on and then strips — a bookmarked URL must not acknowledge an episode every time it is opened. |
 
 **For the badge to appear on the taskbar, AgentJobs has to be installed as an app**

@@ -40,6 +40,8 @@ from agentjobs.models_v2 import (
 )
 from agentjobs.projects import ProjectRegistry
 from agentjobs.push import (
+    DETAIL_COUNT,
+    DETAIL_DEFAULT,
     DETAIL_TASK,
     Subscription,
     delivery,
@@ -165,20 +167,45 @@ class TestThePayload:
     def _state(self, tasks: List[Task], home: Path):
         return reconcile(fake_manager(tasks), PROJECT, home=home, now=NOW)
 
-    def test_the_default_names_no_task(self, home: Path) -> None:
+    def test_the_default_names_no_task_but_still_says_what_is_wanted(self, home: Path) -> None:
         """The whole of the lock-screen privacy rule, in one assertion.
 
         The desktop toast names the lead task because it appears on a screen you are
         sitting in front of; a push appears wherever the phone is.
+
+        What the default *does* carry, since task-421, is the ask. "Needs review" is not
+        task content -- it says what is wanted, never what the work is -- and it is the
+        part that decides whether the person goes and finds a computer. Without it the
+        default spent its one line telling them to open the app, which they had already
+        worked out from being interrupted.
         """
         state = self._state([waiting_task("task-001", title="Rotate the signing key")], home)
         payload = payload_for(state, PROJECT, detail="count")
 
         assert payload is not None
         assert payload.title == "1 task is waiting on you"
-        assert payload.body == "Open AgentJobs to see what has stopped."
+        assert payload.body == "Needs review"
         assert "Rotate the signing key" not in json.dumps(payload.encode(PROJECT).decode())
+        # The id is in the deep link by design and always has been; what the rule covers
+        # is the text a bystander can read without unlocking the phone.
         assert "task-001" not in payload.title
+        assert "task-001" not in payload.body
+
+    def test_a_task_with_no_ask_falls_back_rather_than_printing_a_placeholder(
+        self, home: Path
+    ) -> None:
+        """A reason with no phrase adds no line.
+
+        Every human-ball reason is mapped today, so what this guards is the next one
+        somebody adds without touching ``ASK_PHRASES``: the notification should lose the
+        ask and keep working, not print "Needs " or a bare dash.
+        """
+        task = waiting_task("task-001").model_copy(update={"ball_reason": BallReason.WORK})
+        state = self._state([task], home)
+        payload = payload_for(state, PROJECT, detail="count")
+
+        assert payload is not None
+        assert payload.body == "Open AgentJobs to see what has stopped."
 
     def test_a_device_may_opt_into_the_detail(self, home: Path) -> None:
         state = self._state(
@@ -189,7 +216,28 @@ class TestThePayload:
 
         assert payload is not None
         assert payload.title == "2 tasks are waiting on you"
-        assert payload.body == "task-001: Rotate the signing key — and 1 other."
+        assert payload.body == "Needs review — task-001: Rotate the signing key — and 1 other."
+
+    def test_a_device_that_says_nothing_is_told_which_task(self, home: Path) -> None:
+        """The default, reversed on the owner's decision of 2026-09-20 (task-421).
+
+        task-423 shipped the quiet form as the default and the named form as an opt-in.
+        That reasoning was about bystanders on a lock screen and it is sound for a
+        product with users who are not the person who installed it; this installation
+        has one consumer, and "3 tasks are waiting on you" does not tell him whether to
+        get up. Privacy is now the per-device opt-in, and this asserts which way round
+        the two are.
+        """
+        assert DETAIL_DEFAULT == DETAIL_TASK
+        row = Subscription(id="dev_1", endpoint="https://push.example/a", p256dh="x", auth="y")
+        assert row.detail == DETAIL_TASK
+
+        state = self._state([waiting_task("task-001", title="Rotate the signing key")], home)
+        payload = payload_for(state, PROJECT, detail=row.detail)
+
+        assert payload is not None
+        assert payload.body == "Needs review — task-001: Rotate the signing key"
+        assert payload_for(state, PROJECT, detail=DETAIL_COUNT) is not None
 
     def test_it_deep_links_to_the_one_waiting_task(self, home: Path) -> None:
         state = self._state([waiting_task("task-007")], home)

@@ -11,7 +11,13 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends
 
-from agentjobs.attention import AttentionState, acknowledge, reconcile, waiting_path
+from agentjobs.attention import (
+    AttentionState,
+    acknowledge,
+    ask_phrase,
+    reconcile,
+    waiting_path,
+)
 from agentjobs.dashboard import build_dashboard_snapshot
 from agentjobs.dispatch.config import machine_ceiling
 from agentjobs.manager import TaskManager
@@ -102,6 +108,7 @@ def _attention_view(state: AttentionState, project_id: str) -> AttentionResponse
             tasks=list(state.episode.members),
             lead_task_id=lead.id if lead else None,
             lead_task_title=lead.title if lead else None,
+            lead_ask=ask_phrase(lead) if lead else "",
             # Computed once, server-side, because task-423 gave the rule a third caller
             # in a second language: a service worker rendering a push that arrived while
             # no page was running cannot import the React module that used to own it.

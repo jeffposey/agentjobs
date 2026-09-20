@@ -332,6 +332,17 @@ class AttentionEpisodeView(BaseModel):
     tasks: List[str]
     lead_task_id: Optional[str] = None
     lead_task_title: Optional[str] = None
+    lead_ask: str = ""
+    """What the lead task wants, in the two or three words a lock screen has room for.
+
+    A notification that names the task says *which* work is stopped and never *what is
+    being asked*, which is the only thing that decides whether the person has to go and
+    find a computer: "Needs review" and "Needs a decision" are acted on differently, and
+    a task title distinguishes neither. Rendered here rather than in each client for the
+    same reason as ``deep_link`` -- three callers in two languages -- and empty where the
+    task carries no reason, which is the one case a client must fall back from rather
+    than print a bare dash.
+    """
     deep_link: str = ""
     """Where a notification for this episode should land, acknowledgment marker and all.
 
@@ -375,13 +386,16 @@ class PushSubscribeRequest(BaseModel):
 
     ``label`` is for the person -- "Pixel 9", "iPad" -- and is the only way to tell two
     rows apart in the UI, because the endpoint is never shown. ``detail`` is the
-    lock-screen privacy setting for this device; it defaults to the quiet one.
+    lock-screen privacy setting for this device: ``task`` names the waiting task and is
+    the default, ``count`` withholds the name for a device with bystanders. Re-posting
+    an endpoint that is already registered is how a device changes it -- the row keeps
+    its id and its episode, so a toggle is not a re-arm.
     """
 
     endpoint: str
     keys: PushSubscriptionKeys
     label: str = ""
-    detail: str = "count"
+    detail: str = "task"
 
 
 class PushUnsubscribeRequest(BaseModel):

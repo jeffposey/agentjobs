@@ -36,13 +36,34 @@ otherwise find out whether push reaches it at the moment it matters least. A tes
 ## What a push says, and what it does not
 
 > **3 tasks are waiting on you**
-> Open AgentJobs to see what has stopped.
+> Needs review — task-421: Notify the human when AgentJobs is waiting on them — and 2 others.
 
-**By default it names no task.** The desktop toast does name the lead task, because a
-desktop toast appears on the screen you are sitting in front of. A push appears on a
-lock screen, in a hallway, on a watch, over somebody's shoulder. A device can opt into
-the detailed form (`detail: "task"` on its subscription), and the quiet form is what
-every device gets until it does.
+**By default it names the lead task and what is wanted of you**, the same as the
+desktop toast. A notification that says only a number does not tell a person whether to
+get up, which is the one thing it is for.
+
+**Privacy is a per-device toggle, under *Phone notifications*, and it is off.** Turned
+on, that device's pushes withhold the task's id and title and keep the ask:
+
+> **3 tasks are waiting on you**
+> Needs review — and 2 others.
+
+The ask carries in both modes because it is not task content: "Needs review" says what
+is wanted, never what the work is, and a device in the quiet mode chose it deliberately
+— the ask is the minimum that makes a quiet push worth receiving.
+
+It is per device because that is the shape of the question. A tablet on a desk at home
+and a phone held up on a train are the same person with different bystanders. The
+setting is `detail` on the subscription row (`task` or `count`); the toggle re-posts
+the subscription, which keeps the row's id and the episode it has already been told
+about, so changing it never costs you a repeat notification.
+
+**This reverses the default task-423 shipped**, on the owner's decision of 2026-09-20
+(task-421). That default withheld the name because a push lands on a lock screen, in a
+hallway, on a watch — reasoning that is sound for a product whose users are not the
+person who installed it. This one is a single consumer on his own phone over his own
+tailnet, and the cautious default cost him the usefulness of every notification he
+received.
 
 The complete ask is on the task record, as it is for every other channel. A person who
 has read a handoff in a bubble has read it in the one place they cannot act on it.

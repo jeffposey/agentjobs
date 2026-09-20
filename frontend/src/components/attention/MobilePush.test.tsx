@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { client } from "../../api/generated/client.gen";
 import { apiMockServer } from "../../test/api-mock";
 import { MobilePush } from "./MobilePush";
+import { PRIVACY_STORAGE_KEY } from "./push";
 
 /**
  * The notifications panel, asserted on what a person is told and what is registered.
@@ -28,14 +29,22 @@ function installBrowser({
   pushManager = true,
   notification = true,
   existing = null as null | { endpoint: string },
+  handheld = true,
   onSubscribe,
 }: {
   permission?: NotificationPermission;
   pushManager?: boolean;
   notification?: boolean;
   existing?: null | { endpoint: string };
+  handheld?: boolean;
   onSubscribe?: ReturnType<typeof vi.fn>;
 } = {}): Fake {
+  // This panel is for a phone, so a phone is the default here. jsdom's own user agent
+  // is a desktop one, which would otherwise gate every case below out of existence.
+  Object.defineProperty(navigator, "userAgentData", {
+    configurable: true,
+    value: { mobile: handheld },
+  });
   const subscription = {
     endpoint: "https://fcm.example/send/this-device",
     toJSON: () => ({
@@ -120,10 +129,47 @@ function renderPanel() {
 
 beforeEach(() => {
   client.setConfig({ baseUrl: "http://localhost" });
+  window.localStorage.removeItem(PRIVACY_STORAGE_KEY);
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+  window.localStorage.removeItem(PRIVACY_STORAGE_KEY);
+});
+
+describe("which device the panel belongs on", () => {
+  /**
+   * task-421: this panel and the desktop notice both rendered on every device, so a
+   * Windows desktop was shown iPhone Home Screen instructions and a phone was told
+   * about Windows notifications. The browser here is fully push-capable -- the gate is
+   * the kind of device, not what it can do.
+   */
+  it("renders nothing on a desktop, however capable the browser is", async () => {
+    installBrowser({ handheld: false });
+    apiMockServer.use(
+      http.get("*/api/projects/inbox/push", () => HttpResponse.json(statusBody())),
+    );
+    renderPanel();
+
+    await waitFor(() => expect(screen.queryByTestId("mobile-push")).not.toBeInTheDocument());
+    expect(screen.queryByTestId("enable-push")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the user agent where client hints are absent", async () => {
+    installBrowser();
+    // @ts-expect-error - a browser that does not implement client hints at all
+    delete navigator.userAgentData;
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value: "Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome Mobile",
+    });
+    apiMockServer.use(
+      http.get("*/api/projects/inbox/push", () => HttpResponse.json(statusBody())),
+    );
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("mobile-push")).toBeInTheDocument());
+  });
 });
 
 describe("what the panel says on each kind of device", () => {
@@ -226,8 +272,63 @@ describe("registering this device", () => {
     expect(posted).toMatchObject({
       endpoint: "https://fcm.example/send/this-device",
       keys: { p256dh: "pub", auth: "sec" },
+      // Naming the task is the default since task-421 -- a device with bystanders
+      // turns privacy on, and this one has not.
+      detail: "task",
+    });
+  });
+
+  it("registers the quiet form once privacy is on for this device", async () => {
+    installBrowser();
+    window.localStorage.setItem(PRIVACY_STORAGE_KEY, "on");
+    let posted: unknown = null;
+    apiMockServer.use(
+      http.get("*/api/projects/inbox/push", () => HttpResponse.json(statusBody())),
+      http.post("*/api/projects/inbox/push/subscribe", async ({ request }) => {
+        posted = await request.json();
+        return HttpResponse.json(statusBody([registeredDevice()]));
+      }),
+    );
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("enable-push")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("enable-push"));
+
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ detail: "count" });
+  });
+
+  it("re-posts the subscription when privacy is turned on, without re-arming it", async () => {
+    /**
+     * The toggle, end to end (task-421). `detail` lives on the device row the server
+     * delivers against, and re-posting a registered endpoint is what moves it: the row
+     * keeps its id and the episode it has already been told about, so changing what a
+     * push may say never costs the person a repeat notification.
+     */
+    installBrowser({ existing: { endpoint: "https://fcm.example/send/this-device" } });
+    const posts: unknown[] = [];
+    apiMockServer.use(
+      http.get("*/api/projects/inbox/push", () =>
+        HttpResponse.json(statusBody([registeredDevice({ detail: "task" })])),
+      ),
+      http.post("*/api/projects/inbox/push/subscribe", async ({ request }) => {
+        posts.push(await request.json());
+        return HttpResponse.json(statusBody([registeredDevice({ detail: "count" })]));
+      }),
+    );
+    renderPanel();
+
+    const toggle = await screen.findByTestId("push-privacy-toggle");
+    expect(toggle).not.toBeChecked();
+
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      endpoint: "https://fcm.example/send/this-device",
       detail: "count",
     });
+    expect(window.localStorage.getItem(PRIVACY_STORAGE_KEY)).toBe("on");
   });
 
   it("explains a refused prompt instead of registering nothing silently", async () => {
