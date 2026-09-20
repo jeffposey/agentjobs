@@ -423,7 +423,13 @@ class TaskClient:
         return payload
 
     def read_search(self, query: str) -> List[Dict[str, Any]]:
-        """Search one project, returning stored task records."""
+        """Search one project, returning listing rows.
+
+        Rows since task-495, when ``GET /search`` stopped answering with whole records.
+        Every field the MCP search payload reads is a row field, so this is the same
+        answer 13 times smaller; a caller that needs prose, criteria or a log reads the
+        task it picked.
+        """
         if not query.strip():
             raise TaskClientError("Query must not be empty")
         response = self._request("GET", self._path("/search"), params={"q": query})
@@ -557,10 +563,17 @@ class TaskClient:
         return payload
 
     def search_tasks(self, query: str) -> List[Task]:
-        """Search for tasks by query string."""
+        """Search for tasks by query string, as whole records.
+
+        Explicitly ``/search/full``, because this parses each item into a ``Task`` and
+        ``GET /search`` answers with rows (task-495). A row parses into a ``Task``
+        without complaint and with an empty log, so taking the narrow route here would
+        be a wrong answer rather than an error -- ``dispatch_count`` would report 0 for a
+        task dispatched twice. ``read_search`` is the row form.
+        """
         if not query.strip():
             raise TaskClientError("Query must not be empty")
-        response = self._request("GET", self._path("/search"), params={"q": query})
+        response = self._request("GET", self._path("/search/full"), params={"q": query})
         return [self._parse_task(item) for item in response.json()]
 
     # ------------------------------------------------------------------

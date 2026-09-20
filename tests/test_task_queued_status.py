@@ -190,13 +190,15 @@ def _task(**fields: Any) -> Any:
 #:
 #: ``list_tasks`` and ``list_full_tasks`` are the same listing in the two shapes task-484
 #: split it into, and both are here because both are read: the browser draws the rows and
-#: ``TaskClient.list_tasks`` parses the records.
+#: ``TaskClient.list_tasks`` parses the records. ``search_tasks`` and ``search_tasks_full``
+#: are the same pair, from task-495 doing the same thing to the search route.
 SURFACES = (
     "list_tasks",
     "list_full_tasks",
     "get_task_detail",
     "get_dashboard",
     "search_tasks",
+    "search_tasks_full",
 )
 
 #: The module whose one helper builds the ``TaskRead`` every *mutation* answers with.
@@ -228,6 +230,9 @@ def rows_from_surface(client: TestClient, surface: str, task_id: str) -> List[Di
         found.append(body.get("next_task"))
     elif surface == "search_tasks":
         response = client.get("/api/projects/sandbox/search", params={"q": "Recoverable"})
+        found = response.json()
+    elif surface == "search_tasks_full":
+        response = client.get("/api/projects/sandbox/search/full", params={"q": "Recoverable"})
         found = response.json()
     else:  # pragma: no cover - the walk below is what stops this being reachable
         raise AssertionError(f"no reader written for {surface}")
@@ -318,13 +323,17 @@ class TestEverySurfaceCarriesIt:
 def _mentions_task_read(annotation: Any) -> bool:
     """Whether a row carrying ``queued_dispatch`` appears in a response model, nested or not.
 
-    Two models carry one since task-484 -- a whole record and the listing row projected
-    out of it -- and the walk has to see both. Matching on the field rather than on the
-    two class names was the alternative and is worse here: ``queued_dispatch`` is
-    ``Optional`` on several unrelated dispatch models, so the walk would start naming
-    routes that answer about a queue entry rather than about a task.
+    Three models carry one -- a whole record, the listing row projected out of it
+    (task-484), and the dashboard's card projected from the row (task-495) -- and the walk
+    has to see all of them. Matching on the field rather than on the class was the
+    alternative and is worse here: ``queued_dispatch`` is ``Optional`` on several
+    unrelated dispatch models, so the walk would start naming routes that answer about a
+    queue entry rather than about a task.
+
+    Subclasses count, which is what makes this a check rather than a list: a fourth
+    projection of a row is caught without anybody remembering to name it here.
     """
-    if annotation is TaskRead or annotation is TaskSummaryRead:
+    if isinstance(annotation, type) and issubclass(annotation, (TaskRead, TaskSummaryRead)):
         return True
     if isinstance(annotation, type):
         fields = getattr(annotation, "model_fields", None)

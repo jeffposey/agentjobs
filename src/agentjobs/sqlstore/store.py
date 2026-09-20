@@ -256,18 +256,18 @@ class SqlTaskStore:
         """
         return list(corpus.memoised((self, "list_task_summaries"), self._load_task_summaries))
 
-    def search_tasks(self, query: str) -> List[Task]:
-        """Full-text search, with an exact id match first.
+    def _search_ids(self, connection: sqlite3.Connection, text: str) -> List[str]:
+        """The ids matching free text, in relevance order, exact id matches leading.
 
         The id comes first because it is the handle people quote to each other: a
         reviewer asking about "058" means task-058, and a search that reads every prose
         field but not the identifier answers "no such task" to the one query it must
         always get right.
+
+        Split out from :meth:`search_tasks` so the row form beside it resolves the same
+        ids in the same order. Two copies of this would be two searches that agree until
+        somebody changes one of them.
         """
-        text = query.strip()
-        if not text:
-            return []
-        connection = self._connection()
         found: List[str] = []
         exact = connection.execute(
             "SELECT task_id FROM task WHERE project_id = ? AND lower(task_id) LIKE ?",
@@ -287,17 +287,52 @@ class SqlTaskStore:
         for row in hits:
             if row["task_id"] not in found:
                 found.append(row["task_id"])
+        return found
+
+    def _search_rows(
+        self, connection: sqlite3.Connection, query: str
+    ) -> Tuple[List[sqlite3.Row], Dict[str, int]]:
+        """The ``task`` rows a search matched, with the relevance order to restore."""
+        text = query.strip()
+        if not text:
+            return [], {}
+        found = self._search_ids(connection, text)
         if not found:
-            return []
+            return [], {}
         placeholders = ",".join("?" for _ in found)
         rows = connection.execute(
             f"SELECT * FROM task WHERE project_id = ? AND task_id IN ({placeholders})",
             (self.project_id, *found),
         ).fetchall()
-        order = {task_id: index for index, task_id in enumerate(found)}
+        return rows, {task_id: index for index, task_id in enumerate(found)}
+
+    def search_tasks(self, query: str) -> List[Task]:
+        """Full-text search, whole records, most relevant first."""
+        connection = self._connection()
+        rows, order = self._search_rows(connection, query)
+        if not rows:
+            return []
         tasks = self._assemble(connection, rows)
         tasks.sort(key=lambda task: order[task.id])
         return tasks
+
+    def search_task_summaries(self, query: str) -> List[TaskSummary]:
+        """:meth:`search_tasks`, projected -- same hits, same order, no prose or log.
+
+        The same relation :meth:`list_task_summaries` has to :meth:`list_tasks`, and it
+        exists for the same measurement: ``GET /search`` answered with whole records and
+        so sent 5.2 MB for 480 matches, every log entry in the project included, to draw
+        a list of titles (task-495). Nothing in a search result needs a log, so this
+        never joins ``log_entry`` at all except for the handful of tasks parked on a
+        service, where one handoff row decides the quota-wait label.
+        """
+        connection = self._connection()
+        rows, order = self._search_rows(connection, query)
+        if not rows:
+            return []
+        summaries = self._assemble_summaries(connection, rows)
+        summaries.sort(key=lambda summary: order[summary.id])
+        return summaries
 
     @staticmethod
     def _fts_query(text: str) -> str:
