@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  COUNT_PADDING,
+  SMALL_VIEWBOX,
+  VALUE_PADDING,
   areaPath,
   axisMax,
   bandCenterX,
   bandWidth,
   bandPath,
+  blankSpans,
   columnBars,
   estimatedSpans,
+  groupedStacks,
   horizontalBars,
   levelPath,
   levelX,
@@ -284,5 +289,72 @@ describe("estimatedSpans", () => {
 
   it("hatches nothing when the whole window is exact", () => {
     expect(estimatedSpans([false, false], BOX)).toEqual([]);
+  });
+});
+
+describe("blankSpans", () => {
+  it("marks each run of buckets a series has no number for", () => {
+    // §9.3, and deliberately a second name for the same run-finding: a bucket the
+    // store cannot place exactly and a bucket it cannot speak for at all are drawn
+    // differently and mean different things, so the two call sites read differently.
+    expect(blankSpans([false, true, true, false], BOX)).toEqual([
+      { x: 25, y: 0, width: 50, height: 100 },
+    ]);
+  });
+
+  it("marks nothing where every bucket has a value", () => {
+    expect(blankSpans([false, false], BOX)).toEqual([]);
+  });
+});
+
+describe("the second set's paddings", () => {
+  it("leaves room on the left for an hour label and above the plot for a series name", () => {
+    // §19.2: no axis label sits inside the plot area, so the name goes in the top
+    // margin -- which only exists if the padding makes one. `300 h` does not fit in
+    // the 28 units a three-digit count needed.
+    expect(VALUE_PADDING.left).toBeGreaterThan(COUNT_PADDING.left);
+    for (const padding of [VALUE_PADDING, COUNT_PADDING]) {
+      expect(padding.top, "a 12-unit label needs more than 12 units above the plot").toBeGreaterThan(12);
+    }
+  });
+
+  it("gives the small cost charts a squarer box than the wide ones", () => {
+    // Three of them sit in a row on a wide screen, so each is about a third of the
+    // width; at 2.4:1 that would be a letterbox.
+    expect(SMALL_VIEWBOX.width / SMALL_VIEWBOX.height).toBeLessThan(2);
+  });
+});
+
+describe("groupedStacks", () => {
+  const GROUPS = [[[10, 0]], [[2, 4], [1, 0]]];
+
+  it("puts each group in its own slot of the band and scales it on its own max", () => {
+    const [runs, hours] = groupedStacks(GROUPS, [10, 5], BOX);
+    const firstRun = runs?.[0]?.[0];
+    const firstHour = hours?.[0]?.[0];
+    // Two groups, so each takes half of the 70% of the band that bars fill: 35 units
+    // of a 50-unit band, the first starting 7.5 in from the band's left edge.
+    expect(firstRun?.width).toBe(17.5);
+    expect(firstRun?.x).toBe(7.5);
+    expect(firstHour?.x).toBe(25);
+    // 10 of a max of 10 is the full height; 2 of a max of 5 is two fifths of it.
+    expect(firstRun?.height).toBe(100);
+    expect(firstHour?.height).toBe(40);
+  });
+
+  it("stacks the series inside a group on the group's own scale", () => {
+    const [, hours] = groupedStacks(GROUPS, [10, 5], BOX);
+    const base = hours?.[0]?.[0];
+    const above = hours?.[1]?.[0];
+    expect(above?.x).toBe(base?.x);
+    // The paused hours sit on top of the agent hours: 1 of 5 is a fifth, and its
+    // bottom edge is the top of the bar below it.
+    expect(above?.height).toBe(20);
+    expect((above?.y ?? 0) + (above?.height ?? 0)).toBe(base?.y);
+  });
+
+  it("gives a bucket nobody has a value for a bar of no height, not a negative one", () => {
+    const [runs] = groupedStacks([[[0, 0]]], [1], BOX);
+    expect(runs?.[0]?.every((bar) => bar.height === 0)).toBe(true);
   });
 });

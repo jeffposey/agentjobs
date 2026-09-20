@@ -47,10 +47,21 @@ export interface Box {
 export const VIEWBOX = { width: 400, height: 166 } as const;
 
 /** Room inside the viewBox for the axis labels, which are drawn outside the plot. */
-export const PADDING = { left: 28, right: 8, top: 10, bottom: 18 } as const;
+export interface Padding {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** The padding the first page's four charts share. */
+export const PADDING: Padding = { left: 28, right: 8, top: 10, bottom: 18 };
 
 /** The plot rectangle: the viewBox less its padding. */
-export function plotBox(padding = PADDING, box = VIEWBOX): Box {
+export function plotBox(
+  padding: Padding = PADDING,
+  box: { width: number; height: number } = VIEWBOX,
+): Box {
   return {
     x: padding.left,
     y: padding.top,
@@ -434,4 +445,101 @@ export function estimatedSpans(estimated: readonly boolean[], box: Box): Box[] {
     width: round(bandWidth(count, box) * (to - from + 1)),
     height: round(box.height),
   }));
+}
+
+/**
+ * Padding for a chart whose y axis carries a word-sized number, and whose series is
+ * named above its plot rather than inside it (§19.2).
+ *
+ * Two changes from {@link PADDING}, each answering something the first page got wrong.
+ * The left margin holds `300 h` and `12.4 min` where 28 units held `149`; and the top
+ * margin is deep enough for a series name to sit *above* the plot rectangle, because
+ * the first page's cycle-time chart put its axis label inside the plot area and the
+ * owner read the result as a blob. Nothing is drawn inside the plot but the data.
+ */
+export const VALUE_PADDING: Padding = { left: 44, right: 8, top: 18, bottom: 18 };
+
+/**
+ * Padding for a counted series named above its plot: {@link PADDING}'s left margin,
+ * {@link VALUE_PADDING}'s top one. Throughput and the run counts use it.
+ */
+export const COUNT_PADDING: Padding = { left: 28, right: 8, top: 18, bottom: 18 };
+
+/**
+ * The viewBox for one of the three small charts in the cost-per-completed-task panel.
+ *
+ * Squarer than {@link VIEWBOX} -- three of these sit in a row on a wide screen and
+ * stack on a phone, so each is about a third of the width and would be a letterbox at
+ * 2.4:1. The same 400 units wide, so {@link LABEL}-sized type means the same thing in
+ * all of them.
+ */
+export const SMALL_VIEWBOX = { width: 400, height: 220 } as const;
+
+/**
+ * Several series side by side in each bucket, each series itself a stack.
+ *
+ * `groups[g][s][bucket]`: group `g` is one slot of the bucket's band, and within it
+ * series `s` sits on top of series `s - 1`. Returns rectangles in the same shape.
+ *
+ * It exists for one panel (R-1 and R-2, §18.5): runs and agent-hours are one question
+ * -- *how much machine went into this day* -- so they share a bucket, and they are the
+ * one case §8.4's argument against two axes does not cover, because neither is an
+ * overlay on the other. Each group gets its own `maxes[g]`, which is what makes the
+ * two axes possible at all; the paused hours R-6 draws as a muted band above the
+ * agent-hours bar are the second series of the second group, which is why a plain
+ * side-by-side primitive would not have been enough.
+ */
+export function groupedStacks(
+  groups: ReadonlyArray<ReadonlyArray<readonly number[]>>,
+  maxes: readonly number[],
+  box: Box,
+): BarRect[][][] {
+  const count = groups.reduce(
+    (widest, group) => group.reduce((inner, one) => Math.max(inner, one.length), widest),
+    0,
+  );
+  const band = bandWidth(count, box);
+  const slots = Math.max(groups.length, 1);
+  // The gap between the groups is taken out of the band once, so the two bars of a
+  // bucket touch its neighbours' gap and not each other's.
+  const slot = (band * BAR_FILL) / slots;
+  const lead = (band - band * BAR_FILL) / 2;
+  const bottom = box.y + box.height;
+  return groups.map((group, groupIndex) => {
+    const max = maxes[groupIndex] ?? 1;
+    const running: number[] = Array.from({ length: count }, () => 0);
+    return group.map((one) =>
+      Array.from({ length: count }, (_, index) => {
+        const value = one[index] ?? 0;
+        const base = running[index] ?? 0;
+        const top = base + value;
+        running[index] = top;
+        const y = valueY(top, max, box);
+        return {
+          index,
+          x: round(bandX(index, count, box) + lead + slot * groupIndex),
+          y: round(y),
+          width: round(Math.max(slot, 0.5)),
+          height: round(Math.min(valueY(base, max, box), bottom) - y),
+        };
+      }),
+    );
+  });
+}
+
+/**
+ * The rectangles covering buckets a series has no number for (§9.3, §19.2).
+ *
+ * The same run-finding as {@link estimatedSpans} and deliberately a second name: one
+ * marks buckets the store cannot place *exactly*, this one marks buckets it cannot
+ * speak for *at all* -- before a source existed, or under `PERCENTILE_MIN_SAMPLE`.
+ * They are drawn differently and they mean different things, and a single function
+ * called from both places would invite a reader to think they were the same fact.
+ *
+ * Rendering them at all is the point: the alternative is a gap, and a gap in a bar
+ * chart is indistinguishable from a bucket whose value was zero. That substitution is
+ * the one §9.3 forbids by name.
+ */
+export function blankSpans(unknown: readonly boolean[], box: Box): Box[] {
+  return estimatedSpans(unknown, box);
 }

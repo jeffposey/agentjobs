@@ -2416,3 +2416,59 @@ exclude them; if task-472 has landed, the exclusion in §18.5 is dead code.
 
 *Task-472 landed on 2026-09-19 with both halves of §20.5 (§20.7). The exclusion in §18.5
 is dead code from that migration on.*
+
+---
+
+## 24. Where each item landed (task-474, 2026-09-19)
+
+The page section of this pass, on the endpoint task-473 shipped. Written the way §21.6
+was: one row per thing §19 asked for, and what it cost if the answer differed.
+
+| item | where it lives | note |
+|---|---|---|
+| the order (§19.4) | `Analytics.tsx` | eleven panels plus the coverage footer, asserted as a list of `aria-label`s in both the component test and the browser test -- a list rather than a spot check, because a panel that silently stops rendering is the failure a spot check misses |
+| throughput and cycle time become two charts (§19.2) | `AnalyticsCharts.ThroughputChart`, rebuilt | the percentile line, the p50-to-p90 band and the second axis are gone; `ThroughputPoint` lost `cycle_p50_days`, `cycle_p90_days` and `sample` from the API, and `THROUGHPUT_BUCKET` is now `SPINE_BUCKET`. Task-473's first decision left both to this task, since this is where the consumer was |
+| where the time goes (§18.1, §19.2) | `AnalyticsPanels.SegmentsChart` | five medians as a stacked bar per week, five fill patterns as well as five colours; a bucket under `PERCENTILE_MIN_SAMPLE` is outlined and left empty rather than drawn as five noughts, and the caption says once that the stack's height is the sum of five medians and not the median total |
+| p90 on tap (§19.5) | every readout in `analyticsSecondSet.ts` | the readout always describes the *selected* bucket, so the tap §10.4 already made primary is what reaches the 90th percentile. No band anywhere on the page |
+| no axis label inside a plot (§19.2) | `SeriesName`, and `VALUE_PADDING` / `COUNT_PADDING` | the name sits in the top margin; the margin was widened rather than the label moved in. Measured in Chromium against the rendered rectangles, not against the attributes |
+| finishes and gates (§18.3, §18.4) | `FinishChart` and `DurationChart` | F1 as a stack by outcome; F2 and G1 as two lines on **one** axis, because both are minutes and the gap between them is the part of a finish that is not the gate. F3, F4, G2 and G3 are readout clauses -- a value that is zero nine weeks in ten, or a rate over single digits, is decoration as a chart |
+| runs (§18.5) | `RunsChart`, `RunOutcomeChart`, `groupedStacks` | R-1 and R-2 side by side in each bucket on two axes, R-6 stacked above the hours. The one case §8.4's argument against two axes does not cover: neither series is an overlay on the other, so there is nothing to misattribute |
+| review and questions (§18.6, §18.7) | `ReviewChart`, and two lists in `Analytics.tsx` | above the machine sections, because its first panel is a list of things waiting on the reader |
+| cost per completed task (§18.1 S4, §18.3 F5, §18.4 G4) | `CostPerTaskPanel` | three small charts rather than one with three series: runs, finishes and minutes do not compare, and one axis would invite the comparison. They share a selection, so a tap moves all three |
+| the delta baseline (§19.1) | `deltaBaseline` and `summaryTiles` | `max(range.start, native_from)`, never `baseline_at`; every sum is taken from that day forward, and the tile names the date |
+| the default range (§19.1) | `DEFAULT_ANALYTICS_RANGE`, and the API's `DEFAULT_RANGE` | one constant each side, both `30d`, so the page and the endpoint cannot open on different windows |
+| stuck, reordered (§19.3) | `orderStuck`, `stuckRowPhrase` | four bands by who is waited on; count still breaks a tie inside a band. The queue is last and says *"ready, unclaimed -- the backlog waiting its turn"* |
+| per-series coverage (§21.1, §19.4) | `seriesCaption`, the panel caption, the footer list | one line per source family in the footer and one caption per panel. The sentence is the API's own; the page never derives one from three nullable fields |
+| a series younger than the range (§9.3) | nothing, deliberately | the endpoint already starts such a series at its source, so the page draws what it is given and says where it starts. Padding it back to the range with zeros is the substitution §9.3 forbids, and the browser test asserts the bucket count rather than the absence of a zero |
+
+### 24.1 One thing the design asked for that cannot be given literally
+
+§19.4's acceptance says *a tile on the default range never shows a delta equal to its
+total*. Against the old baseline that was always the defect it describes. Against
+`native_from` it is **sometimes simply true**: on the review sandbox every blocked task
+became blocked inside the window, so `blocked 3` really did rise by three.
+
+Suppressing a true delta to satisfy the sentence would be the page lying to look
+correct. What is enforced instead is the readable half: a rise equal to the whole count
+is **labelled** -- *"▲ 3 more in 30 days — all of them"* -- so a reader can tell the two
+apart at a glance, and both tests assert the *silent* form is impossible rather than the
+arithmetic. The baseline rule itself is asserted directly and separately.
+
+### 24.2 The review sandbox
+
+`scripts/analytics_sandbox.py`, on its own port, with two projects and no connection to
+the live corpus:
+
+*   **sandbox-deep** -- nine months, five sources with five baselines, a reconstructed
+    span older than 45 days, weeks under the percentile minimum, a reopened task, a day
+    the machine spent paused on a usage limit, and a stuck panel whose largest group is
+    the queue. The reconstructed cutoff is 45 days rather than 60 so **both** halves of
+    §19.1 are on one project: at 30d native history covers the window and the tiles read
+    *"in 30 days"*; at 90d it does not, and they name the date.
+*   **sandbox-thin** -- four days old. Trends suppressed, values drawn, and most of the
+    second set with no rows at all, so every "nothing recorded yet" sentence is on screen
+    beside a project where the same panel is full.
+
+The comparison is the fixture. A page built against nine months of everything renders a
+flat line at zero for the thin project and looks healthy doing it; the only way to see
+that is to have both on one server.

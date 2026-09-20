@@ -19,8 +19,10 @@ import type {
   BacklogPoint,
   HolderPoint,
   StuckGroup,
-  ThroughputPoint,
 } from "../api/types";
+// Type-only, and deliberately so: `analyticsSecondSet.ts` imports this file for its
+// formatters, so a value import back would be a cycle. TypeScript erases this one.
+import type { DeltaBaseline } from "./analyticsSecondSet";
 
 /**
  * Below this many days of history, trends are suppressed and values are not (§9.2).
@@ -209,14 +211,15 @@ function sum(values: readonly number[]): number {
 }
 
 /**
- * The window a delta is attributed to, in words (§9.3).
+ * The window a delta is attributed to, in words (§9.3), **superseded by §19.1**.
  *
- * `range.start` rather than the nominal range length whenever coverage is incomplete,
- * because the server clips the window back to the coverage baseline: asking for 90
- * days of a project that has 40 returns 40, and captioning that "in 90 days" would
- * attribute the number to a window it does not cover. `range.start` is the truthful
- * date in both cases -- where coverage reaches the whole window it equals the baseline
- * the design's own example names.
+ * Kept because it is still the right answer for a page-level statement about the whole
+ * response, and it is what the coverage footer says. The summary tiles no longer use
+ * it: their baseline is `max(range.start, native_from)`, which is a different date and
+ * a different sentence, and `deltaBaseline` in `analyticsSecondSet.ts` is where that
+ * lives. Two functions rather than one flag, because the two answers differ whenever
+ * native history is younger than the window -- which is every range this project
+ * offers, for months yet.
  */
 export function deltaWindow(range: AnalyticsRange, coverage: AnalyticsCoverage): string {
   if (coverage.complete) {
@@ -237,23 +240,40 @@ export function deltaWindow(range: AnalyticsRange, coverage: AnalyticsCoverage):
  * somewhere to go. The two flows -- created and completed -- are counts of events in
  * the window rather than differences of two levels, which is why they are `kind:
  * "flow"`: a reopened task closes twice and no difference of totals would say so.
+ *
+ * **The window is the baseline's, not the range's** (§19.1). A `baseline` whose day is
+ * later than `range.start` is native history beginning inside the window, and every
+ * sum below is taken from that day forward. The previous version summed the whole
+ * range against the backfilled floor and produced *"149 open ▲ 145 more"* -- a number
+ * four short of its own total, which is what a delta against a reconstructed instant
+ * amounts to. The buckets before the baseline are still drawn on the charts, where
+ * they are hatched and captioned; they are just not differenced.
  */
-export function summaryTiles(data: AnalyticsResponse, history: History): SummaryTile[] {
-  const backlog = data.backlog ?? [];
-  const holders = data.holders ?? [];
-  const throughput = data.throughput ?? [];
+export function summaryTiles(
+  data: AnalyticsResponse,
+  history: History,
+  baseline: DeltaBaseline,
+): SummaryTile[] {
+  const from = baseline.day;
+  const inWindow = <T,>(points: readonly T[], key: (point: T) => string): T[] =>
+    from === null ? [] : points.filter((point) => key(point) >= from);
+
+  const backlog = inWindow(data.backlog ?? [], (point) => point.day);
+  const holders = inWindow(data.holders ?? [], (point) => point.day);
+  const throughput = inWindow(data.throughput ?? [], (point) => point.bucket);
   const opened = sum(backlog.map((point) => point.opened));
   const closed = sum(backlog.map((point) => point.closed));
   const completedInWindow = sum(throughput.map((point) => point.tasks_completed));
   const first = holders[0];
   const last = holders[holders.length - 1];
+  const window = baseline.words;
 
   const suppressed =
     history.depth === "none"
       ? "no history yet"
       : history.depth === "thin"
         ? `only ${history.days} days of history`
-        : null;
+        : baseline.suppressed;
 
   const tile = (
     key: string,
@@ -292,7 +312,7 @@ export function summaryTiles(data: AnalyticsResponse, history: History): Summary
       backlog.length > 0 ? opened - closed : null,
       "bad",
       "change",
-      `${opened} opened less ${closed} closed over the window`,
+      `${opened} opened less ${closed} closed ${window}`,
     ),
     tile(
       "created",
@@ -302,7 +322,7 @@ export function summaryTiles(data: AnalyticsResponse, history: History): Summary
       backlog.length > 0 ? opened : null,
       "neutral",
       "flow",
-      "tasks created in the window",
+      `tasks created ${window}`,
     ),
     tile(
       "completed",
@@ -312,7 +332,7 @@ export function summaryTiles(data: AnalyticsResponse, history: History): Summary
       throughput.length > 0 ? completedInWindow : null,
       "good",
       "flow",
-      "distinct tasks completed in the window",
+      `distinct tasks completed ${window}`,
     ),
     tile(
       "human",
@@ -322,7 +342,7 @@ export function summaryTiles(data: AnalyticsResponse, history: History): Summary
       holderDelta("human"),
       "bad",
       "change",
-      "tasks held by a human, first bucket to last",
+      `tasks held by a human, first bucket ${window} to last`,
     ),
     tile(
       "external",
@@ -332,7 +352,7 @@ export function summaryTiles(data: AnalyticsResponse, history: History): Summary
       holderDelta("external"),
       "bad",
       "change",
-      "tasks held by something outside the project, first bucket to last",
+      `tasks held by something outside the project, first bucket ${window} to last`,
     ),
   ];
 }
@@ -349,47 +369,8 @@ export function backlogReadout(point: BacklogPoint, bucket: AnalyticsRange["buck
   return `${formatBucket(point.day, bucket)} · ${level} open · ${point.opened} opened · ${point.closed} closed`;
 }
 
-/**
- * The same line for the throughput chart, including the nuance §8.4 asks for.
- *
- * `completion_events` appears only when it differs from `tasks_completed`, because
- * when they agree it is noise and when they do not it is the answer to "why does this
- * not add up": a reopened task closes twice (§3.3).
- */
-export function throughputReadout(
-  point: ThroughputPoint,
-  bucket: AnalyticsRange["bucket"],
-  showPercentiles: boolean,
-): string {
-  const parts = [formatBucket(point.bucket, bucket), `${point.tasks_completed} completed`];
-  if (point.cancelled > 0) parts.push(`${point.cancelled} cancelled`);
-  if (point.completion_events !== point.tasks_completed) {
-    parts.push(`${point.completion_events} completion events — a task was reopened`);
-  }
-  if (showPercentiles) {
-    parts.push(
-      point.sample >= PERCENTILE_MIN_SAMPLE
-        ? `median ${days(point.cycle_p50_days)} · 90th ${days(point.cycle_p90_days)}`
-        : `cycle time not measured — ${point.sample} ${point.sample === 1 ? "completion" : "completions"}`,
-    );
-  }
-  return parts.join(" · ");
-}
-
 /** Below this many completions in a bucket, a percentile is not a number (§8.4). */
 export const PERCENTILE_MIN_SAMPLE = 3;
-
-/** A percentile series with every under-sampled bucket blanked rather than drawn. */
-export function percentileSeries(
-  throughput: readonly ThroughputPoint[],
-  field: "cycle_p50_days" | "cycle_p90_days",
-): Array<number | null> {
-  return throughput.map((point) => {
-    if (point.sample < PERCENTILE_MIN_SAMPLE) return null;
-    const value = point[field];
-    return value === null || value === undefined ? null : value;
-  });
-}
 
 /** The readout for the holder stack. */
 export function holderReadout(point: HolderPoint, bucket: AnalyticsRange["bucket"]): string {

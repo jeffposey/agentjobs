@@ -8,17 +8,17 @@ import type {
   ThroughputPoint,
 } from "../api/types";
 import {
+  COUNT_PADDING,
   VIEWBOX,
+  blankSpans,
   areaPath,
   axisMax,
   bandCenterX,
   bandWidth,
-  bandPath,
   bandX,
   estimatedSpans,
   horizontalBars,
   levelPath,
-  linePath,
   pairedBars,
   plotBox,
   splitBox,
@@ -30,16 +30,14 @@ import {
   type Box,
 } from "./analyticsGeometry";
 import {
-  PERCENTILE_MIN_SAMPLE,
   backlogReadout,
   days,
   formatBucket,
   formatDay,
   holderReadout,
   openLevel,
-  percentileSeries,
-  throughputReadout,
 } from "./analyticsSeries";
+import { counted, throughputOnlyReadout } from "./analyticsSecondSet";
 
 /**
  * The four chart shapes the analytics page is allowed to draw, as inline SVG.
@@ -63,7 +61,7 @@ import {
  */
 
 /** The plot rectangle every chart on the page shares. */
-const PLOT = plotBox();
+export const PLOT = plotBox();
 
 /**
  * How a chart fills the column it is in (§10.2).
@@ -80,7 +78,7 @@ const PLOT = plotBox();
  * tall -- and leaves no dead space at any size, because the box is never a shape the
  * viewBox has to be letterboxed into.
  */
-const SVG_CLASS = "block w-full max-w-[720px] touch-manipulation";
+export const SVG_CLASS = "block w-full max-w-[720px] touch-manipulation";
 
 /**
  * Axis and inline-label type size, in viewBox units rather than pixels.
@@ -89,7 +87,7 @@ const SVG_CLASS = "block w-full max-w-[720px] touch-manipulation";
  * in a desktop panel. Six x-labels of `12 Sep` still fit at the narrow end, which is
  * what {@link tickIndices} is capped for.
  */
-const LABEL = 12;
+export const LABEL = 12;
 
 export interface Selectable {
   /** The bucket the readout is currently describing. */
@@ -106,7 +104,7 @@ export interface Selectable {
  * zeros in jsdom, so an overlay that divided a tap's x by a measured width would be
  * untestable here and would silently select bucket zero every time.
  */
-function HitTargets({
+export function HitTargets({
   box,
   count,
   labelFor,
@@ -143,7 +141,7 @@ function HitTargets({
 }
 
 /** The rule marking which bucket the readout is about. */
-function SelectionRule({ box, count, selected }: { box: Box; count: number; selected: number }) {
+export function SelectionRule({ box, count, selected }: { box: Box; count: number; selected: number }) {
   if (count === 0) return null;
   const x = bandCenterX(Math.min(selected, count - 1), count, box);
   return (
@@ -162,7 +160,7 @@ function SelectionRule({ box, count, selected }: { box: Box; count: number; sele
 }
 
 /** The y axis: a zero line, a top line, and the two numbers that name them. */
-function YAxis({
+export function YAxis({
   box,
   max,
   format = String,
@@ -219,7 +217,16 @@ function YAxis({
  * the viewBox, which is the only way a chart could put a horizontal scrollbar on the
  * page.
  */
-function XTicks({ box, labels }: { box: Box; labels: readonly string[] }) {
+export function XTicks({
+  box,
+  labels,
+  viewBox = VIEWBOX,
+}: {
+  box: Box;
+  labels: readonly string[];
+  /** The viewBox the ticks are being drawn in, when it is not the shared one. */
+  viewBox?: { width: number; height: number };
+}) {
   const count = labels.length;
   return (
     <g>
@@ -229,7 +236,7 @@ function XTicks({ box, labels }: { box: Box; labels: readonly string[] }) {
           <text
             key={index}
             x={bandCenterX(index, count, box)}
-            y={VIEWBOX.height - 6}
+            y={viewBox.height - 6}
             textAnchor={index === 0 ? "start" : last ? "end" : "middle"}
             fontSize={LABEL}
             className="fill-dark-muted"
@@ -249,7 +256,7 @@ function XTicks({ box, labels }: { box: Box; labels: readonly string[] }) {
  * will not read. The hatch is per bucket, so it lands on the days that were actually
  * reconstructed rather than on a prefix somebody guessed the length of.
  */
-function ReconstructedSpan({
+export function ReconstructedSpan({
   box,
   estimated,
   patternId,
@@ -282,8 +289,78 @@ function ReconstructedSpan({
   );
 }
 
+/**
+ * A series' own name, drawn in the padding **above** the plot rather than inside it.
+ *
+ * §19.2 forbids an axis label inside the plot area, and the first page had one: the
+ * cycle-time chart printed *"median cycle, 0-40d"* over its own bars. It is the same
+ * §10.3 channel -- a word beside the colour -- moved somewhere it cannot be mistaken
+ * for data. `y` is the plot's top less a third of the label height, which is the
+ * baseline that leaves the glyphs clear of the axis line.
+ */
+export function SeriesName({
+  box,
+  label,
+  className,
+  anchor = "start",
+}: {
+  box: Box;
+  label: string;
+  className: string;
+  anchor?: "start" | "end";
+}) {
+  return (
+    <text
+      x={anchor === "start" ? box.x : box.x + box.width}
+      y={box.y - LABEL / 3}
+      textAnchor={anchor}
+      fontSize={LABEL}
+      className={className}
+    >
+      {label}
+    </text>
+  );
+}
+
+/**
+ * The buckets a series has no number for, marked rather than left as a gap (§9.3).
+ *
+ * A gap in a bar chart is indistinguishable from a bucket whose value was zero, and
+ * that substitution is the one thing §9.3 forbids by name. So an under-sampled bucket
+ * gets a faint dashed outline and a title a screen reader can reach; it is visibly
+ * blank, which is what §19.2 asks for and not the same as being visibly empty.
+ */
+export function BlankBuckets({
+  box,
+  unknown,
+  reason,
+}: {
+  box: Box;
+  unknown: readonly boolean[];
+  reason: string;
+}) {
+  const spans = blankSpans(unknown, box);
+  if (spans.length === 0) return null;
+  return (
+    <g data-testid="blank-buckets">
+      {spans.map((span, index) => (
+        <rect
+          key={index}
+          {...span}
+          fill="none"
+          className="stroke-dark-border"
+          strokeWidth={0.75}
+          strokeDasharray="2 3"
+        >
+          <title>{reason}</title>
+        </rect>
+      ))}
+    </g>
+  );
+}
+
 /** The pattern definitions a chart refers to by id. Ids are per instance, not global. */
-function Patterns({ hatch, dots }: { hatch: string; dots: string }) {
+export function Patterns({ hatch, dots }: { hatch: string; dots: string }) {
   return (
     <defs>
       <pattern
@@ -369,7 +446,7 @@ export function SeriesTable({
 }
 
 /** One series' entry in the legend: its colour, its pattern and its name (§10.3). */
-function LegendKey({ label, swatch }: { label: string; swatch: ReactNode }) {
+export function LegendKey({ label, swatch }: { label: string; swatch: ReactNode }) {
   return (
     <li className="flex items-center gap-1.5">
       <svg viewBox="0 0 12 12" className="h-3 w-3 shrink-0" aria-hidden="true">
@@ -380,7 +457,7 @@ function LegendKey({ label, swatch }: { label: string; swatch: ReactNode }) {
   );
 }
 
-function Legend({ children }: { children: ReactNode }) {
+export function Legend({ children }: { children: ReactNode }) {
   return (
     <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-dark-muted">{children}</ul>
   );
@@ -392,7 +469,7 @@ function Legend({ children }: { children: ReactNode }) {
  * Above rather than below, because on a phone the chart is what the thumb is on and a
  * line underneath it would be the part covered by the hand that just tapped.
  */
-function Readout({ children, testId }: { children: ReactNode; testId: string }) {
+export function Readout({ children, testId }: { children: ReactNode; testId: string }) {
   return (
     <p className="mb-2 font-mono text-xs text-dark-text sm:text-sm" data-testid={testId}>
       {children}
@@ -401,7 +478,7 @@ function Readout({ children, testId }: { children: ReactNode; testId: string }) 
 }
 
 /** Arrow keys move the selection, so the charts are reachable without a pointer. */
-function keyboardSelect(
+export function keyboardSelect(
   event: KeyboardEvent<SVGSVGElement>,
   selected: number,
   count: number,
@@ -571,59 +648,62 @@ export function BacklogChart({
 }
 
 /**
- * Throughput and cycle time on one chart, because the question is about both (§8.4).
+ * Throughput: completions per bucket, its own axis, nothing else on it (§19.2).
  *
- * Two axes on one chart is normally a mistake and is right here: "are we finishing
- * faster" is not answerable from either series alone. Each is labelled at its own axis
- * rather than by colour, and the percentile line is broken wherever its bucket holds
- * too few completions for a percentile to mean anything.
+ * **What was removed is the point.** This chart used to carry a cycle-time line and a
+ * p50-to-p90 band on a second axis, and the owner reported that he could not read it.
+ * Two axes was defensible when the question was "are we finishing faster" and neither
+ * series answered it alone; §18.1 split that question into where a task's time
+ * actually goes, which is its own panel, and what is left here is a count. A count
+ * needs one axis.
+ *
+ * Two smaller changes follow from it. The grain is the spine's, so a 30-day range is
+ * completed-per-day -- the owner's own ask, and possible only because no percentile is
+ * being computed per bucket any more. And **no label sits inside the plot area**: the
+ * series names itself above the plot, in the padding, so the only marks inside the
+ * rectangle are the data.
  */
 export function ThroughputChart({
   points,
   bucket,
-  showPercentiles,
   selected,
   onSelect,
 }: {
   points: readonly ThroughputPoint[];
   bucket: AnalyticsRange["bucket"];
-  /** False on a thin history: values are still drawn, trends are not (§9.2). */
-  showPercentiles: boolean;
 } & Selectable) {
   const ids = useId();
   const hatch = `${ids}-hatch`;
   const dots = `${ids}-dots`;
+  const box = plotBox(COUNT_PADDING);
   const completed = points.map((point) => point.tasks_completed);
   const cancelled = points.map((point) => point.cancelled);
   const countMax = axisMax(completed.map((value, index) => value + (cancelled[index] ?? 0)));
-  const [completedBars, cancelledBars] = stackedBars([completed, cancelled], countMax, PLOT);
-  const p50 = showPercentiles ? percentileSeries(points, "cycle_p50_days") : [];
-  const p90 = showPercentiles ? percentileSeries(points, "cycle_p90_days") : [];
-  const cycleMax = axisMax([...p50, ...p90]);
+  const [completedBars, cancelledBars] = stackedBars([completed, cancelled], countMax, box);
   const count = points.length;
   const current = points[Math.min(selected, Math.max(count - 1, 0))];
   const total = completed.reduce((sum, value) => sum + value, 0);
+  const reopened = points.reduce((sum, point) => sum + (point.reopened ?? 0), 0);
 
   return (
     <figure className="mt-1">
-      <Readout testId="throughput-readout">
-        {current
-          ? throughputReadout(current, bucket, showPercentiles)
-          : "No buckets in this window."}
-      </Readout>
+      <Readout testId="throughput-readout">{throughputOnlyReadout(current, bucket)}</Readout>
       <svg
         viewBox={`0 0 ${VIEWBOX.width} ${VIEWBOX.height}`}
         className={SVG_CLASS}
         role="img"
         tabIndex={0}
         data-testid="throughput-chart"
-        aria-label={`Tasks completed per ${bucket}, ${total} in this window${
-          showPercentiles ? ", with median and 90th-percentile cycle time" : ""
-        }.`}
+        aria-label={`Tasks completed per ${bucket}, ${total} in this window.`}
         onKeyDown={(event) => keyboardSelect(event, selected, count, onSelect)}
       >
         <Patterns hatch={hatch} dots={dots} />
-        <YAxis box={PLOT} max={countMax} />
+        <YAxis box={box} max={countMax} />
+        <ReconstructedSpan
+          box={box}
+          estimated={points.map((point) => point.estimated ?? false)}
+          patternId={hatch}
+        />
         {(completedBars ?? []).map((bar: BarRect) => (
           <rect
             key={`t${bar.index}`}
@@ -638,46 +718,41 @@ export function ThroughputChart({
             <rect {...bar} fill={`url(#${dots})`} />
           </g>
         ))}
-        {showPercentiles && (
-          <>
-            <path
-              d={bandPath(p50, p90, cycleMax, PLOT)}
-              className="fill-violet-300"
-              opacity={0.2}
+        {/* T1's reopening marker: a small caret above the bar, because a reopening is
+            neither a completion nor a cancellation and adding it to either stack would
+            change a count the page is judged by. The number is in the readout. */}
+        {points.map((point, index) =>
+          (point.reopened ?? 0) > 0 ? (
+            <circle
+              key={`r${index}`}
+              cx={bandCenterX(index, count, box)}
+              // Above its own bar rather than at the top of the plot: a marker pinned
+              // to the axis reads as a series of its own floating over the chart,
+              // which is the thing this panel was rebuilt to stop doing.
+              cy={Math.max(
+                valueY(
+                  point.tasks_completed + point.cancelled,
+                  countMax,
+                  box,
+                ) - 4,
+                box.y + 3,
+              )}
+              r={2.5}
+              className="fill-amber-300"
+              data-testid="reopened-marker"
             />
-            <path
-              d={linePath(p50, cycleMax, PLOT)}
-              className="stroke-violet-300"
-              fill="none"
-              strokeWidth={2}
-              data-testid="cycle-p50"
-            />
-            <text
-              x={PLOT.x + PLOT.width}
-              y={PLOT.y + 10}
-              textAnchor="end"
-              fontSize={LABEL}
-              className="fill-violet-300"
-            >
-              {`median cycle, 0–${days(cycleMax)}`}
-            </text>
-          </>
+          ) : null,
         )}
-        <text x={PLOT.x + 2} y={PLOT.y + 10} fontSize={LABEL} className="fill-emerald-400">
-          tasks completed
-        </text>
-        <SelectionRule box={PLOT} count={count} selected={selected} />
+        <SeriesName box={box} label="tasks completed" className="fill-emerald-400" />
+        <SelectionRule box={box} count={count} selected={selected} />
         <HitTargets
-          box={PLOT}
+          box={box}
           count={count}
           selected={selected}
           onSelect={onSelect}
-          labelFor={(index) => {
-            const point = points[index];
-            return point ? throughputReadout(point, bucket, showPercentiles) : "";
-          }}
+          labelFor={(index) => throughputOnlyReadout(points[index], bucket)}
         />
-        <XTicks box={PLOT} labels={points.map((point) => formatDay(point.bucket))} />
+        <XTicks box={box} labels={points.map((point) => formatDay(point.bucket))} />
       </svg>
       <Legend>
         <LegendKey
@@ -694,31 +769,23 @@ export function ThroughputChart({
             </>
           }
         />
-        {showPercentiles && (
+        {reopened > 0 && (
           <LegendKey
-            label={`median cycle time, banded to the 90th percentile (buckets under ${PERCENTILE_MIN_SAMPLE} completions are left blank)`}
-            swatch={<rect y={5} width={12} height={2} className="fill-violet-300" />}
+            label={`${counted(reopened, "reopening")}, marked above the bar`}
+            swatch={<circle cx={6} cy={6} r={3} className="fill-amber-300" />}
           />
         )}
       </Legend>
       <SeriesTable
         testId="throughput-series"
-        caption="Completions, cancellations and cycle time per bucket"
-        columns={[
-          "Bucket",
-          "Completed",
-          "Completion events",
-          "Cancelled",
-          "Median days",
-          "90th percentile days",
-        ]}
+        caption="Completions, cancellations and reopenings per bucket"
+        columns={["Bucket", "Completed", "Completion events", "Cancelled", "Reopened"]}
         rows={points.map((point) => [
           formatBucket(point.bucket, bucket),
           String(point.tasks_completed),
           String(point.completion_events),
           String(point.cancelled),
-          point.sample >= PERCENTILE_MIN_SAMPLE ? days(point.cycle_p50_days) : "not measured",
-          point.sample >= PERCENTILE_MIN_SAMPLE ? days(point.cycle_p90_days) : "not measured",
+          String(point.reopened ?? 0),
         ])}
       />
     </figure>
