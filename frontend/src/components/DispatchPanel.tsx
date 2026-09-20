@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { ReviewIdentity } from "../api/generated";
 import type {
@@ -7,6 +7,7 @@ import type {
   DispatchStateView,
   QueuedDispatchState,
 } from "../api/types";
+import { DictationControl, DictationNote } from "./DictationControl";
 
 /**
  * Dispatch, in the browser: the button that starts an agent, the runs it produces,
@@ -332,6 +333,7 @@ export function DispatchPanel({
   renderOutput,
 }: DispatchPanelProps) {
   const [brief, setBrief] = useState("");
+  const briefRef = useRef<HTMLTextAreaElement>(null);
   // Empty means "the project's own", and it is deliberately not pre-filled with the
   // project's group: a value the human did not pick must not be sent as though they
   // had. Reset per page load rather than remembered -- "audit this one with the big
@@ -553,18 +555,30 @@ export function DispatchPanel({
             );
           }}
         >
-          <label htmlFor="dispatch-brief" className="block text-sm font-semibold">
-            This task has no specification — say what the agent should do
-          </label>
-          <textarea
-            id="dispatch-brief"
-            required
-            rows={4}
-            value={brief}
-            onChange={(event) => setBrief(event.target.value)}
-            placeholder="What the agent should do…"
-            className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-sky-500 focus:outline-none"
-          />
+          {/* `relative` so the microphone can position itself into the right-hand end
+              of the label line. The dispatch prompt task-172 names: the always-present
+              optional instruction box is task-162's and does not exist yet, so this is
+              the one place a person writes a brief for a run today. */}
+          <div className="relative">
+            <label htmlFor="dispatch-brief" className="block text-sm font-semibold">
+              This task has no specification — say what the agent should do
+            </label>
+            <textarea
+              ref={briefRef}
+              id="dispatch-brief"
+              required
+              rows={4}
+              value={brief}
+              onChange={(event) => setBrief(event.target.value)}
+              placeholder="What the agent should do…"
+              className="w-full rounded-lg border border-dark-border bg-dark-bg p-3 text-dark-text focus:border-sky-500 focus:outline-none"
+            />
+            <DictationControl
+              label="What the agent should do"
+              target={() => briefRef.current}
+            />
+            <DictationNote />
+          </div>
           <p className="text-sm text-dark-muted">
             Saved to the task as a note by{" "}
             <strong className="text-dark-text">{user}</strong>, and that note is what
