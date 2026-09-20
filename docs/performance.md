@@ -304,6 +304,68 @@ Quote it for what it is: a guard against a collapse, not evidence the interactio
 good. Playwright's synthetic click proves the render, and ENGINEERING.md's verification
 section says what it does not prove.
 
+### The gate's own server budget (task-486)
+
+The browser budget above guards the render. **`tests/test_performance_budgets.py` guards
+what the server sends and what it asks the database**, and it does it because the
+budgets that were there guarded neither: on 2026-09-19 `GET /tasks` was 2.3 seconds and
+10,355,121 bytes on the real backlog with every assertion in that file green. An
+endpoint that runs one query and serialises ten megabytes parses zero task files, which
+is all the file could see.
+
+Two counters were added beside the parse tripwire, both chosen to mean the same thing on
+every machine:
+
+| Counter | Held to | Why it is durable |
+| --- | --- | --- |
+| Response bytes **per record** | a ceiling per endpoint | exact, identical under any load, and the units the defect happened in |
+| SQL statements **per request** | a small constant, *and* the same number at two corpus sizes | a fan-out is a query per record, and the two-size check fails on the shape of the code rather than on how big the backlog got |
+
+Measured 2026-09-20 against a generated corpus of 480 records, which is where
+`CORPUS_SIZE` now sits — this repository's own backlog was 479 that day:
+
+| Endpoint | Bytes | Per record | Statements |
+| --- | --- | --- | --- |
+| `GET /tasks` | 376,731 | 785 | 5 |
+| `GET /dashboard` | 5,226,014 | 10,888 | 14 |
+| `GET /search?q=` | 5,174,703 | 10,781 | 17 |
+| `GET /tasks/{id}/detail` | 10,822 | — | 32 |
+| `GET /tasks/next` | 10,633 | — | 11 |
+| `GET /revision` | 63 | — | 1 |
+
+Every statement count above is **the same at 60 records and at 480**, which is the
+assertion worth having; the ceilings alone would be met by a route running one query per
+record on a small enough corpus.
+
+**Two of those payloads are the defect, not the target.** `/dashboard` and `/search`
+still answer with whole records — spec prose, acceptance criteria and the complete log
+of every task — which is 5.2 MB each here and the shape task-484 took out of `/tasks`.
+They are recorded and held where they stand rather than fixed, because task-486 budgeted
+endpoints and did not own them.
+
+**It costs 5.2 seconds**, from 9.4s to 14.6s for the module run alone and serially,
+measured on 2026-09-20 — and it is eight times the corpus and fourteen more tests for
+that. Under the gate's `-n auto` the module's tests are distributed, so the `pytest`
+stage moves by much less than the module does. Most of the 5.2s is one payment: the
+corpus generator's `yaml.safe_dump` is 6ms a record and the module now caches it, and
+caches a built database to copy rather than re-importing 480 records per test.
+
+Three things the budgets do **not** catch, established by deliberately breaking the code
+and watching what stayed green:
+
+- **The five-second catastrophe check notices nothing.** With `_assemble` rewritten into
+  a query per record — 3,840 statements for one whole-corpus read — that read took
+  **0.14s** against its 5-second budget, 36x under, at eight times the corpus size it
+  was written for. It is there to catch a lost index, and the note telling you not to
+  tighten it is still right.
+- **The parse tripwire notices nothing**, by construction. Neither regression touched a
+  file.
+- **The byte budgets and the statement budgets catch different things and neither
+  subsumes the other.** Returning whole records from `GET /tasks` again trips both; an
+  N+1 underneath trips only the statements, because the bytes on the wire do not change
+  when the server works harder to produce them.
+
+
 ---
 
 ## What the gate costs
