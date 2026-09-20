@@ -88,7 +88,10 @@ test("turns dispatch on, starts a real agent process, cancels it, and turns it o
   await page.getByRole("button", { name: "Submit" }).click();
   await expect(page).toHaveURL(/\/app\/p\/_local\/tasks$/);
 
-  await page.getByRole("link", { name: "Dispatch", exact: true }).click();
+  // Back to the settings page the way a reader reaches it since task-345: the nav row
+  // carries navigation only, and this route lives behind the actions menu.
+  await page.getByRole("button", { name: "Actions" }).click();
+  await page.getByRole("menuitem", { name: "Dispatch settings" }).click();
   await page.getByRole("button", { name: /disable dispatch/i }).click();
   await expect(settings.getByText("This project", { exact: true }).locator("..")).toContainText(
     "Closed",

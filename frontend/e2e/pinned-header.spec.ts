@@ -18,19 +18,20 @@ const PHONE = { width: 390, height: 844 };
 /** One row is `min-h-16` plus a 1px bottom border; anything taller has wrapped. */
 const ONE_ROW_MAX_PX = 72;
 
-// No "Create": task-346 replaced that destination with the header's capture control,
-// which is an action rather than a place and is deliberately never behind the burger.
-const DESTINATIONS = [
-  "Dashboard",
-  "Tasks",
-  "Dispatch",
-  "Playbooks",
-  "Runs",
-  "API Docs",
-];
+/**
+ * Everything the bar holds after task-345, in order.
+ *
+ * Dispatch, Playbooks and API Docs moved into the actions menu; Create left with
+ * task-346, whose capture control replaced it and is an action rather than a place --
+ * so it lives beside the kebab and is deliberately never behind the burger. Asserted
+ * below as a whole membership rather than entry by entry, because what went wrong with
+ * this row was additions nobody subtracted, and a test that looks for the survivors
+ * would not have noticed.
+ */
+const DESTINATIONS = ["Dashboard", "Tasks", "Runs"];
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 1256;
+const NAV_INLINE_MIN_PX = 822;
 
 /**
  * One record, long enough that every viewport under test has somewhere to scroll to,
@@ -220,6 +221,11 @@ test("above the breakpoint every destination is inline and there is no burger", 
   for (const label of DESTINATIONS) {
     await expect(nav.getByText(label, { exact: true })).toBeVisible();
   }
+  // And nothing else (task-345). A count rather than a text comparison, because the
+  // Runs entry carries the live-run badge inside its own link and its text is
+  // therefore not always just "Runs". The defect this guards is an entry somebody
+  // added and nobody subtracted, which a test looking only for the survivors misses.
+  await expect(nav.getByRole("link")).toHaveCount(DESTINATIONS.length);
 });
 
 test("below the breakpoint the destinations are behind the burger, and all of them are there", async ({
@@ -231,7 +237,7 @@ test("below the breakpoint the destinations are behind the burger, and all of th
   const burger = page.getByRole("button", { name: "Navigation" });
   await expect(burger).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Primary navigation" });
-  await expect(nav.getByText("Playbooks", { exact: true })).toBeHidden();
+  await expect(nav.getByText("Create", { exact: true })).toBeHidden();
 
   await burger.click();
   const panel = page.locator("#primary-nav-destinations");

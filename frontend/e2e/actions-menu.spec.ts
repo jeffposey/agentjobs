@@ -24,7 +24,7 @@ const project = "/app/p/_local";
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 800 };
 /** Mirrors `NAV_INLINE_MIN_PX`. */
-const NAV_INLINE_MIN_PX = 1256;
+const NAV_INLINE_MIN_PX = 822;
 /** The app's own minimum touch target, from `.touch-target` in `styles.css`. */
 const TOUCH_TARGET_PX = 44;
 
@@ -45,14 +45,21 @@ test.describe("the actions menu", () => {
     await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
   });
 
-  test("opens a popup holding About and the API docs, without moving the header", async ({
+  test("opens a popup holding About, Analytics, the dispatch pair and the API docs, without moving the header", async ({
     page,
   }) => {
     const before = await headerHeight(page);
     await trigger(page).click();
 
     await expect(menu(page)).toBeVisible();
-    await expect(menu(page).getByRole("menuitem", { name: "About" })).toBeVisible();
+    // The whole membership, in order: About, then task-345's four arrivals.
+    await expect(menu(page).getByRole("menuitem")).toHaveText([
+      "About",
+      "Analytics",
+      "Dispatch settings",
+      "Playbooks",
+      "API Docs",
+    ]);
     await expect(menu(page).getByRole("menuitem", { name: "API Docs" })).toHaveAttribute(
       "href",
       "/docs",
@@ -92,6 +99,8 @@ test.describe("the actions menu", () => {
     // menu rather than tabbing out of it.
     await expect(menu(page).getByRole("menuitem", { name: "About" })).toBeFocused();
     await page.keyboard.press("ArrowDown");
+    await expect(menu(page).getByRole("menuitem", { name: "Analytics" })).toBeFocused();
+    await page.keyboard.press("End");
     await expect(menu(page).getByRole("menuitem", { name: "API Docs" })).toBeFocused();
   });
 
@@ -154,7 +163,7 @@ test("every entry is tappable at a phone width", async ({ page }) => {
 
   await trigger(page).click();
   const entries = menu(page).getByRole("menuitem");
-  await expect(entries).toHaveCount(2);
+  await expect(entries).toHaveCount(5);
   for (const entry of await entries.all()) {
     const box = (await entry.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
@@ -169,29 +178,132 @@ test("every entry is tappable at a phone width", async ({ page }) => {
   expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(PHONE.width);
 });
 
-test("the bar still fits on one line at the breakpoint the trigger moved", async ({ page }) => {
-  await page.setViewportSize({ width: NAV_INLINE_MIN_PX, height: 800 });
-  await page.goto(`${project}/tasks`);
-  await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
-
-  const measured = await page.evaluate(() => {
-    const nav = document.querySelector("nav[aria-label='Primary navigation']")!;
-    // The switcher pinned to the 224px a long project name reaches, which is the case
-    // NAV_INLINE_MIN_PX is defined against rather than the short one this sandbox has.
-    const style = document.createElement("style");
-    style.textContent =
-      "nav[aria-label='Primary navigation'] > label { flex: 0 0 224px !important; }";
-    document.head.appendChild(style);
-    return {
-      overflow: nav.scrollWidth - nav.clientWidth,
-      height: document.querySelector("header")!.getBoundingClientRect().height,
-    };
+test("the bar still fits on one line at the breakpoint the trigger moved", async ({
+  page,
+  request,
+}) => {
+  // The attention badge has to be showing, and that is not decoration. It is 34px the
+  // row spends only on the screen where work has stopped on you -- which is exactly
+  // the screen NAV_INLINE_MIN_PX has to hold for, since it is the one a person is
+  // being asked to read. Without it this measured a narrower bar than the constant
+  // claims to describe, and would have passed at any breakpoint below the real one.
+  const created = await request.post("/api/tasks", {
+    data: {
+      title: "The bar is measured while something waits on a person",
+      summary: "Exists so the attention badge is showing while the row is measured.",
+      description: "Handed straight to a human, which is what the badge counts.",
+      lifecycle: "ready",
+      category: "ux",
+      actor: "E2E Human",
+    },
   });
+  expect(created.ok()).toBeTruthy();
+  const fixtureId = (await created.json()).id as string;
+  const handed = await request.post(`/api/tasks/${fixtureId}/handoff`, {
+    data: {
+      actor: "E2E Human",
+      ball: "human",
+      ball_reason: "decision",
+      ball_prompt: "Stand still while the bar is measured.",
+    },
+  });
+  expect(handed.ok()).toBeTruthy();
 
-  // `flex-nowrap` does not wrap; it runs off the right edge, so overflow is what a
-  // header measured only by its height would miss.
-  expect(measured.overflow).toBe(0);
-  // One row is `min-h-16` plus a 1px border; anything taller has wrapped.
-  expect(measured.height).toBeLessThanOrEqual(72);
-  await expect(trigger(page)).toBeVisible();
+  try {
+    await page.setViewportSize({ width: NAV_INLINE_MIN_PX, height: 800 });
+    await page.goto(`${project}/tasks`);
+    await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+    await expect(page.getByTestId("attention-badge")).toBeVisible();
+
+    const measured = await page.evaluate(() => {
+      const nav = document.querySelector("nav[aria-label='Primary navigation']")!;
+      // The switcher pinned to the 224px a long project name reaches, which is the
+      // case NAV_INLINE_MIN_PX is defined against rather than the short one this
+      // sandbox has. Links forced `nowrap` for the same reason: the constant was
+      // measured that way, and a label allowed to wrap hides an overflow as height.
+      const style = document.createElement("style");
+      style.textContent =
+        "nav[aria-label='Primary navigation'] > label { flex: 0 0 224px !important; }" +
+        "nav[aria-label='Primary navigation'] a { white-space: nowrap !important; }";
+      document.head.appendChild(style);
+      return {
+        overflow: nav.scrollWidth - nav.clientWidth,
+        height: document.querySelector("header")!.getBoundingClientRect().height,
+      };
+    });
+
+    // `flex-nowrap` does not wrap; it runs off the right edge, so overflow is what a
+    // header measured only by its height would miss.
+    expect(measured.overflow).toBe(0);
+    // One row is `min-h-16` plus a 1px border; anything taller has wrapped.
+    expect(measured.height).toBeLessThanOrEqual(72);
+    await expect(trigger(page)).toBeVisible();
+  } finally {
+    // Every spec here shares one server and one project, so a task left blocking
+    // becomes the next spec's dashboard headline.
+    const closed = await request.post(`/api/tasks/${fixtureId}/close`, {
+      data: { actor: "E2E Human", outcome: "cancelled", body: "Measurement fixture." },
+    });
+    expect(closed.ok()).toBeTruthy();
+  }
+});
+
+/**
+ * ac-2: what task-345 moved in here is still two interactions away, on a phone too.
+ *
+ * Demonstrated rather than asserted, which is the acceptance criterion's own word: the
+ * test presses the trigger and presses the entry, and then checks that the page it
+ * asked for is the page it got. Counting the entries in a menu would prove that four
+ * links exist, which is not the claim -- the claim is that the machine-wide kill switch
+ * is still reachable from wherever you happen to be standing, and that is task-167's
+ * constraint rather than a nicety.
+ *
+ * Analytics is walked for a different reason and the reason is worth stating. This menu
+ * is now its *only* entry point: task-374 put a link in a Dashboard heading row, the
+ * owner could not find the page, task-465 moved it to the nav row, and task-345 moved
+ * it in here. If this walk fails, the page has gone unreachable for the third time.
+ */
+test("everything behind the kebab is two interactions from anywhere", async ({
+  page,
+}) => {
+  // 375px is the narrowest phone this app is read on, and narrower than the 390 the
+  // rest of this file uses: the criterion names it, so it is what is measured.
+  const NARROW = { width: 375, height: 812 };
+
+  for (const viewport of [DESKTOP, NARROW]) {
+    await page.setViewportSize(viewport);
+    for (const from of [`${project}`, `${project}/tasks`, `${project}/runs`]) {
+      await page.goto(from);
+      await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+
+      // One.
+      await trigger(page).click();
+      // Two.
+      await menu(page).getByRole("menuitem", { name: "Dispatch settings" }).click();
+      await expect(page).toHaveURL(/\/p\/_local\/dispatch$/);
+      // The switch itself, not merely the address: a route that resolved to an empty
+      // page would satisfy a URL assertion and reach nobody.
+      await expect(page.getByRole("region", { name: "Dispatch settings" })).toBeVisible();
+
+      await page.goto(from);
+      await trigger(page).click();
+      await menu(page).getByRole("menuitem", { name: "Playbooks" }).click();
+      await expect(page).toHaveURL(/\/p\/_local\/playbooks$/);
+
+      await page.goto(from);
+      await trigger(page).click();
+      await menu(page).getByRole("menuitem", { name: "Analytics" }).click();
+      await expect(page).toHaveURL(/\/p\/_local\/analytics$/);
+      // The page itself, because this menu row is the only way in since task-345 and
+      // the failure being guarded against is the page becoming unfindable again.
+      await expect(page.getByTestId("analytics-page")).toBeVisible();
+
+      await page.goto(from);
+      await trigger(page).click();
+      await menu(page).getByRole("menuitem", { name: "API Docs" }).click();
+      // FastAPI's own page, so this leaves the app entirely -- which is the reason the
+      // entry is an anchor and not a router link, and worth proving once.
+      await expect(page).toHaveURL(/\/docs$/);
+    }
+  }
 });

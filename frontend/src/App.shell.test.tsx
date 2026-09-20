@@ -174,9 +174,12 @@ describe("the Tasks surface at a landscape viewport", () => {
     await screen.findByRole("navigation", { name: "Primary navigation" });
     expect(listRegion()).toBeNull();
     expect(detailRegion()).toBeNull();
-    // The header nav is the global navigation and this epic does not touch it.
+    // The header nav is the global navigation and this epic does not touch it. What
+    // it holds is task-345's business and is asserted as a whole membership in
+    // PrimaryNav.test.tsx; the claim here is only that the shell still renders it on
+    // a surface that has no regions, so the labels are a sample rather than a list.
     const nav = screen.getByRole("navigation", { name: "Primary navigation" });
-    for (const label of ["Dashboard", "Tasks", "Dispatch"]) {
+    for (const label of ["Dashboard", "Tasks", "Runs"]) {
       expect(within(nav).getByText(label, { exact: true })).toBeInTheDocument();
     }
   });

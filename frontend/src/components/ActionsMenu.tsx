@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { apiVersionApiVersionGetOptions } from "../api/generated/@tanstack/react-query.gen";
 import { client } from "../api/generated/client.gen";
@@ -8,10 +8,11 @@ import { client } from "../api/generated/client.gen";
 /**
  * The app-level actions menu, anchored to the top-right of the header.
  *
- * **This is a shell, and that is the point (task-168).** It holds About and the API
- * docs today; task-345 moves Playbooks and Dispatch settings off the primary nav into
- * it, and task-170 adds dispatch. Adding an entry should be a line in
- * {@link ENTRIES} or one more branch of {@link View}, not another popup.
+ * **This is a shell, and that is the point (task-168).** It holds About, Analytics,
+ * Dispatch settings, Playbooks and the API docs; task-345 moved the last four off the
+ * primary nav into it, and did so by adding lines to {@link ENTRIES} rather than by
+ * building a second popup, which is the shell working as intended. Adding an entry
+ * should stay a line in {@link ENTRIES} or one more branch of {@link View}.
  *
  * **Top-right, and not a hamburger.** Navigation lives at the left end of this bar and
  * collapses behind a burger below `NAV_INLINE_MIN_PX`; two hamburgers at opposite ends
@@ -44,16 +45,42 @@ type View = "closed" | "menu" | "about";
 export const ACTIONS_MENU_ID = "actions-menu";
 export const ACTIONS_ABOUT_ID = "actions-menu-about";
 
+function projectPath(projectId: string, path = "") {
+  return `/p/${encodeURIComponent(projectId)}${path}`;
+}
+
 /**
- * Entries that are a plain link out of the app.
+ * The menu's links, in the order they are read.
  *
- * `/docs` is FastAPI's own page rather than a route this app owns, so it is an
- * `<a>` and not a `<Link>`; a `<Link>` would ask the router for a route that does not
- * exist and land on the not-found page. Task-345 removes the duplicate of this entry
- * from the nav row once this menu exists to hold it -- until then both are present,
- * which is the cheaper of the two orders to do this in.
+ * Two kinds, and which one an entry is depends on who owns the URL rather than on
+ * taste. `to` is a route **this** app serves, so it is a `<Link>` and navigating to it
+ * never reloads the bundle; `href` is somebody else's page -- `/docs` is FastAPI's --
+ * so it is an `<a>`, and a `<Link>` there would ask the router for a route that does
+ * not exist and land on the not-found page.
+ *
+ * **The order groups by what a thing is**: About, which is the menu's own identity and
+ * stays where task-168 put it; then the page you might read; then the dispatch pair,
+ * adjacent because a playbook run *is* a dispatch and the two gates a reader needs are
+ * the same ones; then the external reference, last because it leaves the app.
+ *
+ * Position is deliberately **not** doing any work for task-167's constraint, which is
+ * that the machine-wide kill switch stays one interaction from every page. Opening the
+ * menu is that interaction and choosing an entry is the second, whichever row it is on;
+ * an earlier revision of this file claimed Dispatch settings was first *because of* the
+ * kill switch, which sounded principled and was not true of any position.
  */
-const ENTRIES: ReadonlyArray<{ href: string; label: string }> = [
+const ENTRIES: ReadonlyArray<
+  { label: string } & ({ to: string; href?: never } | { href: string; to?: never })
+> = [
+  // Here rather than in the nav row, and that is the owner's call on 2026-09-20 rather
+  // than a reading of the spec: task-345 shipped it in the bar as a reading surface and
+  // he moved it in here with the rest. See that task's decision entries.
+  { to: "/analytics", label: "Analytics" },
+  // task-345 moved this off the nav row. The kill switch it leads to is why the move
+  // needed the menu to exist first: the trigger lives inside PrimaryNav's own
+  // <header>, so it is on every page the bar is on, by construction.
+  { to: "/dispatch", label: "Dispatch settings" },
+  { to: "/playbooks", label: "Playbooks" },
   { href: "/docs", label: "API Docs" },
 ];
 
@@ -300,20 +327,33 @@ export function ActionsMenu({
           >
             About
           </button>
-          {ENTRIES.map((entry) => (
-            <a
-              key={entry.href}
-              href={entry.href}
-              role="menuitem"
-              tabIndex={-1}
-              // Chosen an entry, so the menu has done its job. Closing on the way out
-              // also means coming back never finds it hanging open.
-              onClick={close}
-              className={itemClass}
-            >
-              {entry.label}
-            </a>
-          ))}
+          {ENTRIES.map((entry) =>
+            entry.to === undefined ? (
+              <a
+                key={entry.label}
+                href={entry.href}
+                role="menuitem"
+                tabIndex={-1}
+                // Chosen an entry, so the menu has done its job. Closing on the way out
+                // also means coming back never finds it hanging open.
+                onClick={close}
+                className={itemClass}
+              >
+                {entry.label}
+              </a>
+            ) : (
+              <Link
+                key={entry.label}
+                to={projectPath(projectId, entry.to)}
+                role="menuitem"
+                tabIndex={-1}
+                onClick={close}
+                className={itemClass}
+              >
+                {entry.label}
+              </Link>
+            ),
+          )}
         </div>
       )}
 

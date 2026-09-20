@@ -28,7 +28,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import PurePosixPath, PureWindowsPath
 
-from agentjobs.models_v2 import DeliverableStatus, Lifecycle, SCHEMA_VERSION, load_task
+from agentjobs.models_v2 import DeliverableStatus, Lifecycle, SCHEMA_VERSION, Task, load_task
 from agentjobs.quotation import scan_task
 
 import corpus_source
@@ -77,6 +77,43 @@ def retired_record_id(path: str) -> str | None:
     if candidate.parent != RETIRED_RECORDS or candidate.suffix != ".yaml":
         return None
     return candidate.stem
+
+
+def checkable_pointers(backlog: list[Task]) -> list[tuple[str, str]]:
+    """The `(task id, path)` pairs whose target the filesystem is then asked about.
+
+    Everything exempt is dropped here rather than at the assertion, so the rules are
+    one thing to read and a synthetic backlog can exercise them without a checkout.
+    """
+    known = {task.id for task in backlog}
+    open_tasks = [task for task in backlog if task.lifecycle is not Lifecycle.CLOSED]
+    promised = {
+        deliverable.path.rstrip("/")
+        for task in open_tasks
+        for deliverable in task.deliverables
+        if deliverable.status is not DeliverableStatus.DONE
+    }
+
+    pointers: list[tuple[str, str]] = []
+    for task in open_tasks:
+        for pointer in task.spec.context:
+            path = pointer.path.rstrip("/")
+            if "://" in path or any(character in path for character in "*{}<>"):
+                continue
+            if path in promised:
+                continue
+            # An absolute path is the validator's `absolute-path` rule to report, and
+            # checking it here would ask whether one machine happens to have that
+            # directory -- `REPO_ROOT / "C:/elsewhere"` resolves to `C:/elsewhere`.
+            if is_absolute(path):
+                continue
+            record = retired_record_id(path)
+            if record is not None:
+                if record not in known:
+                    pointers.append((task.id, path))
+                continue
+            pointers.append((task.id, path))
+    return pointers
 
 
 def test_corpus_is_not_empty() -> None:
@@ -144,13 +181,24 @@ def test_agentjobs_task_ids_and_relationships_are_not_dangling() -> None:
 def test_agentjobs_context_paths_exist() -> None:
     """Read-this-first pointers are useful only while their target still exists.
 
-    A task's own pending deliverables are exempt. A task may legitimately point at a
-    file it exists in order to create -- task-002 does exactly that, naming an
-    untracked plugin manifest as both the thing to read and the thing to produce.
-    Requiring it to exist made this test pass only in a clone where someone had
-    already created the file by hand, and fail in every worktree and every fresh
-    clone. That is a test asserting the state of one developer's disk rather than the
-    state of the repository.
+    **A file an open task exists in order to create is exempt, whichever task points
+    at it.** A pending deliverable is a promise the backlog has already made, so a
+    pointer at one is a forward reference rather than rot. task-002 is the single-task
+    case -- it names an untracked plugin manifest as both the thing to read and the
+    thing to produce -- and requiring that to exist made this test pass only in a clone
+    where someone had created the file by hand, and fail in every worktree and every
+    fresh clone. That is a test asserting the state of one developer's disk rather than
+    the state of the repository.
+
+    The exemption spans tasks because a deliverable arrives on one branch and is cited
+    from several records at once (task-345). Eleven pointers across eight records named
+    the capture control task-346 was building; every branch that was not task-346's
+    therefore gated red on work nobody had done wrong, and the repository had no green
+    branch until an unrelated one merged. Scoping the exemption to the pointer's own
+    record made the gate a statement about which branch you happened to be standing on.
+    It stays honest at the other end: the exempting task has to still be open, so a
+    promise that is abandoned or closed undelivered puts its pointers straight back
+    under the check.
 
     Generated output is exempt for the same reason, arriving by a different door:
     `src/agentjobs/frontend_dist/` exists only after `npm run build`, so a pointer at
@@ -173,33 +221,7 @@ def test_agentjobs_context_paths_exist() -> None:
     `agentjobs show` reads. Such a pointer passes when the record it names is in the
     backlog, and fails when it is not -- which is the dangling this check exists to catch.
     """
-    known = {task.id for task in corpus_source.backlog()}
-    pointers: list[tuple[str, str]] = []
-    for task in corpus_source.backlog():
-        if task.lifecycle is Lifecycle.CLOSED:
-            continue
-        pending_deliverables = {
-            deliverable.path.rstrip("/")
-            for deliverable in task.deliverables
-            if deliverable.status is not DeliverableStatus.DONE
-        }
-        for pointer in task.spec.context:
-            path = pointer.path.rstrip("/")
-            if "://" in path or any(character in path for character in "*{}<>"):
-                continue
-            if path in pending_deliverables:
-                continue
-            # An absolute path is the validator's `absolute-path` rule to report, and
-            # checking it here would ask whether one machine happens to have that
-            # directory -- `REPO_ROOT / "C:/elsewhere"` resolves to `C:/elsewhere`.
-            if is_absolute(path):
-                continue
-            record = retired_record_id(path)
-            if record is not None:
-                if record not in known:
-                    pointers.append((task.id, path))
-                continue
-            pointers.append((task.id, path))
+    pointers = checkable_pointers(corpus_source.backlog())
 
     generated = ignored_by_git({path for _, path in pointers})
     missing = [
@@ -209,6 +231,57 @@ def test_agentjobs_context_paths_exist() -> None:
     ]
 
     assert not missing, "context pointers name paths that do not exist: " + ", ".join(missing)
+
+
+def synthetic_task(task_id: str, *, context: list[str], delivers: list[tuple[str, str]]) -> Task:
+    """A minimal open record, for exercising `checkable_pointers` without a backlog."""
+    return load_task(
+        {
+            "schema": SCHEMA_VERSION,
+            "id": task_id,
+            "title": task_id,
+            "created": "2026-01-01T00:00:00Z",
+            "updated": "2026-01-01T00:00:00Z",
+            "category": "chore",
+            "lifecycle": "ready",
+            "ball": "agent",
+            "ball_reason": "available",
+            "queue_position": 1,
+            "spec": {
+                "summary": task_id,
+                "description": task_id,
+                "context": [{"path": path, "why": "why"} for path in context],
+            },
+            "deliverables": [
+                {"path": path, "note": "note", "status": status} for path, status in delivers
+            ],
+        },
+        source=task_id,
+    )
+
+
+def test_a_pointer_at_another_open_tasks_pending_deliverable_is_exempt() -> None:
+    """The cross-task half of the exemption, which the live corpus cannot pin down.
+
+    `test_agentjobs_context_paths_exist` reads whatever the backlog happens to hold, so
+    it stops exercising this the moment the branch carrying the file merges -- and the
+    failure it guards against only appears when somebody is mid-flight. This states the
+    rule directly: a cited task promises the file, so the pointer stands; nobody
+    promises it, so the pointer is reported.
+    """
+    builder = synthetic_task("task-900", context=[], delivers=[("frontend/src/New.tsx", "pending")])
+    citer = synthetic_task("task-901", context=["frontend/src/New.tsx"], delivers=[])
+
+    assert checkable_pointers([builder, citer]) == []
+    assert checkable_pointers([citer]) == [("task-901", "frontend/src/New.tsx")]
+
+
+def test_a_delivered_promise_stops_exempting_the_pointers_that_cited_it() -> None:
+    """`done` means the file is on disk, so the check takes over from the promise."""
+    builder = synthetic_task("task-900", context=[], delivers=[("frontend/src/New.tsx", "done")])
+    citer = synthetic_task("task-901", context=["frontend/src/New.tsx"], delivers=[])
+
+    assert checkable_pointers([builder, citer]) == [("task-901", "frontend/src/New.tsx")]
 
 
 def test_open_ui_tasks_do_not_target_legacy_templates() -> None:

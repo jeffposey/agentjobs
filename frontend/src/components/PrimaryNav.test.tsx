@@ -34,6 +34,15 @@ function renderNav(at = "/p/demo/tasks") {
 const trigger = () => screen.getByRole("button", { name: "Navigation" });
 const panel = () => document.getElementById("primary-nav-destinations");
 
+/**
+ * Everything the bar holds after task-345, in order.
+ *
+ * `Create` is gone, and that is task-346 rather than this task: its capture control
+ * replaced the entry, so authoring stayed one interaction from every page instead of
+ * becoming two. This task's own subtraction is Dispatch, Playbooks and API Docs.
+ */
+const BAR_DESTINATIONS = ["Dashboard", "Tasks", "Runs"] as const;
+
 describe("PrimaryNav", () => {
   it("starts closed, and says so to a screen reader", () => {
     renderNav();
@@ -48,22 +57,38 @@ describe("PrimaryNav", () => {
     expect(trigger()).toHaveAttribute("aria-expanded", "true");
     const opened = panel();
     expect(opened).not.toBeNull();
-    for (const label of [
-      "Dashboard",
-      "Tasks",
-      "Dispatch",
-      "Playbooks",
-      "Runs",
-      "API Docs",
-    ]) {
+    for (const label of BAR_DESTINATIONS) {
       expect(within(opened as HTMLElement).getByText(label)).toBeInTheDocument();
     }
+  });
+
+  it("carries navigation and nothing else", () => {
+    // task-345. Asserted as the whole membership rather than as the presence of the
+    // survivors, because the defect this task was filed against is *additions* nobody
+    // subtracted: a test that only checks Dashboard is in the bar stays green through
+    // another four years of that.
+    renderNav();
+    fireEvent.click(trigger());
+    const labels = within(panel() as HTMLElement)
+      .getAllByRole("link")
+      .map((link) => link.textContent);
+    expect(labels).toEqual([...BAR_DESTINATIONS]);
+  });
+
+  it("has no API Docs anchor anywhere in the bar", () => {
+    // It moved to the actions menu, which is asserted from the other side in
+    // ActionsMenu.test.tsx. Here the point is that the duplicate is gone: both
+    // present was the state task-168 deliberately left behind for this task.
+    renderNav();
+    fireEvent.click(trigger());
+    expect(screen.queryByRole("link", { name: "API Docs" })).toBeNull();
+    expect(document.querySelector('header a[href="/docs"]')).toBeNull();
   });
 
   it("closes when a destination is chosen", () => {
     renderNav();
     fireEvent.click(trigger());
-    fireEvent.click(within(panel() as HTMLElement).getByText("Dispatch"));
+    fireEvent.click(within(panel() as HTMLElement).getByText("Runs"));
     expect(panel()).toBeNull();
   });
 
@@ -165,11 +190,28 @@ describe("currentDestinationPath", () => {
     // destination until task-346 replaced Create with the capture control; longest
     // match now lands on `/tasks`, which is where creating a task belongs anyway.
     ["/p/demo/tasks/new", "/tasks"],
-    ["/p/demo/dispatch", "/dispatch"],
-    ["/p/demo/playbooks", "/playbooks"],
     ["/p/demo/runs", "/runs"],
   ])("marks %s as %s", (pathname, expected) => {
     expect(currentDestinationPath(pathname, "demo")).toBe(expected);
+  });
+
+  it.each([["/p/demo/dispatch"], ["/p/demo/playbooks"], ["/p/demo/analytics"]])(
+    "marks nothing on %s, rather than lighting up the Dashboard",
+    (pathname) => {
+      // ac-4, and the whole reason Dashboard's `""` stopped being a catch-all. These
+      // two routes moved into the actions menu and no bar entry owns them any more;
+      // under the old rule the bar would have told a reader standing on the dispatch
+      // settings page that they were on the Dashboard, which is task-336's original
+      // defect wearing a different hat and strictly worse than marking nothing.
+      expect(currentDestinationPath(pathname, "demo")).toBeNull();
+    },
+  );
+
+  it("marks nothing on a project route no entry has ever owned", () => {
+    // Not a hypothetical: `/p/demo/*` renders a redirect, and any route added in
+    // future arrives here before it arrives in DESTINATIONS. The rule has to be about
+    // membership rather than about these two paths.
+    expect(currentDestinationPath("/p/demo/something-new", "demo")).toBeNull();
   });
 
   it("matches the project at a segment boundary, so a prefix is not a project", () => {
@@ -192,8 +234,6 @@ describe("PrimaryNav current destination", () => {
     // No Create destination since task-346: the capture control replaced it, and
     // longest-match has nothing deeper than Tasks to offer this URL.
     ["/p/demo/tasks/new", "Tasks"],
-    ["/p/demo/dispatch", "Dispatch"],
-    ["/p/demo/playbooks", "Playbooks"],
     ["/p/demo/runs", "Runs"],
   ])("marks exactly one destination on %s, and it is %s", (at, label) => {
     renderNav(at);
@@ -203,13 +243,28 @@ describe("PrimaryNav current destination", () => {
     expect(current()[0]).toHaveTextContent(label);
   });
 
+  it.each([["/p/demo/dispatch"], ["/p/demo/playbooks"], ["/p/demo/analytics"]])(
+    "marks no entry at all on %s, which no destination owns",
+    (at) => {
+      // The rendered half of ac-4. The rule itself is covered above against URLs;
+      // this is the bar actually drawn from it, including the burger panel, where a
+      // wrongly-marked Dashboard would be just as misleading.
+      renderNav(at);
+      expect(current()).toHaveLength(0);
+      fireEvent.click(trigger());
+      expect(within(panel() as HTMLElement).queryAllByRole("link", { current: "page" })).toHaveLength(
+        0,
+      );
+    },
+  );
+
   it("marks the current destination inside the burger panel too", () => {
-    renderNav("/p/demo/dispatch");
+    renderNav("/p/demo/runs");
     fireEvent.click(trigger());
     const opened = panel() as HTMLElement;
     const marked = within(opened).getAllByRole("link", { current: "page" });
     expect(marked).toHaveLength(1);
-    expect(marked[0]).toHaveTextContent("Dispatch");
+    expect(marked[0]).toHaveTextContent("Runs");
   });
 
   it("styles the current destination differently from every other one", () => {
