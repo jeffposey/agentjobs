@@ -53,7 +53,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from agentjobs.dispatch.peers import LiveSession, PeerDelivery, find_live_session
 
@@ -145,6 +145,28 @@ def session_uuids(rows: Sequence[Mapping[str, object]]) -> Dict[str, str]:
     return mapping
 
 
+def newest_session_runs(
+    records: Sequence["RunRecord"],
+) -> Dict[Tuple[str, str], "RunRecord"]:
+    """The newest session run for every ``(project_id, task_id)`` in ``records``.
+
+    The batch form of ``newest_session_run`` below, and the one that holds the rule: a
+    caller asking about every task at once would otherwise rescan the runs directory
+    once per task. That is what ``DispatchLedger._wakeable_run_ids`` was doing, and on a
+    330-run ledger with 185 distinct pairs it cost 23.5s of the 34s the whole startup
+    reap took (task-503). One pass answers all of them.
+
+    ``records`` must be newest-first, which is what ``list_runs`` returns -- so the first
+    record seen for a pair is that pair's answer and later ones are older.
+    """
+    newest: Dict[Tuple[str, str], "RunRecord"] = {}
+    for record in records:
+        if not record.is_session or not record.task_id or not record.project_id:
+            continue
+        newest.setdefault((record.project_id, record.task_id), record)
+    return newest
+
+
 def newest_session_run(home: Path, task_id: str, *, project_id: str) -> Optional["RunRecord"]:
     """The most recent session run recorded for this project's ``task_id``, live or not.
 
@@ -158,6 +180,10 @@ def newest_session_run(home: Path, task_id: str, *, project_id: str) -> Optional
     be the newest, and guessing that it is would be guessing about which conversation to
     resume.
 
+    The rule itself lives in ``newest_session_runs`` and is applied here to one pair, so
+    a caller that wants many pairs and a caller that wants one cannot come to disagree
+    about which conversation is the newest.
+
     The import is local because ``ledger`` imports ``runner`` and ``runner`` imports this
     module. Keeping the cycle out of module scope is cheaper than either of the two
     alternatives -- moving ``list_runs``, or having this module rescan the runs directory
@@ -165,10 +191,7 @@ def newest_session_run(home: Path, task_id: str, *, project_id: str) -> Optional
     """
     from agentjobs.dispatch.ledger import list_runs
 
-    for record in list_runs(home):
-        if record.is_session and record.task_id == task_id and record.project_id == project_id:
-            return record
-    return None
+    return newest_session_runs(list_runs(home)).get((project_id, task_id))
 
 
 def find_wake_target(

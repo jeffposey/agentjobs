@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import threading
 import time
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING, Any, AsyncIterator
@@ -58,7 +59,7 @@ DESCRIPTION = (
 )
 
 
-def _reconcile_dispatch_runs() -> None:
+def _reconcile_dispatch_runs() -> "DispatchLedger | None":
     """Settle runs left behind by a previous process, at startup.
 
     This is what makes "a crashed run does not disappear silently" true rather than
@@ -70,6 +71,9 @@ def _reconcile_dispatch_runs() -> None:
     Failures here are reported and never fatal. A server that refuses to start because
     it could not tidy up is worse than one that starts with the tidying undone, and the
     run directories are still on disk to reconcile next time.
+
+    Returns the ledger so the caller can hand it to the reaping pass, which runs
+    *after* the port is bound -- see the lifespan below.
     """
     from agentjobs.dispatch.ledger import DispatchLedger, LedgerError
 
@@ -78,21 +82,27 @@ def _reconcile_dispatch_runs() -> None:
         results = ledger.reconcile()
     except (LedgerError, OSError) as exc:  # pragma: no cover - defensive
         print(f"Dispatch reconciliation skipped: {exc}", flush=True)
-        return
+        return None
     for result in results:
         print(f"Dispatch reconcile {result.run_id}: {result.detail}", flush=True)
-    _reap_finished_sessions(ledger)
+    return ledger
 
 
 def _reap_finished_sessions(ledger: "DispatchLedger") -> None:
     """Remove the job state of sessions that have already ended.
 
     A finished run still holds a pid in the session manager's ledger, and that is what
-    this clears. Startup is where it happens, and it stays here now that a scheduler does
+    this clears. Startup is when it happens, and it stays there now that a scheduler does
     exist: the poller below reaps each session as it settles it, so this pass only ever
     finds what was left behind by a process that died. Putting a second sweep on the
     interval would spawn processes to look for litter that has already been collected.
     `agentjobs dispatch reap` remains the on-demand form.
+
+    **It no longer runs before the port is bound** (task-503). It spawns one session
+    manager per unreaped run, so its cost is bounded by the run history and not by
+    anything about serving a request -- and it was being paid inside the window in which
+    a restarting server refuses connections. Nothing a request needs depends on it, so it
+    runs behind the bind instead; see `_start_reaping_behind_the_bind`.
 
     (This docstring used to argue that no scheduler should exist at all. That was right
     about deleting directories and wrong about session state -- see the poller. It also
@@ -113,6 +123,30 @@ def _reap_finished_sessions(ledger: "DispatchLedger") -> None:
     for result in results:
         verb = "reaped" if result.stopped else "kept"
         print(f"Dispatch {verb} {result.run_id}: {result.detail}", flush=True)
+
+
+def _start_reaping_behind_the_bind(ledger: "DispatchLedger | None") -> None:
+    """Run the session reap on a thread of its own, so the bind does not wait for it.
+
+    A plain daemon thread rather than an asyncio task, for both ends of the process's
+    life. It is blocking subprocess work, so on the event loop it would stall every
+    request the freshly bound port had just started accepting; and a thread nothing
+    joins cannot lengthen shutdown either, which matters because the shutdown is the
+    other half of the window a restart leaves nothing listening in. The work is
+    idempotent and leaves its evidence in each run's `meta.yaml`, so a process that
+    exits mid-sweep loses nothing but the rest of the sweep.
+
+    Uvicorn binds the socket after the lifespan's startup half returns, so anything
+    still to do at that point has to leave the lifespan to get behind the bind.
+    """
+    if ledger is None:
+        return
+    threading.Thread(
+        target=_reap_finished_sessions,
+        args=(ledger,),
+        name="agentjobs-dispatch-reap",
+        daemon=True,
+    ).start()
 
 
 def _verify_served_source() -> None:
@@ -175,7 +209,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     # in a client for the same reason the dispatch poller is: a part of the system that
     # only worked while something else was watching it was not working.
     pusher = asyncio.create_task(watch_push_forever(default_home()))
-    _reconcile_dispatch_runs()
+    _start_reaping_behind_the_bind(_reconcile_dispatch_runs())
     try:
         yield
     finally:

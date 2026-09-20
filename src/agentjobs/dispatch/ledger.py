@@ -29,12 +29,13 @@ from __future__ import annotations
 import errno
 import hashlib
 import os
+import re
 import subprocess
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import yaml
 
@@ -932,6 +933,47 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="replace").strip()
     except OSError:
         return ""
+
+
+#: How the session manager says the job this run named does not exist. Matching on the
+#: message is the only signal there is -- ``claude rm`` exits 1 both for "no such job"
+#: and for "I refuse to delete this one", and the second is the refusal worth keeping.
+#: So the match is deliberately narrow and default-deny: anything else stays
+#: ``reap_blocked`` and is retried, because the cost of retrying a transient refusal is
+#: one process spawn and the cost of settling a real one is a lost conversation.
+#: Observed verbatim on 2026-09-20: ``No job matching 'task-503-nonexistent-xyz'``.
+_SESSION_ABSENT = re.compile(r"\bno job matching\b", re.IGNORECASE)
+
+
+def _session_is_already_gone(output: str) -> bool:
+    """Does this refusal mean the session no longer exists anywhere?
+
+    True only for the one refusal that can never become a success. A session the
+    manager has no record of will not reappear, so a reap aimed at it is settled --
+    while a refusal that means "this session still owns something worth keeping", or a
+    transient Windows file handle (observed 2026-08-19; the retry seconds later
+    succeeded), is neither settled nor quiet.
+    """
+    return bool(_SESSION_ABSENT.search(output))
+
+
+def _reap_is_settled(record: "RunRecord") -> bool:
+    """Is this run's session state finished with, either removed or already absent?
+
+    Substring rather than a YAML parse, because ``reap_finished`` asks this of every run
+    directory the machine has ever had and parsing each one to read a boolean is the
+    cost this function exists to avoid. ``write_status`` writes both keys through
+    ``merge_yaml_atomically``, so the forms below are the only ones either key takes.
+
+    ``reaped`` is deliberately *not* set by the absent case: ``wake._was_reaped`` reads
+    it to mean the conversation was deleted, and a job the manager has forgotten is not
+    the same claim.
+    """
+    meta_path = record.path / META_FILENAME
+    if not meta_path.is_file():
+        return False
+    meta = _read_text(meta_path)
+    return "reaped: true" in meta or "reap_settled: true" in meta
 
 
 # ----- the ledger itself ------------------------------------------------------
@@ -1911,6 +1953,12 @@ class DispatchLedger:
             write_status(record, reaped=True)
             return StopResult(record.run_id, True, f"removed session {record.session_id}")
         detail = output.strip()[:300] or f"exited {completed.returncode}"
+        if _session_is_already_gone(output):
+            # Settled, not blocked: there is no job to remove and there never will be
+            # again, so retrying this on every start is work that cannot succeed. See
+            # `_session_is_already_gone` for why this one refusal is singled out.
+            write_status(record, reap_settled=True, reap_blocked=detail)
+            return StopResult(record.run_id, True, f"session already gone: {detail}")
         write_status(record, reap_blocked=detail)
         return StopResult(record.run_id, False, f"not removed: {detail}")
 
@@ -1935,21 +1983,28 @@ class DispatchLedger:
         process and not a concurrency slot: a stopped session has no ``pid``, which is
         why ``_finish_session`` was already calling ``stop`` rather than ``rm``. Closing
         the task collects it on the next sweep.
+
+        **A run whose session state is settled is skipped for ever**, which is the half
+        that was missing (task-503). Until then the only skip condition was ``reaped:
+        true``, so a run the session manager had refused because its job no longer
+        exists was re-attempted on every start from then on -- 20 of this machine's 31
+        attempts, at about 0.85s of process spawn each, the oldest doomed since
+        2026-09-10. That set only grows, so the cost grew with every dispatched run.
         """
-        keep = self._wakeable_run_ids()
+        records = list_runs(self.home)
+        keep = self._wakeable_run_ids(records)
         results = []
-        for record in list_runs(self.home):
+        for record in records:
             if not record.is_session or record.is_live:
                 continue
-            meta_path = record.path / META_FILENAME
-            if meta_path.is_file() and "reaped: true" in _read_text(meta_path):
+            if _reap_is_settled(record):
                 continue
             if record.run_id in keep:
                 continue
             results.append(self.reap(record))
         return results
 
-    def _wakeable_run_ids(self) -> Set[str]:
+    def _wakeable_run_ids(self, records: Optional[Sequence[RunRecord]] = None) -> Set[str]:
         """The run ids whose sessions a later dispatch could still resume.
 
         Empty on every uncertainty -- a run with no task id, a project the registry
@@ -1958,20 +2013,19 @@ class DispatchLedger:
         hoarding rather than caution, and an unbounded pile of sessions nobody can
         account for is a worse outcome than a cold start.
         """
-        from agentjobs.dispatch.wake import newest_session_run
+        from agentjobs.dispatch.wake import newest_session_runs
 
         keep: Set[str] = set()
         # Keyed on the project as well as the task (task-264, P2-5). Task ids are
         # per-project, and keying on the id alone let one project's open task keep --
         # or fail to keep -- another project's conversation.
-        pairs = {
-            (record.project_id, record.task_id)
-            for record in list_runs(self.home)
-            if record.is_session and record.task_id
-        }
-        for project_id, task_id in pairs:
-            newest = newest_session_run(self.home, task_id, project_id=project_id)
-            if newest is None or newest.is_live:
+        #
+        # One pass, over records a caller may already hold. Asking `newest_session_run`
+        # per pair rescanned the runs directory once per pair: 185 pairs over 330 runs
+        # cost 23.5s of a 34s call, and both numbers grow together (task-503).
+        scanned = list_runs(self.home) if records is None else records
+        for (_project_id, task_id), newest in newest_session_runs(scanned).items():
+            if newest.is_live:
                 continue
             try:
                 manager = self.manager_for(newest)

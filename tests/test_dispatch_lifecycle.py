@@ -194,6 +194,10 @@ if argv and argv[0] == "rm":
     if guard.exists():
         print("worktree kept: it holds uncommitted changes", file=sys.stderr)
         raise SystemExit(1)
+    if pathlib.Path(__file__).with_name("absent").exists():
+        # Verbatim from `claude rm` on an id it has no job for, 2026-09-20.
+        print("No job matching '%s'" % argv[1], file=sys.stderr)
+        raise SystemExit(1)
     print("removed")
     raise SystemExit(0)
 
@@ -1091,6 +1095,54 @@ class TestReap:
         meta = yaml.safe_load((home / "runs" / "run_test0001" / "meta.yaml").read_text())
         assert "uncommitted" in meta["reap_blocked"]
 
+    def test_a_session_the_manager_has_no_job_for_is_settled_and_never_retried(
+        self, home: Path, closed_task, fake_session_cli: Path
+    ) -> None:
+        """task-503: the one refusal that can never become a success.
+
+        The session is gone, so there is nothing left to remove and nothing a later
+        start could do differently. Before this it was written down as `reap_blocked`,
+        which was not a skip condition, so the spawn was re-attempted on every start for
+        ever -- 20 of this machine's 31 attempts, the oldest doomed for ten days.
+        """
+        (fake_session_cli.parent / "absent").write_text("", encoding="utf-8")
+        seed_run(home, closed_task.id, mode="session", session_id="s1", status="finished")
+        ledger = ledger_with(home, fake_session_cli)
+
+        first = ledger.reap_finished()
+        (fake_session_cli.parent / "calls.json").write_text("[]", encoding="utf-8")
+        second = ledger.reap_finished()
+
+        assert [r.stopped for r in first] == [True]
+        assert "No job matching" in first[0].detail
+        meta = yaml.safe_load((home / "runs" / "run_test0001" / "meta.yaml").read_text())
+        assert meta["reap_settled"] is True
+        assert "No job matching" in meta["reap_blocked"], "the reason is still on the record"
+        assert meta.get("reaped") is not True, "nothing was removed; do not claim it was"
+        assert second == []
+        assert json.loads((fake_session_cli.parent / "calls.json").read_text()) == []
+
+    def test_a_refusal_that_could_still_succeed_is_retried_on_the_next_start(
+        self, home: Path, closed_task, fake_session_cli: Path
+    ) -> None:
+        """The other half of task-503, and the one worth being careful about.
+
+        A refused reap can be a transient Windows file handle, or a session that still
+        owns something worth keeping. Neither is settled, so both keep their place in
+        the queue -- and settling every refusal would have been the cheap wrong fix.
+        """
+        (fake_session_cli.parent / "dirty").write_text("", encoding="utf-8")
+        seed_run(home, closed_task.id, mode="session", session_id="s1", status="finished")
+        ledger = ledger_with(home, fake_session_cli)
+
+        ledger.reap_finished()
+        (fake_session_cli.parent / "dirty").unlink()
+        second = ledger.reap_finished()
+
+        assert [r.stopped for r in second] == [True], "the retry succeeded, as it must be able to"
+        meta = yaml.safe_load((home / "runs" / "run_test0001" / "meta.yaml").read_text())
+        assert meta["reaped"] is True
+
     def test_a_reaped_session_is_not_reaped_again(
         self, home: Path, closed_task, fake_session_cli: Path
     ) -> None:
@@ -1101,6 +1153,40 @@ class TestReap:
         second = ledger.reap_finished()
 
         assert second == []
+
+    def test_reaping_reads_the_runs_directory_once_however_many_tasks_it_finds(
+        self, home: Path, closed_task, fake_session_cli: Path, monkeypatch
+    ) -> None:
+        """task-503: the cost of a sweep must not grow with the square of the history.
+
+        Deciding which conversation to keep asked `newest_session_run` per task, and
+        each of those re-read every run directory on the machine. On this machine's
+        ledger -- 330 runs, 185 distinct tasks -- that was 23.5s of a 34s call, and
+        both numbers grow with every dispatched run. Counting the scans is the form of
+        that a test can hold: the count must not depend on how many tasks there are.
+        """
+        from agentjobs.dispatch import ledger as ledger_module
+
+        for index in range(6):
+            seed_run(
+                home,
+                f"task-{index:03d}",
+                run_id=f"run_seed{index}",
+                mode="session",
+                session_id=f"s{index}",
+                status="finished",
+            )
+        scans: List[int] = []
+        real_list_runs = ledger_module.list_runs
+        monkeypatch.setattr(
+            ledger_module,
+            "list_runs",
+            lambda home_: (scans.append(1), real_list_runs(home_))[1],
+        )
+
+        ledger_with(home, fake_session_cli).reap_finished()
+
+        assert len(scans) == 1, f"one scan for six tasks, got {len(scans)}"
 
     def test_reaping_issues_exactly_one_session_removal_and_nothing_else(
         self, home: Path, closed_task, fake_session_cli: Path
@@ -1283,22 +1369,98 @@ class TestStartupReaping:
         assert "kept run_test0001" in out
         assert "uncommitted" in out
 
-    def test_reconciliation_reaps_as_well_as_reconciles(
+    def test_reconciliation_hands_its_ledger_to_the_reaper(
         self, home: Path, closed_task, monkeypatch, capsys
     ) -> None:
-        """Wiring, asserted directly: deleting the call is otherwise invisible."""
+        """Wiring, asserted directly: deleting the hand-off is otherwise invisible.
+
+        The reap used to be the last statement of reconciliation. It is now the
+        caller's to start, behind the bind (task-503), so what reconciliation owes it
+        is the ledger it already built.
+        """
         from agentjobs.api import main as api_main
 
         monkeypatch.setattr(api_main, "default_home", lambda: home)
-        called: List[object] = []
-        monkeypatch.setattr(
-            api_main, "_reap_finished_sessions", lambda ledger: called.append(ledger)
-        )
         seed_run(home, closed_task.id, mode="batch", status="finished")
 
-        api_main._reconcile_dispatch_runs()
+        ledger = api_main._reconcile_dispatch_runs()
 
-        assert len(called) == 1
+        assert isinstance(ledger, DispatchLedger)
+
+    def test_starting_the_reap_does_not_wait_for_it(self, home: Path, monkeypatch) -> None:
+        """task-503: the caller gets on with binding the port while this runs.
+
+        The reap spawns one session manager per unreaped run, so a synchronous one put
+        its whole cost -- unbounded in the run history -- inside the window a restarting
+        server refuses connections. Blocking the fake reap and asserting it has *not*
+        finished by the time the starter returns is what distinguishes a thread from a
+        call.
+        """
+        from agentjobs.api import main as api_main
+
+        running = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+
+        def blocking_reap(ledger: object) -> None:
+            running.set()
+            release.wait(30)
+            finished.set()
+
+        monkeypatch.setattr(api_main, "_reap_finished_sessions", blocking_reap)
+        api_main._start_reaping_behind_the_bind(DispatchLedger(home))
+        try:
+            assert running.wait(10), "the reap never ran at all"
+            assert not finished.is_set(), "the caller waited for the reap to finish"
+        finally:
+            release.set()
+        assert finished.wait(10), "the reap did not finish once released"
+
+    def test_the_application_is_serving_while_the_reap_is_still_running(
+        self, home: Path, monkeypatch
+    ) -> None:
+        """The whole point, asserted through the lifespan rather than around it.
+
+        Uvicorn binds after the lifespan's startup half returns, so "serving while the
+        reap runs" and "bound while the reap runs" are the same claim. A `TestClient`
+        used as a context manager runs that same startup half, and the request below is
+        answered with the fake reap still blocked -- which a synchronous reap could not
+        do, because startup would not have returned.
+        """
+        from fastapi.testclient import TestClient
+
+        from agentjobs.api import main as api_main
+
+        running = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+
+        def blocking_reap(ledger: object) -> None:
+            running.set()
+            release.wait(30)
+            finished.set()
+
+        monkeypatch.setattr(api_main, "default_home", lambda: home)
+        monkeypatch.setattr(api_main, "_reap_finished_sessions", blocking_reap)
+        try:
+            with TestClient(api_main.app) as client:
+                assert running.wait(10), "the reap never ran at all"
+                assert not finished.is_set(), "startup waited for the reap to finish"
+                assert client.get("/health").status_code == 200
+        finally:
+            release.set()
+        assert finished.wait(10), "the reap did not finish once released"
+
+    def test_a_reconciliation_that_failed_starts_no_reap(self, monkeypatch) -> None:
+        """There is no ledger to reap with, and `None` is how that arrives here."""
+        from agentjobs.api import main as api_main
+
+        called: List[object] = []
+        monkeypatch.setattr(api_main, "_reap_finished_sessions", called.append)
+
+        api_main._start_reaping_behind_the_bind(None)
+
+        assert called == []
 
     def test_a_session_manager_that_cannot_be_run_does_not_take_the_server_down(
         self, home: Path, closed_task, capsys
