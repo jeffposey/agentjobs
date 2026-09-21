@@ -41,7 +41,7 @@ from __future__ import annotations
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from agentjobs.dispatch import clock as dispatch_clock
 
@@ -51,17 +51,6 @@ from agentjobs.dispatch import clock as dispatch_clock
 #: loaded machine runs the test. Copied from task-414's ``FakeClock``, which chose it
 #: for that reason and was right.
 DEFAULT_SKEW = timedelta(hours=2)
-
-#: How far a reading moves the clock on its own. **A clock that returns the same instant
-#: twice is not a clock**, and code that orders two events by their timestamps -- was this
-#: refusal written before or after the run started, did this reply arrive after the resume
-#: was sent -- relies on that never happening. A frozen test clock makes distinct events
-#: simultaneous, which is a state production never reaches, and the comparisons then fall
-#: on whichever side of ``>`` the author happened to pick. So every reading advances by the
-#: smallest amount worth representing. It is deterministic -- the number of readings is a
-#: property of the code path, not of the machine -- and a microsecond cannot reach a
-#: threshold measured in seconds.
-TICK = timedelta(microseconds=1)
 
 
 class ClockDeadlock(AssertionError):
@@ -76,13 +65,12 @@ class ClockDeadlock(AssertionError):
 class SkippingClock:
     """A :class:`~agentjobs.dispatch.clock.Clock` that moves when nothing else can."""
 
-    def __init__(self, start: Optional[datetime] = None, *, tick: timedelta = TICK) -> None:
+    def __init__(self, start: Optional[datetime] = None) -> None:
         self.origin = (
             start
             if start is not None
             else datetime.now(timezone.utc).replace(microsecond=0) + DEFAULT_SKEW
         )
-        self._tick = tick.total_seconds()
         self._offset = 0.0
         self._condition = threading.Condition()
         self._registered = 0
@@ -94,15 +82,13 @@ class SkippingClock:
     # -- the Clock protocol ----------------------------------------------------------
 
     def now(self) -> datetime:
-        """The current moment, which reading advances by :data:`TICK`. See its note."""
+        """The current moment. Reading does not move it -- only a wait does."""
         with self._condition:
-            self._offset += self._tick
             return self.origin + timedelta(seconds=self._offset)
 
     def monotonic(self) -> float:
-        """An interval reading. It advances too, for the reason :data:`TICK` gives."""
+        """Seconds of this clock's own time since its origin."""
         with self._condition:
-            self._offset += self._tick
             return self._offset
 
     def sleep(self, seconds: float) -> None:
@@ -173,6 +159,19 @@ class SkippingClock:
             self.jumps.append((self._offset, target))
             self._offset = target
         self._condition.notify_all()
+
+
+def install(monkeypatch: Any, start: Optional[datetime] = None) -> SkippingClock:
+    """Install a skipping clock for the rest of this test, undone at teardown.
+
+    For a harness built inside a fixture, where the clock has to outlive the call that
+    installs it and ``with`` would mean indenting every scenario. The calling thread is
+    not registered as a waiter and does not need to be: with none registered, a wait is
+    a wait by the only thread there is, so the clock moves at once.
+    """
+    fake = SkippingClock(start)
+    monkeypatch.setattr(dispatch_clock, "INSTALLED", fake)
+    return fake
 
 
 @contextmanager

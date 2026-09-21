@@ -57,7 +57,7 @@ from agentjobs.dispatch.ledger import find_run
 from agentjobs.dispatch.poller import poll_live_sessions
 from agentjobs.dispatch.runner import DispatchRunner, RunDirectory, SessionPhase, runs_root
 from agentjobs.manager import TaskManager
-from skipping_clock import SkippingClock
+from skipping_clock import SkippingClock, install
 
 from agentjobs.models_v2 import (
     Ball,
@@ -525,7 +525,7 @@ class Machine:
         # `datetime.now()` separately, so the timeline the test thought it was driving
         # drifted from the one the code read by however long the machine took to get
         # between two lines of the test. See `advance_to`.
-        self.clock = clock if clock is not None else SkippingClock()
+        self.clock = clock if clock is not None else install(monkeypatch, datetime.now(timezone.utc))
         self._reached = 0.0
         self.tmp = tmp_path
         self.home = tmp_path / "home"
@@ -708,13 +708,9 @@ class Machine:
         the schedule, which is the thing task-518 is removing -- it can only skip the
         moments its author predicted.
 
-        The step is **relative to the last one**, not absolute from the origin, and the
-        difference is not cosmetic: reading the clock moves it (see ``skipping_clock.TICK``),
-        so a deadline the code computed as "sixty seconds from the moment I am reading now"
-        lands a few microseconds past the origin plus sixty. Sleeping the *difference*
-        carries that drift forward with the schedule, which is what a real clock does.
-        Sleeping to an absolute offset would leave every such deadline a hair in the
-        future and silently skip the tick that was meant to meet it.
+        The step is expressed relative to the last one, because a wait is what the poller
+        actually does between two ticks; the clock's own reading of where it has got to is
+        a consequence rather than something the harness sets.
         """
         remaining = seconds - self._reached
         assert remaining >= 0, f"a harness clock never runs backwards ({seconds})"
@@ -747,16 +743,8 @@ class Machine:
 
 
 @pytest.fixture
-def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Machine]:
-    """A machine whose clock the dispatch subsystem reads, for the test's whole length."""
-    # Anchored on the wall clock rather than ahead of it: this harness's transcripts and
-    # journal rows are written by production code that stamps real time, so an origin two
-    # hours ahead -- task-414's choice, right for a harness that owns every stamp -- would
-    # make a usage limit that has not reset look long expired. What matters here is that
-    # there is exactly one origin, not where it is.
-    fake = SkippingClock(datetime.now(timezone.utc))
-    with dispatch_clock.installed(fake), fake.waiter():
-        yield Machine(tmp_path, monkeypatch, clock=fake)
+def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Machine:
+    return Machine(tmp_path, monkeypatch)
 
 
 # ----- a1 ----------------------------------------------------------------------------

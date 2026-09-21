@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
+from agentjobs import client as client_module
 from agentjobs.cli import app, _ensure_gitignore, _make_output_encoding_safe
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Outcome
@@ -301,6 +302,11 @@ def test_load_test_data(tmp_path: Path, monkeypatch) -> None:
 def test_show_task_not_found(tmp_path: Path, monkeypatch) -> None:
     """Verify error handling when showing a non-existent task."""
     monkeypatch.chdir(tmp_path)
+    # `init` registers the project, so `show` is a service client -- and no service is
+    # running here. Patience exists to ride through a restart; with nothing to restart it
+    # bought seven refused connections and 15.75s of sleeping, which made a test whose
+    # whole subject is an *absence* the third slowest in the suite at 30.4s (task-518).
+    monkeypatch.setenv(client_module.RETRY_BACKOFF_ENV, "")
 
     # Initialize to ensure manager can run
     runner.invoke(app, ["init"], input="Test Project\nprompts\n9000\njeff\n")

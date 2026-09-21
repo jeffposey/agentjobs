@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 from datetime import datetime
@@ -55,6 +56,28 @@ def run_credential_headers() -> Dict[str, str]:
 #: rather than an agent that appears to hang.
 RETRY_BACKOFF_SECONDS: Tuple[float, ...] = (0.25, 0.5, 1.0, 2.0, 4.0, 8.0)
 
+RETRY_BACKOFF_ENV = "AGENTJOBS_RETRY_BACKOFF"
+"""Names the pauses for a process that cannot wait out the default budget.
+
+The constant above stays the answer for every caller that does not say otherwise --
+the owner's decision of 2026-09-05 is that riding through a restart is the client's
+behaviour and not each call site's choice, and this does not reopen it. What it adds
+is a way to say "not in this process", which :data:`patient` already says in-process
+and nothing could say across one.
+
+That gap is measurable. A client addressing a port nothing listens on spends
+**2.05 seconds per refused connection on this machine plus 15.75 seconds of pauses --
+about 30 seconds for one call that was never going to be answered**, and a test whose
+whole subject is a *missing* service pays it in full through a subprocess it cannot
+monkeypatch. Two of the three slowest tests in the suite on 2026-09-21 were exactly
+that (task-518).
+
+The value is a comma-separated list of seconds -- ``"0.25,0.5"`` -- and **empty means
+one attempt and no pause**, which is the only setting a test asserting an absence
+wants. A value that does not parse is refused rather than ignored, because silently
+falling back to a 30-second budget is the failure this exists to remove.
+"""
+
 SERVICE_UNAVAILABLE = "service unavailable, nothing written"
 """What a client says when the budget is spent.
 
@@ -63,6 +86,28 @@ back to and there never will be -- a second authority is exactly what this stora
 migration removed -- so the honest report is that the operation did not happen, and the
 caller may simply try again.
 """
+
+
+def retry_backoff(env: Optional[Mapping[str, str]] = None) -> Tuple[float, ...]:
+    """The pauses a patient client waits out, after the environment has had its say.
+
+    Read at construction rather than per request, so a client's budget is fixed for its
+    lifetime and cannot change underneath a retry loop that is already running.
+    """
+    raw = (env if env is not None else os.environ).get(RETRY_BACKOFF_ENV)
+    if raw is None:
+        return RETRY_BACKOFF_SECONDS
+    if not raw.strip():
+        return ()
+    try:
+        pauses = tuple(float(part) for part in raw.split(",") if part.strip())
+    except ValueError as exc:
+        raise TaskClientError(
+            f"{RETRY_BACKOFF_ENV} must be a comma-separated list of seconds, got {raw!r}."
+        ) from exc
+    if any(pause < 0 for pause in pauses):
+        raise TaskClientError(f"{RETRY_BACKOFF_ENV} must not name a negative pause: {raw!r}.")
+    return pauses
 
 
 class ProjectActor(BaseModel):
@@ -203,6 +248,7 @@ class TaskClient:
         client: httpx.Client | None = None,
         project_id: Optional[str] = None,
         patient: bool = True,
+        backoff: Optional[Sequence[float]] = None,
     ) -> None:
         """Initialise the client with the API base URL and timeout.
 
@@ -215,10 +261,17 @@ class TaskClient:
         waits on. The gate turns it off: it records itself over this client and a
         quarter of a minute spent waiting for a service that is not running would be
         the gate being slowed by its own instrumentation (task-472).
+
+        ``backoff`` is the pauses that patience spends, for a caller close enough to
+        the decision to make it. Left unset it is :func:`retry_backoff` -- the
+        documented constant, unless this process's environment named something else.
         """
         self._base_url = base_url.rstrip("/") or "http://localhost:8765"
         self._project_id = project_id
         self._patient = patient
+        self._backoff: Tuple[float, ...] = (
+            retry_backoff() if backoff is None else tuple(backoff)
+        )
         self._owns_client = client is None
         if client is not None:
             self._client = client
@@ -267,6 +320,7 @@ class TaskClient:
             client=self._client,
             project_id=project_id,
             patient=self._patient,
+            backoff=self._backoff,
         )
         # The parent owns the connection. Sharing without transferring ownership is
         # what makes scoping cheap enough to do per call.
@@ -977,7 +1031,7 @@ class TaskClient:
 
         last: Optional[Exception] = None
         pauses: Tuple[Optional[float], ...] = (
-            (*RETRY_BACKOFF_SECONDS, None) if self._patient else (None,)
+            (*self._backoff, None) if self._patient else (None,)
         )
         for index, pause in enumerate(pauses):
             try:
@@ -1018,8 +1072,8 @@ class TaskClient:
 
         raise ServiceUnavailable(
             f"{SERVICE_UNAVAILABLE}: AgentJobs at {self._base_url} did not answer after "
-            f"{len(RETRY_BACKOFF_SECONDS)} attempts over "
-            f"{sum(RETRY_BACKOFF_SECONDS):.2f}s. The last attempt failed with: {last}. "
+            f"{len(self._backoff)} attempts over "
+            f"{sum(self._backoff):.2f}s. The last attempt failed with: {last}. "
             "Start it with 'agentjobs serve' and run this again -- there is no local "
             "task store to fall back to, so nothing was recorded anywhere."
         )

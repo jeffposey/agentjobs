@@ -40,6 +40,7 @@ import pytest
 import yaml
 
 from agentjobs.dispatch import auth_recovery
+from agentjobs.dispatch import clock as dispatch_clock
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
 from agentjobs.dispatch.controller import Controller
 from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
@@ -57,6 +58,7 @@ from agentjobs.manager import TaskManager
 from agentjobs.dispatch.config import Posture
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome
 from agentjobs.projects import ProjectRegistry
+from skipping_clock import SkippingClock
 from support import task_store
 
 HERE = Path(__file__).resolve().parent
@@ -164,7 +166,15 @@ print("backgrounded · " + short + " · " + name)
 
 
 class FakeClock:
-    """The only clock the code under test reads, and only the test moves it.
+    """This harness's face on the subsystem's one clock (task-518).
+
+    The name and the four members are what the scenarios below were written against;
+    underneath is :class:`skipping_clock.SkippingClock`, installed over
+    :mod:`agentjobs.dispatch.clock` for the fixture's whole life. The difference is which
+    call sites it reaches. This used to be a clock that had to be *handed* to every
+    object, so a production call site reading the wall clock directly -- and there were
+    forty-three of those -- was simply not on this timeline. That is a second clock by
+    another name, and two clocks that can disagree is the bug the epic exists to remove.
 
     Two hours ahead of the wall clock, so anything that did stamp real time -- a task log
     entry, a journal admission -- is always in this clock's past however slowly a loaded
@@ -173,18 +183,36 @@ class FakeClock:
     """
 
     def __init__(self) -> None:
-        self.zero = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=2)
-        self.offset = 0.0
+        self.skipping = SkippingClock()
+        self._reached = 0.0
+
+    @property
+    def zero(self) -> datetime:
+        return self.skipping.origin
+
+    @property
+    def offset(self) -> float:
+        """The moment a scenario has moved to, not the clock's own microsecond drift."""
+        return self._reached
 
     def __call__(self) -> datetime:
-        return self.zero + timedelta(seconds=self.offset)
+        return self.skipping.now()
 
     def at(self, seconds: float) -> datetime:
-        return self.zero + timedelta(seconds=seconds)
+        return self.skipping.at(seconds)
 
     def move_to(self, seconds: float) -> None:
-        assert seconds >= self.offset, "a fixture clock never runs backwards"
-        self.offset = seconds
+        """Let the poller's own wait carry the clock forward, rather than setting it.
+
+        A scenario still names absolute fixture moments; what changed is that reaching one
+        is a wait the production code's own sleep would have made, so the clock moves for
+        the reason it moves in production rather than because a test assigned to it.
+        """
+        remaining = seconds - self._reached
+        assert remaining >= 0, "a fixture clock never runs backwards"
+        self._reached = seconds
+        if remaining > 0:
+            dispatch_clock.sleep(remaining)
 
 
 def stamp(moment: datetime) -> str:
@@ -265,6 +293,7 @@ class World:
         monkeypatch: pytest.MonkeyPatch,
         *,
         projects: Tuple[str, ...] = ("sandbox",),
+        clock: Optional["FakeClock"] = None,
     ) -> None:
         self.tmp = tmp_path
         self.home = tmp_path / "home"
@@ -276,20 +305,23 @@ class World:
         self.cli = self.cli_dir / "claude.py"
         self.cli.write_text(FAKE_CLAUDE, encoding="utf-8")
         self.store_answers("refused")
-        self.clock = FakeClock()
+        self.clock = clock if clock is not None else FakeClock()
+        # Installed here rather than in the fixture, because two scenarios build a World
+        # directly and a World whose clock nothing reads is the two-timeline bug again.
+        monkeypatch.setattr(dispatch_clock, "INSTALLED", self.clock.skipping)
         self.person = Person()
         self.managers: Dict[str, Any] = {}
         self.roots: Dict[str, Path] = {}
         monkeypatch.setenv("AGENTJOBS_HOME", str(self.home))
         monkeypatch.setenv(CLAUDE_HOME_ENV, str(self.claude_home))
         monkeypatch.delenv("AGENTJOBS_RUN_ID", raising=False)
-        # Every runner the code under test builds -- the dispatcher's, the poller's, the
-        # controller's, auth recovery's -- reads this clock and no other.
-        defaults = dict(DispatchRunner.__init__.__kwdefaults__ or {})
-        defaults["clock"] = self.clock
-        monkeypatch.setattr(DispatchRunner.__init__, "__kwdefaults__", defaults)
-        # The poller's own controller and recovery passes read the wall clock; the harness
-        # drives both itself, on the fake one, so a poll only follows sessions.
+        # Nothing is monkeypatched to make a runner read this clock. Every runner the code
+        # under test builds -- the dispatcher's, the poller's, the controller's, auth
+        # recovery's -- reads `dispatch.clock`, and so does every call site that used to
+        # read the wall clock behind their backs (task-518).
+        #
+        # The harness drives the controller and the recovery pass itself, so a poll here
+        # only follows sessions rather than running them twice.
         monkeypatch.setattr("agentjobs.dispatch.poller._recover_parked", lambda *a: [])
         monkeypatch.setattr("agentjobs.dispatch.poller._drive_controller", lambda *a: [])
         for project_id in projects:
@@ -565,13 +597,12 @@ class World:
             Controller(
                 self.home,
                 managers=dict(self.managers),
-                clock=self.clock,
                 api_base="http://127.0.0.1:9",
             )
             .tick()
             .lines
         )
-        lines.extend(auth_recovery.tick(self.home, managers=dict(self.managers), clock=self.clock))
+        lines.extend(auth_recovery.tick(self.home, managers=dict(self.managers)))
         return lines
 
     def ticks(self, *moments: float) -> List[str]:
@@ -590,6 +621,7 @@ class World:
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[World]:
+    """A machine whose clock the dispatch subsystem reads, for the test's whole length."""
     built = World(tmp_path, monkeypatch)
     yield built
     close_execution_stores()
@@ -988,12 +1020,21 @@ from agentjobs.manager import TaskManager
 from agentjobs.projects import ProjectRegistry
 import agentjobs.dispatch.runner as runner_module
 
-def clock():
-    return zero + timedelta(seconds=offset)
+class Frozen:
+    # A separate process, so it inherits nothing of the parent's clock but the two numbers
+    # on its argv. It installs one rather than handing it to a runner, which is the whole
+    # of task-518: the crash boundary this child exists to cross runs through call sites
+    # nobody passes a clock to.
+    def now(self):
+        return zero + timedelta(seconds=offset)
+    def monotonic(self):
+        return offset
+    def sleep(self, seconds):
+        pass
 
-defaults = dict(runner_module.DispatchRunner.__init__.__kwdefaults__ or {})
-defaults["clock"] = clock
-runner_module.DispatchRunner.__init__.__kwdefaults__ = defaults
+import agentjobs.dispatch.clock as clock_module
+clock_module.INSTALLED = Frozen()
+clock = clock_module.utcnow
 registry = ProjectRegistry(home=home)
 managers = {p.id: TaskManager(task_store(p.root / "tasks", project_id=p.id)) for p in registry.list_projects()}
 
@@ -1589,7 +1630,7 @@ class TestRegressions:
         task_id = world.task()
         handle = world.dispatch(task_id)
         _worker_gone(world, handle.run_id)
-        stale = Controller(world.home, managers=dict(world.managers), clock=world.clock)
+        stale = Controller(world.home, managers=dict(world.managers))
         world.clock.move_to(10)
         stale.tick()  # concludes the attempt and holds the execution's epoch in memory
         execution = journal(world.home).latest_execution("sandbox", task_id)

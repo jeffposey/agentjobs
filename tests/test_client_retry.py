@@ -167,3 +167,84 @@ class TestWhatIsNotRetried:
             _client(handler).get_task("task-999")
         assert raised.value.status_code == 404
         assert len(attempts) == 1
+
+
+class TestSayingHowLongToBePatientFor:
+    """The budget is still a constant; what is new is a way to say "not here" (task-518).
+
+    The owner's decision of 2026-09-05 is that riding through a restart is the client's
+    behaviour rather than each call site's choice, and this does not reopen it: a caller
+    that says nothing gets exactly what it got before. What could not be said before is
+    "this process is about to prove a service is *absent*", and the cost of being unable
+    to say it was measured -- one call against a port nothing listens on spends 2.05s per
+    refused connection on this machine plus 15.75s of pauses, and a test asserting an
+    absence through a subprocess had no way to monkeypatch the constant.
+    """
+
+    def test_an_explicit_budget_is_used_instead_of_the_constant(self) -> None:
+        attempts: List[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            attempts.append(1)
+            raise httpx.ConnectError("refused", request=request)
+
+        client = TaskClient(
+            base_url="http://testserver",
+            transport=httpx.MockTransport(handler),
+            backoff=(0.0,),
+        )
+        with pytest.raises(ServiceUnavailable):
+            client.get_task("task-001")
+        assert len(attempts) == 2, "one pause means two attempts"
+
+    def test_an_empty_budget_is_one_attempt(self) -> None:
+        attempts: List[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            attempts.append(1)
+            raise httpx.ConnectError("refused", request=request)
+
+        client = TaskClient(
+            base_url="http://testserver",
+            transport=httpx.MockTransport(handler),
+            backoff=(),
+        )
+        with pytest.raises(ServiceUnavailable):
+            client.get_task("task-001")
+        assert len(attempts) == 1
+
+    def test_a_scoped_client_keeps_the_budget_it_was_scoped_from(self) -> None:
+        # Scoping shares the connection; a budget that reverted to the constant here
+        # would mean every project-scoped call paid the full wait regardless.
+        client = TaskClient(base_url="http://testserver", backoff=(0.0, 0.0))
+        assert client.for_project("demo")._backoff == (0.0, 0.0)
+        client.close()
+
+    def test_the_environment_names_the_budget_for_a_process_that_cannot_wait(self) -> None:
+        assert client_module.retry_backoff({}) == client_module.RETRY_BACKOFF_SECONDS
+        assert client_module.retry_backoff({client_module.RETRY_BACKOFF_ENV: ""}) == ()
+        assert client_module.retry_backoff({client_module.RETRY_BACKOFF_ENV: "0.25,0.5"}) == (
+            0.25,
+            0.5,
+        )
+
+    def test_a_budget_that_does_not_parse_is_refused_rather_than_ignored(self) -> None:
+        # Silently falling back to the default is the failure this exists to remove: the
+        # caller would wait out the full budget believing it had asked not to.
+        with pytest.raises(TaskClientError, match="comma-separated"):
+            client_module.retry_backoff({client_module.RETRY_BACKOFF_ENV: "soon"})
+        with pytest.raises(TaskClientError, match="negative"):
+            client_module.retry_backoff({client_module.RETRY_BACKOFF_ENV: "-1"})
+
+    def test_the_spent_budget_message_states_the_budget_actually_spent(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("refused", request=request)
+
+        client = TaskClient(
+            base_url="http://testserver",
+            transport=httpx.MockTransport(handler),
+            backoff=(0.0, 0.0),
+        )
+        with pytest.raises(ServiceUnavailable) as raised:
+            client.get_task("task-001")
+        assert "2 attempts over 0.00s" in str(raised.value)
