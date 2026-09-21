@@ -181,7 +181,20 @@ class TestTheAuthorizationTypeMigration:
 
     @pytest.fixture()
     def at_five(self, tmp_path: Path) -> Iterator[Database]:
-        """A store stopped at version 5, holding a threaded entry and an attachment."""
+        """A store stopped at version 5, holding a threaded entry and an attachment.
+
+        **Every row here is raw SQL against v5's physical schema, deliberately.** The
+        obvious fixture calls ``store.save_task``, and that one is a trap: the store's
+        writer names the columns of the *latest* schema, so it cannot write to a database
+        held at an earlier one. It worked until a migration first widened a table the
+        store writes -- 007's ``check_argv`` -- and then every test in this class died on
+        ``table task_acceptance has no column named check_argv``, a message about a
+        column none of them has anything to do with (task-147).
+
+        Versions 001 to 005 are frozen, so SQL written against them cannot rot. A fixture
+        that reaches through today's store to build yesterday's database can, and will
+        again on the next migration that adds a column.
+        """
         database = Database(tmp_path / "agentjobs.db")
         writer = database.writer
         for migration in available():
@@ -193,31 +206,35 @@ class TestTheAuthorizationTypeMigration:
                 + f"\nPRAGMA user_version = {migration.version};"
             )
             writer.execute("COMMIT")
-        store = SqlTaskStore(database, "demo")
-        store.ensure_project(root="/tmp/demo", reporting_tz="UTC")
-        store.save_task(
-            make_task(
-                log=[
-                    LogEntry(
-                        id=1,
-                        ts=datetime(2026, 1, 1, tzinfo=timezone.utc),
-                        actor="bot",
-                        type=LogEntryType.QUESTION,
-                        body="Which one?",
-                    ),
-                    LogEntry(
-                        id=2,
-                        ts=datetime(2026, 1, 2, tzinfo=timezone.utc),
-                        actor="Ada",
-                        type=LogEntryType.ANSWER,
-                        body="Chose: this one",
-                        re=1,
-                        data={"selected": ["this one"]},
-                    ),
-                ]
-            )
-        )
         writer.execute("BEGIN IMMEDIATE")
+        writer.execute(
+            "INSERT INTO project(project_id, root, created_at, reporting_tz) "
+            "VALUES ('demo', '/tmp/demo', '2026-01-01T00:00:00Z', 'UTC')"
+        )
+        writer.execute(
+            "INSERT INTO task(project_id, task_id, title, created_at, updated_at, "
+            "lifecycle, ball, ball_reason, priority, queue_position, category, "
+            "spec_summary, spec_description, last_activity_at) "
+            "VALUES ('demo', 'task-001', 'Title for task-001', '2026-01-01T00:00:00Z', "
+            "'2026-01-01T00:00:00Z', 'ready', 'agent', 'available', 'medium', 100, "
+            "'engineering', 'A summary.', 'A description.', '2026-01-01T00:00:00Z')"
+        )
+        writer.executemany(
+            "INSERT INTO log_entry(project_id, task_id, entry_id, ts, actor, type, body, "
+            "re, data_json) VALUES ('demo', 'task-001', ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (1, "2026-01-01T00:00:00Z", "bot", "question", "Which one?", None, "{}"),
+                (
+                    2,
+                    "2026-01-02T00:00:00Z",
+                    "Ada",
+                    "answer",
+                    "Chose: this one",
+                    1,
+                    '{"selected": ["this one"]}',
+                ),
+            ],
+        )
         writer.execute(
             "INSERT INTO blob(sha256, media_type, size_bytes, content) "
             "VALUES ('abc', 'image/png', 1, X'00')"
@@ -240,8 +257,11 @@ class TestTheAuthorizationTypeMigration:
         report = upgrade(at_five, agentjobs_version="test", snapshot_before=False)
 
         # Asserted, because every test in this class would pass vacuously against a
-        # fixture that had already been migrated past the rebuild.
-        assert report.applied == ["006_authorization_is_a_log_entry_type"]
+        # fixture that had already been migrated past the rebuild. 007 rides along
+        # because `upgrade` goes to the latest version and there is no stopping it
+        # part-way; what matters is that 006 is in the list at all.
+        assert report.applied[0] == "006_authorization_is_a_log_entry_type"
+        assert report.applied[-1].startswith(f"{latest_version():03d}_")
         rows = at_five.writer.execute(
             "SELECT entry_id, ord, sha256, label FROM attachment"
         ).fetchall()

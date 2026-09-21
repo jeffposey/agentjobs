@@ -125,7 +125,7 @@ class TestTheField:
 
 def loaded(manager: TaskManager, task_id: str) -> Task:
     """The task, insisted on. A missing one is a broken fixture, not a case under test."""
-    task = loaded(manager, task_id)
+    task = manager.get_task(task_id)
     assert task is not None, f"{task_id} vanished between writing it and reading it"
     return task
 
