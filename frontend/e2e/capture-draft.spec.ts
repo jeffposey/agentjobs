@@ -7,6 +7,11 @@ import { expect, test, type Page } from "@playwright/test";
 /**
  * The capture form across a page that goes away (task-512).
  *
+ * The findings typed here carry titles nothing else files. One temporary project serves
+ * the whole Playwright run, so two specs that collect the same sentence file two tasks
+ * the other one can find -- which is how `capture-tray` came to read this file's
+ * provenance and fail on it.
+ *
  * Everything here needs a real browser and nothing else will do: a real service worker
  * taking control of a real tab, and a real IndexedDB holding what was typed. jsdom has
  * neither, so a unit test of either half would be a test of a shim.
@@ -149,10 +154,10 @@ test("a finding half typed survives a reload, screenshot and specification inclu
   await page.goto("/app/p/_local");
   let dialog = await openCapture(page);
 
-  await dialog.getByRole("textbox", { name: /^Title/ }).fill("The dashboard cards overlap");
+  await dialog.getByRole("textbox", { name: /^Title/ }).fill("The draft outlived the page");
   await dialog
     .getByRole("textbox", { name: /^What happened/ })
-    .fill("At 375px the two cards sit on top of each other.");
+    .fill("Half typed, and then the page went away.");
   await pasteImage(page, 'textarea[name="details"]', PNG_DATA_URL);
   await expect(dialog.getByRole("list", { name: "Attached images" })).toBeVisible();
 
@@ -161,22 +166,22 @@ test("a finding half typed survives a reload, screenshot and specification inclu
   await dialog.getByRole("button", { name: "Add the full specification" }).click();
   await dialog
     .getByRole("textbox", { name: /^Summary/ })
-    .fill("Two dashboard cards overlap below 400px.");
+    .fill("A finding that was being written when the tab reloaded.");
 
-  await expect.poll(() => draftOnDisk(page)).toContain("The dashboard cards overlap");
+  await expect.poll(() => draftOnDisk(page)).toContain("The draft outlived the page");
 
   // The accident. Nothing has been collected and nothing has been filed.
   await page.reload();
 
   dialog = await openCapture(page);
   await expect(dialog.getByRole("textbox", { name: /^Title/ })).toHaveValue(
-    "The dashboard cards overlap",
+    "The draft outlived the page",
   );
   await expect(dialog.getByRole("textbox", { name: /^What happened/ })).toHaveValue(
-    "At 375px the two cards sit on top of each other.",
+    "Half typed, and then the page went away.",
   );
   await expect(dialog.getByRole("textbox", { name: /^Summary/ })).toHaveValue(
-    "Two dashboard cards overlap below 400px.",
+    "A finding that was being written when the tab reloaded.",
   );
 
   // The screenshot came back out of the store and the browser decoded it, so the bytes
@@ -198,15 +203,15 @@ test("collecting a finding clears its draft, so a reload shows the tray and an e
 }) => {
   await page.goto("/app/p/_local");
   let dialog = await openCapture(page);
-  await dialog.getByRole("textbox", { name: /^Title/ }).fill("The task list wraps the badges");
+  await dialog.getByRole("textbox", { name: /^Title/ }).fill("Collected before the reload");
   await dialog
     .getByRole("textbox", { name: /^What happened/ })
-    .fill("Every badge takes a line of its own.");
-  await expect.poll(() => draftOnDisk(page)).toContain("The task list wraps the badges");
+    .fill("This one reached the list; its draft must not.");
+  await expect.poll(() => draftOnDisk(page)).toContain("Collected before the reload");
 
   await dialog.getByRole("textbox", { name: /^Title/ }).press("Control+Enter");
   const tray = dialog.getByRole("region", { name: "Collected findings" });
-  await expect(tray.getByText("The task list wraps the badges")).toBeVisible();
+  await expect(tray.getByText("Collected before the reload")).toBeVisible();
   // Gone from the device the moment it became a tray item, not 400ms later: that gap is
   // the only window in which a reload could offer a finding already on the list.
   await expect.poll(() => draftOnDisk(page)).toBeNull();
@@ -214,7 +219,7 @@ test("collecting a finding clears its draft, so a reload shows the tray and an e
   await page.reload();
   dialog = await openCapture(page);
   const restored = dialog.getByRole("region", { name: "Collected findings" });
-  await expect(restored.getByText("The task list wraps the badges")).toHaveCount(1);
+  await expect(restored.getByText("Collected before the reload")).toHaveCount(1);
   await expect(dialog.getByRole("textbox", { name: /^Title/ })).toHaveValue("");
 
   // One finding in, one task out.
@@ -223,7 +228,7 @@ test("collecting a finding clears its draft, so a reload shows the tray and an e
   const tasks = (await (await request.get("/api/projects/_local/tasks")).json()) as Array<{
     title: string;
   }>;
-  expect(tasks.filter((task) => task.title === "The task list wraps the badges")).toHaveLength(1);
+  expect(tasks.filter((task) => task.title === "Collected before the reload")).toHaveLength(1);
 });
 
 test("a rebuild still reloads a tab where nobody is typing", async ({ page }) => {
