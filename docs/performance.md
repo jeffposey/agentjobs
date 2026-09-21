@@ -806,6 +806,65 @@ test_the_timeout_kills_the_grandchild_too`, failing with "pid 3393900 survived t
 timeout" — worth naming because a reader who meets it should suspect the machine before
 the code.
 
+#### The 2.9x spread was the budget, not contention (task-513, 2026-09-21)
+
+The row above says three concurrent gates were "not measured", and task-513 was filed on
+what happened when five were. Its evidence was five gate runs over one evening as
+worktrees accumulated: **225.4s, 268.9s, 314.2s, 358.7s, 663.5s** — a 2.9x spread on
+identical work, monotonic with the number of live worktrees, and read at the time as
+five agents oversubscribing a machine nothing budgets.
+
+**Both readings predict that table exactly.** The other one is the section above: the
+Nth concurrent gate is handed `32/N` workers *on purpose*, so a gate beside four others
+is not being starved, it is being given a fifth of the machine. One experiment separates
+them — throttle a gate's worker count and give it no neighbours at all:
+
+```bash
+poetry run python scripts/gate_cost.py curve --gates 1,2,3,4,5
+```
+
+`scripts/gate_cost.py` holds synthetic `gate_slots` files, so `active()` answers N
+without N gates existing, then drives this checkout's own `scripts/check.py --only
+pytest` and reports the figure from the gate's own timing table. Every arm's full output
+is kept, and each row records the slot count seen at both ends so a real gate arriving
+mid-arm is visible rather than averaged in.
+
+| Gates believed | `-n` | pytest stage | vs arm 1 | Real neighbour? |
+|---|---|---|---|---|
+| 1 | auto (32) | 507.5s | 1.00x | no |
+| 2 | 16 | 546.1s | 1.08x | no |
+| 3 | 8 | 996.8s | 1.96x | **yes, one** |
+| 4 | 6 | 1112.0s | 2.19x | **yes, one** |
+| 5 | 6 | **1520.6s** | **3.00x** | no |
+
+**Read rows 1, 2 and 5: those three had the machine to themselves.** A lone gate
+throttled to what a fifth gate would be handed runs 3.0x a lone gate at `-n auto` — so
+the division reproduces the whole spread the task was filed about, and beats it, with no
+contention anywhere in the measurement. Rows 3 and 4 picked up a real neighbour gate
+from another dispatched run and are kept only because dropping a sample you did not like
+is how a table stops being evidence.
+
+Two things a reader needs before quoting this:
+
+- **The suite is nearly flat from 32 workers to 16** — 8% for half the workers — so
+  `-n auto` was over-provisioned and the steep part of the curve is below about ten.
+  That is the useful shape: the first neighbour is close to free and the fourth is not.
+- **Run-to-run noise at `-n 6` is large.** 1112.0s and 1520.6s are the same worker count
+  on the same evening, 37% apart, and the slower one is the arm with *no* neighbour. A
+  single arm at this end of the curve does not resolve anything finer than the noise,
+  which is why the claim above rests on the gap between `-n auto` and `-n 6` rather than
+  on either figure.
+
+**What this settles for admission.** `limits.max_concurrent_runs` counts runs and nothing
+weighs what they consume — which is what task-513 set out to fix — but the contended
+resource the evidence is actually about is already budgeted one layer down, by the thing
+that knows when it is being consumed rather than by a prediction made minutes to hours
+earlier at dispatch. The baseline also moved: the same stage measured 257.4 / 288.4s on
+2026-09-20 and 507.5s here, on a machine whose largest consumer is not AgentJobs at all
+(chrome held 12.2 GB across 64 processes against python's 8.8 GB, with 7.2 GB free of
+64 GB). A weighted admission budget would be predicting one variable it cannot see from
+another it does not control.
+
 #### Running the stages concurrently (task-268, 2026-09-06)
 
 `scripts/check.py --concurrent` runs each stage as soon as `check.DEPENDENCIES` allows —
