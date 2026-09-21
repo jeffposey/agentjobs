@@ -2,12 +2,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { TaskCreateRequest } from "../api/types";
 import { client } from "../api/generated/client.gen";
 import { MAX_ATTACHMENT_BYTES } from "../report/attachments";
-import { draftStore, memoryDraftStore, setDraftStore } from "../report/draftStore";
+import { draftStore, setDraftStore } from "../report/draftStore";
 import { apiMockServer } from "../test/api-mock";
 import { CaptureControl } from "./CaptureControl";
 
@@ -67,13 +67,6 @@ function pasteImage(target: HTMLElement, file: File) {
 }
 
 describe("CaptureControl", () => {
-  beforeEach(() => {
-    // A fresh device per test. The draft store is shared for the lifetime of the tab,
-    // which is right in a browser and wrong in a file of tests: a draft left by one
-    // would be restored into the next one's form.
-    setDraftStore(memoryDraftStore());
-  });
-
   it("files a tagged, attributed task carrying the page and the task being viewed", async () => {
     client.setConfig({ baseUrl: "http://localhost" });
     let received: TaskCreateRequest | null = null;
