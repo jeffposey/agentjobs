@@ -39,6 +39,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import time
 import tomllib
 import traceback
 import uuid
@@ -379,6 +380,45 @@ Windows can briefly reject or miss a process probe while a newly-started App Ser
 initializing.  A single failed probe is therefore not evidence that the session ended;
 the supervisor state remains authoritative until this grace expires.
 """
+
+SUPERVISOR_THREAD_PREFIX = "dispatch-"
+"""What a run's supervisor thread is called, so something else can recognise one."""
+
+SUPERVISOR_SETTLE_SECONDS = 5.0
+"""How long a shutdown waits for a supervisor to write its run's terminal entry.
+
+Bounded, because a supervisor is blocked on a worker that may legitimately run for as
+long as ``limits.run_timeout_seconds`` and a shutdown that waited for that would never
+finish. Five seconds covers the case this exists for -- a worker that has already
+exited and a supervisor part-way through recording it.
+"""
+
+
+def settle_supervisors(grace: float = SUPERVISOR_SETTLE_SECONDS) -> None:
+    """Let live run supervisors finish before the stores they write to are closed.
+
+    A batch run's supervisor is the **only** writer of that run's terminal
+    ``dispatch_result``, and it writes it from a thread after the worker exits. Closing
+    the SQLite stores under it turns that write into
+    ``sqlite3.ProgrammingError: Cannot operate on a closed database`` inside a thread
+    nobody is awaiting, so the run's one terminal entry is lost and the only trace is a
+    warning (task-505). A server shutting down under a live batch run did this every
+    time, and so did every test whose ``TestClient`` left the application's lifespan.
+
+    Returns once every supervisor has finished or the grace has run out; a thread still
+    going after that is left exactly as it was before this existed.
+    """
+    deadline = time.monotonic() + grace
+    for thread in threading.enumerate():
+        if thread is threading.current_thread():
+            continue
+        if not thread.name.startswith(SUPERVISOR_THREAD_PREFIX):
+            continue
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        thread.join(timeout=remaining)
+
 
 OUTPUT_TAIL_LINES = 40
 """Lines of run output inlined into a non-success ``dispatch_result``.
@@ -2171,7 +2211,7 @@ class DispatchRunner:
         handle.supervisor = threading.Thread(
             target=self._supervise_codex_app_server,
             args=(handle, app_server, started.turn_id),
-            name=f"dispatch-{run_id}",
+            name=f"{SUPERVISOR_THREAD_PREFIX}{run_id}",
             # Unlike Claude's detached session manager, Codex App Server is the
             # child owned by this process.  A daemon supervisor would be killed
             # when `agentjobs dispatch run` returns, taking the Codex child with
@@ -4523,7 +4563,7 @@ class DispatchRunner:
         handle.supervisor = threading.Thread(
             target=self._supervise_batch,
             args=(handle, process, stdout_file, stderr_file),
-            name=f"dispatch-{run_id}",
+            name=f"{SUPERVISOR_THREAD_PREFIX}{run_id}",
             daemon=True,
         )
         handle.supervisor.start()

@@ -15,6 +15,7 @@ from agentjobs.dispatch.address import ApiBaseProbe
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
 from agentjobs.dispatch.credentials import verify_run_credential
 from agentjobs.dispatch.peers import SESSIONS_DIR_ENV
+from agentjobs.dispatch.runner import settle_supervisors
 from agentjobs.front_door import SECRET_ENV
 from agentjobs.principals import set_run_credential_verifier
 from agentjobs.projects import HOME_ENV
@@ -232,6 +233,11 @@ def no_database_survives_a_test() -> Iterator[None]:
     exists to enforce.
     """
     yield
+    # A test that dispatched a batch run leaves its supervisor thread writing, and
+    # closing the store under one loses the run's terminal entry to an exception
+    # nobody awaits. The served application does the same thing at shutdown and for
+    # the same reason, so this is that code rather than a second copy of it (task-505).
+    settle_supervisors()
     close_databases()
     close_execution_stores()
     reset_server_process()
