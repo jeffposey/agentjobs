@@ -256,6 +256,96 @@ class TestARunIsRefused:
         body = refusal(client.get(f"/api/dispatch/runs/{theirs}/output"))
         assert body["code"] == "wrong_run"
 
+    def test_it_cannot_relay_an_authorization(self, sandbox: Path) -> None:
+        """task-506's ac-2, and the property the whole feature rests on.
+
+        The relay entry is the one row ``assert_human_clocked`` accepts from a writer who
+        is not a human. A run able to write one could authorise its own successor -- the
+        agent-starts-agent loop, reopened with a new spelling and wearing a label saying
+        it had been authorised. Note what is *not* wrong with this request: the actor is
+        the agent this run was dispatched as, so nothing is impersonated. It is refused on
+        the capability, not on the claim.
+        """
+        task_id = a_task(owner())
+        client, _ = dispatched(sandbox, task_id)
+
+        body = refusal(
+            client.post(
+                f"/api/tasks/{task_id}/authorization",
+                json={
+                    "actor": "claude",
+                    "authorized_by": "Jeff Posey",
+                    "ask": "Start this task.",
+                },
+            )
+        )
+
+        assert body["code"] == "capability_denied"
+        assert "dispatch.relay_authorization" in body["detail"]
+
+    def test_it_cannot_relay_an_authorization_through_the_log_route_either(
+        self, sandbox: Path
+    ) -> None:
+        """The door a run already has, and the second lock that closes it.
+
+        A run holds ``task.verb``, so ``POST /log`` is a request it may make -- which is
+        why the relay is a *type* rather than a marker on an ordinary entry. Membership in
+        ``MANAGER_WRITTEN_LOG_TYPES`` is what refuses it here, and that set is consulted by
+        every write path rather than restated at each, so this door is shut for **every**
+        caller and not only for a run. The capability on the dedicated verb is the other
+        lock, and it is the one that distinguishes a run from a person.
+        """
+        task_id = a_task(owner())
+        client, _ = dispatched(sandbox, task_id)
+
+        response = client.post(
+            f"/api/tasks/{task_id}/log",
+            json={
+                "actor": "claude",
+                "type": "authorization",
+                "body": "Start this task.",
+                "data": {"authorized_by": "Jeff Posey"},
+            },
+        )
+
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "invalid_transition"
+        # The same door, shut on the person too -- which is what shows the refusal above
+        # is this route holding a line, rather than the capability table doing it from one
+        # layer up and this test passing for a reason it does not claim.
+        as_owner = owner().post(
+            f"/api/tasks/{task_id}/log",
+            json={"actor": "Jeff Posey", "type": "authorization", "body": "Start this."},
+        )
+        assert as_owner.status_code == 409, as_owner.text
+
+    def test_a_relay_entry_still_does_not_let_it_dispatch(self, sandbox: Path) -> None:
+        """task-506's ac-3, asserted apart from the write refusal because it is a
+        different claim.
+
+        The write refusal says a run cannot *make* the evidence. This says the evidence is
+        worth nothing to a run that finds it: a relay is recorded by a caller who may
+        write one, the newest entry on the task now names a human, and the run's dispatch
+        is refused anyway -- ``dispatch.start`` is not a run's to hold, and clocking was
+        never what stood in its way. Both have to be true. If only the first were, a run
+        could reach an entry somebody wrote for another purpose and spend it.
+        """
+        task_id = a_task(owner())
+        relayed = owner().post(
+            f"/api/tasks/{task_id}/authorization",
+            json={
+                "actor": "claude",
+                "authorized_by": "Jeff Posey",
+                "ask": "Start this task.",
+            },
+        )
+        assert relayed.status_code == 200, relayed.text
+        client, _ = dispatched(sandbox, task_id)
+
+        body = refusal(client.post(f"/api/tasks/{task_id}/dispatch"))
+
+        assert body["code"] == "capability_denied"
+
 
 class TestARunWritesAsItself:
     """ac-2, from the side the audit cares about: the body field must agree."""
@@ -491,6 +581,55 @@ class TestAnOwnerLosesNothing:
         )
 
         assert response.status_code == 200, response.text
+
+    def test_an_owner_can_relay_an_authorization_naming_the_agent_as_its_author(
+        self, sandbox: Path
+    ) -> None:
+        """task-506's ac-1, from the side that has to keep working.
+
+        This is the request an interactive agent session makes: it holds no run
+        credential, so it resolves as the person at this machine. The entry it writes is
+        signed ``claude`` and names ``Jeff Posey`` inside it -- which is the whole feature.
+        Asserting the stored shape rather than the status code, because a 200 over a row
+        that recorded the human in ``actor`` would be the bug this replaces.
+        """
+        task_id = a_task(owner())
+
+        response = owner().post(
+            f"/api/tasks/{task_id}/authorization",
+            json={
+                "actor": "claude",
+                "authorized_by": "Jeff Posey",
+                "ask": "File this and start it.",
+                "surface": "an interactive chat session",
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        entry = owner().get(f"/api/tasks/{task_id}").json()["log"][-1]
+        assert entry["type"] == "authorization"
+        assert entry["actor"] == "claude"
+        assert entry["data"]["authorized_by"] == "Jeff Posey"
+        assert entry["body"] == "File this and start it."
+
+    def test_an_owner_cannot_relay_an_authorization_by_an_agent(self, sandbox: Path) -> None:
+        """The relay records who authorised; it does not widen who may.
+
+        Refused before anything is written, so a nonsense authoriser never leaves a row in
+        an append-only log -- and under the same code the dispatch endpoint's ``user``
+        field is refused under, because it is the same rule about the same claim.
+        """
+        task_id = a_task(owner())
+
+        response = owner().post(
+            f"/api/tasks/{task_id}/authorization",
+            json={"actor": "claude", "authorized_by": "codex", "ask": "Start this."},
+        )
+
+        assert response.status_code == 403, response.text
+        assert response.json()["code"] == "authorizer_not_human"
+        entries = owner().get(f"/api/tasks/{task_id}").json()["log"]
+        assert [entry for entry in entries if entry["type"] == "authorization"] == []
 
     def test_an_owner_may_still_not_write_as_another_person(self, sandbox: Path) -> None:
         """The one thing a human cannot do -- and on this project it is caught earlier,

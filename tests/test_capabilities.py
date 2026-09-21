@@ -127,6 +127,7 @@ class TestTheTable:
             Capability.TASK_REVIEW,
             Capability.DISPATCH,
             Capability.DISPATCH_OVER_CEILING,
+            Capability.DISPATCH_RELAY,
             Capability.DISPATCH_ADMIN,
             Capability.PROJECT_ADMIN,
             Capability.QUEUE_ADMIN,
@@ -150,6 +151,19 @@ class TestTheTable:
         assert Capability.DISPATCH_OVER_CEILING not in GRANTS[PrincipalKind.RUN]
         for kind in (PrincipalKind.OWNER, PrincipalKind.TAILNET):
             assert Capability.DISPATCH_OVER_CEILING in GRANTS[kind]
+
+    def test_the_relay_is_denied_to_a_run_and_held_by_both_human_kinds(self) -> None:
+        """task-506, asserted here rather than only through HTTP.
+
+        The relay is the one capability whose *absence* from a run's set is the whole
+        feature: the entry it writes is the only row ``assert_human_clocked`` accepts from
+        a non-human author, so a run holding this could authorise its own successor. It is
+        stated on both sides because either half alone is a bug -- denied to everybody, and
+        an interactive session can no longer start work it was asked to start.
+        """
+        assert Capability.DISPATCH_RELAY not in GRANTS[PrincipalKind.RUN]
+        for kind in (PrincipalKind.OWNER, PrincipalKind.TAILNET):
+            assert Capability.DISPATCH_RELAY in GRANTS[kind]
 
     def test_the_scoped_set_is_a_subset_of_what_a_run_holds(self) -> None:
         """Scoping something a run cannot do at all would be a rule nothing reaches."""
