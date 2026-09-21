@@ -3925,8 +3925,10 @@ def check(
             for line in outcome.output_tail.splitlines():
                 typer.echo(f"     {line}")
     if report.unchecked:
+        count = len(report.unchecked)
         typer.echo(
-            f"\n{len(report.unchecked)} criteria have no check: {', '.join(report.unchecked)}"
+            f"\n{count} {'criterion has' if count == 1 else 'criteria have'} no check: "
+            f"{', '.join(report.unchecked)}"
         )
 
     updated = manager.record_check_result(
