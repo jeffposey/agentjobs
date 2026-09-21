@@ -749,13 +749,71 @@ describe("who the record says is working a task (task-179)", () => {
     expect(heldByAgent(claimed({ assignment: { owner: null, eligible: [] } }))).toBeNull();
   });
 
-  it("names the owner with no time when no entry carries a ball stamp", () => {
-    // An older record, or one written by hand. The owner is the load-bearing half and
-    // survives; nothing guesses a time, because a guessed one reads as evidence.
+  it("says nobody when a person handed the ball to an agent", () => {
+    // The distinction the server makes, made identically here. An approval, a *request
+    // changes*, an answer — somebody deliberately meaning an agent to pick this up. The
+    // state fields read exactly as a claim does; the author of the ball move is what
+    // tells them apart, and the button belongs on this one.
+    const handed = claimed({
+      log: [
+        { id: 1, ts: "2026-08-19T13:00:00Z", actor: "Jeff Posey", type: "note", body: "Go ahead." },
+        {
+          id: 2,
+          ts: "2026-08-19T14:05:00Z",
+          actor: "claude",
+          type: "transition",
+          body: "Claimed by claude.",
+          data: { ball: "agent", ball_reason: "work", lifecycle: "active" },
+        },
+        {
+          id: 3,
+          ts: "2026-08-19T16:00:00Z",
+          actor: "Jeff Posey",
+          type: "handoff",
+          body: "Approved. Carry on.",
+          data: { ball: "agent", ball_reason: "work" },
+        },
+      ],
+    });
+
+    expect(heldByAgent(handed)).toBeNull();
+  });
+
+  it("says nobody when the finisher handed the ball to an agent", () => {
+    // Not a person and not the owner: the finisher escalating a red gate is AgentJobs
+    // itself asking for an agent (task-340). Withholding the button there would put the
+    // approved-and-stuck task back exactly where task-340 found it.
+    const escalated = claimed({
+      log: [
+        {
+          id: 1,
+          ts: "2026-08-19T14:05:00Z",
+          actor: "claude",
+          type: "transition",
+          body: "Claimed by claude.",
+          data: { ball: "agent", ball_reason: "work", lifecycle: "active" },
+        },
+        {
+          id: 2,
+          ts: "2026-08-19T16:00:00Z",
+          actor: "finisher",
+          type: "handoff",
+          body: "The gate went red.",
+          data: { ball: "agent", ball_reason: "work" },
+        },
+      ],
+    });
+
+    expect(heldByAgent(escalated)).toBeNull();
+  });
+
+  it("offers the button on a record older than the ball stamp", () => {
+    // An agent claiming a task today always writes the stamp, so an absence is evidence
+    // of age rather than of a live claim, and nothing is withheld on it.
     const bare = claimed({
       log: [{ id: 1, ts: "2026-08-19T13:00:00Z", actor: "claude", type: "progress", body: "Working." }],
     });
 
-    expect(heldByAgent(bare)).toEqual({ owner: "claude", since: null });
+    expect(heldByAgent(bare)).toBeNull();
   });
 });

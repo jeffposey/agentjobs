@@ -264,10 +264,14 @@ class TaskBeingWorkedError(DispatchRefused):
     over a dead dispatched run stays possible -- which is what ``_claim_or_verify`` is
     for and what this must not break.
 
-    The remedy named in the message is ``release``, not a force flag on this request. It
-    is a manager verb, it writes its own log entry, and it makes somebody say out loud
-    that the agent holding the task is gone. A flag would be a lever whose only use is to
-    be pulled when that question is unanswered, which is when pulling it is least safe.
+    **The override already existed and no flag was added.** The spec allowed one on
+    condition it be "a deliberate act with its own log entry, never a quiet force flag",
+    which describes a handoff exactly: a person approving, requesting changes, answering
+    or redirecting -- or the finisher escalating a red gate -- puts the ball on an agent
+    under their own name, and ``unsuperseded_claim`` reads that as the handover it is. A
+    ``force: true`` on the request would have been a second way to say the same thing,
+    reachable without saying it on the record. ``release`` is the answer when the agent
+    is simply gone, for the same reason: it is a manager verb and it writes its own entry.
     """
 
     reason = "task_being_worked"
@@ -827,20 +831,80 @@ def record_says_worked(task: Task) -> bool:
     )
 
 
-def ledger_has_ever_run(home: Path, project_id: str, task_id: str) -> bool:
-    """Whether this machine's ledger holds any run for this task, live or concluded.
+def unsuperseded_claim(task: Task) -> Optional[LogEntry]:
+    """The entry where this task's owner took the seat, if nothing has moved it since.
 
-    Deliberately not ``live_runs``. A concluded row is the point: it is AgentJobs saying
-    *I started an agent here and I watched it end*, which is the one thing that can
-    account for a claim left on the record by a process that no longer exists. A live row
-    is handled a gate earlier by ``LiveRunExistsError`` and never reaches the caller of
-    this.
+    ``record_says_worked`` asks what the four state fields say. This asks the sharper
+    question behind them -- *who put the ball there* -- and it is what separates an agent
+    that claimed a task and has not reported back from a task a person or the finisher
+    has just handed to an agent.
+
+    The manager stamps ``data.ball`` on every entry that moves the ball, so the newest
+    entry carrying ``ball: agent`` is when the seat was last taken. **Written by the
+    owner, that is a claim**: the agent put itself there, nothing has moved it since, and
+    on a task with no dispatch history there is nothing else to say whether it is still
+    going. **Written by anybody else, it is a handover** -- an approval, a *request
+    changes*, an answer, the finisher escalating a red gate -- and a handover is a
+    deliberate act, recorded, by somebody who meant an agent to pick the task up. That is
+    the override task-179's spec asked for, and it already existed: it is a log entry
+    with an author, not a force flag on a request.
+
+    Note what this is *not*. ``assert_human_clocked`` asks who wrote the newest entry,
+    which is the accident that protected the 2026-08-19 case by luck and which task-188
+    removed. This asks who last moved the ball, which is a question about whose turn it
+    is; a human commenting on a task an agent is working changes the first and not the
+    second.
+
+    ``None`` when no entry carries the stamp at all -- a record older than it, or one
+    written by hand. An agent claiming a task today always writes one, so an absence is
+    evidence of age rather than of a live claim, and the dispatch goes through as it did
+    before this guard existed.
+    """
+    if not record_says_worked(task):
+        return None
+    for entry in reversed(task.log):
+        if (entry.data or {}).get("ball") == Ball.AGENT.value:
+            return entry if entry.actor == task.assignment.owner else None
+    return None
+
+
+def has_dispatch_history(home: Path, project_id: str, task_id: str) -> bool:
+    """Whether AgentJobs has ever admitted or started a run for this task.
+
+    The question the refusal below turns on, and the reason it is *history* rather than
+    liveness: a claim AgentJobs can account for is one it made itself. A live run is
+    settled a gate earlier by ``LiveRunExistsError`` and never reaches here, so what is
+    left to ask is whether this machine has any memory of working this task at all.
+
+    **Both stores, for the same reason ``effective_live_runs`` reads both.** They are
+    written at different moments and neither alone answers it:
+
+    - The **execution journal** records an admission in ``dispatch_task`` *before* the
+      claim. That ordering is what makes a retry possible: a dispatch that claimed the
+      task and then died -- a dirty tree, a spawn that raised, the launch crash windows
+      task-416 retries -- leaves a claim with no run directory, and only the journal
+      remembers it. ``abandon_admission`` concludes the attempt and keeps the execution
+      row, which is what a later dispatch reads.
+    - The **run directories** cover what the journal cannot: a run started before the
+      journal existed. ``effective_live_runs`` calls such a row "a pre-journal run" and
+      judges it by its meta, and so does this.
 
     ``strictly_same_task``, not ``same_task``. The looser form exists so a run whose
     record names no project still *refuses* a dispatch -- it cannot be shown to be
-    somebody else's. Here a matching row does the opposite and permits one, so a row that
-    cannot be shown to be this project's must not count.
+    somebody else's, and that direction cannot put two agents on one task. Here a match
+    does the opposite and *permits* one, so a row that cannot be shown to be this
+    project's must not count.
+
+    An unreadable journal answers ``False`` rather than raising. The refusal is the safe
+    direction, and a dispatch whose journal cannot be read is about to fail at the
+    admission below in any case.
     """
+    try:
+        if journal.journal(home).latest_execution(project_id, task_id) is not None:
+            return True
+    except ExecutionStoreError:
+        pass
+
     from agentjobs.dispatch.ledger import list_runs
 
     return any(
@@ -1354,17 +1418,40 @@ def dispatch_task(
     # Immediately after the ledger scan, and reading what the ledger cannot: the agents
     # AgentJobs did not start (task-179). The scan above has just established there is no
     # live run, which for a dispatched agent settles it and for every other kind of agent
-    # says nothing at all -- they write no run directory. So the record's own claim is
-    # asked, and a ledger row for this task from any time is what makes it safe to
-    # override. See `TaskBeingWorkedError` for why absence of a row is not evidence of
-    # death, and the ordering: a live run is still named by the error that names runs.
-    if record_says_worked(task) and not ledger_has_ever_run(machine_home, project.id, task.id):
+    # says nothing at all -- they write no run directory and take no run lock. So the
+    # record's own claim is asked, and this machine's memory of the task is what makes it
+    # safe to dispatch over. See `TaskBeingWorkedError` for why absence of a run is not
+    # evidence of death, and `has_dispatch_history` for what counts as memory.
+    #
+    # **Three conditions narrow it, and each one is a case this must not refuse.**
+    #
+    # *A walk starts no agent*, so it cannot be the second agent on a branch this guard
+    # exists to prevent (task-458). Dispatching a walk at an epic whose supervisor holds
+    # the parent is the ordinary way an epic runs, not a collision.
+    #
+    # *A different owner is `owner_mismatch`*, which is an older and more specific answer
+    # to a different question, and it keeps it. This refusal is about the case the task
+    # named: with one configured agent actor, "already ours" cannot tell a run of mine
+    # that died from a different agent working right now. Where the owner is somebody
+    # else there is no such ambiguity and never was.
+    #
+    # *A task this machine has dispatched before* is the `_claim_or_verify` case, and it
+    # reaches here on a retry as well as on a fresh click -- the journal's admission is
+    # written before the claim, so a dispatch that claimed and then died is remembered.
+    claim = unsuperseded_claim(task)
+    if (
+        not starts_walk
+        and claim is not None
+        and task.assignment.owner == resolution.runner.actor_id
+        and not has_dispatch_history(machine_home, project.id, task.id)
+    ):
         raise TaskBeingWorkedError(
-            f"{task.id} is active and {task.assignment.owner!r} is working it, and this "
-            "machine has no run for it -- so whatever is holding it was not started by "
-            "AgentJobs and cannot be seen from here. Nothing was started. If that agent "
-            "is gone, release the task (which records that somebody decided so) and "
-            "dispatch the fresh one."
+            f"{task.id} was claimed by {task.assignment.owner!r} (log entry {claim.id}, "
+            f"{claim.ts:%Y-%m-%d %H:%M} UTC) and nothing has moved the ball since, and "
+            "this machine has never started a run for it -- so whatever is holding it "
+            "was not started by AgentJobs and cannot be seen from here. Nothing was "
+            "started. Let that agent hand the task off, or release it if it is gone, "
+            "which records that somebody decided so."
         )
     # Slots, not runs: an interactive session holds its task (above) but no slot
     # (task-354), so it is not what stands between this click and a free machine.

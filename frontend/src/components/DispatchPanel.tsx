@@ -239,7 +239,7 @@ export type DispatchPanelProps = {
    * claim with *no run at all* — an agent AgentJobs did not start, which is the only
    * kind that writes a claim and nothing else. See `unseenAgent` below.
    */
-  heldByAgent: { owner: string; since: string | null } | null;
+  heldByAgent: { owner: string; since: string } | null;
   /**
    * Who the server would attribute this run's authorising entry to.
    *
@@ -498,9 +498,9 @@ export function DispatchPanel({
           className="rounded-lg border border-sky-600/50 bg-sky-950/40 p-3 text-sm text-sky-100"
         >
           <p>
-            <strong>{unseenAgent.owner}</strong> is working this task
-            {unseenAgent.since ? <> since {new Date(unseenAgent.since).toLocaleString()}</> : null}.
-            One agent per task, so there is nothing to start.
+            <strong>{unseenAgent.owner}</strong> claimed this task on{" "}
+            {new Date(unseenAgent.since).toLocaleString()} and nothing has moved the ball
+            since. One agent per task, so there is nothing to start.
           </p>
           <p className="mt-2 text-sky-200">
             AgentJobs did not start it and has no run for it, so it cannot show you the

@@ -38,13 +38,20 @@ import { useWideShell } from "./shellLayout";
  * never started writes this and nothing else. `ball_reason` is the field the old
  * expression was missing, and `assignment.owner` is the one it never looked at.
  *
- * *Since when* is read off the log rather than off `updated`, which moves for every
- * note anybody adds. The newest entry that handed the ball to an agent is when the seat
- * was last taken, and the manager stamps `data.ball` on exactly those entries. An entry
- * with no such stamp — an older record, a hand-written one — leaves `since` null, and
- * the caller says "since unknown" rather than printing a time that means something else.
+ * *Who put the ball there* is the sharper question behind those four fields, and the
+ * server asks it too (`unsuperseded_claim` in `dispatch/guards.py`). The manager stamps
+ * `data.ball` on every entry that moves the ball, so the newest one carrying
+ * `ball: agent` is when the seat was last taken. Written by the **owner** it is a claim,
+ * and nothing has moved it since. Written by anyone else — a person approving, the
+ * finisher escalating a red gate — it is a handover, which is somebody deliberately
+ * meaning an agent to pick the task up, and the button belongs there.
+ *
+ * *Since when* therefore comes off that same entry rather than off `updated`, which
+ * moves for every note anybody adds. A record with no stamp at all is older than the
+ * stamp; an agent claiming a task today always writes one, so an absence is evidence of
+ * age rather than of a live claim, and the button is offered as it was before.
  */
-export function heldByAgent(task: TaskRead): { owner: string; since: string | null } | null {
+export function heldByAgent(task: TaskRead): { owner: string; since: string } | null {
   const owner = task.assignment?.owner;
   if (
     !owner ||
@@ -54,10 +61,9 @@ export function heldByAgent(task: TaskRead): { owner: string; since: string | nu
   ) {
     return null;
   }
-  const took = [...(task.log ?? [])]
-    .reverse()
-    .find((entry) => entry.data?.ball === "agent" && entry.data?.ball_reason === "work");
-  return { owner, since: took?.ts ?? null };
+  const took = [...(task.log ?? [])].reverse().find((entry) => entry.data?.ball === "agent");
+  if (!took || took.actor !== owner) return null;
+  return { owner, since: took.ts };
 }
 
 const PRIORITY_CLASSES: Record<string, string> = {

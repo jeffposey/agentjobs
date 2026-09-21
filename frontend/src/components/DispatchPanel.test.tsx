@@ -1089,6 +1089,10 @@ describe("a task that something is already working (task-354)", () => {
  * exactly like a task nobody is working.
  */
 describe("a task held by an agent AgentJobs never started (task-179)", () => {
+  // What `heldByAgent` returns for an unsuperseded claim: the owner put the ball on
+  // itself and nothing has moved it since. A handover — a person approving, the finisher
+  // escalating — resolves to null there and never reaches this panel, which is why every
+  // case below is about what to draw rather than about whether to draw it.
   const held = { owner: "claude", since: "2026-08-19T14:05:00Z" };
 
   it("withholds the Dispatch button and names who is holding the task", () => {
@@ -1098,7 +1102,8 @@ describe("a task held by an agent AgentJobs never started (task-179)", () => {
     const note = screen.getByRole("status");
     expect(note).toHaveAttribute("data-refusal-reason", "task_being_worked");
     expect(note).toHaveTextContent("claude");
-    expect(note).toHaveTextContent(/is working this task/i);
+    expect(note).toHaveTextContent(/claimed this task/i);
+    expect(note).toHaveTextContent(/nothing has moved the ball since/i);
   });
 
   it("says AgentJobs cannot see or stop it, and what ends it", () => {
@@ -1113,7 +1118,7 @@ describe("a task held by an agent AgentJobs never started (task-179)", () => {
     expect(note).toHaveTextContent(/release the task/i);
   });
 
-  it("says since when, so the reader can judge whether it is still alive", () => {
+  it("says when it was claimed, so the reader can judge whether it is still alive", () => {
     renderPanel({ heldByAgent: held, runs: [] });
 
     // The rendered time, not the ISO string the record carries: a reader deciding
@@ -1122,17 +1127,6 @@ describe("a task held by an agent AgentJobs never started (task-179)", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       new Date(held.since).toLocaleString(),
     );
-  });
-
-  it("still says who holds it when the record cannot say since when", () => {
-    // An older record, or one written by hand, carries no ball stamp to read a time
-    // off. The owner is the part that matters and it is still there; nothing invents a
-    // time, because a wrong one would be read as evidence about whether it is alive.
-    renderPanel({ heldByAgent: { owner: "claude", since: null }, runs: [] });
-
-    const note = screen.getByRole("status");
-    expect(note).toHaveAttribute("data-refusal-reason", "task_being_worked");
-    expect(note).toHaveTextContent("claude is working this task.");
   });
 
   it("offers the button when a finished run accounts for the claim", () => {
