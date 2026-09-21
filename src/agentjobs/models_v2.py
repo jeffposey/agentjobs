@@ -261,6 +261,43 @@ class QueuedDispatchState(BaseModel):
     as one that is next in line."""
 
 
+class LiveFinishState(BaseModel):
+    """A scripted finish running against this task's branch right now (task-509).
+
+    Derived on read from the finish's own records on disk and never stored on the task,
+    for the reason ``QueuedDispatchState`` above is: the finish moves nothing on the
+    record. Approving a task hands the ball to ``agent``/``work`` and there it stays for
+    the three to four minutes of rebase, gate and merge, so every surface but the task
+    page's ``FinishPanel`` showed a task mid-merge as an ordinary agent-held one.
+
+    The fields are the ones a *list* needs -- a chip to draw, a sentence to explain a
+    disabled button, and an id to link with. Everything else a watcher wants is on
+    ``GET /dispatch/finishes/{task_id}``, which the panel already polls; duplicating the
+    step list and the gate counter here would put a second copy of a fact on every row
+    of a list nothing draws it on.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    finish_id: str = ""
+    """The finish directory's id. Empty for the second or two before it exists, which is
+    the one window a spawn marker alone answers for."""
+    state: str
+    """``starting`` or ``running``. A terminal state never reaches here: this field
+    exists so a client can tell the pre-directory window from the rest, not so it can
+    re-derive liveness, which ``read_finish_status`` has already decided."""
+    started_at: str = ""
+    """When the finish began, UTC, as its own records wrote it."""
+    current_step: str = ""
+    """The step it is on, in ``finish_status.STEP_ORDER``'s vocabulary."""
+    step_meaning: str = ""
+    """That step in one sentence, for a reader who has never read ``ENGINEERING.md``.
+    Resolved here from ``STEP_MEANING`` rather than in each client, so the chip's
+    tooltip and the panel's step list cannot describe the same step differently."""
+    branch: str = ""
+    """The branch being merged. Empty until the finish's preflight has recorded it."""
+
+
 class Outcome(ValueEnum):
     """How a task ended. Set if and only if lifecycle is closed."""
 
@@ -1811,6 +1848,44 @@ def queued_display_status(task: "LabelledTask", queued: Optional[QueuedDispatchS
     if queued is None or label != "Ready":
         return label
     return "Starting" if queued.status == "starting" else "Queued"
+
+
+def derived_display_status(
+    task: "LabelledTask",
+    queued: Optional[QueuedDispatchState],
+    finish: Optional[LiveFinishState],
+) -> str:
+    """``task``'s label with every fact only a read surface can see folded in.
+
+    The one place the order between those facts is decided, so the two read models
+    cannot disagree about which of them wins -- the same reason
+    :func:`queued_display_status` exists, applied to the pair of them rather than to one.
+
+    **"Finishing" outranks everything an open task could otherwise say.** A finish holds
+    the task's run lock for its whole attempt (``dispatch.finish.run_finish``), so while
+    one is live there is nothing else that could be happening to the task: no dispatch
+    can start, no second finish can begin, and the agent the label used to name has
+    already handed the work over. That is what makes this different from
+    ``queued_display_status``, which replaces only "Ready": a queued dispatch is a
+    promise about a task nobody holds, and a task parked on a review still has something
+    more urgent to say. A live finish *is* the more urgent thing.
+
+    **A closed task keeps its outcome.** The finish closes the task at its ``close``
+    step and then spends a second or two removing the worktree and deleting the branch,
+    so there is a window where the task is ``completed`` and the finish is still live.
+    "Completed" is the useful truth there -- the merge has landed, which is the whole
+    question a reader is asking -- and "Finishing" would replace an answer with a
+    process. It is also what keeps acceptance criterion a3 honest from both ends: a
+    finish that ended does not reach here at all, and one that has done its job stops
+    speaking for the task the moment the task has its own answer.
+
+    One word, as the chip requires; the step in flight is on ``live_finish`` for a
+    surface with room to draw it.
+    """
+    label = queued_display_status(task, queued)
+    if finish is None or task.lifecycle is Lifecycle.CLOSED:
+        return label
+    return "Finishing"
 
 
 def self_clearing_wait(task: "Task") -> Optional[SelfClearingWait]:

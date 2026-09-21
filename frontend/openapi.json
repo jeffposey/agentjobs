@@ -3764,6 +3764,46 @@
         "title": "LinkRel",
         "type": "string"
       },
+      "LiveFinishState": {
+        "additionalProperties": false,
+        "description": "A scripted finish running against this task's branch right now (task-509).\n\nDerived on read from the finish's own records on disk and never stored on the task,\nfor the reason ``QueuedDispatchState`` above is: the finish moves nothing on the\nrecord. Approving a task hands the ball to ``agent``/``work`` and there it stays for\nthe three to four minutes of rebase, gate and merge, so every surface but the task\npage's ``FinishPanel`` showed a task mid-merge as an ordinary agent-held one.\n\nThe fields are the ones a *list* needs -- a chip to draw, a sentence to explain a\ndisabled button, and an id to link with. Everything else a watcher wants is on\n``GET /dispatch/finishes/{task_id}``, which the panel already polls; duplicating the\nstep list and the gate counter here would put a second copy of a fact on every row\nof a list nothing draws it on.",
+        "properties": {
+          "branch": {
+            "default": "",
+            "title": "Branch",
+            "type": "string"
+          },
+          "current_step": {
+            "default": "",
+            "title": "Current Step",
+            "type": "string"
+          },
+          "finish_id": {
+            "default": "",
+            "title": "Finish Id",
+            "type": "string"
+          },
+          "started_at": {
+            "default": "",
+            "title": "Started At",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "step_meaning": {
+            "default": "",
+            "title": "Step Meaning",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "LiveFinishState",
+        "type": "object"
+      },
       "LiveRunView": {
         "description": "One run that is happening now, said in words a person can act on.",
         "properties": {
@@ -8264,6 +8304,16 @@
             "$ref": "#/components/schemas/Lifecycle",
             "default": "draft"
           },
+          "live_finish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiveFinishState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "needs_cycles": {
             "items": {
               "items": {
@@ -8476,7 +8526,7 @@
             "type": "array"
           },
           "display_status": {
-            "description": "The record's label, with a waiting dispatch named where there is one.",
+            "description": "The record's label, with a waiting dispatch or a running finish named.",
             "readOnly": true,
             "title": "Display Status",
             "type": "string"
@@ -8501,6 +8551,16 @@
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle",
             "default": "draft"
+          },
+          "live_finish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiveFinishState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "needs_cycles": {
             "items": {
@@ -9198,6 +9258,16 @@
             "title": "Links",
             "type": "array"
           },
+          "live_finish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiveFinishState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "log": {
             "items": {
               "$ref": "#/components/schemas/LogEntry"
@@ -9432,7 +9502,7 @@
             "type": "array"
           },
           "display_status": {
-            "description": "The record's label, with a waiting dispatch named where there is one.\n\nOverridden here rather than on `Task`, which cannot see the machine's queue. The\nderivation itself stays in `models_v2` beside the one it falls back to, so the\nlabel and `queued_dispatch` cannot disagree about what is happening.",
+            "description": "The record's label, with a waiting dispatch named where there is one.\n\nOverridden here rather than on `Task`, which cannot see the machine's queue or\nits finishes. The derivation itself stays in `models_v2` beside the one it falls\nback to, so the label and the structures it is drawn from cannot disagree about\nwhat is happening.",
             "readOnly": true,
             "title": "Display Status",
             "type": "string"
@@ -9464,6 +9534,16 @@
             },
             "title": "Links",
             "type": "array"
+          },
+          "live_finish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiveFinishState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "log": {
             "items": {
@@ -9699,6 +9779,16 @@
             "$ref": "#/components/schemas/Lifecycle",
             "default": "draft"
           },
+          "live_finish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiveFinishState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "needs_cycles": {
             "items": {
               "items": {
@@ -9901,7 +9991,7 @@
             "type": "array"
           },
           "display_status": {
-            "description": "The record's label, with a waiting dispatch named where there is one.",
+            "description": "The record's label, with a waiting dispatch or a running finish named.",
             "readOnly": true,
             "title": "Display Status",
             "type": "string"
@@ -9926,6 +10016,16 @@
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle",
             "default": "draft"
+          },
+          "live_finish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiveFinishState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "needs_cycles": {
             "items": {

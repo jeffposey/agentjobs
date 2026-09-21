@@ -187,6 +187,65 @@ describe("TaskList filtering", () => {
     });
   });
 
+  // task-509: a task whose branch is being merged is `active`/`agent`/`work`, exactly
+  // like a task an agent is editing, so the `active` option cannot separate them.
+  describe("separating a task being merged from one an agent is working", () => {
+    const finishing = () =>
+      task("task-being-merged", {
+        lifecycle: "active",
+        ball: "agent",
+        ball_reason: "work",
+        display_status: "Finishing",
+        assignment: { owner: "claude", eligible: [] },
+        live_finish: {
+          finish_id: "fin_a1b2c3d4",
+          state: "running",
+          started_at: "2026-09-20T15:26:00Z",
+          current_step: "gate",
+          step_meaning: "Running the full gate on the rebased branch",
+          branch: "feat/task-509-finishing-status",
+        },
+      });
+    const worked = () =>
+      task("task-being-worked", {
+        lifecycle: "active",
+        ball: "agent",
+        ball_reason: "work",
+        display_status: "In progress (claude)",
+        assignment: { owner: "claude", eligible: [] },
+        live_finish: null,
+      });
+
+    it("shows only the merging one under Finishing", () => {
+      renderList([finishing(), worked()], "/p/inbox/tasks?status=finishing");
+
+      const table = screen.getByRole("region", { name: "Tasks" });
+      expect(within(table).getByText("task-being-merged")).toBeVisible();
+      expect(within(table).queryByText("task-being-worked")).not.toBeInTheDocument();
+    });
+
+    it("still shows both under Active, which is what they both are", () => {
+      renderList([finishing(), worked()], "/p/inbox/tasks?status=active");
+
+      const table = screen.getByRole("region", { name: "Tasks" });
+      expect(within(table).getByText("task-being-merged")).toBeVisible();
+      expect(within(table).getByText("task-being-worked")).toBeVisible();
+    });
+
+    it("offers the option to a reader who opens the filters", () => {
+      renderList([finishing(), worked()], "/p/inbox/tasks?status=all");
+      const popover = openFilters();
+
+      fireEvent.change(within(popover).getByLabelText("Status"), { target: { value: "finishing" } });
+
+      expect(screen.getByTestId("location")).toHaveTextContent("status=finishing");
+      const table = screen.getByRole("region", { name: "Tasks" });
+      // The rendered label, not the presence of a row: the chip is the whole point.
+      expect(within(table).getByText("Finishing")).toBeVisible();
+      expect(within(table).queryByText("task-being-worked")).not.toBeInTheDocument();
+    });
+  });
+
   describe("Waiting on you (task-499)", () => {
     /**
      * The one filter this list cannot compute from its own rows. Half the waiting set is

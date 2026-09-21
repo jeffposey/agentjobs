@@ -72,7 +72,7 @@ export function undoMove(placement: QueueMovePlacement | null): QueueMove | null
   return placement.kind === "before" ? { before: placement.target } : { after: placement.target };
 }
 
-const STATUS_FILTERS = new Set(["all", "open", "attention", "draft", "ready", "active", "human", "external", "reset", "closed"]);
+const STATUS_FILTERS = new Set(["all", "open", "attention", "draft", "ready", "active", "finishing", "human", "external", "reset", "closed"]);
 const PRIORITY_FILTERS = new Set(["all", "critical", "high", "medium", "low"]);
 const SCOPE_FILTERS = new Set(["all", "project", "test"]);
 const PRIORITY_CLASSES: Record<string, string> = {
@@ -208,11 +208,17 @@ function orderSignature(tasks: Array<TaskSummaryRead>) {
 /**
  * Whether one task answers the Status filter.
  *
- * Two of the options are not a `lifecycle` or a `ball` value, because the state a reader
- * wants to separate is not either of those. A park on a usage limit and a third party
- * being down are both `external`, and only one of them needs anybody: `reset` selects the
- * self-clearing waits and `external` now excludes them, so each is reachable on its own.
- * Before this they shared one option and a reader could filter to neither.
+ * Three of the options are not a `lifecycle` or a `ball` value, because the state a
+ * reader wants to separate is not either of those. A park on a usage limit and a third
+ * party being down are both `external`, and only one of them needs anybody: `reset`
+ * selects the self-clearing waits and `external` now excludes them, so each is reachable
+ * on its own. Before this they shared one option and a reader could filter to neither.
+ *
+ * `finishing` is the third and the same shape again (task-509): a task whose branch is
+ * being merged is `active`/`agent`/`work`, exactly like a task an agent is editing, so
+ * `active` cannot separate them. It selects on `live_finish` -- the structure -- rather
+ * than on the word in `display_status`, which is what ENGINEERING.md's rendered-value
+ * rule asks for and what stops the filter breaking the day the label is reworded.
  */
 function matchesStatus(task: TaskSummaryRead, status: string, waiting: ReadonlySet<string>) {
   const selfClearing = task.self_clearing_wait != null;
@@ -220,6 +226,7 @@ function matchesStatus(task: TaskSummaryRead, status: string, waiting: ReadonlyS
   if (status === "open") return task.lifecycle !== "closed";
   if (status === "attention") return waiting.has(task.id);
   if (status === "reset") return selfClearing;
+  if (status === "finishing") return task.live_finish != null;
   if (status === "external") return task.ball === "external" && !selfClearing;
   return task.lifecycle === status || task.ball === status;
 }
@@ -1118,7 +1125,7 @@ export function TaskList({
               >
                 <label className="sr-only" htmlFor="status-filter">Status</label>
                 <select ref={firstFilterRef} id="status-filter" aria-label="Status" value={status} onChange={(event) => updateParam("status", event.target.value, "open")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
-                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="attention">Waiting on you</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Active</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="reset">Waiting on a reset</option><option value="closed">Closed</option>
+                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="attention">Waiting on you</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Active</option><option value="finishing">Finishing</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="reset">Waiting on a reset</option><option value="closed">Closed</option>
                 </select>
                 <label className="sr-only" htmlFor="priority-filter">Priority</label>
                 <select id="priority-filter" aria-label="Priority" value={priority} onChange={(event) => updateParam("priority", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">

@@ -580,6 +580,35 @@ derived from the record on every read, like `display_status`, and is not a store
 Both the label and the field come from `models_v2.self_clearing_wait()`, so they cannot
 disagree.
 
+### `Finishing`
+
+Two labels are derived from something that is not on the record at all: `Queued`, when a
+dispatch of the task is waiting for a slot on this machine (task-459), and `Finishing`,
+while a scripted finish is rebasing, gating and merging its branch (task-509). Neither is
+a state the axes could carry. A queued dispatch deliberately does not claim the task, and
+a finish moves nothing on the record it is finishing — approving hands the ball to
+`agent`/`work`, and there it stays for the three to four minutes of the attempt.
+
+**The point is the same as above: the two states need different things from a reader.**
+`In progress (claude)` on a task being merged is not wrong, it is merely useless — it is
+the label a task an agent is editing gets, and before task-509 nothing anywhere but the
+task page's finish panel could tell the two apart.
+
+`Finishing` replaces whatever label an open task would otherwise have, and nothing on a
+closed one. A finish holds the task's run lock for its whole attempt, so while one is
+live nothing else can be happening to the task; but the finish closes the task at its
+`close` step and then spends a second or two removing the worktree, and `Completed` is
+the more useful truth in that window.
+
+`TaskRead` and the listing row both carry `live_finish` beside the label — `{finish_id,
+state, started_at, current_step, step_meaning, branch}`, or null — for the reason
+`self_clearing_wait` is carried: the task list's `finishing` filter selects on it, and a
+Dispatch button disables itself and names the step from it. Both it and the label come
+from `finish_status._status_of()`, the function the task page's own panel is built from,
+so a chip and a panel cannot describe the same attempt differently. The list gets it from
+one scan of the machine's finishes per request rather than one per row —
+`api.live_finish` and `finish_status.live_finishes()` state what that costs.
+
 ## How an export is written
 
 `taskfiles.canonical_bytes()` — what `agentjobs storage export` writes — dumps with

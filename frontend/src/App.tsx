@@ -211,6 +211,7 @@ function DashboardPage({ projectId }: { projectId: string }) {
               canBrief={task.can_brief}
               taskHref={`/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.id)}`}
               busy={dispatch.startingTaskId === task.id}
+              finishing={Boolean(task.live_finish)}
               refusal={dispatch.refusal?.taskId === task.id ? dispatch.refusal.refusal : null}
               onDispatch={() => void dispatch.start(task.id, identity.ok ? identity.user : null)}
             />

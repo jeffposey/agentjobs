@@ -2622,6 +2622,50 @@ export type Link = {
 export type LinkRel = 'pr' | 'issue' | 'doc' | 'design' | 'build' | 'other';
 
 /**
+ * LiveFinishState
+ *
+ * A scripted finish running against this task's branch right now (task-509).
+ *
+ * Derived on read from the finish's own records on disk and never stored on the task,
+ * for the reason ``QueuedDispatchState`` above is: the finish moves nothing on the
+ * record. Approving a task hands the ball to ``agent``/``work`` and there it stays for
+ * the three to four minutes of rebase, gate and merge, so every surface but the task
+ * page's ``FinishPanel`` showed a task mid-merge as an ordinary agent-held one.
+ *
+ * The fields are the ones a *list* needs -- a chip to draw, a sentence to explain a
+ * disabled button, and an id to link with. Everything else a watcher wants is on
+ * ``GET /dispatch/finishes/{task_id}``, which the panel already polls; duplicating the
+ * step list and the gate counter here would put a second copy of a fact on every row
+ * of a list nothing draws it on.
+ */
+export type LiveFinishState = {
+    /**
+     * Branch
+     */
+    branch?: string;
+    /**
+     * Current Step
+     */
+    current_step?: string;
+    /**
+     * Finish Id
+     */
+    finish_id?: string;
+    /**
+     * Started At
+     */
+    started_at?: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Step Meaning
+     */
+    step_meaning?: string;
+};
+
+/**
  * LiveRunView
  *
  * One run that is happening now, said in words a person can act on.
@@ -5976,6 +6020,7 @@ export type TaskCardReadInput = {
      */
     id: string;
     lifecycle?: Lifecycle;
+    live_finish?: LiveFinishState | null;
     /**
      * Needs Cycles
      */
@@ -6111,7 +6156,7 @@ export type TaskCardReadOutput = {
     /**
      * Display Status
      *
-     * The record's label, with a waiting dispatch named where there is one.
+     * The record's label, with a waiting dispatch or a running finish named.
      */
     readonly display_status: string;
     /**
@@ -6127,6 +6172,7 @@ export type TaskCardReadOutput = {
      */
     id: string;
     lifecycle?: Lifecycle;
+    live_finish?: LiveFinishState | null;
     /**
      * Needs Cycles
      */
@@ -6562,6 +6608,7 @@ export type TaskReadInput = {
      * Links
      */
     links?: Array<Link>;
+    live_finish?: LiveFinishState | null;
     /**
      * Log
      */
@@ -6690,9 +6737,10 @@ export type TaskReadOutput = {
      *
      * The record's label, with a waiting dispatch named where there is one.
      *
-     * Overridden here rather than on `Task`, which cannot see the machine's queue. The
-     * derivation itself stays in `models_v2` beside the one it falls back to, so the
-     * label and `queued_dispatch` cannot disagree about what is happening.
+     * Overridden here rather than on `Task`, which cannot see the machine's queue or
+     * its finishes. The derivation itself stays in `models_v2` beside the one it falls
+     * back to, so the label and the structures it is drawn from cannot disagree about
+     * what is happening.
      */
     readonly display_status: string;
     /**
@@ -6712,6 +6760,7 @@ export type TaskReadOutput = {
      * Links
      */
     links?: Array<Link>;
+    live_finish?: LiveFinishState | null;
     /**
      * Log
      */
@@ -6843,6 +6892,7 @@ export type TaskSummaryReadInput = {
      */
     id: string;
     lifecycle?: Lifecycle;
+    live_finish?: LiveFinishState | null;
     /**
      * Needs Cycles
      */
@@ -6959,7 +7009,7 @@ export type TaskSummaryReadOutput = {
     /**
      * Display Status
      *
-     * The record's label, with a waiting dispatch named where there is one.
+     * The record's label, with a waiting dispatch or a running finish named.
      */
     readonly display_status: string;
     /**
@@ -6975,6 +7025,7 @@ export type TaskSummaryReadOutput = {
      */
     id: string;
     lifecycle?: Lifecycle;
+    live_finish?: LiveFinishState | null;
     /**
      * Needs Cycles
      */
@@ -7810,6 +7861,7 @@ export type TaskCardReadOutputWritable = {
      */
     id: string;
     lifecycle?: Lifecycle;
+    live_finish?: LiveFinishState | null;
     /**
      * Needs Cycles
      */
@@ -7980,6 +8032,7 @@ export type TaskReadOutputWritable = {
      * Links
      */
     links?: Array<Link>;
+    live_finish?: LiveFinishState | null;
     /**
      * Log
      */
@@ -8111,6 +8164,7 @@ export type TaskSummaryReadOutputWritable = {
      */
     id: string;
     lifecycle?: Lifecycle;
+    live_finish?: LiveFinishState | null;
     /**
      * Needs Cycles
      */
