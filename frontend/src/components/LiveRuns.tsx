@@ -210,6 +210,8 @@ export const FINISH_STEP_LABELS: Record<string, string> = {
   // The server's word for a finish whose record it could not read: the lock is held,
   // the step is unknown.
   merging: "Merging",
+  // task-514: the lock is held by a finish that merged nothing, on a task already closed.
+  overtaken: "Task already closed",
 };
 
 export function finishStepLabel(detail: string | undefined): string {
@@ -217,14 +219,25 @@ export function finishStepLabel(detail: string | undefined): string {
   return FINISH_STEP_LABELS[detail] ?? detail;
 }
 
-/** The state word for a finish, styled apart from a run's health: it is not a session. */
+/**
+ * The state word for a finish, styled apart from a run's health: it is not a session.
+ *
+ * `overtaken` is the one that is not "Finishing" (task-514). This board renders from the
+ * *lock*, so a finish that merged nothing and is holding a task somebody else already
+ * finished read as Finishing for twenty minutes beside a task page reading Completed.
+ * The lock is real and stays on the board; the word for it is not.
+ */
 export function FinishBadge({ finish }: { finish: MachineHolderView }) {
   return (
     <span
       data-finish-step={finish.detail}
-      className="whitespace-nowrap rounded bg-violet-900 px-2 py-1 text-xs text-violet-200"
+      className={
+        finish.overtaken
+          ? "whitespace-nowrap rounded bg-amber-900 px-2 py-1 text-xs text-amber-200"
+          : "whitespace-nowrap rounded bg-violet-900 px-2 py-1 text-xs text-violet-200"
+      }
     >
-      Finishing
+      {finish.overtaken ? "Overtaken" : "Finishing"}
     </span>
   );
 }
@@ -237,7 +250,9 @@ export function FinishBadge({ finish }: { finish: MachineHolderView }) {
  * that made task-092's finish look like nothing was happening (task-352).
  */
 export function capacitySentence(body: LiveRunsView): string {
-  const merging = liveFinishes(body).length;
+  // Overtaken finishes are excluded rather than counted: they hold a lock and a slot on
+  // the board, but "1 merging" is the word this sentence exists to make honest (task-514).
+  const merging = liveFinishes(body).filter((finish) => !finish.overtaken).length;
   const suffix = merging > 0 ? ` · ${merging} merging` : "";
   if (!body.dispatch_configured) {
     const head =

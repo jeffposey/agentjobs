@@ -24,10 +24,13 @@ from agentjobs.api.main import app
 from agentjobs.dispatch import finish as finish_module
 from agentjobs.dispatch.finish_status import (
     INTERRUPTED,
+    OVERTAKEN,
+    RUNNING,
     STARTING,
     STEP_ORDER,
     FinishStatus,
     finish_output,
+    newest_finish_directory,
     read_finish_status,
 )
 from agentjobs.dispatch.ledger import KIND_FINISH, locks_root
@@ -268,6 +271,123 @@ class TestReadingOneFinish:
 
     def test_another_task_s_finish_is_not_this_task_s(self, tmp_path: Path) -> None:
         write_finish(tmp_path, "fin_f", task_id="task-999")
+
+        assert read_finish_status(tmp_path, "task-001", "sandbox") is None
+
+
+class TestAClosedTaskIsNeverFinishing:
+    """task-514: three surfaces disagreed for twenty minutes about a finished task.
+
+    ``fin_76cf6a4e`` was queued on the merge runway, alive, holding task-506's lock, and
+    reading ``outcome: running`` -- while the finish it duplicated had already merged the
+    branch, closed the task and removed the worktree. The task page said **Completed**,
+    the slot board said **Finishing**, and the newest progress entry said "Queued for the
+    merge runway... this is the queue working, not a stall".
+
+    The mechanism fixes stop that finish existing. This is the belt to those braces, and
+    it is a question about *reading*: a finish that merged nothing cannot be the one that
+    closed the task, whatever its process is still doing.
+    """
+
+    def test_a_running_finish_against_a_closed_task_it_did_not_merge_is_overtaken(
+        self, tmp_path: Path
+    ) -> None:
+        write_finish(tmp_path, "fin_duplicate")
+        hold_lock(tmp_path, "task-001", pid=os.getpid())
+
+        status = read_finish_status(tmp_path, "task-001", "sandbox", task_open=False)
+
+        assert status is not None
+        assert status.state == OVERTAKEN
+        assert status.live is False
+        assert status.current_step == ""
+        assert "not the finish that finished it" in status.next_action
+
+    def test_the_same_finish_against_an_open_task_is_simply_running(self, tmp_path: Path) -> None:
+        """One field apart from the case above, so a rule that widened fails here."""
+        write_finish(tmp_path, "fin_duplicate")
+        hold_lock(tmp_path, "task-001", pid=os.getpid())
+
+        status = read_finish_status(tmp_path, "task-001", "sandbox", task_open=True)
+
+        assert status is not None
+        assert status.state == RUNNING
+        assert status.live is True
+
+    def test_the_finish_that_closed_the_task_goes_on_running_afterwards(
+        self, tmp_path: Path
+    ) -> None:
+        """The exemption that matters: closing the task is step ten of twelve.
+
+        A finish that merged closes the task and then removes the worktree and deletes
+        the branch. For those seconds the task is closed and the finish is genuinely
+        finishing it, so ``closed`` alone can never be the test.
+        """
+        directory = write_finish(tmp_path, "fin_real")
+        record(directory, "finish_merged", merge_commit="abc1234", branch="feat/x")
+        record(directory, "finish_step", step="close", ok=True, detail="closed", seconds=0.1)
+        hold_lock(tmp_path, "task-001", pid=os.getpid())
+
+        status = read_finish_status(tmp_path, "task-001", "sandbox", task_open=False)
+
+        assert status is not None
+        assert status.state == RUNNING
+        assert status.live is True
+
+    def test_a_spawn_marker_for_a_closed_task_is_not_live(self, tmp_path: Path) -> None:
+        """Nothing polls, and no surface says a completed task is being finished."""
+        finish_module.write_spawn_marker(
+            tmp_path, "task-001", project_id="sandbox", approver="Jeff Posey"
+        )
+
+        status = read_finish_status(tmp_path, "task-001", "sandbox", task_open=False)
+
+        assert status is not None
+        assert status.live is False
+
+    def test_not_saying_whether_the_task_is_open_changes_nothing(self, tmp_path: Path) -> None:
+        """Every caller that has not been taught to pass it keeps its old answer."""
+        write_finish(tmp_path, "fin_duplicate")
+        hold_lock(tmp_path, "task-001", pid=os.getpid())
+
+        status = read_finish_status(tmp_path, "task-001", "sandbox")
+
+        assert status is not None and status.state == RUNNING
+
+
+class TestADeclinedDuplicateIsNotWhatIsHappening:
+    """task-514: the duplicate's own directory must not become the task's answer.
+
+    It is the newest directory on disk by every measure -- it was created last -- and
+    reporting it would replace a live finish's step table with "Nothing to merge" on the
+    page of the person watching that finish.
+    """
+
+    def test_the_directory_carrying_duplicate_of_is_skipped(self, tmp_path: Path) -> None:
+        earlier = datetime.now(timezone.utc) - timedelta(seconds=30)
+        working = write_finish(tmp_path, "fin_working", started_at=earlier.isoformat())
+        write_finish(
+            tmp_path,
+            "fin_duplicate",
+            outcome="declined",
+            reason="finish_in_flight",
+            finished_at=datetime.now(timezone.utc).isoformat(),
+            duplicate_of="fin_working",
+        )
+
+        assert newest_finish_directory(tmp_path, "task-001", "sandbox") == working
+
+    def test_and_a_task_whose_only_finish_declined_as_a_duplicate_reads_as_nothing(
+        self, tmp_path: Path
+    ) -> None:
+        write_finish(
+            tmp_path,
+            "fin_duplicate",
+            outcome="declined",
+            reason="finish_in_flight",
+            finished_at=datetime.now(timezone.utc).isoformat(),
+            duplicate_of="fin_working",
+        )
 
         assert read_finish_status(tmp_path, "task-001", "sandbox") is None
 

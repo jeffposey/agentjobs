@@ -4192,6 +4192,12 @@
             "title": "Lock Name",
             "type": "string"
           },
+          "overtaken": {
+            "default": false,
+            "description": "True when this finish holds a task that is already closed and it merged nothing, so it is not the finish that finished it (task-514).",
+            "title": "Overtaken",
+            "type": "boolean"
+          },
           "pid": {
             "anyOf": [
               {

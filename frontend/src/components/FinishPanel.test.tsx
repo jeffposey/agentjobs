@@ -248,6 +248,22 @@ describe("rendering", () => {
     expect(gate?.textContent).toContain("Gate: pytest — 6 of 10");
   });
 
+  it("does not say a completed task is being finished", () => {
+    // task-514: a finish still running against a task another finish already merged and
+    // closed. Three surfaces disagreed for twenty minutes, and this was one of them.
+    render(
+      <FinishPanel
+        finish={finish({ state: "overtaken", live: false, current_step: "", steps: [] })}
+      />,
+    );
+
+    expect(screen.queryByText("Finishing this task")).toBeNull();
+    expect(
+      screen.getByText("Overtaken — this task was already finished"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/another finish did the work/)).toBeInTheDocument();
+  });
+
   it("explains that a running finish has no text, rather than showing an empty box", () => {
     render(<FinishPanel finish={finish()} />);
     expect(

@@ -270,6 +270,24 @@ describe("the Runs tab", () => {
     expect(screen.queryByRole("heading", { name: "Also on this machine" })).toBeNull();
   });
 
+  it("does not badge a finish against an already-closed task as Finishing", () => {
+    // task-514. The board renders from the lock, so it went on saying Finishing about a
+    // task whose page said Completed. The lock is real and stays listed; the word is not.
+    renderIn(
+      <LiveRunsPage
+        body={body({ holders: [holder({ detail: "overtaken", overtaken: true })] })}
+      />,
+    );
+
+    const row = screen.getByRole("link", { name: /task-002/ }).closest("tr");
+    expect(within(row as HTMLElement).queryByText("Finishing")).toBeNull();
+    expect(within(row as HTMLElement).getByText("Overtaken")).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText("Task already closed")).toBeInTheDocument();
+    // ...and it is not counted as something merging, because it is not merging.
+    expect(screen.getByTestId("capacity-sentence")).toHaveTextContent("0 of 3 slots busy");
+    expect(screen.getByTestId("capacity-sentence")).not.toHaveTextContent("merging");
+  });
+
   it("says a finish queued for the runway is queued, in words", () => {
     renderIn(<LiveRunsPage body={body({ holders: [holder({ detail: "runway" })] })} />);
     expect(screen.getByText("Queued for the merge runway")).toBeInTheDocument();

@@ -45,11 +45,12 @@ import time
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import yaml
 
 from agentjobs.dispatch.finish import (
+    DUPLICATE_KEY,
     SPAWN_DIRNAME,
     finishes_root,
     spawn_log_path,
@@ -76,6 +77,22 @@ INTERRUPTED = "interrupted"
 Not an outcome ``dispatch.finish`` can write -- by definition nothing was running to
 write it. It is what a reader concludes, and it is the state that would otherwise have
 been rendered as "still going" forever.
+"""
+
+OVERTAKEN = "overtaken"
+"""A finish still running against a task that is already closed, having merged nothing.
+
+The other conclusion a reader draws rather than an outcome anything writes, and the
+cheap belt to task-514's braces. The finish that closed a task is the one that merged
+it, and it goes on working afterwards -- delivery, the worktree, the branch -- so being
+closed is not on its own evidence against a running finish. Having merged nothing *and*
+recorded no ``close`` step is: such an attempt cannot be the one that closed the task,
+so whatever it is still doing, it is not finishing this task.
+
+task-506 is the state this names. A page reading **Completed**, a slot board reading
+**Finishing**, and "Queued for the merge runway" as the visible tail, for twenty minutes
+after the merge was done -- three surfaces disagreeing, none of them wrong about what it
+had read.
 """
 
 SCAN_LIMIT = 60
@@ -235,6 +252,11 @@ def newest_finish_directory(home: Path, task_id: str, project_id: str = "") -> O
     about is found immediately, and the *newest by ``started_at``* is returned rather
     than the first hit -- filesystem mtime orders activity, and a retry writing into an
     older directory would otherwise win on it.
+
+    An attempt carrying :data:`agentjobs.dispatch.finish.DUPLICATE_KEY` is skipped
+    (task-514). It declined at the front door because another finish has this task, so
+    it is the newest directory on disk and the wrong answer to "what is happening to
+    this task" -- the finish it duplicates is. Kept on disk, off every surface.
     """
     root = finishes_root(home)
     if not root.is_dir():
@@ -253,6 +275,8 @@ def newest_finish_directory(home: Path, task_id: str, project_id: str = "") -> O
         if str(meta.get("task_id") or "") != task_id:
             continue
         if project_id and str(meta.get("project_id") or "") not in ("", project_id):
+            continue
+        if meta.get(DUPLICATE_KEY):
             continue
         key = str(meta.get("started_at") or "")
         if best is None or key > best_key:
@@ -402,18 +426,40 @@ def holder_is_working(home: Path, holder: Optional[LockHolder]) -> bool:
 # ----- assembling one status --------------------------------------------------
 
 
-def read_finish_status(home: Path, task_id: str, project_id: str = "") -> Optional[FinishStatus]:
+def read_finish_status(
+    home: Path,
+    task_id: str,
+    project_id: str = "",
+    *,
+    task_open: Optional[bool] = None,
+) -> Optional[FinishStatus]:
     """What is happening, or last happened, to this task's branch. None if nothing has.
 
     ``None`` is the ordinary answer for the overwhelming majority of tasks and means
     exactly what it says: no finish has ever run for this one on this machine, within
     the scan limit. A page renders nothing at all for it.
+
+    ``task_open`` is the caller's answer to "is this task still open", passed in rather
+    than read here because every caller already holds the task and this module opens no
+    store (task-514). ``None`` means the caller did not say, and nothing changes;
+    ``False`` is what turns a running finish that merged nothing into :data:`OVERTAKEN`.
     """
-    return _status_of(home, task_id, project_id, newest_finish_directory(home, task_id, project_id))
+    return _status_of(
+        home,
+        task_id,
+        project_id,
+        newest_finish_directory(home, task_id, project_id),
+        task_open=task_open,
+    )
 
 
 def _status_of(
-    home: Path, task_id: str, project_id: str, directory: Optional[Path]
+    home: Path,
+    task_id: str,
+    project_id: str,
+    directory: Optional[Path],
+    *,
+    task_open: Optional[bool] = None,
 ) -> Optional[FinishStatus]:
     """:func:`read_finish_status`, once the task's newest finish directory is known.
 
@@ -438,7 +484,7 @@ def _status_of(
 
     if directory is None:
         assert marker is not None  # the pair is excluded above
-        return _starting(task_id, project_id, marker, working)
+        return _starting(task_id, project_id, marker, working, task_open=task_open)
 
     meta = read_meta(directory)
     started_at = str(meta.get("started_at") or "")
@@ -446,7 +492,7 @@ def _status_of(
     # disk is the previous attempt, and reporting it would show a reader the *last*
     # finish's outcome at the moment they asked about this one.
     if marker is not None and str(marker.get("started_at") or "") > started_at:
-        return _starting(task_id, project_id, marker, working)
+        return _starting(task_id, project_id, marker, working, task_open=task_open)
 
     records = read_phases(directory)
     steps = _steps_from_phases(records)
@@ -458,10 +504,14 @@ def _status_of(
         state = outcome if outcome in (FINISHED, ESCALATED, DECLINED) else FINISHED
         live = False
         current = ""
-    elif working:
+    elif working and not _overtaken(task_open, meta, records, steps):
         state = RUNNING
         live = True
         current = _next_step(steps)
+    elif working:
+        state = OVERTAKEN
+        live = False
+        current = ""
     else:
         state = INTERRUPTED
         live = False
@@ -649,7 +699,8 @@ def _newest_directories(
 
     A task with no directory inside the cap maps to ``None`` rather than being absent, so
     the caller still asks about it: the spawn marker alone answers for a finish whose
-    directory does not exist yet.
+    directory does not exist yet. An attempt that declined as a duplicate is skipped, for
+    the reason :func:`newest_finish_directory` gives.
     """
     newest: Dict[str, Optional[Path]] = {task_id: None for task_id in task_ids}
     started: Dict[str, str] = {}
@@ -669,10 +720,46 @@ def _newest_directories(
             continue
         if project_id and str(meta.get("project_id") or "") not in ("", project_id):
             continue
+        if meta.get(DUPLICATE_KEY):
+            # The same rule the per-task scan applies, and it has to be here too or the
+            # list and the page disagree about which attempt is the task's (task-514).
+            continue
         key = str(meta.get("started_at") or "")
         if newest[task_id] is None or key > started.get(task_id, ""):
             newest[task_id], started[task_id] = entry, key
     return newest
+
+
+def did_the_closing(merge_commit: str, steps: Sequence[FinishStep]) -> bool:
+    """Whether this attempt is plausibly the finish that closed the task (task-514).
+
+    Two ways to be, and both are the ordinary case rather than padding: it merged
+    something, or it recorded the ``close`` step -- which is step ten of twelve, so such
+    a finish goes on working for a second or two afterwards, removing the worktree and
+    deleting the branch. Either way, a task that is closed with this running is the
+    expected state rather than the disagreement task-506 was.
+
+    The one rule, read by :func:`_overtaken` for the task page's panel and by
+    ``api.live_finish`` for the chip a list draws, so those two cannot disagree.
+    """
+    if merge_commit:
+        return True
+    return any(step.name == "close" and step.state in ("done", "skipped") for step in steps)
+
+
+def _overtaken(
+    task_open: Optional[bool],
+    meta: Dict[str, Any],
+    records: List[Dict[str, Any]],
+    steps: List[FinishStep],
+) -> bool:
+    """Whether a finish still holding this task cannot be the one that finished it.
+
+    See :data:`OVERTAKEN`.
+    """
+    if task_open is not False:
+        return False
+    return not did_the_closing(merge_commit_of(meta, records), steps)
 
 
 def merge_commit_of(meta: Dict[str, Any], records: List[Dict[str, Any]]) -> str:
@@ -765,6 +852,12 @@ def next_action(status: FinishStatus, meta: Dict[str, Any]) -> str:
             f"A session ({dispatched}) was started to take it from here. Nothing is yours "
             "to do unless it hands the task back."
         )
+    if status.state == OVERTAKEN:
+        return (
+            "Nothing here is yours to do: this attempt merged nothing and the task is "
+            "already closed, so it is not the finish that finished it. Its own record "
+            "says what it got as far as."
+        )
     if status.reason == "stopped_after_merge" or (
         merged and status.state in (ESCALATED, INTERRUPTED)
     ):
@@ -785,16 +878,38 @@ def next_action(status: FinishStatus, meta: Dict[str, Any]) -> str:
     )
 
 
-def _starting(task_id: str, project_id: str, marker: Dict[str, Any], working: bool) -> FinishStatus:
+def _starting(
+    task_id: str,
+    project_id: str,
+    marker: Dict[str, Any],
+    working: bool,
+    *,
+    task_open: Optional[bool] = None,
+) -> FinishStatus:
     """The window between the click and the finish's first write.
 
     Reported as live even with no lock holder yet, because for the first second or two
     there is genuinely nothing to hold it: the process is still importing Python. It
     stops being reported this way the moment a directory exists, which is the same
     moment the lock does.
+
+    A marker for a **closed** task is the one shape of this that is never worth waiting
+    on (task-514): a finish that has not started has merged nothing, so it cannot be the
+    one that closed the task, and the grace period would otherwise have a page polling a
+    completed task for a minute.
     """
     started_at = str(marker.get("started_at") or "")
     elapsed = _elapsed(started_at, None)
+    if task_open is False:
+        return FinishStatus(
+            task_id=task_id,
+            project_id=str(marker.get("project_id") or project_id),
+            state=OVERTAKEN,
+            live=False,
+            started_at=started_at,
+            elapsed_seconds=elapsed,
+            steps=[],
+        )
     stale = elapsed is not None and elapsed > STARTING_GRACE_SECONDS and not working
     return FinishStatus(
         task_id=task_id,

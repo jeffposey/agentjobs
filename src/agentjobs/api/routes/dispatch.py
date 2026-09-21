@@ -1364,10 +1364,25 @@ async def read_task_finish(
     a null body rather than a 404: an absent finish is not a missing resource, and a
     task page that logged a 404 every two seconds would teach its reader to ignore them.
     """
-    status = read_finish_status(_home(), task_id, project.id)
+    status = read_finish_status(
+        _home(), task_id, project.id, task_open=_task_is_open(project, task_id)
+    )
     if status is None:
         return None
     return _finish_view(status, project)
+
+
+def _task_is_open(project: Project, task_id: str) -> Optional[bool]:
+    """Whether this task is still open, or ``None`` when the store cannot say (task-514).
+
+    ``None`` rather than a guess, because the consumer treats only an explicit ``False``
+    as evidence: a store that cannot be read is not a task that has been closed.
+    """
+    try:
+        task = manager_for(project).get_task(task_id)
+    except Exception:  # noqa: BLE001 - a status read never fails over a detail
+        return None
+    return None if task is None else task.is_open
 
 
 @router.get(
