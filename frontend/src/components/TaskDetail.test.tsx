@@ -161,8 +161,12 @@ describe("TaskDetail resumption contract", () => {
     expect(within(log).getByText(/Not their signature/)).toBeVisible();
     // The owner's own click is the entry directly below it and carries no such line, so
     // the two are distinguishable rather than merely labelled.
-    expect(entries[0].querySelector("[data-relayed-authorizer]")).not.toBeNull();
-    expect(entries[1].querySelector("[data-relayed-authorizer]")).toBeNull();
+    // Narrowed rather than indexed with `?.`: an optional chain here would make a missing
+    // entry satisfy `not.toBeNull()` and the test would pass for the wrong reason.
+    const [relayed, clicked] = entries;
+    if (!relayed || !clicked) throw new Error("both log entries should have rendered");
+    expect(relayed.querySelector("[data-relayed-authorizer]")).not.toBeNull();
+    expect(clicked.querySelector("[data-relayed-authorizer]")).toBeNull();
   });
 
   it("opens every collapsed log body with one control, and closes them again", () => {
