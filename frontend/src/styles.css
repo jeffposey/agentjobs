@@ -18,6 +18,10 @@
      pressed on the header instead of the row. 4.25rem is the bar's own min-h-16 plus
      its border and a little air. */
   scroll-padding-top: 4.25rem;
+  /* The insertion line a reorder drag draws on the row it would land beside. blue-400,
+     which is already this list's colour for "the one you are acting on". Named here
+     because four rules below want the same one. */
+  --drop-line: #60a5fa;
   color: var(--color-dark-text);
   background: var(--color-dark-bg);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -44,6 +48,42 @@ a {
 .touch-target:not(.block) {
   display: inline-flex;
   align-items: center;
+}
+
+/* A reorder drag, seen rather than taken on faith.
+   ------------------------------------------------
+   Two attributes, set by `TaskList`'s `dragProps`, carry all of it: `data-dragging` on
+   the row that is moving and `data-drop-side` on the row it would land beside. They
+   live here instead of in class lists because the tree draws its rows as `<li>` and the
+   table draws them as `<tr>`, and a gesture that read differently between the two would
+   be its own defect. */
+[data-dragging="true"] {
+  /* Faded, not hidden. A gap where the row used to be would change the very distances
+     the reader is aiming between, and they are aiming with a ghost of that row held
+     under the pointer. */
+  opacity: 0.4;
+}
+
+[data-drop-side="before"],
+[data-drop-side="after"] {
+  /* Inset, so the line is drawn inside the row's own box and cannot enlarge it. A real
+     border would move every row below it by 2px the moment the pointer arrived. */
+  box-shadow: inset 0 2px 0 0 var(--drop-line);
+}
+
+[data-drop-side="after"] {
+  box-shadow: inset 0 -2px 0 0 var(--drop-line);
+}
+
+/* `border-collapse: collapse` hands a `<tr>`'s borders and background to the table, and
+   a shadow on the row is painted under the cells where nothing can be seen of it. The
+   cells carry it in the table shape. */
+tr[data-drop-side="before"] > .responsive-table-cell {
+  box-shadow: inset 0 2px 0 0 var(--drop-line);
+}
+
+tr[data-drop-side="after"] > .responsive-table-cell {
+  box-shadow: inset 0 -2px 0 0 var(--drop-line);
 }
 
 .responsive-table-wrap {

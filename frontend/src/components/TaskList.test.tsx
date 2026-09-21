@@ -808,6 +808,95 @@ describe("TaskList queue order", () => {
     expect(dataTransfer.setData).not.toHaveBeenCalledWith("text/plain", expect.anything());
   });
 
+  it("drags a picture of the row, not of the handle", () => {
+    // Left to itself the browser drags an image of whatever carries `draggable`, which
+    // is the 20px grip: the gesture then shows a glyph floating over a list in which
+    // nothing appears to be happening.
+    renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: accepting() });
+    const dataTransfer = { effectAllowed: "", setData: vi.fn(), setDragImage: vi.fn() };
+
+    fireEvent.dragStart(grip("task-a"), { dataTransfer });
+
+    expect(dataTransfer.setDragImage).toHaveBeenCalledWith(
+      rowFor("task-a"),
+      expect.any(Number),
+      expect.any(Number),
+    );
+  });
+
+  it("shows the row that is moving to be in flight, for the length of the gesture", () => {
+    renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: accepting() });
+
+    fireEvent.dragStart(grip("task-a"));
+    expect(rowFor("task-a")).toHaveAttribute("data-dragging", "true");
+    expect(rowFor("task-b")).not.toHaveAttribute("data-dragging");
+
+    fireEvent.dragEnd(grip("task-a"));
+    expect(rowFor("task-a")).not.toHaveAttribute("data-dragging");
+  });
+
+  it("marks the side of the row the drop will actually use", async () => {
+    // The assertion that matters is the pairing: the side drawn while the pointer is
+    // held there and the side the drop uses come from one function, and this is what
+    // would catch them drifting apart.
+    const handlers = accepting();
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.dragStart(grip("task-a"));
+    fireEvent.dragOver(rowFor("task-c"));
+    expect(rowFor("task-c")).toHaveAttribute("data-drop-side", "after");
+
+    fireEvent.drop(rowFor("task-c"));
+    await waitFor(() => expect(handlers.moves).toHaveLength(1));
+    expect(handlers.moves[0]).toEqual(["task-a", { after: "task-c" }]);
+  });
+
+  it("marks the other side when the row is travelling the other way", async () => {
+    const handlers = accepting();
+    renderQueue([queued("task-a", 100), queued("task-b", 200), queued("task-c", 300)], {
+      reorder: handlers,
+    });
+
+    fireEvent.dragStart(grip("task-c"));
+    fireEvent.dragOver(rowFor("task-a"));
+    expect(rowFor("task-a")).toHaveAttribute("data-drop-side", "before");
+
+    fireEvent.drop(rowFor("task-a"));
+    await waitFor(() => expect(handlers.moves).toHaveLength(1));
+    expect(handlers.moves[0]).toEqual(["task-c", { before: "task-a" }]);
+  });
+
+  it("draws no line on a row that would not take the drop, and none once the drag is over", () => {
+    renderQueue([queued("task-a", 100), queued("task-b", 200)], { reorder: accepting() });
+
+    fireEvent.dragStart(grip("task-a"));
+    fireEvent.dragOver(rowFor("task-b"));
+    expect(rowFor("task-b")).toHaveAttribute("data-drop-side", "after");
+
+    // Back over the row being dragged: there is no move to make here, so there is
+    // nothing to promise.
+    fireEvent.dragOver(rowFor("task-a"));
+    expect(rowFor("task-a")).not.toHaveAttribute("data-drop-side");
+    expect(rowFor("task-b")).not.toHaveAttribute("data-drop-side");
+
+    fireEvent.dragOver(rowFor("task-b"));
+    fireEvent.dragEnd(grip("task-a"));
+    expect(rowFor("task-b")).not.toHaveAttribute("data-drop-side");
+  });
+
+  it("gives the tree the same feedback as the table", () => {
+    // One `dragProps` serves both shapes, and this is what says so.
+    renderTree(epic(), { reorder: accepting() });
+
+    fireEvent.dragStart(grip("task-after"));
+    fireEvent.dragOver(rowFor("task-parent"));
+
+    expect(rowFor("task-after")).toHaveAttribute("data-dragging", "true");
+    expect(rowFor("task-parent")).toHaveAttribute("data-drop-side", "before");
+  });
+
   it("refuses to offer an order it cannot justify", () => {
     renderQueue([queued("task-a", 100), queued("task-b", 100)], {
       reorder: accepting(),
