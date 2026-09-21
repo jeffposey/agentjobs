@@ -312,6 +312,7 @@ the second switch and can never define what runs. See
 | `POST` | `/api/dispatch/arm` | Arm the pull mode with a bound: free slots then fill themselves from this project's queue (task-462) |
 | `POST` | `/api/dispatch/disarm` | Stop it starting anything more. Kills nothing |
 | `POST` | `/api/tasks/{task_id}/dispatch` | Start an agent on this task |
+| `POST` | `/api/tasks/{task_id}/check` | Run this task's executable acceptance checks and answer with what each one did |
 | `GET` | `/api/dispatch/runs` | Runs, live and historical, from the ledger |
 | `POST` | `/api/dispatch/runs/{run_id}/cancel` | Cancel one live run |
 | `GET` | `/api/dispatch/runs/{run_id}/output` | The run's captured transcript |
@@ -322,6 +323,22 @@ the second switch and can never define what runs. See
 
 `transcript.log` is a raw TTY capture, so a line appears in it once per terminal
 repaint. Link to it and read it; never compute a count from it.
+
+`POST .../check` is in this section because it belongs here: it executes commands out of
+the task record on this machine. It walks the same four gates a dispatch walks, so a
+project not enabled for dispatch is refused under the gate's own code, and it needs
+`dispatch.start` -- which no run holds, so a dispatched agent cannot call it. That is not
+a formality. Every run holds `task.edit` against every task, so a run that could call
+this could write a `check` onto a task and then have this machine run it.
+
+It answers with a `results` vector -- one entry per criterion that has a `check`, each
+with `status` (`met` or `failed`), `exit_code`, `duration_seconds`, an optional `cause`
+and a 40-line `output_tail` -- plus `unchecked`, `ok`, and the `entry_id` of the one
+`check_result` log entry the pass wrote. A task whose criteria are all prose is refused
+`no_checks` rather than answered with an empty success: zero of zero passing is not a
+definition of done being met. `agentjobs check <task-id>` is the same pass from a
+terminal, and exits non-zero when anything failed. The field itself is described in
+[the schema reference](task-schema.md#verify-is-prose-check-is-argv).
 
 Arm and disarm need `dispatch.admin`, which no run holds: an agent cannot arm the
 machine to keep starting agents. A bound is required and has no default -- `starts`

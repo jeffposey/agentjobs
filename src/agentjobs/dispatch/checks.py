@@ -160,9 +160,7 @@ def run_check(
     duration = time.perf_counter() - started
     return CheckOutcome(
         id=criterion_id,
-        status=(
-            AcceptanceStatus.MET if completed.returncode == 0 else AcceptanceStatus.FAILED
-        ),
+        status=(AcceptanceStatus.MET if completed.returncode == 0 else AcceptanceStatus.FAILED),
         exit_code=completed.returncode,
         duration_seconds=duration,
         output_tail=_tail(f"{completed.stdout}\n{completed.stderr}"),

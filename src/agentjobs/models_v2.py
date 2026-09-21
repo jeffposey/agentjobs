@@ -1095,9 +1095,7 @@ class CheckOutcome(StrictModel):
     """
 
     id: str = Field(..., description="The acceptance criterion this is the result for.")
-    status: AcceptanceStatus = Field(
-        ..., description="`met` on exit 0, `failed` on anything else."
-    )
+    status: AcceptanceStatus = Field(..., description="`met` on exit 0, `failed` on anything else.")
     exit_code: Optional[int] = Field(
         default=None,
         description=(

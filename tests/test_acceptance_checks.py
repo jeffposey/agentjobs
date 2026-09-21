@@ -43,6 +43,7 @@ from agentjobs.models_v2 import (
     Lifecycle,
     LogEntryType,
     MANAGER_WRITTEN_LOG_TYPES,
+    Task,
 )
 from agentjobs.principals import PrincipalKind
 from agentjobs.projects import Project, ProjectRegistry
@@ -122,6 +123,13 @@ class TestTheField:
 # ---------------------------------------------------------------------------
 
 
+def loaded(manager: TaskManager, task_id: str) -> Task:
+    """The task, insisted on. A missing one is a broken fixture, not a case under test."""
+    task = loaded(manager, task_id)
+    assert task is not None, f"{task_id} vanished between writing it and reading it"
+    return task
+
+
 def a_task_with_checks(manager: TaskManager, *, checks: bool = True) -> str:
     """A ready task carrying one passing check, one failing one, and one prose criterion."""
     acceptance = [
@@ -156,10 +164,14 @@ class TestTheStore:
         manager = TaskManager(store)
         task_id = a_task_with_checks(manager)
 
-        rows = store.database.reader().execute(
-            "SELECT ac_id, check_argv FROM task_acceptance WHERE task_id = ? ORDER BY ord",
-            (task_id,),
-        ).fetchall()
+        rows = (
+            store.database.reader()
+            .execute(
+                "SELECT ac_id, check_argv FROM task_acceptance WHERE task_id = ? ORDER BY ord",
+                (task_id,),
+            )
+            .fetchall()
+        )
 
         stored = {row["ac_id"]: row["check_argv"] for row in rows}
         assert json.loads(stored["sc-1"]) == PASSES
@@ -232,8 +244,11 @@ class TestTheMigration:
         updated = manager.record_check_result(
             task_id,
             actor="Jeff Posey",
-            results=[CheckOutcome(id="sc-1", status=AcceptanceStatus.MET, exit_code=0,
-                                  duration_seconds=0.1)],
+            results=[
+                CheckOutcome(
+                    id="sc-1", status=AcceptanceStatus.MET, exit_code=0, duration_seconds=0.1
+                )
+            ],
             unchecked=["sc-3"],
         )
 
@@ -319,22 +334,25 @@ class TestTheLogEntryType:
     def test_one_entry_per_pass_not_one_per_criterion(self, tmp_path: Path) -> None:
         manager = TaskManager(task_store(tmp_path / "tasks"))
         task_id = a_task_with_checks(manager)
-        before = sum(1 for item in manager.get_task(task_id).log
-                     if item.type is LogEntryType.CHECK_RESULT)
+        before = sum(
+            1 for item in loaded(manager, task_id).log if item.type is LogEntryType.CHECK_RESULT
+        )
 
         manager.record_check_result(
             task_id,
             actor="Jeff Posey",
             results=[
-                CheckOutcome(id="sc-1", status=AcceptanceStatus.MET, exit_code=0,
-                             duration_seconds=0.1),
-                CheckOutcome(id="sc-2", status=AcceptanceStatus.FAILED, exit_code=3,
-                             duration_seconds=0.1),
+                CheckOutcome(
+                    id="sc-1", status=AcceptanceStatus.MET, exit_code=0, duration_seconds=0.1
+                ),
+                CheckOutcome(
+                    id="sc-2", status=AcceptanceStatus.FAILED, exit_code=3, duration_seconds=0.1
+                ),
             ],
             unchecked=["sc-3"],
         )
 
-        task = manager.get_task(task_id)
+        task = loaded(manager, task_id)
         assert task is not None
         written = [item for item in task.log if item.type is LogEntryType.CHECK_RESULT]
         assert len(written) - before == 1
@@ -356,17 +374,20 @@ class TestTheStatusReset:
         manager.record_check_result(
             task_id,
             actor="Jeff Posey",
-            results=[CheckOutcome(id="sc-1", status=AcceptanceStatus.MET, exit_code=0,
-                                  duration_seconds=0.1)],
+            results=[
+                CheckOutcome(
+                    id="sc-1", status=AcceptanceStatus.MET, exit_code=0, duration_seconds=0.1
+                )
+            ],
             unchecked=[],
         )
-        assert manager.get_task(task_id).acceptance[0].status is AcceptanceStatus.MET
+        assert loaded(manager, task_id).acceptance[0].status is AcceptanceStatus.MET
         return task_id
 
     def test_changing_the_check_resets_the_status(self, tmp_path: Path) -> None:
         manager = TaskManager(task_store(tmp_path / "tasks"))
         task_id = self._met(manager)
-        task = manager.get_task(task_id)
+        task = loaded(manager, task_id)
         patched = [item.model_dump() for item in task.acceptance]
         patched[0]["check"] = [sys.executable, "-c", "print('different')"]
 
@@ -377,7 +398,7 @@ class TestTheStatusReset:
     def test_editing_the_text_does_not(self, tmp_path: Path) -> None:
         manager = TaskManager(task_store(tmp_path / "tasks"))
         task_id = self._met(manager)
-        task = manager.get_task(task_id)
+        task = loaded(manager, task_id)
         patched = [item.model_dump() for item in task.acceptance]
         patched[0]["text"] = "The green one, reworded"
 
@@ -394,7 +415,7 @@ class TestTheStatusReset:
         """
         manager = TaskManager(task_store(tmp_path / "tasks"))
         task_id = a_task_with_checks(manager, checks=False)
-        task = manager.get_task(task_id)
+        task = loaded(manager, task_id)
         patched = [item.model_dump() for item in task.acceptance]
         patched[0]["check"] = PASSES
         patched[0]["status"] = "met"
@@ -407,7 +428,7 @@ class TestTheStatusReset:
         """The API dumps to dicts; an in-process caller passes models. Both reach it."""
         manager = TaskManager(task_store(tmp_path / "tasks"))
         task_id = self._met(manager)
-        task = manager.get_task(task_id)
+        task = loaded(manager, task_id)
         criteria = list(task.acceptance)
         criteria[0] = criteria[0].model_copy(
             update={"check": [sys.executable, "-c", "print('other')"]}
@@ -454,9 +475,7 @@ def project(tmp_path: Path) -> Project:
 
 def _permitted(monkeypatch: pytest.MonkeyPatch) -> None:
     """Open the dispatch gate for the evaluator without configuring a whole machine."""
-    monkeypatch.setattr(
-        "agentjobs.dispatch.checks.assert_dispatch_permitted", lambda *a, **k: None
-    )
+    monkeypatch.setattr("agentjobs.dispatch.checks.assert_dispatch_permitted", lambda *a, **k: None)
 
 
 class TestTheEvaluator:
@@ -498,7 +517,8 @@ class TestTheEvaluator:
         _permitted(monkeypatch)
         monkeypatch.chdir(tmp_path)
         manager = TaskManager(task_store(project.root / "tasks", project_id=project.id))
-        task = manager.get_task(
+        task = loaded(
+            manager,
             manager.create_task(
                 title="Rooted",
                 category="general",
@@ -513,7 +533,7 @@ class TestTheEvaluator:
                         check=[sys.executable, "-c", "open('marker.txt').read()"],
                     )
                 ],
-            ).id
+            ).id,
         )
 
         report = evaluate_task(task, project=project)
@@ -543,7 +563,8 @@ class TestTheEvaluator:
     ) -> None:
         _permitted(monkeypatch)
         manager = TaskManager(task_store(project.root / "tasks", project_id=project.id))
-        task = manager.get_task(
+        task = loaded(
+            manager,
             manager.create_task(
                 title="Slow",
                 category="general",
@@ -555,7 +576,7 @@ class TestTheEvaluator:
                     AcceptanceCriterion(id="sc-1", text="slow", check=HANGS),
                     AcceptanceCriterion(id="sc-2", text="never reached", check=PASSES),
                 ],
-            ).id
+            ).id,
         )
 
         report = evaluate_task(task, project=project, per_check_timeout=1.0, pass_timeout=1.0)
@@ -571,7 +592,7 @@ class TestTheEvaluator:
     ) -> None:
         _permitted(monkeypatch)
         manager = TaskManager(task_store(project.root / "tasks", project_id=project.id))
-        task = manager.get_task(a_task_with_checks(manager, checks=False))
+        task = loaded(manager, a_task_with_checks(manager, checks=False))
 
         with pytest.raises(NoChecksError) as refusal:
             evaluate_task(task, project=project)
@@ -604,7 +625,8 @@ class TestTheEvaluator:
         )
         witness = tmp_path / "it-ran.txt"
         manager = TaskManager(task_store(project.root / "tasks", project_id=project.id))
-        task = manager.get_task(
+        task = loaded(
+            manager,
             manager.create_task(
                 title="Gated",
                 category="general",
@@ -619,7 +641,7 @@ class TestTheEvaluator:
                         check=[sys.executable, "-c", f"open({str(witness)!r},'w').write('x')"],
                     )
                 ],
-            ).id
+            ).id,
         )
 
         with pytest.raises(ProjectNotEnabledError):
@@ -864,7 +886,7 @@ class TestTheCli:
         result = self._invoke(root, home, task.id)
 
         assert result.returncode == 0, result.stdout + result.stderr
-        assert manager.get_task(task.id).acceptance[0].status is AcceptanceStatus.MET
+        assert loaded(manager, task.id).acceptance[0].status is AcceptanceStatus.MET
 
     def test_it_refuses_a_task_with_no_checks(self, served) -> None:
         client, root, home = served
@@ -883,7 +905,7 @@ class TestTheCli:
 
         self._invoke(root, home, task_id)
 
-        task = manager.get_task(task_id)
+        task = loaded(manager, task_id)
         assert task is not None
         assert sum(1 for item in task.log if item.type is LogEntryType.CHECK_RESULT) == 1
 
@@ -905,10 +927,12 @@ class TestTheReport:
     def test_ok_is_false_when_anything_failed(self) -> None:
         report = CheckReport(
             results=[
-                CheckOutcome(id="a", status=AcceptanceStatus.MET, exit_code=0,
-                             duration_seconds=0.0),
-                CheckOutcome(id="b", status=AcceptanceStatus.FAILED, exit_code=1,
-                             duration_seconds=0.0),
+                CheckOutcome(
+                    id="a", status=AcceptanceStatus.MET, exit_code=0, duration_seconds=0.0
+                ),
+                CheckOutcome(
+                    id="b", status=AcceptanceStatus.FAILED, exit_code=1, duration_seconds=0.0
+                ),
             ],
             unchecked=[],
         )

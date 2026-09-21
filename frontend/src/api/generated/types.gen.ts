@@ -8,8 +8,25 @@ export type ClientOptions = {
  * AcceptanceCriterion
  *
  * One element of the definition of done.
+ *
+ * Two fields describe how it is verified and they are not the same kind of thing
+ * (task-147). ``verify`` is prose, addressed to a person: it says what somebody should
+ * do to satisfy themselves the criterion holds, and nothing executes it. ``check`` is
+ * an argv list, addressed to this machine: its exit code decides ``met`` or ``failed``,
+ * and it is the only one of the two that anything runs.
+ *
+ * They are kept apart rather than merged because most criteria can only have the
+ * first. "The dashboard reads clearly on a phone" is verifiable and not executable,
+ * and a schema that offered one field would either lose that criterion or invite a
+ * command written where prose belongs.
  */
 export type AcceptanceCriterion = {
+    /**
+     * Check
+     *
+     * Optional argv list whose exit code decides this criterion: 0 is met, anything else is failed. A list, never a string -- nothing splits it and no shell sees it.
+     */
+    check?: Array<string> | null;
     /**
      * Id
      *
@@ -26,7 +43,7 @@ export type AcceptanceCriterion = {
     /**
      * Verify
      *
-     * Optional machine-checkable hint, e.g. a command to run.
+     * Optional prose for a person: how someone would satisfy themselves this criterion holds. Never executed -- an executable check is `check`.
      */
     verify?: string | null;
 };
@@ -757,6 +774,96 @@ export type BrokenTaskFile = {
      * Task Id
      */
     task_id: string;
+};
+
+/**
+ * CheckOutcome
+ *
+ * What one acceptance criterion's ``check`` did on one pass (task-147).
+ *
+ * ``status`` is only ever ``met`` or ``failed``: there is no third value, because a
+ * check that could not be started is ``failed`` and not skipped. That is the whole
+ * security argument for the loop this feeds -- if a broken check were "unknown" and
+ * unknown were tolerated, a loop could converge by breaking its own tests.
+ */
+export type CheckOutcome = {
+    /**
+     * Cause
+     *
+     * Why it failed, when the exit code does not say: `timeout`, `not_started`, or `pass_timeout` for a check the pass budget cut short.
+     */
+    cause?: string | null;
+    /**
+     * Duration Seconds
+     *
+     * Wall-clock time this check took, including a timeout.
+     */
+    duration_seconds: number;
+    /**
+     * Exit Code
+     *
+     * The process's exit code, or absent when there was no process -- a timeout killed it, or it could not be started at all.
+     */
+    exit_code?: number | null;
+    /**
+     * Id
+     *
+     * The acceptance criterion this is the result for.
+     */
+    id: string;
+    /**
+     * Output Tail
+     *
+     * Last lines of the check's combined output. Absent when it printed nothing.
+     */
+    output_tail?: string | null;
+    /**
+     * `met` on exit 0, `failed` on anything else.
+     */
+    status: AcceptanceStatus;
+};
+
+/**
+ * CheckRunResult
+ *
+ * What one evaluation pass over a task's acceptance checks did (task-147).
+ *
+ * The same vector ``agentjobs check`` prints, so the two triggers cannot come to
+ * describe a pass differently. ``entry_id`` names the one ``check_result`` entry the
+ * pass wrote, which is how a client reads the evidence back without guessing which
+ * entry it was.
+ */
+export type CheckRunResult = {
+    /**
+     * Entry Id
+     *
+     * Id of the `check_result` entry this pass wrote.
+     */
+    entry_id: number;
+    /**
+     * Ok
+     *
+     * True when every check exited 0.
+     */
+    ok: boolean;
+    /**
+     * Results
+     *
+     * One outcome per criterion that has a check, in the task's order.
+     */
+    results: Array<CheckOutcome>;
+    /**
+     * Task Id
+     *
+     * The task whose checks were run.
+     */
+    task_id: string;
+    /**
+     * Unchecked
+     *
+     * Criteria with no check, which this pass did not decide.
+     */
+    unchecked?: Array<string>;
 };
 
 /**
@@ -2934,7 +3041,7 @@ export type LogEntry = {
  *
  * Type of a log entry (design doc section 4).
  */
-export type LogEntryType = 'note' | 'progress' | 'transition' | 'handoff' | 'decision' | 'question' | 'answer' | 'instruction' | 'dispatch' | 'dispatch_result' | 'queue_move' | 'authorization';
+export type LogEntryType = 'note' | 'progress' | 'transition' | 'handoff' | 'decision' | 'question' | 'answer' | 'instruction' | 'dispatch' | 'dispatch_result' | 'queue_move' | 'authorization' | 'check_result';
 
 /**
  * MachineHolderView
@@ -10609,6 +10716,40 @@ export type RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostRe
 
 export type RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostResponse = RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostResponses[keyof RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostResponses];
 
+export type CheckTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/check';
+};
+
+export type CheckTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CheckTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostError = CheckTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostErrors[keyof CheckTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostErrors];
+
+export type CheckTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: CheckRunResult;
+};
+
+export type CheckTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostResponse = CheckTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostResponses[keyof CheckTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostResponses];
+
 export type ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData = {
     body: ClaimRequest;
     path: {
@@ -12340,6 +12481,36 @@ export type RelayAuthorizationApiTasksTaskIdAuthorizationPostResponses = {
 };
 
 export type RelayAuthorizationApiTasksTaskIdAuthorizationPostResponse = RelayAuthorizationApiTasksTaskIdAuthorizationPostResponses[keyof RelayAuthorizationApiTasksTaskIdAuthorizationPostResponses];
+
+export type CheckTaskAcceptanceApiTasksTaskIdCheckPostData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/check';
+};
+
+export type CheckTaskAcceptanceApiTasksTaskIdCheckPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CheckTaskAcceptanceApiTasksTaskIdCheckPostError = CheckTaskAcceptanceApiTasksTaskIdCheckPostErrors[keyof CheckTaskAcceptanceApiTasksTaskIdCheckPostErrors];
+
+export type CheckTaskAcceptanceApiTasksTaskIdCheckPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: CheckRunResult;
+};
+
+export type CheckTaskAcceptanceApiTasksTaskIdCheckPostResponse = CheckTaskAcceptanceApiTasksTaskIdCheckPostResponses[keyof CheckTaskAcceptanceApiTasksTaskIdCheckPostResponses];
 
 export type ClaimTaskApiTasksTaskIdClaimPostData = {
     body: ClaimRequest;
