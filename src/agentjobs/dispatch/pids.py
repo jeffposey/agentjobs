@@ -46,6 +46,7 @@ rule has one implementation rather than three halves of one.
 from __future__ import annotations
 
 import os
+import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Tuple
@@ -245,3 +246,61 @@ def is_the_recorded_process(
     if recorded_at is not None:
         return times[1] <= recorded_at + REUSE_SLACK
     return False
+
+
+KILLED_EXIT_CODE = 1
+"""What a Windows process reports after ``taskkill /F`` ends it.
+
+Measured rather than looked up: a child killed that way on this machine on 2026-09-21
+exited **1**. The number is worth nothing on its own -- it is also what half the CLIs in
+the world return for ordinary failure -- and that collision is exactly why the reading
+below needs the empty streams beside it before it says anything."""
+
+STREAM_LIMIT = 2000
+"""How much of each stream a description quotes.
+
+A budget each rather than one shared between them, because the interesting stream is
+whichever one the caller was not expecting to have to read."""
+
+
+def describe_exit(completed: "subprocess.CompletedProcess[str]") -> str:
+    """Everything the OS said about a child that exited the way a caller did not want.
+
+    The message that costs a cycle is the empty one. ``Session launch for task-001
+    exited 1:`` was the whole of what task-506's fourth gate run recorded about a real
+    ``claude`` process that never started, and an agent then spent a detour proving it
+    was not a code defect, because the line said nothing that could be acted on
+    (task-513).
+
+    Empty is not an absence of evidence here; it **is** the evidence. A Python failure
+    writes a traceback to stderr and a CLI that fails says why, so exit 1 with nothing on
+    either stream is neither: it is the fingerprint of ``taskkill /T /F``, which is what
+    this repository does to a pid it believes belongs to a run (task-505). The reading to
+    put in front of the next reader is therefore not "no output" but "something killed
+    this child".
+
+    **The condition is narrow on purpose, and measurement is why.** Killing a child that
+    had already printed leaves its output behind -- probed on 2026-09-21, a child killed
+    1.5s in kept ``hello from the child`` on stdout and exited 1 -- so requiring *both*
+    streams empty is what separates a spawn that produced nothing from a process that
+    was cut off mid-sentence. The same probe confirms the other direction: an ordinary
+    ``sys.exit(1)`` after writing to stderr is untouched by this, which is the error that
+    would matter most, since mislabelling a genuine failure as a kill would send the next
+    reader hunting a pid that was never involved.
+
+    Kept beside the pid predicates deliberately. This is the same fact they exist for --
+    a recycled number acted on -- seen from the victim's end rather than the killer's,
+    and a second copy of it somewhere else would drift from them.
+    """
+    stdout = (completed.stdout or "").strip()
+    stderr = (completed.stderr or "").strip()
+    parts = [f"exit {completed.returncode}"]
+    if completed.returncode == KILLED_EXIT_CODE and not stdout and not stderr:
+        parts.append(
+            "with empty stdout and stderr, which is the signature of `taskkill /F` "
+            "rather than anything the child chose to report: something on this machine "
+            "killed it, most likely aiming at a pid that had been recycled (task-505)"
+        )
+    parts.append(f"stdout: {stdout[:STREAM_LIMIT] or '<empty>'}")
+    parts.append(f"stderr: {stderr[:STREAM_LIMIT] or '<empty>'}")
+    return "\n".join(parts)
