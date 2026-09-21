@@ -33,7 +33,7 @@ list while a finish runs changes nothing about how that finish goes.
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 
 from fastapi import Request
 
@@ -58,18 +58,36 @@ class LiveFinishBinding:
     def __init__(self, request: Request) -> None:
         self._request = request
         self._states: Optional[Dict[str, LiveFinishState]] = None
+        self._closed_by: Set[str] = set()
 
-    def for_task(self, task_id: str) -> Optional[LiveFinishState]:
-        """The finish running against this task right now, or ``None``."""
+    def for_task(self, task_id: str, task_open: Optional[bool] = None) -> Optional[LiveFinishState]:
+        """The finish running against this task right now, or ``None``.
+
+        A **closed** task gets one only from the finish that plausibly closed it --
+        ``finish_status.did_the_closing``, the same rule the task page's panel applies,
+        so the chip and the panel cannot disagree (task-514). Such a finish goes on
+        working for a second or two afterwards, removing the worktree and deleting the
+        branch, and a chip there is right. A finish holding a closed task having merged
+        nothing and closed nothing cannot be that one, and a row reading "Finishing"
+        beside a task reading "Completed" is the disagreement task-506 spent twenty
+        minutes being.
+        """
         if self._states is None:
             self._states = self._load()
-        return self._states.get(task_id)
+        state = self._states.get(task_id)
+        if state is not None and task_open is False and task_id not in self._closed_by:
+            return None
+        return state
 
     def _load(self) -> Dict[str, LiveFinishState]:
         # Imported here rather than at module scope, for the reason the sibling binding
         # gives: this pulls in the dispatch stack, and `api.models` is imported by
         # everything that reads a task.
-        from agentjobs.dispatch.finish_status import STEP_MEANING, live_finishes
+        from agentjobs.dispatch.finish_status import (
+            STEP_MEANING,
+            did_the_closing,
+            live_finishes,
+        )
 
         project_id = request_project_id(self._request)
         if not project_id:
@@ -79,6 +97,11 @@ class LiveFinishBinding:
             statuses = live_finishes(home, project_id)
         except Exception:  # noqa: BLE001 - a label may not cost the read; see the module docstring
             return {}
+        self._closed_by = {
+            task_id
+            for task_id, status in statuses.items()
+            if did_the_closing(status.merge_commit, status.steps)
+        }
         return {
             task_id: LiveFinishState(
                 finish_id=status.finish_id,
@@ -107,13 +130,14 @@ async def bind_live_finishes(request: Request) -> None:
     _BINDING.set(LiveFinishBinding(request))
 
 
-def live_finish_for(task_id: str) -> Optional[LiveFinishState]:
+def live_finish_for(task_id: str, task_open: Optional[bool] = None) -> Optional[LiveFinishState]:
     """The finish running against ``task_id`` in this request's project.
 
     ``None`` outside a request, which is what a unit test constructing a read model by
-    hand gets: no binding, no scan, no label.
+    hand gets: no binding, no scan, no label. ``task_open`` is the row's own answer to
+    "is this task still open"; see :meth:`LiveFinishBinding.for_task`.
     """
     binding = _BINDING.get()
     if binding is None:
         return None
-    return binding.for_task(task_id)
+    return binding.for_task(task_id, task_open)

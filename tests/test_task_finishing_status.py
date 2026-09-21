@@ -297,6 +297,28 @@ class TestOnlyALiveFinishGetsTheLabel:
         # may, it just does not get to overwrite the sentence.
         assert row["live_finish"]["current_step"] == "worktree"
 
+    def test_a_closed_task_with_a_finish_that_closed_nothing_reads_completed(
+        self, machine: Machine, served: TestClient
+    ) -> None:
+        """task-514: the duplicate `fin_76cf6a4e`, on the surface this label lives on.
+
+        One field apart from the case above -- this finish recorded no ``close`` step and
+        merged nothing, so it cannot be the finish that closed the task. It is the second
+        finish for a task the first one already finished, and a row reading "Finishing"
+        beside a page reading "Completed" is exactly what nobody could make sense of.
+        """
+        task_id = machine.task()
+        machine.manager.claim_task(task_id, agent="claude")
+        a_live_finish(machine, task_id)
+        machine.manager.close_task(task_id, actor="claude", outcome=Outcome.COMPLETED)
+
+        row = listing(served)[task_id]
+
+        assert row["live_finish"] is None
+        assert row["display_status"] == "Completed"
+        overtaken = read_finish_status(machine.home, task_id, "sandbox", task_open=False)
+        assert overtaken is not None and overtaken.state == "overtaken"
+
 
 # ----- the axes are untouched (a4) ----------------------------------------------------
 

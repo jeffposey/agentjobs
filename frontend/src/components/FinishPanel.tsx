@@ -85,6 +85,10 @@ export function finishHeadline(finish: TaskFinishView): string {
       return finish.merge_commit
         ? `Merged as ${finish.merge_commit.slice(0, 8)}, then the finish stopped without saying how it ended`
         : "The finish stopped without saying how it ended";
+    // task-514: a finish still running against a closed task it did not merge. Not
+    // "Finishing this task" -- the task is finished, and this is not what finished it.
+    case "overtaken":
+      return "Overtaken — this task was already finished";
     default:
       return "Finish";
   }
@@ -113,6 +117,8 @@ export function finishDetail(finish: TaskFinishView): string {
       }, so the approval behaved as it always did.`;
     case "interrupted":
       return "Its process is gone and it wrote no ending — the machine restarted, or something killed it. The task record holds everything it managed to write.";
+    case "overtaken":
+      return "It merged nothing and the task is already closed, so another finish did the work. Nothing here is yours to do.";
     default:
       return "";
   }

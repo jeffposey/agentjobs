@@ -3972,6 +3972,12 @@ def finish(
         hidden=True,
         help="The interrupted attempt this one resumes; written by the poller (task-443).",
     ),
+    speculative: bool = typer.Option(
+        False,
+        "--speculative",
+        hidden=True,
+        help="Started on a guess that a finish is owed, not on a person typing this (task-514).",
+    ),
 ) -> None:
     """Run the scripted post-approval finish, with no agent in the loop (task-241).
 
@@ -4016,6 +4022,7 @@ def finish(
         approver=approver,
         authority=POSTURE if posture_release else APPROVAL,
         resumed_from=resumed_from,
+        speculative=speculative,
     )
     typer.echo(result.render())
     if result.outcome == DECLINED:

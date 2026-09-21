@@ -77,6 +77,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from agentjobs.actors import FINISHER
+from agentjobs.dispatch.approval import consuming_finish
 from agentjobs.dispatch.atomic_yaml import write_yaml_atomically
 from agentjobs.dispatch.config import (
     DispatchError,
@@ -100,6 +101,7 @@ from agentjobs.dispatch.ledger import (
     acquire_runway_lock,
     find_run,
     live_runs,
+    process_alive,
     read_task_lock_holder,
 )
 from agentjobs.dispatch.finish_receipts import (
@@ -245,6 +247,16 @@ class StepLog(List[StepResult]):
 FINISHED = "finished"
 ESCALATED = "escalated"
 DECLINED = "declined"
+
+DUPLICATE_KEY = "duplicate_of"
+"""Written into the meta of an attempt that declined because another one has the task.
+
+A duplicate still gets a directory and a terminal ``meta.yaml`` -- a decline nobody can
+find is what made task-514 take an hour to read -- but that directory must not become
+the attempt every surface reports. ``finish_status.newest_finish_directory`` skips a
+directory carrying this key, so the finish actually doing the work stays the answer to
+"what is happening to this task".
+"""
 
 APPROVAL = "approval"
 POSTURE = "posture"
@@ -2153,6 +2165,38 @@ def mark_branch_merged(manager: TaskManagerLike, task_id: str, branch: str) -> N
     manager.update_task(task_id, actor=FINISHER, branches=branches)
 
 
+PREMISE_POLL_SECONDS = 10.0
+"""How often a queued finish re-asks whether it still has anything to land (task-514).
+
+Ten seconds rather than the runway's one, because each ask reads the task through a
+manager that may be an HTTP client. Against an hour of possible waiting the resolution
+is ample, and against a queue that moves in minutes it costs one read per ten seconds of
+a wait that was already going to be minutes long.
+"""
+
+
+def _say_left_the_queue(
+    manager: TaskManagerLike, task_id: str, finish_id: str, reason: str
+) -> None:
+    """Replace the queue note's reassurance, on the record, with what actually happened."""
+    try:
+        manager.add_log_entry(
+            task_id,
+            actor=FINISHER,
+            type=LogEntryType.PROGRESS,
+            body=(
+                f"Left the merge runway queue without landing: {reason}.\n\n"
+                "**Nothing was rebased, gated or merged by this attempt.** It was queued "
+                "behind another finish, and what it was queued to do stopped needing "
+                "doing while it waited, so it gave up its place rather than waiting out "
+                "the hour."
+            ),
+            data={"finish_step": "runway_left", "finish_id": finish_id, "reason": reason},
+        )
+    except Exception:  # noqa: BLE001 - a decline must not fail over its own note
+        return
+
+
 @dataclass
 class Runway:
     """This repository's one landing strip, held across rebase, gate and merge.
@@ -2180,9 +2224,47 @@ class Runway:
     lock: Optional[RunLock] = None
     waited_seconds: float = 0.0
 
-    def take(self, manager: TaskManagerLike, task_id: str) -> StepResult:
-        """Queue for the runway, saying so on the record if the queue is real."""
+    def take(
+        self,
+        manager: TaskManagerLike,
+        task_id: str,
+        premises: Optional[Callable[[], Optional[str]]] = None,
+    ) -> StepResult:
+        """Queue for the runway, saying so on the record if the queue is real.
+
+        ``premises`` is re-asked while queued, and a reason from it abandons the wait
+        (task-514). It answers one question: does the thing this finish is queued to do
+        still need doing? A task that closes underneath a queued finish, or a branch that
+        is merged or deleted from under it, means no -- and the alternative to asking is
+        ``runway_timeout_seconds``, an hour by default, spent on work that ceased to
+        exist in the first minute of it.
+        """
         began = time.monotonic()
+        announced_to: Optional[LockHolder] = None
+        checked_at = time.monotonic()
+
+        def still_needed() -> None:
+            """Raise :class:`Declined` when what this finish is queued for is over."""
+            nonlocal checked_at
+            if premises is None:
+                return
+            now = time.monotonic()
+            if now - checked_at < PREMISE_POLL_SECONDS:
+                return
+            checked_at = now
+            gone = premises()
+            if gone is None:
+                return
+            if announced_to is not None:
+                # The queue note is the visible tail of the task until something replaces
+                # it, and "This is the queue working, not a stall" read beside a task that
+                # had been closed for twenty minutes is what made task-506 unreadable.
+                _say_left_the_queue(manager, task_id, self.finish_id, gone)
+            raise Declined(
+                "overtaken",
+                f"Left the merge runway queue after {now - began:.0f}s: {gone}. Nothing "
+                "was rebased, gated or merged -- this finish never reached the strip.",
+            )
 
         def announce(holder: LockHolder) -> None:
             # Only when it is actually contended, and only once. A note on every finish
@@ -2211,6 +2293,8 @@ class Runway:
             # from `announce_start` on this same file once the runway comes free, or from
             # the escalation if the wait times out. `commit_task_record` commits one path,
             # and that path is this record, so nothing is orphaned by dropping this call.
+            nonlocal announced_to
+            announced_to = holder
 
         try:
             self.lock = acquire_runway_lock(
@@ -2219,6 +2303,7 @@ class Runway:
                 finish_id=self.finish_id,
                 timeout=self.timeout,
                 on_wait=announce,
+                on_poll=still_needed,
             )
         except RunLockTimeout as exc:
             raise Escalate("runway", "runway_busy", str(exc)) from exc
@@ -2993,6 +3078,7 @@ def finish_task(
     settings: Optional[FinishSettings] = None,
     authority: str = APPROVAL,
     resumed_from: str = "",
+    speculative: bool = False,
 ) -> FinishResult:
     """Do the fixed part of ENGINEERING.md merge-gate steps 3 to 6, or stop and say where.
 
@@ -3009,6 +3095,13 @@ def finish_task(
     (task-443). It changes nothing about what this attempt does -- recovery reads the
     receipts either way -- and is written down so that this attempt dying too parks the
     task for a human rather than being resumed again.
+
+    ``speculative`` says this attempt was started on a *guess* that a finish is owed --
+    ``resume_approved_finish``, from the poller or a ledger conclusion -- rather than by
+    somebody typing the command (task-514). It buys exactly one extra refusal, the one
+    that cannot be made unconditionally: an approval another finish already consumed
+    authorises nothing further, **except** for the documented retry of a finish that
+    escalated, which runs on that same consumed approval on purpose.
     """
     resolved_home = home or default_home()
     began_at = _now()
@@ -3065,6 +3158,51 @@ def finish_task(
         )
 
     receipt = _standing_approval(resolved_home, project, task) if authority == APPROVAL else None
+
+    # ----- the front door (task-514) -------------------------------------------------
+    #
+    # Both of these refuse *before* the run lock and long before the runway, because the
+    # runway is a queue: a finish that reaches it does not decline, it gets in line for an
+    # hour behind the finish it duplicates and costs the next one in line its place. They
+    # are checks on this attempt rather than narrowings of who may spawn one, which is the
+    # point -- `resume_approved_finish`'s callers are allowed to be speculative.
+    in_flight = already_in_flight(
+        resolved_home, task_id, project_id=project.id, exclude=resumed_from
+    )
+    if in_flight is not None:
+        other = str(in_flight.get("finish_id") or "")
+        return _decline_as_duplicate(
+            resolved_home,
+            project,
+            task_id,
+            reason="finish_in_flight",
+            detail=(
+                f"{other or 'another finish'} (pid {in_flight.get('pid')}) is already "
+                f"finishing {task_id}, and started at {in_flight.get('started_at')}. "
+                "Two finishes for one task cannot both be right, and the second one to "
+                "arrive is the one with nothing to do."
+            ),
+            other=other,
+            authority=authority,
+        )
+    if receipt is not None and speculative:
+        spent_by = consuming_finish(resolved_home, project.id, receipt)
+        if spent_by and spent_by != resumed_from:
+            return _decline_as_duplicate(
+                resolved_home,
+                project,
+                task_id,
+                reason="approval_consumed",
+                detail=(
+                    f"The approval in entry {receipt.entry_id} was already acted on by "
+                    f"{spent_by}. An approval authorises one finish; a second *spawned* "
+                    "on the same click has nothing left to act on, whether or not the "
+                    "first is still running. Running `agentjobs finish` by hand is not "
+                    "refused here -- that is how an escalated finish is retried."
+                ),
+                other=spent_by,
+                authority=authority,
+            )
 
     def authority_withdrawn() -> Optional[Tuple[str, str]]:
         """The authority re-read immediately before ``git merge`` (task-322)."""
@@ -3360,6 +3498,121 @@ def _consume_approval(
     )
 
 
+FINISH_SCAN_LIMIT = 60
+"""How many finish directories the in-flight check reads before giving up on older ones.
+
+The same bound ``finish_status.SCAN_LIMIT`` uses, and for the same reason: ordered by
+how recently each was written, the finish this is asking about is at the front of the
+list in every case that matters, and a machine with a thousand historical finishes must
+not pay for all of them on the front door of every new one.
+"""
+
+
+def read_finish_meta(directory: Path) -> Dict[str, Any]:
+    """A finish directory's ``meta.yaml``, or an empty mapping when it has none."""
+    try:
+        import yaml
+
+        loaded = yaml.safe_load((directory / "meta.yaml").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - a directory mid-write is simply not evidence yet
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def already_in_flight(
+    home: Path, task_id: str, *, project_id: str = "", exclude: str = ""
+) -> Optional[Dict[str, Any]]:
+    """The meta of a finish that is working this task right now, or ``None``.
+
+    **This is the refusal the per-task lock was assumed to be making** (task-514). The
+    lock is the right primitive and it is still taken, but it answers a question about
+    *this instant* and it is deleted by whoever holds its path -- which is how the poller
+    settling a run deleted the lock a finish was holding. A finish's own directory is
+    evidence that outlives that: it names the task, it says ``outcome: running`` until an
+    ending is written, and it carries the pid whose liveness decides.
+
+    Deliberately not "is there a directory": an attempt whose process is gone is
+    ``finish_resume``'s to deal with, and treating it as in flight here would make a
+    machine that rebooted mid-gate unable to finish that task ever again.
+
+    An attempt recording *this* pid is this process's own, not a peer's. Every finish in
+    production is its own process -- the Approve button spawns one, and a run merging
+    itself runs the CLI -- so the only thing that can write this pid here is an earlier
+    attempt of this same process, which is a recovery rather than contention.
+    """
+    root = finishes_root(home)
+    if not root.is_dir():
+        return None
+    try:
+        candidates = [entry for entry in root.iterdir() if entry.is_dir()]
+    except OSError:  # pragma: no cover - unreadable home
+        return None
+    candidates = [entry for entry in candidates if entry.name != SPAWN_DIRNAME]
+    candidates.sort(key=lambda entry: _written_at(entry), reverse=True)
+    for entry in candidates[:FINISH_SCAN_LIMIT]:
+        meta = read_finish_meta(entry)
+        if str(meta.get("task_id") or "") != task_id:
+            continue
+        if project_id and str(meta.get("project_id") or "") not in ("", project_id):
+            continue
+        if exclude and str(meta.get("finish_id") or entry.name) == exclude:
+            continue
+        if meta.get(DUPLICATE_KEY) or meta.get("finished_at"):
+            continue
+        if str(meta.get("outcome") or "") != "running":
+            continue
+        pid = meta.get("pid")
+        if isinstance(pid, int) and pid != os.getpid() and process_alive(pid):
+            return meta
+    return None
+
+
+def _written_at(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:  # pragma: no cover - removed mid-scan
+        return 0.0
+
+
+def _decline_as_duplicate(
+    home: Path,
+    project: Project,
+    task_id: str,
+    *,
+    reason: str,
+    detail: str,
+    other: str,
+    authority: str,
+) -> FinishResult:
+    """Write this attempt down as the duplicate it is, terminally, and decline.
+
+    A directory is created for a decline that never runs anything, which looks like
+    waste and is not: ``fin_76cf6a4e`` died holding ``outcome: running`` with two phase
+    lines and no ending, and *that* is why nothing could say how it ended. The directory
+    carries :data:`DUPLICATE_KEY`, which keeps it off every surface reporting what is
+    happening to the task -- the finish it duplicates is the answer to that -- while
+    leaving it exactly where somebody asking "what became of the second one" looks.
+    """
+    directory = FinishDirectory.create(home, task_id, project.id, authority=authority)
+    ending: Dict[str, Any] = {
+        "outcome": DECLINED,
+        "reason": reason,
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "seconds": 0.0,
+        DUPLICATE_KEY: other or reason,
+    }
+    directory.write_meta(**ending)
+    directory.record("finish_declined", reason=reason, duplicate_of=other)
+    return FinishResult(
+        task_id=task_id,
+        outcome=DECLINED,
+        reason=reason,
+        detail=detail,
+        finish_id=directory.finish_id,
+        directory=directory.path,
+    )
+
+
 def resume_approved_finish(
     *, project_id: str, task_id: str, approver: str, home: Optional[Path] = None
 ) -> Optional[str]:
@@ -3367,8 +3620,14 @@ def resume_approved_finish(
 
     Called when the run that stood between an approval and its finish has ended: by the
     poller as a session settles, and by a ledger conclusion that found the approval still
-    standing. A duplicate is harmless -- the second finish meets the first one's lock and
-    declines -- so the caller need not prove none is running. Never raises.
+    standing. **Both callers are allowed to call this speculatively** and neither has to
+    prove no finish is running; the refusal belongs at the spawned finish's own front
+    door, where :func:`already_in_flight` and
+    :func:`agentjobs.dispatch.approval.consuming_finish` make it.
+
+    This docstring used to claim the duplicate "meets the first one's lock and declines",
+    and task-514 is what that was worth: the first lock a second finish meets is the
+    **runway**, which is a queue rather than a refusal. Never raises.
     """
     from agentjobs.projects import ProjectRegistry
 
@@ -3376,7 +3635,13 @@ def resume_approved_finish(
         if not finish_is_offered(project_id, home):
             return None
         project = ProjectRegistry(home=home).get(project_id)
-        return spawn_finish(project=project, task_id=task_id, approver=approver, home=home)
+        return spawn_finish(
+            project=project,
+            task_id=task_id,
+            approver=approver,
+            home=home,
+            speculative=True,
+        )
     except Exception:  # noqa: BLE001 - see the docstring
         return None
 
@@ -3542,6 +3807,45 @@ def _placeable_path(filename: str) -> str:
     return parts[-1]
 
 
+def _premises(manager: TaskManagerLike, task_id: str, plan: Plan) -> Callable[[], Optional[str]]:
+    """What has to still be true for a queued finish to have anything to land (task-514).
+
+    Three ways the work can cease to exist while this waits, and all three happened to
+    ``fin_76cf6a4e`` in the twenty minutes it stayed queued: the task was closed, its
+    branch was merged into the base, and its worktree and branch were removed. Each is
+    read from the authority that owns it -- the task from the manager, the branch from
+    git -- rather than inferred from the other finish, which this one cannot see.
+
+    Every read that fails answers ``None``. An unreachable manager or a git call that
+    times out is not evidence that the work is done, and the pre-existing behaviour --
+    keep waiting -- is the safe direction for a finish that has merged nothing.
+    """
+
+    def gone() -> Optional[str]:
+        try:
+            task = manager.get_task(task_id)
+        except Exception:  # noqa: BLE001 - see the docstring
+            task = None
+        if task is not None and not task.is_open:
+            return f"{task_id} was closed while this finish was queued"
+        # `git` here never raises for a non-zero exit, so the return code is the answer
+        # and an exception really is the unreadable case.
+        try:
+            exists = git(plan.root, ["rev-parse", "--verify", f"{plan.branch}^{{commit}}"])
+        except Exception:  # noqa: BLE001 - see the docstring
+            return None
+        if exists.returncode != 0:
+            return f"`{plan.branch}` no longer exists"
+        try:
+            if contains_commit(plan.root, plan.branch, plan.base):
+                return f"`{plan.branch}` is already in `{plan.base}`"
+        except Exception:  # noqa: BLE001 - see the docstring
+            return None
+        return None
+
+    return gone
+
+
 def _guarded_sequence(**kwargs: Any) -> FinishResult:
     """``_sequence``, with every unanticipated failure turned into an escalation.
 
@@ -3647,7 +3951,7 @@ def _sequence(
     # underneath it (task-223). Everything from here to the end of the finish is inside
     # the runway.
     if not runway_taken:
-        steps.append(runway.take(manager, task.id))
+        steps.append(runway.take(manager, task.id, premises=_premises(manager, task.id, plan)))
         directory.record("finish_runway", seconds=round(runway.waited_seconds, 2))
     announce_start(manager, task.id, plan, directory)
 
@@ -4355,6 +4659,7 @@ def spawn_finish(
     home: Optional[Path] = None,
     resumed_from: str = "",
     posture_run_id: str = "",
+    speculative: bool = False,
 ) -> Optional[str]:
     """Start a finish in a detached process, and return immediately.
 
@@ -4407,6 +4712,8 @@ def spawn_finish(
     ]
     if resumed_from:
         argv += ["--resumed-from", resumed_from]
+    if speculative:
+        argv.append("--speculative")
     environment: Optional[Dict[str, str]] = None
     if posture_run_id:
         argv.append("--posture-release")

@@ -30,6 +30,7 @@ from agentjobs.dispatch.ledger import (
     KIND_FINISH,
     DispatchLedger,
     LedgerError,
+    RunLock,
     RunLockTimeout,
     _lock_refusal,
     acquire_run_lock,
@@ -413,6 +414,50 @@ class TestRunLock:
         assert holder.run_id == "run_named"
         assert holder.pid == os.getpid()
         lock.release()
+
+    def test_settling_a_run_does_not_delete_the_lock_a_finish_has_taken(self, home: Path) -> None:
+        """task-514, and the door the duplicate walked through.
+
+        The scripted finish takes this task's lock from the run that was working the
+        task, and its lock names a *finish* and no run at all. The old release compared
+        run ids and required both sides to have one, so the poller settling the run --
+        which rebuilds a ``RunLock`` naming that run -- deleted the finish's lock and
+        answered no error. Two seconds later a second finish asked for it and was given
+        it, having met nothing at all.
+        """
+        seed_run(home, "task-001", run_id="run_worker", mode="session", status="finished")
+        finishing = acquire_run_lock(home, "task-001", project_id="sandbox", kind=KIND_FINISH)
+        finishing.adopt_finish("fin_working")
+
+        RunLock(
+            task_id="task-001", path=finishing.path, run_id="run_worker", project_id="sandbox"
+        ).release()
+
+        holder = read_lock_holder(finishing.path)
+        assert holder is not None and holder.finish_id == "fin_working"
+        with pytest.raises(RunLockTimeout):
+            acquire_run_lock(home, "task-001", project_id="sandbox", timeout=0.3)
+        finishing.release()
+        assert not finishing.path.exists()
+
+    def test_the_startup_sweep_still_clears_a_finish_whose_process_is_gone(
+        self, home: Path
+    ) -> None:
+        """The other direction, and why the sweep had to learn to name a finish.
+
+        A release that only deletes a lock it can name is worthless for recovery unless
+        the recovery names things too. This is the case that would silently stop being
+        swept if it did not.
+        """
+        locks = locks_root(home)
+        locks.mkdir(parents=True, exist_ok=True)
+        path = locks / "sandbox~task-001.lock"
+        path.write_text("pid=999999999 run= kind=finish finish=fin_dead", encoding="ascii")
+
+        released = release_stale_locks(home)
+
+        assert [stale.task_id for stale in released] == ["task-001"]
+        assert not path.exists()
 
     def test_a_lock_whose_run_has_ended_is_reclaimed(self, home: Path) -> None:
         """ac-1: a task whose runs are all terminal is dispatchable, lock file or not."""

@@ -123,7 +123,7 @@ class TaskRead(Task):
         many and a site that forgot would be a surface offering a Dispatch button on a
         branch that is mid-merge.
         """
-        self.live_finish = live_finish_for(self.id)
+        self.live_finish = live_finish_for(self.id, self.is_open)
         return self
 
     @computed_field  # type: ignore[prop-decorator]
@@ -208,7 +208,7 @@ class TaskSummaryRead(TaskSummary):
     @model_validator(mode="after")
     def _fill_live_finish(self) -> "TaskSummaryRead":
         """Ask this request's finishes about the task, overwriting what was passed."""
-        self.live_finish = live_finish_for(self.id)
+        self.live_finish = live_finish_for(self.id, self.is_open)
         return self
 
     @computed_field  # type: ignore[prop-decorator]

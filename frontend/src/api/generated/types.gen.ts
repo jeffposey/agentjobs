@@ -2974,6 +2974,12 @@ export type MachineHolderView = {
      */
     lock_name: string;
     /**
+     * Overtaken
+     *
+     * True when this finish holds a task that is already closed and it merged nothing, so it is not the finish that finished it (task-514).
+     */
+    overtaken?: boolean;
+    /**
      * Pid
      */
     pid?: number | null;

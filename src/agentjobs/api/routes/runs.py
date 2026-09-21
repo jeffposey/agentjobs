@@ -32,7 +32,7 @@ from agentjobs.dispatch import pull as dispatch_pull
 from agentjobs.dispatch import queue as dispatch_queue
 from agentjobs.dispatch import start_pause
 from agentjobs.dispatch.config import machine_ceiling
-from agentjobs.dispatch.finish_status import read_finish_status
+from agentjobs.dispatch.finish_status import OVERTAKEN, read_finish_status
 from agentjobs.dispatch.ledger import (
     KIND_FINISH,
     KIND_RUNWAY,
@@ -143,6 +143,13 @@ class MachineHolderView(BaseModel):
         description="What it is doing right now, e.g. the finish step it is on.",
     )
     task_url: str = Field(default="", description="Empty when there is no task to link to.")
+    overtaken: bool = Field(
+        default=False,
+        description=(
+            "True when this finish holds a task that is already closed and it merged "
+            "nothing, so it is not the finish that finished it (task-514)."
+        ),
+    )
 
 
 class QueuedDispatchView(BaseModel):
@@ -591,7 +598,12 @@ def _holder_view(
         # No project id: the finish's own meta records which project it belongs to, and
         # this lock does not say. Asking each registered project in turn would be the
         # same scan repeated once per project for one answer.
-        status = read_finish_status(_home(), task_id, lock_project)
+        status = read_finish_status(
+            _home(),
+            task_id,
+            lock_project,
+            task_open=_holder_task_is_open(projects, lock_project, task_id),
+        )
     except Exception:  # pragma: no cover - a status page never fails over a detail
         status = None
     project_id = (status.project_id if status else "") or lock_project
@@ -614,9 +626,34 @@ def _holder_view(
         started_at=holder.started_at or (status.started_at if status else ""),
         elapsed_seconds=_elapsed_since(holder.started_at)
         or (status.elapsed_seconds if status else None),
-        detail=(status.current_step if status and status.current_step else "merging"),
+        detail=(
+            status.current_step
+            if status and status.current_step
+            else ("overtaken" if status and status.state == OVERTAKEN else "merging")
+        ),
         task_url=_task_url(project_id, task_id),
+        overtaken=bool(status and status.state == OVERTAKEN),
     )
+
+
+def _holder_task_is_open(
+    projects: Dict[str, Project], project_id: str, task_id: str
+) -> Optional[bool]:
+    """Whether the task this lock names is still open, or ``None`` when nothing can say.
+
+    The board renders from the *lock*, not from the finish's own record, which is why it
+    kept saying **Finishing** about a task that had been closed for twenty minutes
+    (task-514). ``None`` where the project is not registered here or the store will not
+    answer: only an explicit ``False`` is treated as evidence.
+    """
+    project = projects.get(project_id) if project_id else None
+    if project is None or not task_id:
+        return None
+    try:
+        task = storage_for(project).load_task(task_id)
+    except Exception:  # pragma: no cover - a status page never fails over a detail
+        return None
+    return None if task is None else bool(getattr(task, "is_open", True))
 
 
 def _armed_view(
