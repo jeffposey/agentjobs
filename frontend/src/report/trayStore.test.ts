@@ -33,6 +33,7 @@ function item(id: string, order: number, attachments: Array<PendingAttachment> =
     projectId: "agentjobs",
     route: "/p/agentjobs/tasks",
     attachments,
+    draft: { state: "applied", model: "a-model", filled: ["summary"] },
     request: {
       title: `Finding ${id}`,
       description: "Something was wrong.",

@@ -1,5 +1,6 @@
 import type { TaskCreateRequest } from "../api/generated";
 import { toUploads, type PendingAttachment } from "./attachments";
+import type { TrayDraft } from "./trayDraft";
 
 /**
  * The collected-findings tray: many captures held locally, filed in one action.
@@ -47,6 +48,14 @@ export type TrayItem = {
   attachments: Array<PendingAttachment>;
   /** The route the finding was noticed on. Shown on the card; already in the request. */
   route: string;
+  /**
+   * Where fleshing this one out with a model has got to (task-121).
+   *
+   * Persisted with the item, so a reload finds a finding already expanded rather than
+   * asking for it again -- and so a draft that was declined stays declined instead of
+   * quietly retrying on every page load.
+   */
+  draft: TrayDraft;
 };
 
 /** What happened to one item in a batch. Session state: an error is not worth storing. */

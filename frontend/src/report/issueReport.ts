@@ -103,6 +103,30 @@ export function readReportContext(pathname: string): ReportContext {
 }
 
 /**
+ * How the provenance block below opens, and the seam a later insertion finds it by.
+ *
+ * Exported because task-121 appends a drafted specification to a capture's description
+ * *above* this block, and something has to know where "above" is. Producer and consumer
+ * are this one module, so the coupling is local and a change to the wording below cannot
+ * silently break the insertion.
+ */
+export const PROVENANCE_OPENING = "---\nReported from the AgentJobs UI by ";
+
+/**
+ * Put a block into a capture's description, above its provenance footer.
+ *
+ * The footer says where the finding was noticed and must stay last, so an expansion
+ * arriving later cannot simply be appended. A description with no footer -- which no
+ * capture produces, but a test or a future caller might -- gets the block on the end.
+ */
+export function insertAboveProvenance(description: string, block: string): string {
+  const body = description ?? "";
+  const at = body.lastIndexOf(`\n\n${PROVENANCE_OPENING}`);
+  if (at < 0) return [body, block].filter(Boolean).join("\n\n");
+  return `${body.slice(0, at)}\n\n${block}${body.slice(at)}`;
+}
+
+/**
  * The provenance block appended to a reported issue's description.
  *
  * Prose in the description rather than a `links[]` entry, because the durable half of
@@ -112,10 +136,7 @@ export function readReportContext(pathname: string): ReportContext {
  * lands in the same project, so nothing filterable is lost.
  */
 function provenance(context: ReportContext, reporter: string, destinationProjectId: string): string {
-  const lines = [
-    "---",
-    `Reported from the AgentJobs UI by ${reporter}, at \`${context.route}\`.`,
-  ];
+  const lines = [`${PROVENANCE_OPENING}${reporter}, at \`${context.route}\`.`];
   if (context.taskId && context.projectId !== destinationProjectId) {
     lines.push(
       `Noticed while viewing \`${context.taskId}\` in project \`${context.projectId}\`, ` +

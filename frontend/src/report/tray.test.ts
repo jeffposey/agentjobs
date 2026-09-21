@@ -30,6 +30,7 @@ function item(overrides: Partial<TrayItem> = {}): TrayItem {
     projectId: "agentjobs",
     route: "/p/agentjobs/tasks",
     attachments: [],
+    draft: { state: "declined", detail: "Fleshing out is switched off." },
     request: {
       title: "The filters match nothing",
       description: "Every filter returns an empty list.",
