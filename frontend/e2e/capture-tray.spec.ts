@@ -144,6 +144,81 @@ test("collects findings across two pages, survives a reload, and files them in o
   expect(wrappedRecord.log[0].attachments).toBeNull();
 });
 
+test("fleshes a collected finding out and files the expanded version", async ({
+  page,
+  request,
+}) => {
+  // The whole stack for the half task-121 added last: the capture dialog, the drafting
+  // route, `run_server.py`'s stub provider, the merge, and a stored record. The stub's
+  // answer is canned, so what this proves is the plumbing and the merge rule -- not that
+  // a real model writes a good spec, which needs a real one.
+  await page.goto("/app/p/_local");
+  const dialog = await openCapture(page);
+  await expect(dialog.getByRole("checkbox", { name: /Flesh this out with AI/ })).toBeChecked();
+
+  await dialog.getByRole("textbox", { name: /^Title/ }).fill("The filters match nothing");
+  await dialog
+    .getByRole("textbox", { name: /^What happened/ })
+    .fill("every filter returns zero rows");
+  await dialog.getByRole("textbox", { name: /^Title/ }).press("Control+Enter");
+
+  // Nobody pressed a draft button. It happens because the finding was collected.
+  const tray = dialog.getByRole("region", { name: "Collected findings" });
+  await expect(tray.getByText(/Fleshed out:/)).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Create 1 task" }).click();
+  const filed = dialog.getByRole("region", { name: "Tasks created" });
+  await expect(filed).toBeVisible();
+  const taskId = await filed.getByRole("listitem").first().getAttribute("data-task-id");
+
+  const record = await (await request.get(`/api/tasks/${taskId}`)).json();
+  // The model's fields landed where they belong.
+  expect(record.spec.summary).toBeTruthy();
+  expect(record.spec.intent).toBeTruthy();
+  expect(record.acceptance.length).toBeGreaterThan(0);
+  // And the person's own sentence is still the first thing in the description, with the
+  // generated prose under a line saying so. This is the rule the merge exists for.
+  expect(record.spec.description.indexOf("every filter returns zero rows")).toBe(0);
+  expect(record.spec.description).toContain("Everything above this line is as it was typed.");
+  expect(record.spec.description.indexOf("Everything above this line")).toBeLessThan(
+    record.spec.description.indexOf("Reported from the AgentJobs UI"),
+  );
+  // Still an ordinary reported issue: nothing about drafting changes what it is.
+  expect(record.tags).toEqual(["reported-issue"]);
+  expect(record.lifecycle).toBe("draft");
+  expect(record.log[0].actor).toBe("E2E Human");
+});
+
+test("files a finding the model never saw, when the model cannot be reached", async ({
+  page,
+  request,
+}) => {
+  // Drafting must never be able to stop a finding being filed. The route is made to fail
+  // at the network, which is the case a person hits when the provider is down.
+  await page.route("**/model/draft", (route) => route.abort("connectionfailed"));
+
+  await page.goto("/app/p/_local");
+  const dialog = await openCapture(page);
+  await dialog.getByRole("textbox", { name: /^Title/ }).fill("Filed without a draft");
+  await dialog
+    .getByRole("textbox", { name: /^What happened/ })
+    .fill("the provider is unreachable and this must still file");
+  await dialog.getByRole("textbox", { name: /^Title/ }).press("Control+Enter");
+
+  const tray = dialog.getByRole("region", { name: "Collected findings" });
+  await expect(tray.getByText(/could not be reached/)).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Create 1 task" }).click();
+  const filed = dialog.getByRole("region", { name: "Tasks created" });
+  await expect(filed).toBeVisible();
+  const taskId = await filed.getByRole("listitem").first().getAttribute("data-task-id");
+
+  const record = await (await request.get(`/api/tasks/${taskId}`)).json();
+  expect(record.spec.description).toContain("the provider is unreachable");
+  expect(record.spec.description).not.toContain("Everything above this line");
+  expect(record.acceptance).toEqual([]);
+});
+
 test("a create whose answer was lost is retried without making a second task", async ({
   page,
   request,

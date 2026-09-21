@@ -45,6 +45,18 @@ type SpecDraftControlProps = {
   onApply: (draft: SpecDraftResponse, values: DraftableValues) => AppliedDraft;
   /** Put back exactly what was in the form before the draft landed. */
   onUndo: (values: DraftableValues) => void;
+  /**
+   * Lift the checkbox, so one control governs both things drafting can mean (task-121).
+   *
+   * Uncontrolled and on by default when absent, which is every surface but the capture
+   * dialog. The dialog passes it because a finding added to the tray is fleshed out
+   * *without* anyone pressing the button below -- and a checkbox reading "flesh this out
+   * with AI" that the control beside it ignores is worse than no checkbox at all.
+   */
+  enabled?: boolean;
+  onEnabledChange?: (enabled: boolean) => void;
+  /** True where a tray is present, which changes what checking this box promises. */
+  collecting?: boolean;
 };
 
 export function SpecDraftControl({
@@ -53,11 +65,19 @@ export function SpecDraftControl({
   readInput,
   onApply,
   onUndo,
+  enabled: controlledEnabled,
+  onEnabledChange,
+  collecting = false,
 }: SpecDraftControlProps) {
   const status = useQuery(getModelStatusApiModelGetOptions());
   const draft = useMutation(draftTaskSpecApiProjectsProjectIdModelDraftPostMutation());
 
-  const [enabled, setEnabled] = useState(true);
+  const [ownEnabled, setOwnEnabled] = useState(true);
+  const enabled = controlledEnabled ?? ownEnabled;
+  const setEnabled = (next: boolean) => {
+    setOwnEnabled(next);
+    onEnabledChange?.(next);
+  };
   const [applied, setApplied] = useState<AppliedDraft | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -137,10 +157,12 @@ export function SpecDraftControl({
         <span>
           Flesh this out with AI before I file it
           <span className="mt-1 block text-xs font-normal text-dark-muted">
-            {available
-              ? "A model expands what you wrote into a full spec and puts the draft in these fields. You read it, fix it, and press Create — nothing is filed until you do."
-              : (unavailable ??
-                "Drafting is unavailable on this machine, so write the specification yourself.")}
+            {!available
+              ? (unavailable ??
+                "Drafting is unavailable on this machine, so write the specification yourself.")
+              : collecting
+                ? "A model expands what you wrote into a full spec. Press the button to draft this one into the fields below and read it first; anything you add to the list is fleshed out on its own, filling only what you left blank."
+                : "A model expands what you wrote into a full spec and puts the draft in these fields. You read it, fix it, and press Create — nothing is filed until you do."}
           </span>
         </span>
       </label>

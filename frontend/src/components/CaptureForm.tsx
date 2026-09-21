@@ -138,6 +138,10 @@ export type CaptureFormProps = {
     request: TaskCreateRequest;
     attachments: Array<PendingAttachment>;
     route: string;
+    /** The note as typed, which is what a model is asked to expand -- never the footer. */
+    note: string;
+    /** Whether the drafting checkbox is on, so one control governs both paths. */
+    wantsDraft: boolean;
   }) => void;
 };
 
@@ -207,6 +211,10 @@ export function CaptureForm({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Lifted out of `SpecDraftControl` so the same checkbox decides both what its own
+  // button does and whether a collected finding is fleshed out (task-121). On by
+  // default, which is what it has always been.
+  const [wantsDraft, setWantsDraft] = useState(true);
 
   // Fall back to the first registered project only when the capture happened on a page
   // with no project of its own; never silently override the one being viewed.
@@ -389,6 +397,11 @@ export function CaptureForm({
         ),
         attachments,
         route: context.route,
+        // What the person actually typed, with no provenance footer on it: that block
+        // is AgentJobs talking about itself and is not part of the finding a model is
+        // being asked to expand.
+        note: details,
+        wantsDraft,
       });
     } catch (caught) {
       setError(
@@ -524,6 +537,9 @@ export function CaptureForm({
           readInput={readInput}
           onApply={applyDraft}
           onUndo={writeValues}
+          enabled={wantsDraft}
+          onEnabledChange={setWantsDraft}
+          collecting={Boolean(onCollect)}
         />
       )}
 

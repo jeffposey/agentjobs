@@ -8,7 +8,7 @@ a nav link used to be, whether the quick capture still feels like fifteen second
 whether the expanded form is bearable in a dialog on a phone -- and none of it survives
 a diff.
 
-    python scripts/capture_control_sandbox.py [port] [--tailnet]
+    python scripts/capture_control_sandbox.py [port] [--tailnet] [--no-model]
 
 ``--tailnet`` also serves this machine's Tailscale address, in the same process and over
 the same corpus, so the page opens on a phone. That is the half a resized desktop window
@@ -61,6 +61,20 @@ third keeps its prose, its screenshots and its own error. Take the word out and 
 again -- it files, and nothing that already landed is filed twice. That cue is in this
 file only; nothing about it is in the application.
 
+**Each finding is fleshed out by a model as it is collected**, which is the other half
+of task-121, and this machine has no model configured -- so a sandbox without one would
+show only the state a reviewer can already see on the real dashboard. A stub provider is
+therefore started here and pointed at by a ``model.yaml`` in the sandbox's own throwaway
+home: no credential, no bill, nothing leaving this laptop. What to look at is **where the
+prose ends up**: the note as typed stays first and unedited, the generated half sits
+under a line saying which is which, and the summary, intent and acceptance criteria are
+filled only where nothing was written. ``--no-model`` runs without it, which is the state
+the real dashboard is in until ``~/.agentjobs/model.yaml`` exists or the server process
+has ``ANTHROPIC_API_KEY``.
+
+The stub is not a model and proves nothing about draft quality -- only that the plumbing
+and the merge put the right prose in the right place.
+
 Nothing here touches the live corpus or the 8876 dashboard. Everything lives under a
 temporary directory with its own ``AGENTJOBS_HOME`` registry, deleted when this process
 stops. Stop it with Ctrl-C.
@@ -75,8 +89,9 @@ import subprocess
 import sys
 import tempfile
 import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 import yaml
 from fastapi import Request, Response
@@ -202,6 +217,112 @@ def build_project(root: Path, *, project_id: str, name: str) -> Path:
     return project_root
 
 
+class StubModel(BaseHTTPRequestHandler):
+    """A few lines of the Messages API, answering with a draft built from the input.
+
+    task-121 made fleshing a collected finding out automatic, and **the review of that
+    is unreachable on this machine**: `GET /api/model` answers `unconfigured`, so every
+    finding would be filed exactly as typed and the reviewer would see the one state
+    they can already see. A stub is the only way to put the other state in front of
+    them without a credential, a bill, or a request leaving this laptop.
+
+    It echoes the reviewer's own words back inside the generated fields rather than
+    answering with something canned, because the thing being judged is whether the merge
+    puts the right prose in the right place -- and that is invisible when every card
+    comes back talking about a task list nobody typed.
+
+    **It is not a model and cannot stand in for one.** Whether a real model writes a good
+    spec is a different question and needs a real one; this says only that the plumbing,
+    the merge and the record are right.
+    """
+
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler's spelling
+        length = int(self.headers.get("content-length", "0"))
+        raw = self.rfile.read(length)
+        title, note = _typed_by_the_human(raw)
+        draft = {
+            "summary": (
+                f"{title.rstrip('.')}. Noticed during a review pass and filed from the "
+                "capture tray; the note above the line is the reviewer's own."
+            ),
+            "intent": (
+                "Small problems found in one sitting are individually too minor to stop "
+                "for and collectively the difference between a product that feels "
+                f"considered and one that does not. This one: {note.rstrip('.')}."
+            ),
+            "description": (
+                "## What was seen\n\n"
+                f"{note}\n\n## What to do\n\nReproduce it on the page named in the "
+                "provenance below, decide whether it is worth fixing, and write the "
+                "real specification here. This paragraph was generated from two "
+                "sentences and knows nothing the reviewer did not type."
+            ),
+            "constraints": "",
+            "out_of_scope": "Anything not visible on the page this was captured from.",
+            "acceptance": [
+                f"The behaviour described as '{note.rstrip('.')}' no longer happens.",
+                "A screenshot of the fixed state is attached to this task.",
+            ],
+        }
+        body = json.dumps({"content": [{"type": "text", "text": json.dumps(draft)}]})
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body.encode("utf-8"))
+
+    def log_message(self, *args: object) -> None:
+        """Quiet: this is a fixture, and its access log is noise in a review."""
+
+
+def _typed_by_the_human(raw: bytes) -> Tuple[str, str]:
+    """Pull the two inputs back out of the prompt, so the draft can answer them.
+
+    Read off `PROMPT_TEMPLATE`'s two labelled sections rather than from the request
+    fields, because what reaches a provider is one rendered prompt. A template change
+    that moved these labels would make the stub fall back to its own wording, which is a
+    duller demo and not a broken one.
+    """
+    try:
+        prompt = json.loads(raw or b"{}")["messages"][0]["content"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return ("Something noticed in the product", "It was not described.")
+    title = prompt.split("Title the human typed:", 1)[-1]
+    title, _, rest = title.partition("What the human typed as the description:")
+    return (
+        title.strip() or "Something noticed in the product",
+        rest.strip() or "It was not described.",
+    )
+
+
+def start_stub_model() -> str:
+    """Serve the stub on an ephemeral port and return its base URL."""
+    server = HTTPServer(("127.0.0.1", 0), StubModel)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return f"http://127.0.0.1:{int(server.server_address[1])}"
+
+
+def write_model_config(home: Path, base_url: str) -> None:
+    """Point drafting at the stub, with a credential that is not one.
+
+    The key is a literal placeholder and the endpoint is on loopback, so the sandbox
+    exercises the configured branch -- otherwise unreachable on this machine -- without
+    a credential existing anywhere and without a request leaving it.
+    """
+    (home / "model.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "base_url": base_url,
+                "model": "sandbox-stub-model",
+                "api_key": "sandbox-not-a-real-key",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
 class RefuseOnCue(BaseHTTPMiddleware):
     """Refuse any create whose title holds ``REFUSAL_CUE``, so a partial batch can be seen.
 
@@ -293,6 +414,11 @@ def serve(*, port: int, remote: Optional[str]) -> None:
 def main() -> None:
     argv = sys.argv[1:]
     tailnet = "--tailnet" in argv
+    # Both sides of task-121's drafting have to be reachable. With a model, a collected
+    # finding is fleshed out on its own; without one, it is filed exactly as typed and
+    # the tray says why. This machine has no model, so the *first* state is the one a
+    # reviewer cannot otherwise see -- hence a stub by default and a flag to turn it off.
+    no_model = "--no-model" in argv
     positional = [argument for argument in argv if not argument.startswith("--")]
     port = int(positional[0]) if positional else DEFAULT_PORT
 
@@ -308,6 +434,10 @@ def main() -> None:
     home = root / "home"
     home.mkdir()
     os.environ["AGENTJOBS_HOME"] = str(home)
+    # Written into the sandbox's own throwaway home, never `~/.agentjobs`. Nothing here
+    # touches how the real dashboard is configured.
+    if not no_model:
+        write_model_config(home, start_stub_model())
 
     from agentjobs.projects import ProjectRegistry
 
@@ -345,6 +475,25 @@ def main() -> None:
         "[capture]   sandbox refuses that one and files the rest; then rename it and retry",
         flush=True,
     )
+    if no_model:
+        print(
+            "[capture]   --no-model: nothing is fleshed out, which is this machine's real state",
+            flush=True,
+        )
+    else:
+        print(
+            "[capture]   each finding is fleshed out by a STUB model as you add it -- your",
+            flush=True,
+        )
+        print(
+            "[capture]   note stays first and verbatim, the generated half sits under a line",
+            flush=True,
+        )
+        print(
+            "[capture]   saying so. --no-model shows the other state, which your real",
+            flush=True,
+        )
+        print("[capture]   dashboard is in until a model.yaml exists", flush=True)
     print(f"[capture]   the same form as a page: {base}/tasks/new", flush=True)
     print(
         f"[capture]   no header, so the control is pinned instead: "

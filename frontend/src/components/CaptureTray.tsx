@@ -8,6 +8,7 @@ import {
   type TrayFiling,
   type TrayItem,
 } from "../report/tray";
+import { nameFilled } from "../report/trayDraft";
 
 /**
  * The collected findings, and the one button that files them (task-121).
@@ -45,8 +46,10 @@ type CaptureTrayProps = {
   filedInSession: ReadonlyArray<TrayFiling>;
   /** The most recent batch's outcomes: what each card's error says, and the summary. */
   lastBatch: ReadonlyArray<TrayFiling>;
-  /** Non-null while a batch is in flight. */
-  progress: { done: number; total: number } | null;
+  /** Non-null while a batch is in flight. `fleshing` means it is waiting on drafts. */
+  progress: { done: number; total: number; fleshing?: number } | null;
+  /** Why nothing is being fleshed out, when nothing is. Shown once, not per card. */
+  draftingUnavailable: string | null;
   /** Display name for a project id, so a card names where it is going. */
   projectName: (projectId: string) => string;
   onSubmit: () => void;
@@ -61,6 +64,34 @@ function taskHref(projectId: string, taskId: string) {
   return `/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`;
 }
 
+/**
+ * What a model has made of this finding, on the card it belongs to.
+ *
+ * One line, and it always says something: a card with nothing here would leave a person
+ * unable to tell "still thinking" from "there is no model on this machine" from "it was
+ * expanded and you have not looked". `aria-live` on the pending case only, so a list of
+ * settled cards is not re-announced every time another one arrives.
+ */
+function DraftState({ draft }: { draft: TrayItem["draft"] }) {
+  if (draft.state === "pending") {
+    return (
+      <p aria-live="polite" className="mt-2 text-xs text-blue-300">
+        Fleshing this out…
+      </p>
+    );
+  }
+  if (draft.state === "declined") {
+    return <p className="mt-2 text-xs text-dark-muted">{draft.detail}</p>;
+  }
+  return (
+    <p className="mt-2 text-xs text-blue-300">
+      {draft.filled.length > 0
+        ? `Fleshed out: ${nameFilled(draft.filled)}.`
+        : "Fleshed out: the draft added nothing you had not already written."}
+    </p>
+  );
+}
+
 export function CaptureTray({
   items,
   filedInSession,
@@ -71,6 +102,7 @@ export function CaptureTray({
   onRemove,
   onNavigate,
   durable,
+  draftingUnavailable,
 }: CaptureTrayProps) {
   const filed = filedInSession;
   const ordered = inCollectedOrder(items);
@@ -107,6 +139,17 @@ export function CaptureTray({
           {!durable && (
             <p className="mt-1 text-xs text-amber-300">
               This browser is not storing the list; a reload will lose it.
+            </p>
+          )}
+          {/*
+            Said once, here, rather than on every card. Fifteen copies of the same
+            sentence about a machine with no model configured is not fifteen times as
+            informative, and the card only has room for the short version.
+          */}
+          {draftingUnavailable && (
+            <p className="mt-1 text-xs text-dark-muted">
+              Nothing is being fleshed out: {draftingUnavailable} Findings are filed
+              exactly as you type them.
             </p>
           )}
 
@@ -168,6 +211,8 @@ export function CaptureTray({
                     </ul>
                   )}
 
+                  <DraftState draft={item.draft} />
+
                   {error && (
                     <p role="alert" className="mt-2 text-sm text-red-200">
                       {error}
@@ -191,9 +236,11 @@ export function CaptureTray({
       */}
       {(progress !== null || lastBatch.length > 0) && (
         <p aria-live="polite" className="text-sm text-dark-muted">
-          {progress
-            ? `Creating ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
-            : batchSummary(lastBatch)}
+          {progress?.fleshing
+            ? `Waiting for ${progress.fleshing === 1 ? "one finding" : `${progress.fleshing} findings`} to be fleshed out…`
+            : progress
+              ? `Creating ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
+              : batchSummary(lastBatch)}
         </p>
       )}
 

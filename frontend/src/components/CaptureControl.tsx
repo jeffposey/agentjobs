@@ -7,7 +7,9 @@ import type { Task } from "../api/generated";
 import {
   createTaskApiProjectsProjectIdTasksPostMutation,
   dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation,
+  draftTaskSpecApiProjectsProjectIdModelDraftPostMutation,
   getDispatchStateApiProjectsProjectIdDispatchGetOptions,
+  getModelStatusApiModelGetOptions,
   getProjectsApiProjectsGetOptions,
   listTasksApiProjectsProjectIdTasksGetOptions,
 } from "../api/generated/@tanstack/react-query.gen";
@@ -21,6 +23,7 @@ import {
   type TrayFiling,
   type TrayItem,
 } from "../report/tray";
+import { mergeDraft } from "../report/trayDraft";
 import { trayStore } from "../report/trayStore";
 import { CaptureForm, type CaptureDestination } from "./CaptureForm";
 import { CaptureTray } from "./CaptureTray";
@@ -76,7 +79,11 @@ type Collected = Omit<TrayItem, "id" | "order">;
 
 export type CaptureTrayHandle = {
   items: ReadonlyArray<TrayItem>;
-  add: (collected: Collected) => void;
+  /** The items as they are right now, for a callback that outlived its render. */
+  current: () => Array<TrayItem>;
+  add: (collected: Collected) => TrayItem;
+  /** Replace one item. A no-op once it has been removed or filed. */
+  update: (item: TrayItem) => void;
   remove: (itemId: string) => void;
   durable: boolean;
 };
@@ -95,6 +102,22 @@ export type CaptureTrayHandle = {
 function useCaptureTray(): CaptureTrayHandle {
   const store = useMemo(() => trayStore(), []);
   const [items, setItems] = useState<Array<TrayItem>>([]);
+  /**
+   * The same list, readable synchronously.
+   *
+   * A draft comes back a few seconds after the collect that asked for it, by which time
+   * the person may have removed that card or filed the batch. Both the write-back and
+   * the submit therefore need to know what is on the tray *now* rather than what was on
+   * it when a closure was made -- and a stale answer here would resurrect a removed
+   * finding on disk. Maintained by every mutator below rather than by an effect, so it
+   * is never a render behind.
+   */
+  const held = useRef<Array<TrayItem>>([]);
+
+  const commit = useCallback((next: Array<TrayItem>) => {
+    held.current = next;
+    setItems(next);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -103,38 +126,49 @@ function useCaptureTray(): CaptureTrayHandle {
       // rather than assigned over it: the load is asynchronous and a fast Ctrl+Enter can
       // land first. Two items can then hold the same `order`, which `inCollectedOrder`
       // resolves by array position -- `sort` is stable -- so the stored ones stay first.
-      if (alive)
-        setItems((was) => [
-          ...stored.filter((item) => !was.some((seen) => seen.id === item.id)),
-          ...was,
-        ]);
+      if (!alive) return;
+      const seen = held.current;
+      commit([...stored.filter((item) => !seen.some((one) => one.id === item.id)), ...seen]);
     });
     return () => {
       alive = false;
     };
-  }, [store]);
+  }, [store, commit]);
 
-  // `items` is a dependency rather than read inside the updater: React double-invokes an
-  // updater in development, and minting an id in there would store two records for one
-  // collect.
   const add = useCallback(
     (collected: Collected) => {
-      const item: TrayItem = { id: newOperationId(), order: nextOrder(items), ...collected };
-      setItems((was) => [...was, item]);
+      const item: TrayItem = {
+        id: newOperationId(),
+        order: nextOrder(held.current),
+        ...collected,
+      };
+      commit([...held.current, item]);
+      void store.put(item);
+      return item;
+    },
+    [commit, store],
+  );
+
+  const update = useCallback(
+    (item: TrayItem) => {
+      // Dropped on the floor when the card is gone. A draft that resolved after its
+      // finding was removed or filed must not put it back, on screen or on disk.
+      if (!held.current.some((one) => one.id === item.id)) return;
+      commit(held.current.map((one) => (one.id === item.id ? item : one)));
       void store.put(item);
     },
-    [items, store],
+    [commit, store],
   );
 
   const remove = useCallback(
     (itemId: string) => {
-      setItems((was) => was.filter((item) => item.id !== itemId));
+      commit(held.current.filter((item) => item.id !== itemId));
       void store.remove([itemId]);
     },
-    [store],
+    [commit, store],
   );
 
-  return { items, add, remove, durable: store.durable };
+  return { items, current: () => held.current, add, update, remove, durable: store.durable };
 }
 
 /**
@@ -255,11 +289,78 @@ function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTr
     enabled: wantsTaskIds && Boolean(context.projectId),
   });
 
+  const modelStatus = useQuery(getModelStatusApiModelGetOptions());
+  const draftSpec = useMutation(draftTaskSpecApiProjectsProjectIdModelDraftPostMutation());
+  /**
+   * The drafts still in the air, so a submit can wait for them.
+   *
+   * A ref rather than state: nothing renders from it, and it is written from callbacks
+   * that outlive the render which created them.
+   */
+  const drafting = useRef(new Map<string, Promise<void>>());
+
+  /**
+   * Flesh one collected finding out, in the background (task-121).
+   *
+   * Started at collect time rather than at submit time, and that is the whole design
+   * decision. Collecting is the idle time -- the next finding is being typed -- and
+   * drafting fifteen findings at the moment somebody presses "Create 15 tasks" would put
+   * a minute of waiting exactly where they wanted to be finished.
+   *
+   * **It can never stop a finding being filed.** Every failure path below writes a
+   * reason onto the card and leaves the request exactly as it was typed, and the submit
+   * waits for outstanding drafts rather than requiring them.
+   */
+  const flesh = (item: TrayItem, note: string) => {
+    const run = (async () => {
+      try {
+        const result = await draftSpec.mutateAsync({
+          path: { project_id: item.projectId },
+          // The note as typed. The provenance footer in `request.description` is
+          // AgentJobs talking about itself, and is not part of the finding.
+          body: { title: item.request.title, description: note },
+        });
+        if (!result.drafted) {
+          // A refusal is a 200 carrying its reason, so it reads as "no draft, here is
+          // why" rather than as a failure.
+          tray.update({
+            ...item,
+            draft: { state: "declined", detail: result.detail ?? "No draft was produced." },
+          });
+          return;
+        }
+        const model = modelStatus.data?.model ?? null;
+        const merged = mergeDraft(item.request, result, model);
+        tray.update({
+          ...item,
+          request: merged.request,
+          draft: { state: "applied", model, filled: merged.filled },
+        });
+      } catch {
+        tray.update({
+          ...item,
+          draft: {
+            state: "declined",
+            detail: "The model could not be reached. It will be filed as you typed it.",
+          },
+        });
+      } finally {
+        drafting.current.delete(item.id);
+      }
+    })();
+    drafting.current.set(item.id, run);
+  };
+
   /** Every task this dialog has created, so a batch and a retry both leave a link. */
   const [filedInSession, setFiledInSession] = useState<Array<TrayFiling>>([]);
   /** The last batch's outcomes: each card's error, and the sentence under the list. */
   const [lastBatch, setLastBatch] = useState<Array<TrayFiling>>([]);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+    /** Set while a submit is waiting on drafts that have not come back yet. */
+    fleshing?: number;
+  } | null>(null);
 
   /**
    * File the whole tray: one user action, N ordinary creates, one outcome per card.
@@ -277,9 +378,21 @@ function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTr
    * a request whose answer never arrived.
    */
   const submitTray = async () => {
-    const queue = inCollectedOrder(tray.items);
-    if (queue.length === 0 || progress !== null) return;
+    if (tray.current().length === 0 || progress !== null) return;
     setLastBatch([]);
+    // Wait for what is already in the air, then read the tray again: a draft that lands
+    // during the wait has replaced its item's request, and filing the copy captured
+    // before the wait would file the version the model had not expanded yet.
+    const outstanding = [...drafting.current.values()];
+    if (outstanding.length > 0) {
+      setProgress({ fleshing: outstanding.length, done: 0, total: 0 });
+      await Promise.allSettled(outstanding);
+    }
+    const queue = inCollectedOrder(tray.current());
+    if (queue.length === 0) {
+      setProgress(null);
+      return;
+    }
     setProgress({ done: 0, total: queue.length });
     const outcomes: Array<TrayFiling> = [];
     for (const item of queue) {
@@ -346,6 +459,11 @@ function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTr
             lastBatch={lastBatch}
             progress={progress}
             durable={tray.durable}
+            draftingUnavailable={
+              modelStatus.data && modelStatus.data.available !== true
+                ? (modelStatus.data.detail ?? "no model is configured on this machine.")
+                : null
+            }
             projectName={(projectId) =>
               destinations.find((entry) => entry.id === projectId)?.name ?? projectId
             }
@@ -427,8 +545,24 @@ function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTr
               // review pass adds a finding without the dialog closing and without a hand
               // leaving the keyboard. The remount is the same mechanism "File another"
               // uses, rather than a reset that has to track the form's state.
-              onCollect={(collected) => {
-                tray.add(collected);
+              onCollect={({ note, wantsDraft, ...collected }) => {
+                // Declined up front, with the short reason, when there is nothing to ask
+                // or the person turned it off -- so the card states its own state rather
+                // than sitting on "pending" for a call that is never made.
+                const unavailable = modelStatus.data?.available !== true;
+                const item = tray.add({
+                  ...collected,
+                  draft:
+                    !wantsDraft || unavailable
+                      ? {
+                          state: "declined",
+                          detail: wantsDraft
+                            ? "No model is configured, so it is filed as you typed it."
+                            : "Fleshing out is switched off.",
+                        }
+                      : { state: "pending" },
+                });
+                if (wantsDraft && !unavailable) flesh(item, note);
                 setAttempt((count) => count + 1);
               }}
               cancel={

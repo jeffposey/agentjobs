@@ -38,6 +38,45 @@ function project(id: string, name: string, user: string | null) {
   };
 }
 
+/** A machine with a model configured, which is what makes drafting happen at all. */
+function withModel(id = "a-model-id") {
+  return http.get("*/api/model", () =>
+    HttpResponse.json({
+      available: true,
+      reason: null,
+      detail: null,
+      model: id,
+      calls_per_hour: 60,
+      calls_used: 0,
+    }),
+  );
+}
+
+/** A drafting endpoint. `body` is called with the title, so a test can vary the answer. */
+function drafting(
+  answer: (title: string) => Record<string, unknown> = () => ({
+    drafted: true,
+    summary: "A summary the model wrote.",
+    intent: "An intent the model wrote.",
+    description: "## What happens\n\nA working specification the model wrote.",
+    constraints: "",
+    out_of_scope: "",
+    acceptance: ["A criterion the model wrote."],
+    model: "a-model-id",
+    reason: null,
+    detail: null,
+  }),
+) {
+  return http.post("*/api/projects/:projectId/model/draft", async ({ request }) => {
+    const body = (await request.json()) as { title: string; description: string };
+    drafts.push(body);
+    return HttpResponse.json(answer(body.title));
+  });
+}
+
+/** Every drafting call the app made, so a test can assert what the model was shown. */
+let drafts: Array<{ title: string; description: string }>;
+
 /** A create endpoint that files everything, unless `refuse` names the title. */
 function creating(refuse: (title: string) => string | null = () => null) {
   return [
@@ -128,6 +167,7 @@ function stored(id: string, order: number, overrides: Partial<TrayItem> = {}): T
     projectId: "agentjobs",
     route: "/p/agentjobs/tasks",
     attachments: [],
+    draft: { state: "declined", detail: "Fleshing out is switched off." },
     request: {
       title: `Finding ${id}`,
       description: `Something was wrong.\n\n---\nReported from the AgentJobs UI by Jeff Posey, at \`/p/agentjobs/tasks\`.`,
@@ -146,6 +186,7 @@ beforeEach(() => {
   store = memoryTrayStore();
   setTrayStore(store);
   posted = [];
+  drafts = [];
   client.setConfig({ baseUrl: "http://localhost" });
 });
 
@@ -296,6 +337,216 @@ describe("collecting findings", () => {
 
     await waitFor(() => expect(screen.queryByText("Finding a")).not.toBeInTheDocument());
     expect((await store.load()).map((entry) => entry.id)).toEqual(["b"]);
+  });
+});
+
+describe("fleshing findings out", () => {
+  it("drafts a collected finding without anyone asking, and says what it filled", async () => {
+    apiMockServer.use(...creating(), withModel(), drafting());
+    await openCapture("/p/agentjobs/tasks");
+
+    fill("The filters match nothing", "every filter returns zero rows");
+    collectWithKeyboard();
+
+    // The model is shown the note as typed, and not the provenance footer -- that block
+    // is AgentJobs talking about itself, not part of the finding.
+    await waitFor(() => expect(drafts).toHaveLength(1));
+    expect(drafts[0]).toEqual({
+      title: "The filters match nothing",
+      description: "every filter returns zero rows",
+    });
+
+    expect(
+      await within(tray()).findByText(
+        /Fleshed out: Summary, Intent, Acceptance criteria and Description\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("files the fleshed-out version, with the typed note still first and attributed", async () => {
+    apiMockServer.use(...creating(), withModel(), drafting());
+    await openCapture("/p/agentjobs/tasks");
+
+    fill("The filters match nothing", "every filter returns zero rows");
+    collectWithKeyboard();
+    await within(tray()).findByText(/Fleshed out:/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Create 1 task" }));
+    await screen.findByRole("region", { name: "Tasks created" });
+
+    const body = posted[0]!.body;
+    expect(body.summary).toBe("A summary the model wrote.");
+    expect(body.intent).toBe("An intent the model wrote.");
+    expect(body.acceptance).toEqual([
+      { id: "ac-1", text: "A criterion the model wrote.", status: "pending" },
+    ]);
+    // The person's sentence is still the first thing in the description, unedited, and
+    // what follows it says who wrote it.
+    expect(body.description?.indexOf("every filter returns zero rows")).toBe(0);
+    expect(body.description).toContain("Fleshed out below by `a-model-id`");
+    expect(body.description).toContain("A working specification the model wrote.");
+    // And it is still an ordinary reported issue, filed by the ordinary path.
+    expect(body.tags).toEqual(["reported-issue"]);
+    expect(body.lifecycle).toBe("draft");
+  });
+
+  it("files exactly what was typed when the machine has no model", async () => {
+    // The default: `api-mock` answers `/api/model` with an unconfigured machine, which
+    // is the state of every install that has not opted in -- including the one this was
+    // reviewed on.
+    apiMockServer.use(...creating());
+    await openCapture("/p/agentjobs/tasks");
+
+    fill("No model here", "so nothing should be fleshed out");
+    collectWithKeyboard();
+
+    const list = await screen.findByRole("region", { name: "Collected findings" });
+    expect(within(list).getByText(/filed as you typed it/)).toBeInTheDocument();
+    // Said once, with the fix, rather than on every card.
+    expect(within(list).getByText(/Nothing is being fleshed out/)).toHaveTextContent(
+      /No model is configured on this machine/,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Create 1 task" }));
+    await screen.findByRole("region", { name: "Tasks created" });
+    expect(drafts).toHaveLength(0);
+    expect(posted[0]!.body.summary).toBeUndefined();
+    expect(posted[0]!.body.description).toContain("so nothing should be fleshed out");
+  });
+
+  it("files the finding anyway when the draft fails", async () => {
+    apiMockServer.use(
+      ...creating(),
+      withModel(),
+      http.post("*/api/projects/:projectId/model/draft", () => HttpResponse.error()),
+    );
+    await openCapture("/p/agentjobs/tasks");
+
+    fill("The model is down", "and this must still be filable");
+    collectWithKeyboard();
+
+    expect(
+      await within(tray()).findByText(/The model could not be reached/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create 1 task" }));
+    await screen.findByRole("region", { name: "Tasks created" });
+    expect(posted[0]!.body.description).toContain("and this must still be filable");
+  });
+
+  it("carries a refusal's own sentence onto the card", async () => {
+    apiMockServer.use(
+      ...creating(),
+      withModel(),
+      drafting(() => ({
+        drafted: false,
+        reason: "over_cap",
+        detail: "This machine has made its configured number of model calls in the last hour.",
+      })),
+    );
+    await openCapture("/p/agentjobs/tasks");
+
+    fill("Past the cap", "the hourly budget is spent");
+    collectWithKeyboard();
+
+    expect(
+      await within(tray()).findByText(/configured number of model calls/),
+    ).toBeInTheDocument();
+  });
+
+  it("waits for a draft still in flight before it files the batch", async () => {
+    // The race the submit has to lose gracefully: pressing Create while a draft has not
+    // come back must file the expanded version, not the one collected a second earlier.
+    let release: (() => void) | null = null;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    apiMockServer.use(
+      ...creating(),
+      withModel(),
+      http.post("*/api/projects/:projectId/model/draft", async () => {
+        await held;
+        return HttpResponse.json({
+          drafted: true,
+          summary: "Arrived late.",
+          intent: "",
+          description: "",
+          constraints: "",
+          out_of_scope: "",
+          acceptance: [],
+          model: "a-model-id",
+          reason: null,
+          detail: null,
+        });
+      }),
+    );
+    await openCapture("/p/agentjobs/tasks");
+
+    fill("Still drafting", "press Create before it comes back");
+    collectWithKeyboard();
+    await within(tray()).findByText(/Fleshing this out…/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Create 1 task" }));
+    expect(await screen.findByText(/Waiting for one finding to be fleshed out/)).toBeInTheDocument();
+    expect(posted).toHaveLength(0);
+
+    release!();
+    await screen.findByRole("region", { name: "Tasks created" });
+    expect(posted[0]!.body.summary).toBe("Arrived late.");
+  });
+
+  it("asks for nothing when the drafting box is unchecked", async () => {
+    // One control, two meanings: the checkbox governs its own button and whether a
+    // collected finding is fleshed out. A box that said "flesh this out with AI" and
+    // was ignored by the button beside it would be worse than no box.
+    apiMockServer.use(...creating(), withModel(), drafting());
+    await openCapture("/p/agentjobs/tasks");
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Flesh this out with AI/ }));
+    fill("Left alone", "no model call for this one");
+    collectWithKeyboard();
+
+    expect(await within(tray()).findByText(/Fleshing out is switched off/)).toBeInTheDocument();
+    expect(drafts).toHaveLength(0);
+  });
+
+  it("does not resurrect a finding removed while its draft was in flight", async () => {
+    let release: (() => void) | null = null;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    apiMockServer.use(
+      ...creating(),
+      withModel(),
+      http.post("*/api/projects/:projectId/model/draft", async () => {
+        await held;
+        return HttpResponse.json({
+          drafted: true,
+          summary: "Too late.",
+          intent: "",
+          description: "",
+          constraints: "",
+          out_of_scope: "",
+          acceptance: [],
+          model: "a-model-id",
+          reason: null,
+          detail: null,
+        });
+      }),
+    );
+    await openCapture("/p/agentjobs/tasks");
+
+    fill("Removed mid-draft", "this card is about to go");
+    collectWithKeyboard();
+    await within(tray()).findByText(/Fleshing this out…/);
+    fireEvent.click(within(tray()).getByRole("button", { name: "Remove" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Collected findings" })).not.toBeInTheDocument(),
+    );
+
+    release!();
+    // The write-back has to be dropped on the floor -- on screen and on the device.
+    await waitFor(async () => expect(await store.load()).toEqual([]));
+    expect(screen.queryByRole("region", { name: "Collected findings" })).not.toBeInTheDocument();
   });
 });
 
