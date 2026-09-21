@@ -132,6 +132,189 @@ class TestSchema:
         assert [tuple(row) for row in rows] == [(m.version, m.name) for m in available()]
         assert rows, "a fresh database should have applied at least the initial schema"
 
+    def test_the_log_type_constraint_admits_exactly_the_types_the_model_declares(
+        self, database: Database
+    ) -> None:
+        """The duplication between ``LogEntryType`` and the column's CHECK, enforced.
+
+        Keeping both is deliberate: the model refuses a bad type at every write path, and
+        the constraint refuses one that reached the file some other way. The cost is that
+        a new type needs a migration, and forgetting it fails at the first *write* of that
+        type rather than here. task-506 paid that -- ``authorization`` passed every model
+        check and the insert raised ``CHECK constraint failed`` from inside an API test.
+        This is the assertion that says so first, and in one place.
+        """
+        store = SqlTaskStore(database, "demo")
+        store.ensure_project(root="/tmp/demo", reporting_tz="UTC")
+        store.save_task(make_task())
+        writer = database.writer
+        accepted = []
+        for index, entry_type in enumerate(LogEntryType, start=1):
+            try:
+                writer.execute(
+                    "INSERT INTO log_entry(project_id, task_id, entry_id, ts, actor, type) "
+                    "VALUES ('demo', 'task-001', ?, '2026-01-01T00:00:00Z', 'bot', ?)",
+                    (index, entry_type.value),
+                )
+            except sqlite3.IntegrityError:
+                continue
+            accepted.append(entry_type.value)
+
+        assert accepted == [entry_type.value for entry_type in LogEntryType]
+        with pytest.raises(sqlite3.IntegrityError, match="CHECK constraint failed"):
+            writer.execute(
+                "INSERT INTO log_entry(project_id, task_id, entry_id, ts, actor, type) "
+                "VALUES ('demo', 'task-001', 999, '2026-01-01T00:00:00Z', 'bot', 'invented')"
+            )
+
+
+class TestTheAuthorizationTypeMigration:
+    """What rebuilding ``log_entry`` for its widened CHECK had to leave alone (task-506).
+
+    SQLite cannot alter a CHECK, so migration 006 rebuilds the table -- and ``attachment``
+    cascades off it, while ``log_feed`` holds positions that must never be reused. Two
+    attempts at that rebuild broke one or the other **silently**, with
+    ``PRAGMA integrity_check`` reporting ``ok`` either way. So the migration is exercised
+    against a database holding one of each, rather than against the empty one every other
+    test in this file upgrades.
+    """
+
+    @pytest.fixture()
+    def at_five(self, tmp_path: Path) -> Iterator[Database]:
+        """A store stopped at version 5, holding a threaded entry and an attachment."""
+        database = Database(tmp_path / "agentjobs.db")
+        writer = database.writer
+        for migration in available():
+            if migration.version > 5:
+                break
+            writer.executescript(
+                "BEGIN IMMEDIATE;\n"
+                + migration.sql()
+                + f"\nPRAGMA user_version = {migration.version};"
+            )
+            writer.execute("COMMIT")
+        store = SqlTaskStore(database, "demo")
+        store.ensure_project(root="/tmp/demo", reporting_tz="UTC")
+        store.save_task(
+            make_task(
+                log=[
+                    LogEntry(
+                        id=1,
+                        ts=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                        actor="bot",
+                        type=LogEntryType.QUESTION,
+                        body="Which one?",
+                    ),
+                    LogEntry(
+                        id=2,
+                        ts=datetime(2026, 1, 2, tzinfo=timezone.utc),
+                        actor="Ada",
+                        type=LogEntryType.ANSWER,
+                        body="Chose: this one",
+                        re=1,
+                        data={"selected": ["this one"]},
+                    ),
+                ]
+            )
+        )
+        writer.execute("BEGIN IMMEDIATE")
+        writer.execute(
+            "INSERT INTO blob(sha256, media_type, size_bytes, content) "
+            "VALUES ('abc', 'image/png', 1, X'00')"
+        )
+        writer.execute(
+            "INSERT INTO attachment(project_id, task_id, entry_id, ord, sha256, label) "
+            "VALUES ('demo', 'task-001', 1, 0, 'abc', 'the screenshot')"
+        )
+        writer.execute("COMMIT")
+        yield database
+        database.close()
+
+    def test_it_keeps_the_attachments(self, at_five: Database) -> None:
+        """The rows the cascade silently ate, twice, on the way to this migration.
+
+        An attachment is a person's screenshot of a defect, referenced by a log entry.
+        Nothing else holds it, and a rebuild that drops ``log_entry`` with foreign keys on
+        removes every one in the store without complaining.
+        """
+        report = upgrade(at_five, agentjobs_version="test", snapshot_before=False)
+
+        # Asserted, because every test in this class would pass vacuously against a
+        # fixture that had already been migrated past the rebuild.
+        assert report.applied == ["006_authorization_is_a_log_entry_type"]
+        rows = at_five.writer.execute(
+            "SELECT entry_id, ord, sha256, label FROM attachment"
+        ).fetchall()
+        assert [tuple(row) for row in rows] == [(1, 0, "abc", "the screenshot")]
+
+    def test_it_keeps_the_entries_and_the_feed_positions(self, at_five: Database) -> None:
+        """A cursor that has read feed position N must never be shown a later entry as N.
+
+        That is the whole reason ``log_feed`` exists rather than a rowid, so a rebuild that
+        renumbered it would break the execution journal's inbox in a way nothing observes
+        until a handoff goes unnoticed.
+        """
+        before = at_five.writer.execute(
+            "SELECT feed_id, task_id, entry_id FROM log_feed ORDER BY feed_id"
+        ).fetchall()
+        assert len(before) == 2
+
+        upgrade(at_five, agentjobs_version="test", snapshot_before=False)
+
+        after = at_five.writer.execute(
+            "SELECT feed_id, task_id, entry_id FROM log_feed ORDER BY feed_id"
+        ).fetchall()
+        assert [tuple(row) for row in after] == [tuple(row) for row in before]
+        entries = at_five.writer.execute(
+            "SELECT entry_id, actor, type, body, re FROM log_entry ORDER BY entry_id"
+        ).fetchall()
+        assert [tuple(row) for row in entries] == [
+            (1, "bot", "question", "Which one?", None),
+            (2, "Ada", "answer", "Chose: this one", 1),
+        ]
+
+    def test_the_feed_triggers_and_the_check_work_afterwards(self, at_five: Database) -> None:
+        """The triggers are re-created, not merely dropped, and the new type is accepted.
+
+        A rebuild that forgot the insert trigger would leave the feed frozen at the two
+        positions above -- every entry written after the migration invisible to the
+        journal, with nothing raising anything.
+        """
+        upgrade(at_five, agentjobs_version="test", snapshot_before=False)
+
+        at_five.writer.execute(
+            "INSERT INTO log_entry(project_id, task_id, entry_id, ts, actor, type, body, "
+            "data_json) VALUES ('demo', 'task-001', 3, '2026-01-03T00:00:00Z', 'bot', "
+            "'authorization', 'Start this.', '{\"authorized_by\": \"Ada\"}')"
+        )
+        assert at_five.writer.execute("SELECT COUNT(*) FROM log_feed").fetchone()[0] == 3
+
+        at_five.writer.execute("DELETE FROM log_entry WHERE entry_id = 3")
+
+        assert at_five.writer.execute("SELECT COUNT(*) FROM log_feed").fetchone()[0] == 2
+        assert at_five.writer.execute("PRAGMA foreign_key_check").fetchall() == []
+
+    def test_the_self_reference_survives_the_rename(self, at_five: Database) -> None:
+        """``re`` threads an answer to its question, and the rename rewrites that clause.
+
+        The migration writes the constraint as ``log_entry_006`` precisely so the
+        non-legacy rename rewrites it to ``log_entry``; writing ``log_entry`` there would
+        have pointed it at the table being dropped. A wrong name is not a DDL error --
+        SQLite accepts it and refuses every threaded entry at write time instead.
+        """
+        upgrade(at_five, agentjobs_version="test", snapshot_before=False)
+
+        sql = at_five.writer.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'log_entry'"
+        ).fetchone()[0]
+
+        assert "log_entry_006" not in sql
+        at_five.writer.execute(
+            "INSERT INTO log_entry(project_id, task_id, entry_id, ts, actor, type, re) "
+            "VALUES ('demo', 'task-001', 4, '2026-01-04T00:00:00Z', 'bot', 'answer', 2)"
+        )
+        assert at_five.writer.execute("PRAGMA foreign_key_check").fetchall() == []
+
 
 class TestRoundTrip:
     """A task goes in and comes back out as the same document."""

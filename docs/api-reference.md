@@ -137,6 +137,7 @@ preconditions are enforced and transition history is appended.
 | `POST` | `/api/tasks/{task_id}/close` | Close with `completed`, `cancelled`, `superseded`, or `duplicate` |
 | `POST` | `/api/tasks/{task_id}/log` | Append a typed note, progress, decision, question, answer, or instruction |
 | `POST` | `/api/tasks/{task_id}/progress` | Append a structured progress entry |
+| `POST` | `/api/tasks/{task_id}/authorization` | Record that a person authorised a dispatch, as the agent they told. `actor` is the agent, `authorized_by` the human. Starts no run; refused for a `run` credential |
 | `POST` | `/api/tasks/{task_id}/redact` | Replace one prose region with a stated redaction, recording that it happened |
 
 ### Human review actions

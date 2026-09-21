@@ -7,6 +7,10 @@
 > [the API reference](api-reference.md) is still right about it. Read
 > [the limits](#what-this-does-not-do) before concluding otherwise.
 
+Extended by task-506 with one capability and one log entry type, so an agent at the
+owner's keyboard can record an authorisation given in a chat without signing anyone's name to
+it: [Relaying a human's authorisation](#relaying-a-humans-authorisation-task-506).
+
 Implemented in
 [`src/agentjobs/capabilities.py`](https://github.com/jeffposey/agentjobs/blob/main/src/agentjobs/capabilities.py)
 (the rule) and
@@ -43,6 +47,7 @@ human is asking, this stops being a table and becomes a role system.
 | `task.review` | approve, request-changes, answer, redirect, hold, resume, reject | ✓ | ✓ | — |
 | `model.draft` | `POST .../model/draft` -- one drafting call to a model provider (task-175) | ✓ | ✓ | — |
 | `dispatch.start` | task dispatch, playbook run, run cancel, queued-dispatch cancel | ✓ | ✓ | — |
+| `dispatch.relay_authorization` | `POST .../tasks/{id}/authorization` -- record that a person authorised a dispatch, as the agent they told (task-506) | ✓ | ✓ | — |
 | `dispatch.over_ceiling` | the `over_ceiling` field on a task dispatch | ✓ | ✓ | — |
 | `dispatch.admin` | dispatch enable / disable, pull-mode arm / disarm, idle-session settings | ✓ | ✓ | — |
 | `project.admin` | project register / init / inspect | ✓ | ✓ | — |
@@ -91,6 +96,69 @@ widened; `tests/test_capabilities.py` asserts it on its own terms, where such a 
 is what would break it. What an overage does *not* widen is everything else: it is a
 dispatch, so it counts against `dispatches_per_hour` like any other, and every other
 gate binds unchanged.
+
+### Relaying a human's authorisation (task-506)
+
+`dispatch.relay_authorization` is the newest row and the one whose **absence** from a run's
+set is the entire feature, so it is worth stating on its own.
+
+**The problem.** [The dispatch rule](agent-dispatch-design.md#2-the-governing-rule-the-loop-is-human-clocked)
+requires the log entry a run is attributed to to be a human's. An interactive agent session
+told, in a chat, to file a task and start it satisfies that in no way: the newest entry on
+the task is its own. The instruction was a real human act and the server cannot see it.
+
+Two paths existed and neither was the answer. **The owner clicks Dispatch** — correct, and
+a round trip for something already said. **The agent writes the note as the owner** — it
+works, because a human principal may claim itself, and it puts a signature in an
+append-only log under a name its owner did not type. No reader can tell that entry from a
+click, and the MCP tool contract tells agents not to do it in as many words.
+
+**The shape.** A log entry type, `authorization`, whose author and subject are different
+parties:
+
+| Field | Holds |
+| --- | --- |
+| `actor` | the agent that typed it. Never the person. |
+| `data.authorized_by` | the person whose act it records. Must be `kind: human`. |
+| `body` | what they asked for, in the agent's words. |
+
+`assert_human_clocked` resolves `authorized_by` on this type and the `actor` on every
+other. What is *not* relaxed is which ids count: an agent named there is refused in the
+same words an agent author is, and an unconfigured id is refused rather than assumed.
+
+**The ask lives in `body` for a reason that is not stylistic.** `agentjobs quotations` and
+the gate's corpus checks address a log entry's prose as `log[<id>].body` and do not reach
+`data`, so an ask stored in the payload would sit outside the paraphrase rule this
+repository enforces on every other sentence in a record. In `body` it is covered like
+anything else.
+
+**Two locks, and they shut different doors.** A run holds `task.verb`, so `POST /log` is a
+request it may make — which is why this is a *type* and not a marker on a `note`.
+`authorization` is in `MANAGER_WRITTEN_LOG_TYPES`, so **no** caller reaches it through the
+generic log route, human or run; and the dedicated verb that can write one needs this
+capability, which is what distinguishes a run from a person. Both are asserted in
+`tests/test_run_authorization.py`.
+
+**What it does not confer.** It starts nothing. It is not an approval, it releases no merge
+gate, it arms nothing, and it consumes no run slot. A dispatch afterwards is an ordinary
+`manual` one, so it counts against `dispatches_per_hour` and every other cap in
+[§7](agent-dispatch-design.md#7-runaway-protection) — asserted, because those caps are what
+actually bound a dispatch loop and a trigger they did not count would be a way round the
+only real control. The entry is **not consumed** either: it clocks as many runs as a
+human's own note does today, which is to say as many as the caps allow. No new looseness,
+and no new single-use mechanism to get subtly wrong.
+
+**What it is worth, stated honestly.** The server cannot verify that the person said
+anything, exactly as it cannot verify the `user` field on an HTTP dispatch — that is audit
+P1-2 and it is unchanged. What this buys is two things and not a third: a record that is
+**true about who typed it**, and a write a **dispatched run cannot make**. So the
+accidental loop stays unrepresentable through every supported path, and a deliberate one is
+attributable to whoever's credential made it.
+
+**It does not reach the CLI, and does not claim to.** `agentjobs dispatch authorize` is
+served as the person at this machine, like every CLI verb, and a run with a shell has the
+whole CLI — the standing boundary the last section of this page states, not a new one. The
+gate added here is a *principal* gate: HTTP and MCP refuse a run.
 
 **Arming the pull mode is `dispatch.admin`, and the reason is what it grants** (task-462).
 Every other row on this table is permission to do one thing once. An arming is a standing
@@ -141,6 +209,12 @@ lie about, and only there:
 | --- | --- | --- |
 | `run` | the agent id it was dispatched as | any `kind: human` id; any other agent |
 | `owner` / `tailnet` | themselves, or any `kind: agent` id | a *different* person |
+
+Since task-506 there is one write where naming somebody else is the *point*, and it is not
+an exception to this table. `POST .../authorization` still checks `actor` exactly as above —
+a run may not name a person there either — and carries the human in a separate field the
+entry is explicit about. The rule is unchanged: you may not claim to be somebody else; you
+may record that somebody else asked for something.
 
 A human claiming an agent id is not a hole. The CLI and the MCP server run as the person
 at this machine and legitimately attribute their writes to the tool, and an

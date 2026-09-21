@@ -193,13 +193,22 @@ this page would go stale.
 | `task_handoff` | Move the ball, with the ask that travels with it. |
 | `task_close` | End the task with an outcome. |
 | `task_log_append` | Append progress, a decision, a question, an answer. |
+| `task_authorize_dispatch` | Record that a person authorised a dispatch, when they told you rather than clicking it. You sign the entry; they are named inside it. It starts nothing, and a dispatched run may not call it at all. |
 | `task_update_content` | Edit authoring content only. |
 | `task_queue_move` | Change where a task stands in its band. The only way the order changes. |
 
-**There is no tool that runs a playbook, and there is not going to be one.** Starting
-a run is a dispatch, and a dispatch is a human act -- an agent that could start one
-would be an agent causing another agent to run. An agent that believes a groom pass is
-due says so in a question or a handoff, which is how agents raise everything else.
+**There is no tool that runs a playbook or dispatches a task, and there is not going to
+be one.** Starting a run is a dispatch, and a dispatch is a human act — an agent that
+could start one would be an agent causing another agent to run. An agent that believes a
+groom pass is due says so in a question or a handoff, which is how agents raise
+everything else.
+
+`task_authorize_dispatch` is not an exception to that and is easy to read as one. It
+starts nothing: it records that a person authorised a run, so that somebody — a human at
+the dashboard, or a shell on this machine — can then start one on the ordinary rule. It
+is also the one tool a **dispatched run** may not call at all, which is what stops it
+being a way for an agent to authorise its own successor. See
+[Authorization](authorization.md#relaying-a-humans-authorisation-task-506).
 
 There is no `set_lifecycle`, no `set_ball`, no `set_queue_position`, no generic patch,
 no `save_yaml`, no batch, and no `create_and_claim`. State moves through the verbs or
@@ -227,6 +236,11 @@ between repositories would otherwise write to whichever it happened to be standi
 vocabulary. It is never inferred from the model name, the OS user, the MCP client, or
 the project's `default_user`. `default_user` is the human; filing an agent's work under
 them makes the record lie.
+
+That holds even when the human really did ask for the thing you are about to write, which
+used to leave one instruction with no honest way to follow it: *file this and start it*.
+`task_authorize_dispatch` is the answer — `actor` stays you, `authorized_by` names them,
+and the entry says which of you did what.
 
 ## Retries and conflicts
 

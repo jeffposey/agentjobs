@@ -139,6 +139,36 @@ describe("TaskDetail resumption contract", () => {
     expect(screen.getByText("open question", { exact: true })).toBeVisible();
   });
 
+  it("says who authorised a relayed authorisation, and that it is not their signature", () => {
+    // The badge says `authorization` and the actor column says the agent, so without this
+    // line a reader sees an agent's entry of an unfamiliar type and has to open `data` to
+    // learn whose act it records. Telling a relay apart from a click at a glance is the
+    // whole reason the entry names both parties instead of just the person (task-506).
+    renderDetail({
+      ...detail,
+      task: task("task-relayed", {
+        log: [
+          { id: 1, ts: "2026-08-13T08:00:00Z", actor: "Jeff Posey", type: "note", body: "Jeff Posey authorised a dispatch of this task from the task page." },
+          { id: 2, ts: "2026-08-13T09:00:00Z", actor: "claude", type: "authorization", body: "File this and start it.", data: { authorized_by: "Jeff Posey", surface: "an interactive chat session" } },
+        ],
+      }),
+    });
+
+    const log = screen.getByRole("region", { name: "Task log" });
+    const entries = within(log).getAllByRole("article");
+    expect(entries.map((entry) => entry.getAttribute("data-log-id"))).toEqual(["2", "1"]);
+    expect(within(log).getByText(/Authorised by Jeff Posey, relayed by claude/)).toBeVisible();
+    expect(within(log).getByText(/Not their signature/)).toBeVisible();
+    // The owner's own click is the entry directly below it and carries no such line, so
+    // the two are distinguishable rather than merely labelled.
+    // Narrowed rather than indexed with `?.`: an optional chain here would make a missing
+    // entry satisfy `not.toBeNull()` and the test would pass for the wrong reason.
+    const [relayed, clicked] = entries;
+    if (!relayed || !clicked) throw new Error("both log entries should have rendered");
+    expect(relayed.querySelector("[data-relayed-authorizer]")).not.toBeNull();
+    expect(clicked.querySelector("[data-relayed-authorizer]")).toBeNull();
+  });
+
   it("opens every collapsed log body with one control, and closes them again", () => {
     // A long entry is collapsed by default, which keeps a hundred-entry log scannable
     // but hides its text from browser find and from select-all-and-copy. Auditing a

@@ -196,6 +196,7 @@ failed webhook delivery; it cannot turn a committed mutation into an error.
 | `task_handoff` | `HandoffInput` | `MutationResult` | Moves the ball through the handoff verb and appends the manager-owned handoff entry. |
 | `task_close` | `{project_id, task_id, actor, operation_id, expected_revision, outcome, body?, archive?: boolean=false}` | `MutationResult` | Calls close; no generic lifecycle setter exists. |
 | `task_log_append` | `{project_id, task_id, actor, operation_id, type: LogType, body: string(minLength=1), re?, data?}` | `MutationResult` | Appends an allowed authored log entry. `transition` and `handoff` are not members of `LogType`. `data` is a JSON object and may not override reserved operation metadata. |
+| `task_authorize_dispatch` | `{project_id, task_id, actor, operation_id, authorized_by, ask: string(minLength=1), surface?}` | `MutationResult` | Appends the `authorization` entry: `actor` is the agent relaying, `authorized_by` the human whose act it records. Refused unless the caller holds `dispatch.relay_authorization`, which no `run` does, and unless `authorized_by` is a `kind: human` actor. Starts no run (task-506). |
 | `task_update_content` | `{project_id, task_id, actor, operation_id, expected_revision, patch: ContentPatch}` | `MutationResult` | Updates only authoring content. State axes and log replacement are impossible in the schema. |
 
 `BrokenTask` is `{task_id, filename, reason}`. `ProjectSummary` and computed dependency

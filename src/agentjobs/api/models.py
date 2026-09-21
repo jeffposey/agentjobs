@@ -1308,6 +1308,36 @@ class LogAppendRequest(SafeMutationRequest):
     data: Dict[str, Any] = Field(default_factory=dict, description="Optional structured payload.")
 
 
+class RelayAuthorizationRequest(SafeMutationRequest):
+    """Relay a human's authorisation of a dispatch, as the agent they said it to (task-506).
+
+    Its own request rather than a field on :class:`LogAppendRequest`, because it is its
+    own capability: a ``run`` holds the log route and may not hold this. The route table
+    is keyed by endpoint, so a separate endpoint is how one caller is refused what the
+    other is allowed.
+
+    ``actor`` is the agent writing the entry -- checked against the principal like every
+    other actor, so a run cannot name a person here either. ``authorized_by`` is the
+    human, and is refused unless this project configures them ``kind: human``.
+    """
+
+    actor: str = Field(..., description="Actor id writing the entry: the agent relaying.")
+    authorized_by: str = Field(
+        ..., description="Actor id of the human who authorised it. Must be kind: human."
+    )
+    ask: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "What they asked for, in the relaying agent's words. Becomes the entry body, "
+            "where the repository's paraphrase rule reaches it. Never a quotation."
+        ),
+    )
+    surface: Optional[str] = Field(
+        default=None, description="Where they said it, for a reader. Never read back by a check."
+    )
+
+
 class ProgressUpdateRequest(SafeMutationRequest):
     """Progress update payload appended to the task log."""
 

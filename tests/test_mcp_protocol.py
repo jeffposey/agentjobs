@@ -66,6 +66,7 @@ EXPECTED_TOOLS = [
     "task_handoff",
     "task_close",
     "task_log_append",
+    "task_authorize_dispatch",
     "task_update_content",
     "task_queue_move",
 ]
@@ -311,7 +312,10 @@ class TestPackagedProtocol:
         assert lines
         for line in lines:
             assert json.loads(line)["jsonrpc"] == "2.0"
-        assert "Serving 16 tool(s)" in completed.stderr
+        # Derived rather than a literal: the count moved with every tool ever added, and
+        # what this line is about is that the banner went to stderr, not how many tools
+        # there are. `EXPECTED_TOOLS` above is the list that has to stay current.
+        assert f"Serving {len(EXPECTED_TOOLS)} tool(s)" in completed.stderr
 
     def test_a_full_mutation_round_trip_persists_through_the_pipe(self, live_service):
         """One create and one claim, over a real subprocess, landing in a real file."""

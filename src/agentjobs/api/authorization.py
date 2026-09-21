@@ -131,6 +131,17 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     "dispatch_task_endpoint": RouteRule(Capability.DISPATCH),
     "run_playbook_endpoint": RouteRule(Capability.DISPATCH),
     "cancel_dispatch_run": RouteRule(Capability.DISPATCH),
+    # Relaying a human's authorisation writes a log entry and starts nothing, so on
+    # shape alone it belongs beside `append_log_entry` under `task.verb` -- which every
+    # run holds, which is exactly why it is here instead (task-506). The entry it writes
+    # is the one row `assert_human_clocked` accepts from a writer who is not a human, so
+    # a run able to write one could authorise its own successor. It sits under
+    # `dispatch.*` because that is the door it opens, not because it opens it itself.
+    #
+    # `task_param` for the ordinary reason: it is a write to one named task. It changes
+    # nothing today -- `OWN_TASK_ONLY` is empty and no run holds this at all -- and is
+    # named so that re-scoping the capability one day scopes this route with it.
+    "relay_authorization": RouteRule(Capability.DISPATCH_RELAY, task_param=_TASK),
     "enable_dispatch": RouteRule(Capability.DISPATCH_ADMIN),
     "disable_dispatch": RouteRule(Capability.DISPATCH_ADMIN),
     # Arming the pull mode is the strongest thing on this table by consequence

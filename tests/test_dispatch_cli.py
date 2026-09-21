@@ -401,6 +401,217 @@ class TestDispatchRun:
         return task.id
 
 
+class TestDispatchAuthorize:
+    """``agentjobs dispatch authorize`` writes the relay, and refuses the wrong names.
+
+    The verb that answers the question ``dispatch run``'s docstring used to decline: how an
+    agent at the owner's keyboard clocks a run they asked for, without signing their name to it
+    (task-506). The rule itself is tested in test_dispatch_guards.py; what is here is that
+    the command exists, that its two identity flags are separate, and that the refusals a
+    person will actually hit say which one was wrong.
+    """
+
+    def make_project(self, tmp_path: Path, project_id: str) -> Path:
+        """Register a project whose actor vocabulary names one person and one agent."""
+        root = tmp_path / project_id
+        (root / ".agentjobs").mkdir(parents=True, exist_ok=True)
+        (root / ".agentjobs" / "config.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "project_name": project_id,
+                    "tasks_directory": "tasks",
+                    "actors": [
+                        {"name": "Jeff Posey", "kind": "human"},
+                        {"name": "claude", "kind": "agent"},
+                    ],
+                    "default_user": "Jeff Posey",
+                }
+            ),
+            encoding="utf-8",
+        )
+        ProjectRegistry(home=home()).add(root, project_id=project_id)
+        return root
+
+    def seed(self, root: Path) -> str:
+        """A ready task whose newest entry is an agent's, so the rule refuses it."""
+        from agentjobs.models_v2 import Lifecycle, LogEntryType
+
+        manager = TaskManager(task_store(root / "tasks"))
+        task = manager.create_task(
+            title="Dispatchable",
+            category="general",
+            summary="s",
+            description="d",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+        )
+        manager.add_log_entry(task.id, actor="claude", type=LogEntryType.PROGRESS, body="Filed it.")
+        return task.id
+
+    def test_it_writes_an_entry_signed_by_the_agent_and_naming_the_human(
+        self, tmp_path: Path
+    ) -> None:
+        """The whole point, asserted on the stored row rather than on the exit code.
+
+        An exit code of 0 over an entry whose ``actor`` is the person would be the
+        workaround this command replaces, passing its own test.
+        """
+        from agentjobs.models_v2 import LogEntryType
+
+        root = self.make_project(tmp_path, "alpha")
+        task_id = self.seed(root)
+
+        result = runner.invoke(
+            app,
+            [
+                "dispatch",
+                "authorize",
+                task_id,
+                "--project",
+                "alpha",
+                "--actor",
+                "claude",
+                "--by",
+                "Jeff Posey",
+                "--ask",
+                "File this and start it.",
+                "--surface",
+                "an interactive chat session",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        stored = TaskManager(task_store(root / "tasks")).get_task(task_id)
+        assert stored is not None
+        entry = stored.log[-1]
+        assert entry.type is LogEntryType.AUTHORIZATION
+        assert entry.actor == "claude"
+        assert entry.data["authorized_by"] == "Jeff Posey"
+        assert entry.body == "File this and start it."
+
+    def test_a_dispatch_afterwards_is_no_longer_refused_as_agent_clocked(
+        self, tmp_path: Path
+    ) -> None:
+        """The two commands together, which is the sequence the feature is for.
+
+        The refusal this replaces is asserted directly above it in the same test, so the
+        pair proves the relay is what changed the answer rather than something about the
+        fixture.
+        """
+        root = self.make_project(tmp_path, "alpha")
+        task_id = self.seed(root)
+        write_config(
+            runners={
+                "fake": {
+                    "argv": [sys.executable, "-c", "print(1)", "{prompt}"],
+                    "actor": "claude",
+                }
+            },
+            projects={"alpha": {"enabled": True, "runner": "fake"}},
+        )
+
+        before = runner.invoke(app, ["dispatch", "run", task_id, "--project", "alpha"])
+        assert before.exit_code == 1
+        assert "not_human_clocked" in before.output
+
+        relayed = runner.invoke(
+            app,
+            [
+                "dispatch",
+                "authorize",
+                task_id,
+                "--project",
+                "alpha",
+                "--actor",
+                "claude",
+                "--by",
+                "Jeff Posey",
+                "--ask",
+                "Start it.",
+            ],
+        )
+        assert relayed.exit_code == 0, relayed.output
+
+        after = runner.invoke(app, ["dispatch", "run", task_id, "--project", "alpha"])
+
+        assert "not_human_clocked" not in after.output
+
+    def test_an_agent_named_as_the_authorizer_is_refused_by_name(self, tmp_path: Path) -> None:
+        """The refusal that keeps the feature from being a way round the rule.
+
+        Named rather than generic, because the fix differs from every other refusal here:
+        nothing about the command is wrong, the person it names is not a person.
+        """
+        root = self.make_project(tmp_path, "alpha")
+        task_id = self.seed(root)
+
+        result = runner.invoke(
+            app,
+            [
+                "dispatch",
+                "authorize",
+                task_id,
+                "--project",
+                "alpha",
+                "--actor",
+                "claude",
+                "--by",
+                "claude",
+                "--ask",
+                "Start it.",
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "authorizer_not_human" in result.output
+        stored = TaskManager(task_store(root / "tasks")).get_task(task_id)
+        assert stored is not None
+        entries = stored.log
+        assert [entry for entry in entries if entry.type.value == "authorization"] == []
+
+    def test_both_identities_are_required_rather_than_defaulted(self, tmp_path: Path) -> None:
+        """Neither flag has a default, and ``default_user`` is deliberately not one.
+
+        A ``--by`` defaulting to the project's ``default_user`` would put a config value
+        where a person's decision belongs -- the same substitution the dispatch endpoint
+        refuses to make -- and would read on the record as though somebody had asked for
+        this run.
+        """
+        self.make_project(tmp_path, "alpha")
+
+        without_by = runner.invoke(
+            app,
+            [
+                "dispatch",
+                "authorize",
+                "task-001",
+                "--project",
+                "alpha",
+                "--actor",
+                "claude",
+                "--ask",
+                "Start it.",
+            ],
+        )
+        without_actor = runner.invoke(
+            app,
+            [
+                "dispatch",
+                "authorize",
+                "task-001",
+                "--project",
+                "alpha",
+                "--by",
+                "Jeff Posey",
+                "--ask",
+                "Start it.",
+            ],
+        )
+
+        assert without_by.exit_code != 0
+        assert without_actor.exit_code != 0
+
+
 class TestDispatchWalkPosture:
     """``agentjobs dispatch walk`` says what envelope its children get (task-316).
 

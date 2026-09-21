@@ -116,6 +116,30 @@ Everything else in this document is subordinate to one rule.
 > **A dispatch may only be caused by a log entry whose actor is a human.**
 > An agent handoff never causes a dispatch, in any mode, ever.
 
+!!! note "One entry type is judged on somebody other than its author (task-506)"
+    The rule's *subject* was refined on 2026-09-21 and its **content was not weakened.**
+    What it has always asked is "was this a human act"; it answered that by reading the
+    entry's `actor`, because for every entry type then existing the author and the actor
+    whose act it was are one person.
+
+    An `authorization` entry separates them: an agent typed it, and the human it names in
+    `data.authorized_by` is whose act it records. The rule resolves that named id — which
+    must still be `kind: human`, so an agent named there is refused exactly as an agent
+    author is, and an unconfigured id is refused rather than assumed.
+
+    **The write is the gate.** A dispatched run holds `task.verb` and can write any
+    authored entry it likes, so the entry type is manager-written — no caller reaches it
+    through `POST /log` at all — and the verb that does write one needs
+    `dispatch.relay_authorization`, which no `run` holds. Without both, this would be the
+    agent-clocked cycle §2 exists to keep out of the supported paths, reopened with a new
+    spelling and wearing a label saying it was authorised. Asserted in
+    `tests/test_run_authorization.py`; the whole of it is
+    [Relaying a human's authorisation](authorization.md#relaying-a-humans-authorisation-task-506).
+
+    It is worth exactly what the browser's `user` field is worth and no more — see
+    [What is checked, and what is merely claimed](#what-is-checked-and-what-is-merely-claimed-added-2026-08-20-task-188).
+    What it buys is a truthful record and a door a run cannot open.
+
 !!! danger "Superseded 2026-08-11 by D5 — read §2a before implementing this"
     Jeff amended D4 the day after approving it. The rule above was right about the
     *property* it protected and too narrow about the mechanism. It is retained here
@@ -175,13 +199,16 @@ principle, permitted to exist.
 The price of the rule is real and worth stating plainly: **"agent finishes, next agent
 picks up automatically" is permanently off the table** through the supported path. No
 chained autonomy, no overnight queue that drains itself. Every turn of the wheel costs
-one click. That was accepted (D1) as the correct trade for a system that spawns processes
+one human act — a click, or since task-506 an instruction an agent records under its own
+name. What it never costs is nothing. That was accepted (D1) as the correct trade for a system that spawns processes
 with commit access on a personal machine.
 
 A useful consequence: the rule is checkable in one line at spawn time — resolve the log
-entry that caused this dispatch, look up its actor in the project's actor vocabulary,
-refuse unless `kind == human`. It is not a policy that has to be maintained across the
-codebase; it is a precondition on one function.
+entry that caused this dispatch, look up the actor it names in the project's actor
+vocabulary, refuse unless `kind == human`. It is not a policy that has to be maintained
+across the codebase; it is a precondition on one function. *Which* id an entry names is the
+one thing that varies, and it varies by type rather than by caller: the author's, except on
+an `authorization` entry, where it is the human the entry records (task-506).
 
 ## 2a. What actually governs: bounded autonomy (D5, 2026-08-11)
 
@@ -349,6 +376,11 @@ with `not_human_clocked`. The server deliberately does **not** substitute the pr
 a config value standing in for a person produces something that looks like evidence and
 is not. The browser knows this before the click and disables the button rather than
 offering one that can only refuse.
+
+That refusal stands, and since task-506 it is no longer a dead end for the one caller who
+*does* have a person to name: an agent told to start a task records the instruction as its
+own entry naming them (§5e), and dispatches on that. The substitution is still refused — what
+changed is that there is now an honest thing to do instead of it.
 
 Built by task-188. The manual note control task-185 added stays: it is the right path
 for deliberately writing an instruction onto a task, and it is what keeps the refusal
@@ -2010,7 +2042,8 @@ agents.
 
 The trigger is an explicit `POST /api/tasks/{id}/dispatch` — a button in the review UI
 next to Approve, and `agentjobs dispatch run <task-id>` in the CLI. Nothing else starts
-a run.
+a run. **`POST .../authorization` is not a second trigger** and is easy to mistake for one:
+it writes an entry a later dispatch may be clocked on and starts nothing itself (§5e).
 
 **The button is one click, and the two callers differ in one field (task-188).** The
 browser sends `user`, naming the person clicking; the server writes their authorising
@@ -2024,6 +2057,11 @@ rule and is refused with `not_human_clocked` if the newest stored entry is an ag
 Neither path takes its justification from the request — see
 [What is checked, and what is merely claimed](#what-is-checked-and-what-is-merely-claimed-added-2026-08-20-task-188)
 for why writing an entry and trusting a field are not the same act.
+
+**A third caller was added by task-506 and it is not a third trigger:** an agent at the
+owner's keyboard, told in a chat to start a task. It records the authorisation as its own
+entry naming them, and then a dispatch — from anywhere — clocks on that entry through the
+unchanged rule. §5e below is what it is and what it is worth.
 
 **Auto-dispatch is designed here and built later.** A project may eventually set
 `auto_dispatch: true`, which makes an approval that hands the ball to `agent`
@@ -2670,6 +2708,75 @@ The escalation's own record commit was deliberately **not** deferred. That entry
 whole explanation of why a merge did not happen, and leaving it uncommitted in a shared
 clone for the next agent to find dirty is the failure `record_commit.py` exists for
 (task-203). With the runway held it can no longer land under another finish's gate anyway.
+
+---
+
+### 5e. The instruction nobody could record: a relayed authorisation (task-506, 2026-09-21)
+
+Everything above assumes the human act reaches the server as a *request* — a click, or a
+note typed into a box. One does not, and it is the most ordinary one there is: telling an
+agent, in a chat session, to file a task and start it.
+
+That instruction is a genuine human act and the server cannot see it. The newest entry on
+the task is the agent's own, so §2 refuses the dispatch `not_human_clocked`, correctly. The
+two paths that existed and why neither is the answer:
+
+- **The owner clicks Dispatch.** Correct, and the status quo. It is also a round trip for
+  something they have already said, which is the thing being complained about.
+- **The agent writes the note as them.** This works — a human principal may claim itself, and
+  §5's own remedy copy advised it. Its cost is that the append-only log now holds an entry
+  signed by a person who did not write it, and **no reader can tell that entry from a
+  click**. The MCP tool contract tells agents not to do it in as many words, so the
+  workaround was also a standing contradiction of the interface's own instructions.
+
+**The shape is a third kind of authorising entry**, and the only one whose author and
+subject are different parties: type `authorization`, `actor` the agent that typed it,
+`data.authorized_by` the person, `body` what they asked for in the agent's words.
+`assert_human_clocked` resolves the named id on this type and the author's on every other —
+see §2's note, which is where the rule is stated.
+
+**It is not a trigger and starts nothing.** It writes a row; something else dispatches on
+it. Three consequences follow and each is asserted rather than asserted-in-prose:
+
+- **One `manual` dispatch, counted like any other.** §7's caps and §8's ceiling bind
+  unchanged, which matters more than it sounds: those caps are what actually bounds a
+  dispatch loop, so a trigger arriving as something they did not count would be a way round
+  the only real control.
+- **It confers nothing else.** Not an approval, no merge gate released, nothing armed, no
+  run slot consumed.
+- **It is not consumed.** Re-use is exactly a human note's today — nothing marks an entry
+  spent, and what bounds how many runs one authorisation yields is the caps. Stated
+  explicitly rather than inherited by accident, because "no new looseness" is a claim and a
+  claim is worth a test.
+
+**The safety property, which is the whole of it: a dispatched run cannot write one.** Two
+locks, shutting different doors. A run holds `task.verb`, so `POST /log` is a request it may
+make — which is why this is an entry *type* rather than a marker on a `note`;
+`authorization` is manager-written, so **no** caller reaches it through the generic log
+route. And the dedicated verb that does write one needs `dispatch.relay_authorization`,
+which the capability table grants to the two human kinds and to no `run`. Without both, this
+section would describe the agent-clocked cycle §2 exists to prevent, reopened with a new
+spelling and wearing a label saying it was authorised.
+
+**What it is worth, in the terms §2's correction insists on.** The server cannot verify that
+they said anything, any more than it can verify the `user` field on an HTTP dispatch — that
+P1-2, unchanged. This buys two things and not a third: a record that is **true about who
+typed it**, and a write a **run cannot make**. So the accidental loop stays out of every
+supported path and the deliberate one is attributable to whoever's credential made it.
+
+**It does not reach the CLI, and claiming it did would be the overstatement this document
+was corrected for.** `agentjobs dispatch authorize` is served as the person at the machine,
+like every CLI verb, and a run with a shell has the whole CLI. The gate is a *principal*
+gate: HTTP and MCP refuse a run.
+
+It also unblocks task-263, which would forbid an agent acting as `default_user` — until now
+that was the only way an interactive session could start work the owner had asked for, so the
+prohibition could not ship.
+
+`src/agentjobs/dispatch/guards.py` (`relayed_authorizer`, `assert_human_clocked`),
+`POST /api/tasks/{id}/authorization`, `agentjobs dispatch authorize`, MCP
+`task_authorize_dispatch`. The whole rule:
+[Relaying a human's authorisation](authorization.md#relaying-a-humans-authorisation-task-506).
 
 ---
 

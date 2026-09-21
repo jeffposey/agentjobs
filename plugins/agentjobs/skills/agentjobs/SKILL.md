@@ -52,6 +52,7 @@ context can pick the work up:
 | make a draft claimable | `task_promote` (the only exit from `draft`) |
 | take it | `task_claim` |
 | record what happened | `task_log_append` |
+| relay a person's "start this task" | `task_authorize_dispatch` (names them beside you) |
 | pass it on | `task_handoff` |
 | give it back | `task_release` |
 | finish it | `task_close` |

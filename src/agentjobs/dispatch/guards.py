@@ -585,8 +585,29 @@ def actor_kind(config: Dict[str, object], actor_id: str) -> Optional[Actor]:
     return load_actors(config).get(actor_id)
 
 
+def relayed_authorizer(entry: LogEntry) -> Optional[str]:
+    """The human an ``authorization`` entry names, or ``None`` for any other entry.
+
+    **Keyed on the entry's type, and that is what makes it unforgeable through the door
+    an agent already has.** A ``data`` key on a ``note`` would have done the same job and
+    a run could have written one, because a run holds ``task.verb`` and therefore
+    ``POST /log``. ``authorization`` is in ``MANAGER_WRITTEN_LOG_TYPES``, so no caller
+    reaches it through the generic log route at all, and the dedicated verb that writes
+    one needs ``dispatch.relay_authorization`` -- which no run holds (task-506).
+
+    A missing or blank ``authorized_by`` answers ``None`` rather than raising, so such an
+    entry falls back to being judged on its ``actor`` -- an agent -- and is refused as
+    one. The model makes that state unreachable through any write path here; this is what
+    happens to a row that reached the store some other way.
+    """
+    if entry.type is not LogEntryType.AUTHORIZATION:
+        return None
+    named = str(entry.data.get("authorized_by") or "").strip()
+    return named or None
+
+
 def assert_human_clocked(config: Dict[str, object], entry: LogEntry) -> Actor:
-    """Refuse unless the causing entry was written by a configured human.
+    """Refuse unless the causing entry was written by, or relays, a configured human.
 
     **The rule, and not a configuration option.** An agent handoff never causes a
     dispatch, in any mode.
@@ -600,16 +621,41 @@ def assert_human_clocked(config: Dict[str, object], entry: LogEntry) -> Actor:
     for a genuinely unknown id, and is unreachable for ``dispatcher`` -- see
     ``actor_kind``. A re-dispatch whose newest entry is AgentJobs' own is an agent's
     entry and is refused as one.
+
+    **One entry type is judged on somebody other than its author** (task-506). An
+    ``authorization`` entry is an agent's record of a human's authorisation -- the agent
+    typed it, so ``actor`` is the agent, and ``data.authorized_by`` is the person. Here
+    the *named* id is resolved and the actor's is not, which is the point: the rule has
+    always asked "was this a human act", and it answers that question on this entry
+    instead of answering "was this typed by a human" and calling the two the same. What
+    is not relaxed is which ids count: the named one must be a configured human, an agent
+    named there is refused exactly as an agent author is, and an unknown one is refused
+    rather than assumed. Nor does it become evidence *that* the person spoke -- see
+    ``docs/authorization.md``; it is the same claim the browser's ``user`` field makes,
+    recorded without forging a signature.
     """
-    actor = actor_kind(config, entry.actor)
+    relayed = relayed_authorizer(entry)
+    subject = relayed or entry.actor
+    actor = actor_kind(config, subject)
     if actor is None:
+        via = (
+            f"Log entry {entry.id} relays an authorisation by {subject!r}"
+            if relayed
+            else f"Log entry {entry.id} was written by {subject!r}"
+        )
         raise CausingActorNotHumanError(
-            f"Log entry {entry.id} was written by {entry.actor!r}, which this project "
-            "does not configure as an actor. A dispatch must be caused by a known "
-            "human, and an unknown actor cannot be shown to be one. Add them to "
-            "'actors:' in .agentjobs/config.yaml with 'kind: human'."
+            f"{via}, which this project does not configure as an actor. A dispatch must "
+            "be caused by a known human, and an unknown actor cannot be shown to be "
+            "one. Add them to 'actors:' in .agentjobs/config.yaml with 'kind: human'."
         )
     if not actor.is_human:
+        if relayed:
+            raise CausingActorNotHumanError(
+                f"Log entry {entry.id} relays an authorisation by {subject!r}, which "
+                "this project configures as an agent. An agent may not authorise a "
+                "dispatch, and relaying one does not change who authorised it (design "
+                "section 2, D4)."
+            )
         origin = (
             " That entry is AgentJobs' own record of an earlier dispatch, so nothing a "
             "person did has authorised another one."
@@ -1466,20 +1512,28 @@ def dispatch_task(
         # as a human. The authorising-entry path does not bypass this check, it
         # satisfies it -- which is why an agent still cannot cause a dispatch even
         # though the dispatcher now writes entries of its own.
-        assert_human_clocked(project_config, causing)
+        #
+        # **The answer is used, not discarded** (task-506). For every entry but one it is
+        # the entry's own actor, so nothing below changes; for an `authorization` entry
+        # the author is the agent that relayed it and the *authoriser* is the person, and
+        # the person is who a dispatch is attributed to. `record_dispatch` says so in as
+        # many words -- "the human who authorised it, never the agent" -- and a dispatch
+        # entry reading `claude` beside a `caused_by` pointing at a relay would be this
+        # feature's one way of writing the agent-clocked loop into the record.
+        clocked = assert_human_clocked(project_config, causing)
         if controlled and attempt.execution_id:
             # The grant's authorising event, in the execution's own history (task-416). A
             # relaunch after this process dies must cite the human act that authorised the
             # execution, and the task's newest entry by then is the claim's transition.
             journal.record_authorisation(
-                machine_home, attempt.execution_id, run_id, entry_id=causing.id, actor=causing.actor
+                machine_home, attempt.execution_id, run_id, entry_id=causing.id, actor=clocked.id
             )
 
         task = _claim_or_verify(manager, task, resolution.runner.actor_id)
 
         handle = runner.start(
             task,
-            actor=causing.actor,
+            actor=clocked.id,
             caused_by=causing.id,
             trigger=request.trigger,
             run_id=run_id,

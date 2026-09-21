@@ -21,6 +21,7 @@ from datetime import timedelta
 from typing import Dict, List, Optional
 
 import pytest
+from pydantic import ValidationError
 import yaml
 
 from agentjobs.dispatch.address import DEFAULT_API_BASE, ApiBaseProbe
@@ -52,6 +53,7 @@ from agentjobs.dispatch.guards import (
     UnreachableApiBaseError,
     assert_human_clocked,
     describe_slot_holders,
+    relayed_authorizer,
     dispatch_task,
     live_runs,
     record_can_brief,
@@ -69,6 +71,7 @@ from agentjobs.models_v2 import (
     DispatchPosture,
     DispatchTrigger,
     Lifecycle,
+    LogEntry,
     LogEntryType,
     Outcome,
     utcnow,
@@ -423,6 +426,229 @@ def _entry(*, actor: str):
     from agentjobs.models_v2 import LogEntry, utcnow
 
     return LogEntry(id=1, ts=utcnow(), actor=actor, type=LogEntryType.NOTE, body="x")
+
+
+def _relay(*, actor: str, authorized_by: str):
+    """One relayed authorisation entry, built by hand rather than through the manager.
+
+    Built here so the rule can be asked about a payload the write path would refuse --
+    an empty ``authorized_by``, or an agent named in it -- which is exactly where a
+    fallback has to be shown to fail safe.
+    """
+    return LogEntry(
+        id=1,
+        ts=utcnow(),
+        actor=actor,
+        type=LogEntryType.AUTHORIZATION,
+        body="Start this task.",
+        data={"authorized_by": authorized_by},
+    )
+
+
+class TestARelayedAuthorizationClocksADispatch:
+    """The rule judges an ``authorization`` entry on the human it names (task-506).
+
+    Every other entry type collapses "who wrote this" and "whose act is this", and the
+    rule has always answered the second by reading the first. This type separates them:
+    the agent typed it, the person authorised it, and the entry says both. So the tests
+    here are about what the *named* id buys and, more importantly, what it does not.
+    """
+
+    def test_it_clocks_a_dispatch_although_an_agent_wrote_it(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """ac-1's end: the newest entry is an agent's, and the dispatch proceeds.
+
+        Constructed as the opposite of ``test_an_agent_authored_entry_cannot_cause_a_dispatch``
+        above, and the difference is one field. That test's entry is an agent's handoff and
+        is refused; this one is an agent's record of a person's instruction and is not.
+        """
+        write_dispatch_config(home, fake_runner)
+        manager.record_relayed_authorization(
+            ready_task.id,
+            actor="claude",
+            authorized_by="Jeff Posey",
+            ask="File this and start it.",
+            surface="an interactive chat session",
+        )
+        relayed = manager.get_task(ready_task.id)
+        assert relayed is not None and relayed.log[-1].actor == "claude"
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
+    def test_the_dispatch_is_attributed_to_the_human_not_the_relaying_agent(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """Whose purchase this was, on the record that outlives the run directory.
+
+        ``assert_human_clocked`` answers with the authoriser, and that is the actor the
+        ``dispatch`` entry carries. A relay that clocked the run and then recorded the
+        agent as having authorised it would put the loop back in the log's own account of
+        itself, whatever the code did.
+        """
+        write_dispatch_config(home, fake_runner)
+        relayed = manager.record_relayed_authorization(
+            ready_task.id, actor="claude", authorized_by="Jeff Posey", ask="Start it."
+        ).log[-1]
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        stored = manager.get_task(ready_task.id)
+        assert stored is not None
+        entry = next(item for item in reversed(stored.log) if item.type is LogEntryType.DISPATCH)
+        assert entry.actor == "Jeff Posey"
+        assert entry.data["caused_by"] == relayed.id
+        assert entry.data["trigger"] == "manual"
+
+    def test_it_counts_as_one_manual_dispatch_against_the_hourly_cap(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """ac-5. A relay buys a run; it does not buy an exemption.
+
+        Section 7's hourly cap is what actually bounds a dispatch loop -- the human-clocked
+        rule keeps the loop out of the supported paths and does not bound it. So a relay
+        that arrived as anything the caps do not count would be a way round the only thing
+        that does. It arrives as ``manual``, which is the trigger the caps were extended to
+        cover in task-334.
+        """
+        write_dispatch_config(
+            home,
+            fake_runner,
+            require_clean_tree=False,
+            # Two slots, so the second dispatch is refused by the cap and not by a full
+            # machine. The ceiling refuses first and would make this test pass for a
+            # reason it does not claim.
+            limits={"dispatches_per_hour": 1, "max_concurrent_runs": 2},
+        )
+        other = manager.create_task(
+            title="Other",
+            category="general",
+            summary="s",
+            description="d",
+            lifecycle=Lifecycle.READY,
+            actor="Jeff Posey",
+        )
+        manager.record_relayed_authorization(
+            ready_task.id, actor="claude", authorized_by="Jeff Posey", ask="Start this one."
+        )
+        manager.record_relayed_authorization(
+            other.id, actor="claude", authorized_by="Jeff Posey", ask="And this one."
+        )
+
+        first = run(manager, project, home, ready_task.id)
+        hold_live(first)
+
+        with pytest.raises(BudgetCapError) as caught:
+            run(manager, project, home, other.id)
+
+        assert caught.value.reason == "machine_per_hour"
+
+    def test_it_is_not_consumed_by_the_dispatch_it_clocked(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The re-use semantics, stated rather than inherited by accident.
+
+        A human's own note has never been single-use, and neither is this: nothing marks
+        an entry as spent, and what bounds how many runs one authorisation yields is the
+        caps. Asserted because "exactly a human entry's semantics, no new looseness" is a
+        claim about this type and a claim is worth a test -- the refusal below names the
+        live run, not the authorisation, which is what shows the entry is still good.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        relayed = manager.record_relayed_authorization(
+            ready_task.id, actor="claude", authorized_by="Jeff Posey", ask="Start it."
+        ).log[-1]
+        first = run(manager, project, home, ready_task.id)
+        hold_live(first)
+
+        # Named rather than defaulted, because by now the newest entry is the dispatcher's
+        # own -- and what is being asserted is the *entry*, not the ordering.
+        with pytest.raises(LiveRunExistsError):
+            run(manager, project, home, ready_task.id, caused_by=relayed.id)
+
+    def test_an_agent_named_as_the_authorizer_is_refused(self) -> None:
+        """Relaying an authorisation does not change who may give one.
+
+        The entry a relay writes is agent-authored *by design*, so the only thing standing
+        between this feature and an agent authorising its own successor through the front
+        door is that the id it names has to be a human. Refused in the same words as an
+        agent-authored entry, because it is the same rule.
+        """
+        with pytest.raises(CausingActorNotHumanError) as caught:
+            assert_human_clocked(PROJECT_CONFIG, _relay(actor="claude", authorized_by="codex"))
+
+        message = str(caught.value)
+        assert "relays an authorisation by 'codex'" in message
+        assert "configures as an agent" in message
+
+    def test_an_unconfigured_authorizer_is_refused_rather_than_assumed_human(self) -> None:
+        """Same rule as an unconfigured author, and for the same reason: "we do not know
+        who this is" must not be able to start a process on somebody's machine."""
+        with pytest.raises(CausingActorNotHumanError) as caught:
+            assert_human_clocked(
+                PROJECT_CONFIG, _relay(actor="claude", authorized_by="somebody-new")
+            )
+
+        assert "does not configure as an actor" in str(caught.value)
+
+    def test_an_authorization_entry_naming_nobody_cannot_be_built(self) -> None:
+        """An entry of this type without an authoriser is unrepresentable, not refused.
+
+        ``AuthorizationData`` is in ``LOG_PAYLOADS``, so the check runs on the entry rather
+        than at a write path -- which means it also holds for a row hand-edited into a
+        file or handed over by an importer, and the model refuses to load one. That is the
+        reason the payload is typed at all.
+        """
+        with pytest.raises(ValidationError):
+            _relay(actor="claude", authorized_by="")
+
+    def test_a_relay_that_reached_the_store_anyway_is_judged_on_its_author(self) -> None:
+        """The fallback under the model, exercised past it.
+
+        Reachable only by constructing the object without validation, which is the shape
+        of a row that arrived some other way. It degrades to "an agent wrote this" and is
+        refused, which is the direction a fallback in this function has to fail.
+        """
+        entry = LogEntry.model_construct(
+            id=1,
+            ts=utcnow(),
+            actor="claude",
+            type=LogEntryType.AUTHORIZATION,
+            body="Start this task.",
+            data={},
+            re=None,
+            attachments=None,
+        )
+
+        assert relayed_authorizer(entry) is None
+        with pytest.raises(CausingActorNotHumanError) as caught:
+            assert_human_clocked(PROJECT_CONFIG, entry)
+        assert "'claude'" in str(caught.value)
+
+    def test_the_marker_is_read_only_off_an_authorization_entry(self) -> None:
+        """``data`` on an ordinary entry buys nothing, which is why the type carries this.
+
+        A run holds ``task.verb`` and can put any ``data`` it likes on a ``note``. If this
+        function looked at the key rather than the type, that would be the whole gate
+        defeated by a field -- so the note below, which says everything a relay says, is
+        still refused as the agent entry it is.
+        """
+        entry = LogEntry(
+            id=1,
+            ts=utcnow(),
+            actor="claude",
+            type=LogEntryType.NOTE,
+            body="Jeff said to start it.",
+            data={"authorized_by": "Jeff Posey"},
+        )
+
+        assert relayed_authorizer(entry) is None
+        with pytest.raises(CausingActorNotHumanError):
+            assert_human_clocked(PROJECT_CONFIG, entry)
 
 
 # ----- every other gate, each with its own code -------------------------------

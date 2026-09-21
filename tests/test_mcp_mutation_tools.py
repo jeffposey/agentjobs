@@ -32,7 +32,7 @@ from agentjobs.mcp.errors import AUTHORIZATION_CODES, ERROR_SCHEMA, ErrorCode, T
 from agentjobs.mcp.inventory import build_registry
 from agentjobs.mcp.server import validate_arguments
 from agentjobs.mcp.tools import ToolRegistry
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
 from agentjobs.principals import RUN_CREDENTIAL_HEADER, Problem
 from agentjobs.projects import ProjectRegistry
 from agentjobs.record_check import DEFAULT_BALL_PROMPT, LONG_SUMMARY, SUMMARY_WORD_CEILING
@@ -53,6 +53,7 @@ MUTATION_NAMES = [
     "task_handoff",
     "task_close",
     "task_log_append",
+    "task_authorize_dispatch",
     "task_update_content",
     "task_queue_move",
 ]
@@ -498,6 +499,51 @@ class TestStateVerbs:
         assert entry["body"] == "Chose YAML."
         assert entry["actor"] == "bot"
 
+    def test_authorize_dispatch_names_the_human_beside_the_relaying_agent(self, service):
+        """task-506. The one write here whose author and subject are different people.
+
+        ``actor`` is the agent, because the agent is what typed it; the person is in the
+        payload. A tool that let the agent put the person's id in ``actor`` instead would
+        be the workaround this replaces, so the stored shape is what is asserted.
+        """
+        registry, manager, _ = service
+        ready_task(manager)
+
+        payload = call(
+            registry,
+            "task_authorize_dispatch",
+            base(
+                authorized_by="Ada",
+                ask="File this and start it.",
+                surface="an interactive chat session",
+            ),
+        )
+
+        entry = payload["task"]["log"][-1]
+        assert entry["type"] == "authorization"
+        assert entry["actor"] == "bot"
+        assert entry["data"]["authorized_by"] == "Ada"
+        assert entry["body"] == "File this and start it."
+
+    def test_authorize_dispatch_refuses_an_agent_as_the_authorizer(self, service):
+        """It records who authorised; it does not widen who may.
+
+        The entry is agent-authored by design, so the id it names having to be a human is
+        the only thing between this tool and an agent authorising its own successor
+        through the front door.
+        """
+        registry, manager, _ = service
+        ready_task(manager)
+
+        error = refuse(
+            registry, "task_authorize_dispatch", base(authorized_by="other", ask="Start it.")
+        )
+
+        assert "agent" in str(error.message).lower()
+        # Refused before anything is written, so no row of this type ever reaches the log.
+        entries = manager.get_task("task-001-work").log
+        assert [entry for entry in entries if entry.type is LogEntryType.AUTHORIZATION] == []
+
     def test_content_update_edits_authoring_fields(self, service):
         registry, manager, _ = service
         task = ready_task(manager)
@@ -576,7 +622,7 @@ class TestSchemaRefusals:
             ),
         )
 
-    @pytest.mark.parametrize("entry_type", ["transition", "handoff"])
+    @pytest.mark.parametrize("entry_type", ["transition", "handoff", "authorization"])
     def test_a_manager_owned_log_type_cannot_be_authored(self, service, entry_type):
         registry, _, _ = service
 

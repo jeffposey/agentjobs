@@ -43,6 +43,7 @@ from .models_v2 import (
     PRIORITY_RANK,
     AnswerDraft,
     Attachment,
+    AuthorizationData,
     Ball,
     BallReason,
     DeliverableStatus,
@@ -2886,10 +2887,68 @@ class TaskManager:
     # ------------------------------------------------------------------
     # Dispatch
     #
-    # The two entry types below are refused by add_log_entry, so these are the only
+    # The three entry types below are refused by add_log_entry, so these are the only
     # ways to write one. That is deliberate: an entry asserting that a process started
-    # or ended must accompany a process actually starting or ending.
+    # or ended must accompany a process actually starting or ending, and an entry
+    # asserting that a person authorised a run must be written by a caller allowed to
+    # say so.
     # ------------------------------------------------------------------
+
+    def record_relayed_authorization(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        authorized_by: str,
+        ask: str,
+        surface: Optional[str] = None,
+        operation_id: Optional[str] = None,
+    ) -> Task:
+        """Record that a human authorised a dispatch, in the words of the agent they told.
+
+        ``actor`` is the agent that typed the entry and ``authorized_by`` is the human
+        whose act it records. **Those are two different parties and this is the only
+        entry type where they are**, which is the whole reason it is a type: on a
+        ``note`` there is one ``actor`` field and recording the human in it puts a
+        signature in an append-only log under a name its owner did not write.
+
+        ``ask`` becomes the body, because that is where :mod:`agentjobs.quotation` looks
+        and the paraphrase rule has to reach it. It is what the person asked for, in the
+        agent's words -- never a quotation of them.
+
+        This verb starts nothing and authorises nothing by itself. It writes the one row
+        :func:`agentjobs.dispatch.guards.assert_human_clocked` will accept from a
+        non-human writer; every dispatch gate and every spend cap is then judged on that
+        row exactly as it is judged on a human's own note, including the re-use
+        semantics, which are unchanged -- the entry is not consumed, and what bounds how
+        many runs it clocks is the caps in ``dispatch/budget.py``.
+
+        Whether the caller *may* say this is not asked here. It is a property of the
+        principal behind the request, so it is checked where the principal is known:
+        ``Capability.DISPATCH_RELAY`` on the route, denied to every ``run``.
+        """
+        payload = AuthorizationData(authorized_by=authorized_by, surface=surface)
+        operation = self._operation(
+            operation_id,
+            "relay_authorization",
+            actor,
+            {"authorized_by": authorized_by, "ask": ask, "surface": surface},
+        )
+
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.AUTHORIZATION,
+                body=ask,
+                data=payload.model_dump(mode="json", exclude_none=True),
+                operation=operation,
+            )
+            return task
+
+        return self._mutate(task_id, apply)
 
     def record_dispatch(
         self,
