@@ -748,6 +748,9 @@ _DISPATCH_STATUS: dict = {
     "task_closed": status.HTTP_409_CONFLICT,
     "task_on_hold": status.HTTP_409_CONFLICT,
     "live_run_exists": status.HTTP_409_CONFLICT,
+    # An agent AgentJobs did not start is holding the task (task-179). 409 and not 403:
+    # it is a state, and one manager verb away from clearing.
+    "task_being_worked": status.HTTP_409_CONFLICT,
     "concurrency_limit": status.HTTP_409_CONFLICT,
     # The dispatch queue's own two (task-459). Both clear on their own or on one click,
     # so both are 409 rather than 403 for the same reason the caps above are.
@@ -795,6 +798,10 @@ _DISPATCH_ACTION: dict = {
     "task_closed": "Reopen the task before dispatching at it.",
     "task_on_hold": "Release the hold from the review panel, then dispatch.",
     "live_run_exists": "Wait for the run to finish, or cancel it.",
+    "task_being_worked": (
+        "Let the agent holding it hand off, or release the task if it is gone -- which "
+        "records that somebody decided it was."
+    ),
     "concurrency_limit": (
         "Send the dispatch again with if_full=queue to have it start when a slot frees, "
         "cancel one of the runs named above, or raise limits.max_concurrent_runs in "

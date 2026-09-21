@@ -30,6 +30,42 @@ import { ReviewLinks, cardUrls, reviewPromptFor } from "./ReviewLinks";
 import { TaskFields, type TaskFieldsPatch } from "./TaskFields";
 import { useWideShell } from "./shellLayout";
 
+/**
+ * Who the record says is working this task, and since when — or null (task-179).
+ *
+ * The four fields together are what `claim_task` writes and what only a manager verb
+ * clears, which makes them the one signal that reaches across tools: an agent AgentJobs
+ * never started writes this and nothing else. `ball_reason` is the field the old
+ * expression was missing, and `assignment.owner` is the one it never looked at.
+ *
+ * *Who put the ball there* is the sharper question behind those four fields, and the
+ * server asks it too (`unsuperseded_claim` in `dispatch/guards.py`). The manager stamps
+ * `data.ball` on every entry that moves the ball, so the newest one carrying
+ * `ball: agent` is when the seat was last taken. Written by the **owner** it is a claim,
+ * and nothing has moved it since. Written by anyone else — a person approving, the
+ * finisher escalating a red gate — it is a handover, which is somebody deliberately
+ * meaning an agent to pick the task up, and the button belongs there.
+ *
+ * *Since when* therefore comes off that same entry rather than off `updated`, which
+ * moves for every note anybody adds. A record with no stamp at all is older than the
+ * stamp; an agent claiming a task today always writes one, so an absence is evidence of
+ * age rather than of a live claim, and the button is offered as it was before.
+ */
+export function heldByAgent(task: TaskRead): { owner: string; since: string } | null {
+  const owner = task.assignment?.owner;
+  if (
+    !owner ||
+    task.lifecycle !== "active" ||
+    task.ball !== "agent" ||
+    task.ball_reason !== "work"
+  ) {
+    return null;
+  }
+  const took = [...(task.log ?? [])].reverse().find((entry) => entry.data?.ball === "agent");
+  if (!took || took.actor !== owner) return null;
+  return { owner, since: took.ts };
+}
+
 const PRIORITY_CLASSES: Record<string, string> = {
   critical: "bg-red-900 text-red-200",
   high: "bg-orange-900 text-orange-200",
@@ -837,7 +873,10 @@ export type TaskDetailProps = {
   //
   // Identity and sufficiency are supplied here rather than in the bundle because both
   // are read straight off the loaded record, which the bundle's hook never sees.
-  dispatch?: Omit<DispatchPanelProps, "taskIsDispatchable" | "identity" | "recordCanBrief">;
+  dispatch?: Omit<
+    DispatchPanelProps,
+    "taskIsDispatchable" | "identity" | "recordCanBrief" | "heldByAgent"
+  >;
   // What is happening to this task's branch right now (task-321). Passed in as data
   // rather than fetched by the panel, for the same reason the dispatch bundle is: this
   // component is given everything it renders, so it can be rendered in a test without a
@@ -956,6 +995,11 @@ export function TaskDetail(props: TaskDetailProps) {
             // imposed it.
             task.ball === "agent" && task.ball_reason !== "hold" && task.lifecycle !== "closed"
           }
+          // Who the record says is on it (task-179). Passed rather than decided here,
+          // because the answer needs this task's runs as well: a claim with a run behind
+          // it is a run, and the panel is where the runs are. Null on every task nobody
+          // has claimed, which is most of them.
+          heldByAgent={heldByAgent(task)}
           identity={detail.identity}
           // Either answer means a finish is live, and they are the same answer: since
           // task-509 the task read carries `live_finish`, derived by `_status_of` --

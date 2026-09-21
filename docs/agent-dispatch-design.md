@@ -2875,6 +2875,103 @@ raising a project's posture.
     before, and that is where an agent's code commits land.
 - **The causing actor must be human** (§2).
 
+### AgentJobs cannot see agents it did not start (task-179, 2026-09-21)
+
+**And it never will be able to.** This is a property of the world rather than a gap in
+the implementation, and every guarantee about "one agent per task" has to be read against
+it.
+
+The ledger is a directory of runs *this* dispatcher created. The per-task run lock is
+taken by *this* dispatcher on its way to a spawn. Both are excellent at the question they
+answer — is one of my own children working this task — and both are silent about a
+session started through the spawn-session skill, by a person in a terminal, by another
+editor's agent, or by any tool that has not been written yet. None of those writes a run
+directory and none of them takes the lock. Registration (`agentjobs run register`, §9,
+task-320) closes the gap for agents that *follow the convention*, which is exactly the
+population that was never the risk.
+
+**So the claim on the task record is the only cross-tool signal that exists.** Every agent
+writes it, because claiming is how a task is taken; only the ones AgentJobs started write
+anything else. That makes `lifecycle: active` + `ball: agent`/`work` + an owner the thing
+the guard has to consult, and `TaskBeingWorkedError` (`task_being_worked`) is that
+consultation. The browser withholds the Dispatch button on the same facts and names the
+holder instead, because a lit button that produces a refusal is a worse answer than a
+control that says who has the task.
+
+**The sharper question behind those four fields is *who put the ball there*, and it is
+what makes the guard usable.** The manager stamps `data.ball` on every entry that moves
+the ball, so the newest entry carrying `ball: agent` is when the seat was last taken.
+
+- Written by the **owner**, it is a claim. The agent put itself there, nothing has moved
+  it since, and on a task with no dispatch history there is nothing to say whether it is
+  still going.
+- Written by **anybody else**, it is a handover — a person approving, requesting changes,
+  answering or redirecting; the finisher escalating a red gate (§5a). Somebody meant an
+  agent to pick this task up and their name is on the entry that says so.
+
+**That handover is the override task-179's spec asked for, and it already existed.** The
+spec allowed one on condition it be "a deliberate act with its own log entry, never a
+quiet force flag" — which describes a handoff exactly, and describes a `force: true` on
+the dispatch request not at all. So no flag was added. `release` remains the answer when
+the agent is simply gone, because it says so on the record too.
+
+**This is not `assert_human_clocked` under a new name**, and the difference is the whole
+reason it works. That rule asks who wrote the *newest entry*, which is the accident that
+protected the 2026-08-19 case by luck and which §2's task-188 change removed by making a
+human entry the newest on every dispatch. This asks who last moved *the ball*, which is a
+question about whose turn it is. A person commenting on a task an agent is working
+changes the first and not the second.
+
+**The hard part is not detecting the claim; it is deciding what a missing run means.** A
+dispatched run that died without releasing leaves an active, owned, `agent`/`work` record
+— which is byte-for-byte what an agent working the task right now leaves. Nothing on the
+record distinguishes them, because nothing about a record changes when a process stops
+existing. Re-dispatching over the first is legitimate and is what `_claim_or_verify` was
+written to serve; re-dispatching over the second is two agents on one branch.
+
+The answer is that **absence of a live run is not evidence of death — absence of any
+dispatch history at all is absence of knowledge.** Three states, in the order the gates
+check them:
+
+| What this machine holds for the task | What it means | Dispatch |
+|---|---|---|
+| A live run | An agent is running, and it is one of ours | `live_run_exists` |
+| No live run, but a record that one was started | We began work here and it ended | **Allowed** |
+| Nothing at all, and the record claims an agent | Something is holding it we cannot see | `task_being_worked` |
+
+The middle row is the whole reason this is a question about this machine's *memory*
+rather than about its live rows. A record that a run was started is AgentJobs saying *I
+began an agent at this task and it is no longer going*, which is the only evidence of
+deadness it can honestly have. For an agent it never started, it has none, so it
+believes the claim.
+
+**Two stores answer that middle row, and neither alone is enough.** The **execution
+journal** admits an attempt *before* the claim, and the **run directory** is written
+*after* it, by the launch — so a dispatch that claimed the task and then died leaves a
+claim with no run directory, and only the journal remembers it. That window is not
+hypothetical: it is the launch-crash recovery §9a retries, and a first implementation of
+this guard that read run directories alone turned 36 tests red on it. The journal cannot
+answer for a run older than itself, which is what the directories are still read for.
+
+**Three cases are outside the guard, each because it is not the failure being
+prevented.** A **walk** starts no process at all, so it cannot be a second agent on a
+branch; dispatching one at an epic whose supervisor holds the parent is how an epic
+runs. A task owned by **a different actor** is `owner_mismatch`, an older and more
+specific answer — the ambiguity here is precisely that *already ours* cannot tell a dead
+run of mine from a live agent of mine, and a different owner has no such ambiguity. And
+a task this machine has **dispatched before** is the `_claim_or_verify` case, which is
+the middle row above.
+
+**The remedy is `release`, and there is deliberately no force flag.** A flag would be a
+lever whose only use is to be pulled when the question "is that agent alive" is
+unanswered, which is precisely when pulling it is least safe. `release` is a manager verb,
+it writes its own log entry, and it makes somebody state that the agent holding the task
+is gone — which is a decision, recorded, rather than a checkbox. The refusal names it.
+
+**What this does not do** is register externally started sessions so the ledger can track
+them. That is a much larger idea and it is not required to close this hole; the guard here
+needs the record to be believed, not the world to be observable.
+
 ### The dispatcher commits what it writes
 
 Every write to a task record has a committer except one. A human's goes through their own

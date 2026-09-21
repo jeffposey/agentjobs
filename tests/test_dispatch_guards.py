@@ -48,6 +48,7 @@ from agentjobs.dispatch.guards import (
     NoCausingEntryError,
     OwnerMismatchError,
     RecordCannotBriefError,
+    TaskBeingWorkedError,
     TaskClosedError,
     TaskOnHoldError,
     UnreachableApiBaseError,
@@ -61,7 +62,7 @@ from agentjobs.dispatch.guards import (
 )
 from agentjobs.dispatch import journal as guards_journal
 from agentjobs.dispatch.slots import release_slot_for_task
-from agentjobs.dispatch.runner import DispatchRunner, RunHandle
+from agentjobs.dispatch.runner import META_FILENAME, DispatchRunner, RunHandle, runs_root
 from agentjobs.execution.factory import execution_store_for
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
@@ -236,6 +237,36 @@ def settle(handle) -> None:
     """Let a batch supervisor finish so it does not race the next assertion."""
     if handle.supervisor is not None:
         handle.supervisor.join(timeout=30)
+
+
+def concluded_run_directory(
+    home: Path, project: Project, task_id: str, run_id: str = "run_dead"
+) -> Path:
+    """A run AgentJobs started at this task and watched end (task-179).
+
+    Written by hand rather than by dispatching once and letting it finish, so a test that
+    needs this state differs from one that needs the state without it in this directory
+    and in nothing else. A real first dispatch would also move the ball, write a
+    dispatch_result and spend a budget window, and any of those could be what made the
+    second dispatch behave differently.
+    """
+    directory = runs_root(home) / run_id
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / META_FILENAME).write_text(
+        yaml.safe_dump(
+            {
+                "run_id": run_id,
+                "task_id": task_id,
+                "project_id": project.id,
+                "mode": "session",
+                "agent": "claude",
+                "status": "finished",
+                "outcome": "completed",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return directory
 
 
 def hold_live(handle) -> None:
@@ -887,6 +918,366 @@ class TestTaskRecordsNoLongerDirtyTheDispatchedRepo:
         assert "README.md" in str(caught.value)
 
 
+class TestAnAgentAgentJobsDidNotStart:
+    """The hole task-179 was filed for: a claim with no run behind it.
+
+    Every agent writes the same claim on the record. Only the ones AgentJobs started
+    write anything else -- a run directory, a run lock, a journal row -- so for every
+    other kind of agent the claim is the entire signal, and `TestConcurrency` above,
+    which reads the ledger, cannot see them at all.
+
+    What used to stop this was an accident and these tests are built to prove it is
+    gone: in each one the newest log entry is a **human's**, so `assert_human_clocked`
+    is satisfied and whatever refuses is refusing for its own reason. That was the
+    original 2026-08-19 observation -- a spawn-session agent working task-177 was
+    protected only by its own claim being the newest entry, and task-188 made a human
+    entry the newest on every dispatch by design.
+    """
+
+    def worked_by_an_unseen_agent(self, manager: TaskManager, task_id: str):
+        """Exactly what a spawn-session agent leaves on a task, and nothing else.
+
+        `claim_task` is the real verb rather than a hand-written record, because what is
+        under test is whether the guard reads the state a claim actually produces. The
+        human note after it is the whole point: it is what `assert_human_clocked` reads,
+        so a refusal here cannot be that rule in disguise.
+        """
+        manager.claim_task(task_id, agent="claude")
+        return manager.add_log_entry(
+            task_id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Any news on this?"
+        )
+
+    def concluded_run(self, home: Path, project: Project, task_id: str) -> Path:
+        """This module's helper, named from here so the tests below read as a pair."""
+        return concluded_run_directory(home, project, task_id)
+
+    def test_a_claim_with_no_run_behind_it_refuses(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """sc-1. The record is the only signal there is, and it says somebody is on it."""
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        self.worked_by_an_unseen_agent(manager, ready_task.id)
+        # The gate above this one sees nothing, which is the premise rather than an
+        # aside: were there a live run, `LiveRunExistsError` would refuse and this test
+        # would pass while proving nothing.
+        assert live_runs(home) == []
+
+        with pytest.raises(TaskBeingWorkedError) as caught:
+            run(manager, project, home, ready_task.id)
+
+        assert caught.value.reason == "task_being_worked"
+        # Who holds it, so the refusal is a destination rather than a fact.
+        assert "claude" in str(caught.value)
+        # And nothing was started on the way to refusing.
+        assert live_runs(home) == []
+
+    def test_the_refusal_is_not_the_human_clocked_rule_in_disguise(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """sc-1's second half, stated as its own assertion rather than left implied.
+
+        This is the accident described in the task: before task-188, a second dispatch
+        onto a worked task was refused because the newest entry was the agent's own
+        claim. Naming the human who wrote the newest entry here makes the difference
+        visible -- the entry that causes this dispatch is a person's, and it is still
+        refused.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        newest = self.worked_by_an_unseen_agent(manager, ready_task.id)
+        assert newest.log[-1].actor == "Jeff Posey"
+
+        with pytest.raises(DispatchRefused) as caught:
+            run(manager, project, home, ready_task.id, caused_by=newest.log[-1].id)
+
+        assert caught.value.reason == "task_being_worked"
+        assert not isinstance(caught.value, CausingActorNotHumanError)
+
+    def test_a_claim_left_by_a_run_that_ended_still_dispatches(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """sc-3, and the reason this guard is a ledger question rather than a record one.
+
+        Identical record to the test above -- active, owned by `claude`, ball with an
+        agent for work. The single difference is a finished run directory, which is
+        AgentJobs saying *I started an agent here and I watched it end*. That is the one
+        thing that can account for a claim left behind by a process which no longer
+        exists, and it is what `_claim_or_verify` was written to serve.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        self.worked_by_an_unseen_agent(manager, ready_task.id)
+        self.concluded_run(home, project, ready_task.id)
+        # Finished, so it is not the gate above that lets this through or stops it.
+        assert live_runs(home) == []
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
+    def test_a_concluded_run_of_a_different_task_does_not_account_for_this_claim(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The scan is per task, so a busy machine does not quietly unlock every task."""
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        self.worked_by_an_unseen_agent(manager, ready_task.id)
+        self.concluded_run(home, project, "task-999-somebody-else")
+
+        with pytest.raises(TaskBeingWorkedError):
+            run(manager, project, home, ready_task.id)
+
+    def test_a_run_that_cannot_be_shown_to_be_this_project_does_not_account_for_it(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """`strictly_same_task`, and why the looser form would be wrong here.
+
+        A run record naming no project matches any project when the answer *refuses* a
+        dispatch -- it cannot be shown to be somebody else's, and that direction cannot
+        put two agents on one task. Here a match does the opposite and permits one, so
+        the same looseness would let another project's ledger row unlock this task.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        self.worked_by_an_unseen_agent(manager, ready_task.id)
+        directory = self.concluded_run(home, project, ready_task.id)
+        meta = yaml.safe_load((directory / META_FILENAME).read_text(encoding="utf-8"))
+        meta["project_id"] = ""
+        (directory / META_FILENAME).write_text(yaml.safe_dump(meta), encoding="utf-8")
+
+        with pytest.raises(TaskBeingWorkedError):
+            run(manager, project, home, ready_task.id)
+
+    def test_a_person_handing_the_ball_to_an_agent_is_the_override(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The override the spec asked for, which already existed as a log entry.
+
+        The four state fields read exactly as a claim does -- active, `agent`/`work`,
+        owned by `claude` -- and the ledger still holds nothing. What differs is who put
+        the ball there: a person approving, requesting changes, answering, or redirecting
+        is somebody deliberately meaning an agent to pick the task up, with their name on
+        the entry that says so. A force flag on the request would have been a second way
+        to express that, reachable without saying it on the record.
+
+        This is *not* `assert_human_clocked`, which asks who wrote the newest entry and
+        is the accident that protected the 2026-08-19 case by luck. A human commenting on
+        a task an agent is working changes that and does not change this.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        self.worked_by_an_unseen_agent(manager, ready_task.id)
+        handed = manager.handoff(
+            ready_task.id,
+            actor="Jeff Posey",
+            ball=Ball.AGENT,
+            ball_reason=BallReason.WORK,
+            ball_prompt="Approved -- carry on.",
+        )
+        # Nothing about the state fields changed; only the author of the ball move did.
+        assert handed.lifecycle is Lifecycle.ACTIVE
+        assert handed.ball is Ball.AGENT and handed.ball_reason is BallReason.WORK
+        assert handed.assignment.owner == "claude"
+        assert live_runs(home) == []
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
+    def test_a_human_note_after_the_claim_is_not_an_override(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The other half of the sentence above, because the two look alike and are not.
+
+        Commenting on a task is not handing it over. If a note were enough, this guard
+        would be `assert_human_clocked` again under a new name -- and task-188 makes a
+        human entry the newest on every single dispatch, so it would refuse nothing.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        self.worked_by_an_unseen_agent(manager, ready_task.id)
+        manager.add_log_entry(
+            ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Still going?"
+        )
+
+        with pytest.raises(TaskBeingWorkedError) as caught:
+            run(manager, project, home, ready_task.id)
+        assert caught.value.reason == "task_being_worked"
+
+    def test_a_dispatch_that_claimed_and_then_died_can_be_tried_again(
+        self,
+        manager: TaskManager,
+        project: Project,
+        home: Path,
+        fake_runner: Path,
+        ready_task,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The window the run directories cannot see, and the reason the journal is read.
+
+        `dispatch_task` admits the attempt in the execution journal, *then* claims, *then*
+        launches -- and the run directory is written last of all, by the launch. So a
+        dispatch that raises in `runner.start` leaves a task claimed by `claude`, active,
+        ball with an agent for work, and **no run directory anywhere**. To a guard reading
+        only run directories that is indistinguishable from an agent AgentJobs never
+        started, and the retry every launch-crash recovery depends on would be refused.
+
+        The journal's admission is written before the claim and survives
+        `abandon_admission`, so it is the thing that remembers. This is the first gate run
+        of task-179's change: 36 tests went red on exactly this, among them
+        `test_death_before_the_launcher_ran_is_retried_once` and the durable replay's
+        launch boundaries.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        authorising = ready_task.log[-1].id
+
+        real_start = DispatchRunner.start
+
+        def die(self, task, **kwargs):
+            raise RuntimeError("the launcher never ran")
+
+        monkeypatch.setattr(DispatchRunner, "start", die)
+        with pytest.raises(RuntimeError):
+            run(manager, project, home, ready_task.id, caused_by=authorising)
+
+        claimed = manager.get_task(ready_task.id)
+        assert claimed is not None
+        assert claimed.lifecycle is Lifecycle.ACTIVE
+        assert claimed.assignment.owner == "claude"
+        assert claimed.ball is Ball.AGENT and claimed.ball_reason is BallReason.WORK
+        # The premise: nothing on disk says a run happened. Were there one, this would
+        # pass through the run-directory half and prove nothing about the journal.
+        assert not any(
+            directory.is_dir() and (directory / META_FILENAME).is_file()
+            for directory in runs_root(home).iterdir()
+        )
+
+        # Named back rather than `monkeypatch.undo()`, which reverts everything on this
+        # fixture -- including conftest's autouse stub of the reachability probe, whose
+        # removal sends the second dispatch at a real socket.
+        monkeypatch.setattr(DispatchRunner, "start", real_start)
+        handle = run(
+            manager,
+            project,
+            home,
+            ready_task.id,
+            caused_by=authorising,
+            now=utcnow() + timedelta(hours=2),
+        )
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
+    def test_a_walk_is_not_refused_by_this_gate(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path
+    ) -> None:
+        """An epic whose supervisor holds the parent is the ordinary way an epic runs.
+
+        A walk starts no process at all (task-458) -- it hands the children to the server
+        -- so it cannot be the second agent on a branch, which is the entire harm this
+        guard exists to prevent. Dispatching one at a claimed parent must go through, and
+        the parent being claimed is exactly what `ALLAGENTS.md` asks of a supervisor.
+
+        Caught by the first gate run of this change: every test in
+        `TestADispatchedEpicHoldsNoSlot` and `TestWhatHappensWhenTheWalkLands` went red,
+        because their epic fixture claims the parent before dispatching the walk.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        parent = manager.create_task(
+            title="Epic",
+            category="general",
+            summary="An epic.",
+            description="Walk it.",
+            lifecycle=Lifecycle.READY,
+            actor="Jeff Posey",
+        )
+        manager.create_task(
+            title="A child",
+            category="general",
+            summary="A child.",
+            description="Do the thing.",
+            lifecycle=Lifecycle.READY,
+            actor="claude",
+            parent=parent.id,
+        )
+        manager.claim_task(parent.id, agent="claude")
+        manager.add_log_entry(
+            parent.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Walk it."
+        )
+
+        handle = run(manager, project, home, parent.id)
+        settle(handle)
+
+        assert handle.mode is DispatchMode.WALK
+
+    def test_a_task_owned_by_a_different_agent_keeps_its_own_refusal(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """`owner_mismatch` is older, more specific, and answers a different question.
+
+        This guard is about the ambiguity the task named: with one configured agent actor,
+        *already ours* cannot tell a run of mine that died from a different agent working
+        right now. Where the owner is somebody else there is no ambiguity and never was --
+        and a reader told `task_being_worked` would go looking for a `claude` that is not
+        there. Caught by the first gate run, which turned
+        `test_a_task_owned_by_another_agent_is_refused` red.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        manager.claim_task(ready_task.id, agent="codex")
+        manager.add_log_entry(ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Go.")
+
+        with pytest.raises(OwnerMismatchError) as caught:
+            run(manager, project, home, ready_task.id)
+        assert caught.value.reason == "owner_mismatch"
+
+    def test_a_ready_task_nobody_has_claimed_is_untouched(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """The ordinary case, pinned so the new gate cannot grow into it.
+
+        `agent`/`available` and `agent`/`work` were indistinguishable to the expression
+        this task replaced. They must not become indistinguishable again in the other
+        direction: almost every dispatch on this machine is of a task in exactly this
+        state, and refusing one would take the feature out rather than make it safe.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
+    def test_an_active_task_whose_ball_is_not_work_is_untouched(
+        self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
+    ) -> None:
+        """Four fields, not one. A task sent back for revision is not one being worked.
+
+        The ball moving off `work` is a manager verb saying the seat is free, which is
+        the thing no process death can say for itself -- so this is a state the guard has
+        no business refusing, and the click that follows a *Request changes* is the
+        commonest dispatch there is.
+        """
+        write_dispatch_config(home, fake_runner, require_clean_tree=False)
+        manager.claim_task(ready_task.id, agent="claude")
+        manager.handoff(
+            ready_task.id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Done, please review.",
+        )
+        sent_back = manager.handoff(
+            ready_task.id,
+            actor="Jeff Posey",
+            ball=Ball.AGENT,
+            ball_reason=BallReason.REVISE,
+            ball_prompt="Two things to change.",
+        )
+        assert sent_back.lifecycle is Lifecycle.ACTIVE
+        assert sent_back.assignment.owner == "claude"
+
+        handle = run(manager, project, home, ready_task.id)
+        settle(handle)
+
+        assert handle.run_id.startswith("run_")
+
+
 class TestConcurrency:
     def test_a_second_run_for_the_same_task_is_refused(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
@@ -1397,6 +1788,13 @@ class TestClaimBeforeSpawn:
     ) -> None:
         write_dispatch_config(home, fake_runner, require_clean_tree=False)
         manager.claim_task(ready_task.id, agent="claude")
+        # The run whose death left that claim behind (task-179). Before this guard the
+        # claim alone was enough to reach `_claim_or_verify`, which is what let a second
+        # agent start beside one AgentJobs had never heard of; the case this test is
+        # actually about -- an active task of ours is verified rather than re-claimed --
+        # is the one where a run of ours accounts for the claim, so it is spelled out
+        # here rather than left to be the default.
+        concluded_run_directory(home, project, ready_task.id)
         manager.add_log_entry(
             ready_task.id, actor="Jeff Posey", type=LogEntryType.NOTE, body="Again please."
         )

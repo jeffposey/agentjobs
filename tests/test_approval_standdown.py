@@ -92,6 +92,13 @@ def served(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
 def dispatch_session(world: Dict[str, Any]) -> Any:
     """A session dispatched the way a person's click dispatches one: lock, journal and all."""
     manager = world["manager"]
+    # The finish fixture hands over a task already claimed by `claude`, which is what a
+    # finish needs to find; this dispatches at it first, so the claim goes back and the
+    # dispatch makes its own, exactly as a real click does. Without that the dispatch
+    # arrives at a claim nobody started, which task-179 refuses -- correctly: a claim with
+    # no handover and nothing in the ledger is indistinguishable from an agent AgentJobs
+    # cannot see, whatever wrote it.
+    manager.release_task(world["task_id"], actor=APPROVER, body="Dispatching at it instead.")
     note = (
         manager.add_log_entry(
             world["task_id"], actor=APPROVER, type=LogEntryType.NOTE, body="Work this."

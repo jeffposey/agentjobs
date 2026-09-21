@@ -873,6 +873,13 @@ class TestTask410:
         fixture = load_fixture("task-410")
         events = {event["kind"]: event for event in fixture["events"]}
 
+        # The finish fixture hands over a task already claimed by `claude`, which is how
+        # a finish needs to find one; this test dispatches at it first, so the claim is
+        # given back and the dispatch makes its own, exactly as a real one does. Without
+        # that the dispatch arrives at a claim nobody started -- task-179's refusal, and
+        # correctly so: a claim with no handover and nothing in the ledger is the
+        # 2026-08-19 defect whatever wrote it.
+        manager.release_task(task_id, actor=PERSON, body="Dispatching at it instead.")
         handle = world.dispatch(task_id, project_id="demo")
         manager.handoff(
             task_id,
