@@ -110,6 +110,30 @@ class Capability(str, Enum):
     DISPATCH = "dispatch.start"
     """Spend money: start a run on a task or a playbook, or cancel one."""
 
+    DISPATCH_RELAY = "dispatch.relay_authorization"
+    """Write an ``authorization`` log entry: relay a human's authorisation of a dispatch
+    (task-506).
+
+    It is not itself a dispatch -- it starts nothing, spends nothing, and every gate in
+    ``dispatch/guards.py`` and every cap in ``dispatch/budget.py`` is judged afterwards
+    exactly as before. What it does is put the one kind of row on a task that
+    ``assert_human_clocked`` accepts from a writer who is not a human, so it is the key
+    to that door rather than the door.
+
+    **A run holds this in no circumstances, which is the whole of the task that added
+    it.** A dispatched run already holds :attr:`TASK_VERB` and can write any authored
+    entry it likes; if it could write this one it could authorise its own successor, and
+    the agent-starts-agent loop would reopen with a new spelling, wearing a label saying
+    it was authorised. Two locks, and they close different doors:
+    ``AUTHORIZATION`` is in ``MANAGER_WRITTEN_LOG_TYPES``, so the generic log route
+    cannot produce one from any caller at all, and this capability guards the dedicated
+    verb that can.
+
+    Denied to runs over HTTP and MCP. It does not reach the CLI, which is served as the
+    owner -- the standing boundary ``docs/authorization.md`` already states, not a new
+    one.
+    """
+
     DISPATCH_OVER_CEILING = "dispatch.over_ceiling"
     """Start a run although every machine slot is taken (task-461).
 
@@ -308,8 +332,9 @@ def _why_not(principal: Principal, capability: Capability) -> str:
         return (
             "A dispatched run holds a deliberately smaller set than the person who "
             "dispatched it: it may edit, move and file tasks, and it may not "
-            "approve a review, start or cancel a run, change dispatch configuration, "
-            "register a project, or repair the queue. Those are acts a human signs for."
+            "approve a review, start or cancel a run, relay a human's authorisation of "
+            "one, change dispatch configuration, register a project, or repair the "
+            "queue. Those are acts a human signs for."
         )
     return (
         f"No row of the capability table grants {capability.value} to " f"{principal.kind.value}."

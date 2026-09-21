@@ -356,6 +356,14 @@ class LogEntryType(ValueEnum):
     DISPATCH = "dispatch"
     DISPATCH_RESULT = "dispatch_result"
     QUEUE_MOVE = "queue_move"
+    AUTHORIZATION = "authorization"
+    """A human's authorisation of a dispatch, relayed by the agent they said it to (task-506).
+
+    The one entry type whose ``actor`` is not the party the entry is *about*: the actor is
+    the agent that typed it, and ``data.authorized_by`` names the human whose act it
+    records. Every other type collapses those two, which is why this is a type rather
+    than a field on a ``note`` -- see :class:`AuthorizationData`.
+    """
 
 
 MANAGER_WRITTEN_LOG_TYPES = frozenset(
@@ -364,6 +372,7 @@ MANAGER_WRITTEN_LOG_TYPES = frozenset(
         LogEntryType.DISPATCH,
         LogEntryType.DISPATCH_RESULT,
         LogEntryType.QUEUE_MOVE,
+        LogEntryType.AUTHORIZATION,
     }
 )
 """Entry types only the manager may append (design doc section 3, rule 5).
@@ -373,6 +382,13 @@ a process was started, a process ended. Letting a caller post one would put a cl
 append-only record with no event behind it, which is a lie the log can never retract.
 Every write path is expected to refuse these by consulting this set rather than by
 listing types of its own, so a type added here cannot be forgotten at one of them.
+
+``authorization`` is here for the same reason and one more (task-506). It asserts that a
+person authorised a run, which is an event; and because a ``run`` principal holds
+``task.verb`` and therefore the generic log route, membership here is what stops a
+dispatched agent writing its own authorisation through the door it already has. The
+capability gate on the dedicated verb is the other half; this is the half that covers
+every write path at once.
 """
 
 
@@ -1072,11 +1088,46 @@ class AnswerDraft(StrictModel):
         return f"{chose}\n\n{typed}" if typed else chose
 
 
+class AuthorizationData(StrictModel):
+    """Who authorised a dispatch, on an entry somebody else typed (task-506).
+
+    **The payload carries ids and nothing else.** What the person asked for goes in the
+    entry's ``body``, where every other entry keeps its prose -- and, load-bearing here,
+    where :mod:`agentjobs.quotation` can see it. That scanner addresses a log entry's
+    prose as ``log[<id>].body`` and does not reach ``data``, so an ask stored here would
+    sit outside the paraphrase rule this repository enforces on every other sentence in
+    a record. The body is the agent's paraphrase of what it was asked to do; it is not a
+    quotation, and the corpus check is what keeps it one.
+
+    ``authorized_by`` is the whole reason the type exists. On every other entry, "who
+    wrote this" and "whose act is this" are the same person and ``actor`` answers both.
+    Here they are two parties and the record says so: the agent signs the entry, the
+    human is named inside it, and :func:`agentjobs.dispatch.guards.assert_human_clocked`
+    resolves the *named* one.
+
+    It is an identity claim and not evidence, exactly like the ``user`` field on an HTTP
+    dispatch: nothing here proves the person said anything. What it buys is a truthful
+    record -- no signature under a name its owner did not write -- and a write a
+    dispatched run cannot make. See ``docs/authorization.md``.
+    """
+
+    authorized_by: str = Field(
+        ...,
+        min_length=1,
+        description="Actor id of the human who authorised the dispatch. Must be kind: human.",
+    )
+    surface: Optional[str] = Field(
+        default=None,
+        description="Where they said it, for a reader. Prose, never read back by a check.",
+    )
+
+
 LOG_PAYLOADS: Dict[LogEntryType, type[StrictModel]] = {
     LogEntryType.DISPATCH: DispatchData,
     LogEntryType.DISPATCH_RESULT: DispatchResultData,
     LogEntryType.QUESTION: QuestionData,
     LogEntryType.ANSWER: AnswerData,
+    LogEntryType.AUTHORIZATION: AuthorizationData,
 }
 """Typed ``data`` payloads, enforced on the entry rather than only at the write path.
 
