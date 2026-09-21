@@ -649,6 +649,15 @@ class TestBatchRecovery:
         The stranger is started *after* the run was recorded, which is what proves it
         cannot be the supervisor -- the weaker of the two receipts, and the only one
         available for a run recorded before this fix.
+
+        The run's ``started_at`` is moved back an hour rather than left where a test that
+        takes three seconds puts it. `process_created_after` allows a second of slack for
+        clock granularity, so a stranger spawned within that second of the record is
+        genuinely indistinguishable from the supervisor and the check correctly declines
+        to call it reuse -- which is a fact about the receipt, not about this fix, and is
+        why a run records `supervisor_identity` as well. Left as written the test passed
+        or failed on how fast the machine was, which is the whole class of thing this
+        task exists to remove.
         """
         from agentjobs.dispatch.runner import RunDirectory
 
@@ -676,7 +685,12 @@ class TestBatchRecovery:
         assert stranger.stdout is not None
         stranger.stdout.read(2)
         try:
-            directory.update_meta(supervisor_pid=stranger.pid, supervisor_identity=None)
+            assert record.started_at is not None
+            directory.update_meta(
+                supervisor_pid=stranger.pid,
+                supervisor_identity=None,
+                started_at=(record.started_at - timedelta(hours=1)).isoformat(),
+            )
             lines = machine.tick(2)
             concluded = journal(machine.home).attempt(attempt.run_id)
             assert concluded is not None and not concluded.is_live, lines
