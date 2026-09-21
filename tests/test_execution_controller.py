@@ -325,6 +325,41 @@ def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Machine:
     return Machine(tmp_path, monkeypatch)
 
 
+def describe(completed: "subprocess.CompletedProcess[str]") -> str:
+    """Everything the OS said about a child that did not exit the way a test expected.
+
+    A bare ``died.stderr`` was the assertion message here for a year and it threw the
+    evidence away: the recurring failure was a child that exited **1 with nothing on
+    either stream**, and an empty message is exactly what that produces. That is not a
+    Python error -- a traceback goes to stderr and an assertion has a message -- it is
+    the signature of ``taskkill /F``, which is what happens when something on this
+    machine aims a recycled pid at the wrong process (task-505).
+
+    Naming that in the message is the difference between a red run that says what
+    happened and one that costs an agent a cycle to reproduce.
+    """
+    stdout = (completed.stdout or "").strip()
+    stderr = (completed.stderr or "").strip()
+    parts = [f"exit {completed.returncode}"]
+    if completed.returncode == 1 and not stdout and not stderr:
+        parts.append(
+            "with empty stdout and stderr, which is what `taskkill /F` leaves behind: "
+            "something killed this child rather than it failing (see task-505)"
+        )
+    parts.append(f"stdout: {stdout or '<empty>'}")
+    parts.append(f"stderr: {stderr or '<empty>'}")
+    return "\n".join(parts)
+
+
+def wait_until_gone(pid: int, *, seconds: float = 60.0) -> None:
+    """Block until nothing answers to this pid, so a test asserts on a settled machine."""
+    from agentjobs.dispatch.pids import process_alive
+
+    deadline = time.monotonic() + seconds
+    while process_alive(pid) and time.monotonic() < deadline:
+        time.sleep(0.1)
+
+
 def must_task(task: Optional[Any]) -> Any:
     assert task is not None
     return task
@@ -417,7 +452,7 @@ class TestLaunchCrashWindows:
     ) -> None:
         task_id = machine.task()
         died = machine.crash(task_id, "before_marker")
-        assert died.returncode == 9, died.stderr
+        assert died.returncode == 9, describe(died)
         assert machine.rows() == [], "nothing was launched"
         [first] = machine.attempts(task_id)
         assert first.state == "admitted"
@@ -439,7 +474,7 @@ class TestLaunchCrashWindows:
         """The launcher printed an id nobody recorded; the name finds it."""
         task_id = machine.task()
         died = machine.crash(task_id, "after_launch")
-        assert died.returncode == 9, died.stderr
+        assert died.returncode == 9, describe(died)
         assert len(machine.live_sessions()) == 1
         [attempt] = machine.attempts(task_id)
         assert read_run(runs_root(machine.home) / attempt.run_id).session_id is None
@@ -462,7 +497,7 @@ class TestLaunchCrashWindows:
     ) -> None:
         task_id = machine.task()
         died = machine.crash(task_id, "before_launched")
-        assert died.returncode == 9, died.stderr
+        assert died.returncode == 9, describe(died)
         [attempt] = machine.attempts(task_id)
         assert attempt.state == "admitted"
 
@@ -478,7 +513,7 @@ class TestLaunchCrashWindows:
     ) -> None:
         task_id = machine.task()
         died = machine.crash(task_id, "after_marker")
-        assert died.returncode == 9, died.stderr
+        assert died.returncode == 9, describe(died)
         [attempt] = machine.attempts(task_id)
 
         machine.tick()  # inside the deadline: nothing is decided yet
@@ -510,7 +545,8 @@ class TestLaunchCrashWindows:
     def test_a_fresh_process_performs_the_recovery(self, machine: Machine) -> None:
         """Nothing about the recovery lives in the test process."""
         task_id = machine.task()
-        assert machine.crash(task_id, "before_marker").returncode == 9
+        crashed = machine.crash(task_id, "before_marker")
+        assert crashed.returncode == 9, describe(crashed)
         script = (
             "import pathlib, sys\n"
             "from agentjobs.dispatch.controller import Controller\n"
@@ -524,7 +560,7 @@ class TestLaunchCrashWindows:
             env=environment(machine.home),
             timeout=180,
         )
-        assert done.returncode == 0, done.stderr
+        assert done.returncode == 0, describe(done)
         assert "never launched" in done.stdout
         assert machine.execution(task_id).state == "retry_wait"
 
@@ -555,7 +591,7 @@ class TestBatchRecovery:
         machine.configure(mode="batch")
         task_id = machine.task()
         died = machine.crash(task_id, "batch_supervisor")
-        assert died.returncode == 9, died.stderr
+        assert died.returncode == 9, describe(died)
         [attempt] = machine.attempts(task_id)
         record = read_run(runs_root(machine.home) / attempt.run_id)
         assert record.pid is not None
@@ -580,10 +616,93 @@ class TestBatchRecovery:
         assert "half-done.txt" in (result.body or "")
         assert machine.execution(task_id).state == "retry_wait"
 
+    def test_a_reused_supervisor_pid_is_not_the_supervisor(self, machine: Machine) -> None:
+        """The defect task-505 was filed about, and the twin of the test below it.
+
+        ``_observe_batch`` returns early while the supervisor lives, and until task-505
+        "lives" was ``alive(pid)`` -- a question about a number this machine recycles in
+        seconds. A stranger holding the dead supervisor's number therefore read as still
+        watching, so the run was never concluded, its slot never released and its retry
+        never scheduled. ``alive`` answering yes for everything is that machine.
+        """
+        machine.configure(mode="batch")
+        task_id = machine.task()
+        crashed = machine.crash(task_id, "batch_supervisor")
+        assert crashed.returncode == 9, describe(crashed)
+        [attempt] = machine.attempts(task_id)
+        record = read_run(runs_root(machine.home) / attempt.run_id)
+        assert record.pid is not None
+        machine.release.write_text("go", encoding="utf-8")
+        wait_until_gone(record.pid)
+
+        controller = machine.controller()
+        controller.alive = lambda pid: True  # every number is answered by somebody
+        lines = controller.tick().lines
+        concluded = journal(machine.home).attempt(attempt.run_id)
+        assert concluded is not None and not concluded.is_live, lines
+
+    def test_a_live_stranger_at_the_supervisors_pid_concludes_the_run(
+        self, machine: Machine
+    ) -> None:
+        """The same thing with a real process rather than a stubbed ``alive``.
+
+        The stranger is started *after* the run was recorded, which is what proves it
+        cannot be the supervisor -- the weaker of the two receipts, and the only one
+        available for a run recorded before this fix.
+
+        The run's ``started_at`` is moved back an hour rather than left where a test that
+        takes three seconds puts it. `process_created_after` allows a second of slack for
+        clock granularity, so a stranger spawned within that second of the record is
+        genuinely indistinguishable from the supervisor and the check correctly declines
+        to call it reuse -- which is a fact about the receipt, not about this fix, and is
+        why a run records `supervisor_identity` as well. Left as written the test passed
+        or failed on how fast the machine was, which is the whole class of thing this
+        task exists to remove.
+        """
+        from agentjobs.dispatch.runner import RunDirectory
+
+        machine.configure(mode="batch")
+        task_id = machine.task()
+        crashed = machine.crash(task_id, "batch_supervisor")
+        assert crashed.returncode == 9, describe(crashed)
+        [attempt] = machine.attempts(task_id)
+        directory = RunDirectory(path=runs_root(machine.home) / attempt.run_id)
+        record = read_run(directory.path)
+        assert record.pid is not None
+        machine.release.write_text("go", encoding="utf-8")
+        wait_until_gone(record.pid)
+
+        stranger = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import sys, time\nsys.stdout.write('up')\n"
+                "sys.stdout.flush()\ntime.sleep(120)\n",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert stranger.stdout is not None
+        stranger.stdout.read(2)
+        try:
+            assert record.started_at is not None
+            directory.update_meta(
+                supervisor_pid=stranger.pid,
+                supervisor_identity=None,
+                started_at=(record.started_at - timedelta(hours=1)).isoformat(),
+            )
+            lines = machine.tick(2)
+            concluded = journal(machine.home).attempt(attempt.run_id)
+            assert concluded is not None and not concluded.is_live, lines
+        finally:
+            stranger.kill()
+            stranger.wait(timeout=30)
+
     def test_a_reused_pid_is_not_the_worker(self, machine: Machine) -> None:
         machine.configure(mode="batch")
         task_id = machine.task()
-        assert machine.crash(task_id, "batch_supervisor").returncode == 9
+        crashed = machine.crash(task_id, "batch_supervisor")
+        assert crashed.returncode == 9, describe(crashed)
         [attempt] = machine.attempts(task_id)
         record = read_run(runs_root(machine.home) / attempt.run_id)
         controller = machine.controller()

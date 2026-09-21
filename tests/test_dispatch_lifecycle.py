@@ -44,6 +44,7 @@ from agentjobs.dispatch.ledger import (
     stale_lock_reason,
     write_status,
 )
+from agentjobs.dispatch.pids import process_identity
 from agentjobs.dispatch.runner import RunDirectory
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, Lifecycle, LogEntryType, Outcome
@@ -144,6 +145,13 @@ def seed_run(
         meta["session_id"] = session_id
     if pid is not None:
         meta["pid"] = pid
+        # What a real dispatch records beside the pid, and the only thing that tells this
+        # run's worker from whoever inherits its number (task-505). `None` for a pid
+        # nothing holds, which is exactly the "cannot prove" a seeded fake pid should
+        # produce -- and is why a cancel aimed at one kills nothing.
+        identity = process_identity(pid)
+        if identity is not None:
+            meta["pid_identity"] = identity
     if finished_at is not None:
         meta["finished_at"] = finished_at
     return RunDirectory.create(home, run_id, meta)
@@ -862,7 +870,12 @@ class TestCancel:
         import agentjobs.dispatch.runner as runner_module
 
         original = runner_module._kill_tree
-        runner_module._kill_tree = lambda pid: killed.append(pid)
+
+        def record(pid: int, **_: object) -> bool:
+            killed.append(pid)
+            return True
+
+        runner_module._kill_tree = record
         try:
             ledger.cancel("run_test0001")
         finally:

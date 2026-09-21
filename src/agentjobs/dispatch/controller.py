@@ -55,11 +55,10 @@ from agentjobs.dispatch.config import (
 from agentjobs.dispatch.ledger import (
     DispatchLedger,
     RunRecord,
-    process_alive,
-    process_identity,
     read_run,
     write_status,
 )
+from agentjobs.dispatch.pids import process_alive, process_created_after, process_identity
 from agentjobs.execution import reducer
 from agentjobs.execution.coordinator import MODE_ACTIVE, advance_execution
 from agentjobs.execution.errors import ExecutionStoreError, StaleOwner
@@ -197,6 +196,7 @@ class Controller:
         clock: Optional[Callable[[], datetime]] = None,
         alive: Callable[[int], bool] = process_alive,
         identity: Callable[[int], Optional[str]] = process_identity,
+        reused: Callable[[int, datetime], bool] = process_created_after,
         dispatch: Optional[Callable[..., Any]] = None,
         api_base: Optional[str] = None,
     ) -> None:
@@ -206,9 +206,38 @@ class Controller:
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.alive = alive
         self.identity = identity
+        self.reused = reused
         self._dispatch = dispatch
         self.api_base = api_base
         self._epochs: Dict[str, int] = {}
+
+    def still_running(
+        self,
+        pid: Optional[int],
+        *,
+        recorded_at: Optional[datetime] = None,
+        identity: Optional[str] = None,
+    ) -> bool:
+        """Whether the process this pid was recorded for is the one answering to it now.
+
+        Every pid the controller reads came off disk, and on this machine a pid is
+        handed to a new process within seconds of its owner dying (task-505, measured:
+        988 distinct pids for 2000 spawns). A stranger answering to a recorded number
+        reads as "still working", so the run is never concluded and its slot is never
+        released -- which is precisely the stall the controller exists to end.
+
+        Pass ``identity`` where a receipt was recorded at spawn and ``recorded_at``
+        where the recorded process was already running when it wrote the record. Doubt
+        answers yes, as a bare ``alive`` always did: refusing to conclude a live run is
+        recoverable, concluding a live one is not. See :mod:`agentjobs.dispatch.pids`.
+        """
+        if pid is None or not self.alive(int(pid)):
+            return False
+        if identity is not None:
+            return self.identity(int(pid)) == identity
+        if recorded_at is not None:
+            return not self.reused(int(pid), recorded_at)
+        return True
 
     # ----- plumbing -------------------------------------------------------------
 
@@ -409,7 +438,9 @@ class Controller:
         now = self.clock()
         admitted = _parse(attempt.admitted_at) or now
         age = (now - admitted).total_seconds()
-        holder_alive = attempt.holder_pid is not None and self.alive(int(attempt.holder_pid))
+        # The holder was already running when it admitted the attempt, so a process at
+        # that pid created *after* the admission is a different one (task-505).
+        holder_alive = self.still_running(attempt.holder_pid, recorded_at=admitted)
         record = self.record(run_id)
         meta = _meta(record) if record is not None else {}
 
@@ -672,24 +703,33 @@ class Controller:
         writing, which is the quiescence a retry needs. Nothing in the working tree is
         touched either way: dirty paths are named in the result and left for whoever works
         the task next.
+
+        **The supervisor is proved the same way** (task-505). It used to be a bare
+        ``alive(pid)``, and a supervisor that had died leaving its number to a stranger
+        therefore read as still watching -- so this returned ``None`` forever and the run
+        was never concluded. That is the defect the whole task was filed about; the check
+        below and the one above it are now the same check.
         """
         from agentjobs.dispatch.runner import _kill_tree, uncommitted_paths
 
         meta = _meta(record)
+        limits = self.settings().limits
+        started = record.started_at or _parse(attempt.admitted_at)
         supervisor = meta.get("supervisor_pid") or attempt.holder_pid
-        if isinstance(supervisor, int) and self.alive(supervisor):
+        # Its own receipt where the run recorded one, and otherwise the weaker proof
+        # that serves for a process which was already running when the record was
+        # written: a pid whose process started later is a different process.
+        supervisor_receipt = meta.get("supervisor_identity")
+        if isinstance(supervisor, int) and self.still_running(
+            supervisor,
+            identity=supervisor_receipt if isinstance(supervisor_receipt, str) else None,
+            recorded_at=started or _parse(attempt.admitted_at),
+        ):
             return None
         pid = record.pid
         receipt = meta.get("pid_identity")
         running = pid is not None and self.alive(pid)
-        same = (
-            pid is not None
-            and running
-            and isinstance(receipt, str)
-            and self.identity(pid) == receipt
-        )
-        limits = self.settings().limits
-        started = record.started_at or _parse(attempt.admitted_at)
+        same = isinstance(receipt, str) and self.still_running(pid, identity=receipt)
         elapsed = (self.clock() - started).total_seconds() if started else 0.0
         if running and not same and not isinstance(receipt, str):
             return (
@@ -699,9 +739,11 @@ class Controller:
         if same:
             if elapsed < limits.run_timeout_seconds:
                 return None
-            assert pid is not None
-            _kill_tree(int(pid))
-            if self.alive(int(pid)) and self.identity(int(pid)) == receipt:
+            assert pid is not None and isinstance(receipt, str)
+            # Proved above: `same` means the identity receipt matched, so this kills the
+            # worker rather than whoever inherited its number (task-505).
+            _kill_tree(int(pid), identity=receipt)
+            if self.still_running(pid, identity=receipt):
                 return f"worker pid {pid} outlived its wall clock and did not stop when killed"
             self.conclude(
                 record,
@@ -806,7 +848,20 @@ class Controller:
         stopped = ledger._stop(record)
         if record.is_session and not stopped.stopped:
             return f"stop not confirmed: {stopped.detail}"
-        if not record.is_session and record.pid is not None and self.alive(record.pid):
+        # The worker's own receipt, not its number: a stranger who inherited the pid
+        # would otherwise hold this run open for as long as it happened to live
+        # (task-505).
+        #
+        # The receipt **only**, and deliberately not the weaker `recorded_at` proof that
+        # serves elsewhere. This is the one place where a wrong "it is gone" concludes a
+        # run whose worker may still be writing, and a batch worker is the one process
+        # that is created *after* the moment its run recorded -- so on a loaded machine
+        # a legitimate worker could read as created-after-the-record and be declared
+        # dead. With no receipt this falls through to the bare liveness answer, which is
+        # what it was before and errs the safe way.
+        if not record.is_session and self.still_running(
+            record.pid, identity=record.pid_identity or None
+        ):
             return f"stop not confirmed: pid {record.pid} is still alive"
         ledger._conclude(
             record, DispatchOutcome.CANCELLED, actor=CONTROLLER_ACTOR, body=stopped.detail

@@ -212,9 +212,17 @@ def transfer_in_progress(home: Path, run_id: str) -> bool:
     The poller's question before it spawns a finish of its own: a live requester with no
     ``finish_pending`` on the run is mid-transfer and will take the lock itself.
     """
+    from datetime import datetime
+
     from agentjobs.dispatch import journal
-    from agentjobs.dispatch.ledger import process_alive
+    from agentjobs.dispatch.pids import recorded_process_alive
     from agentjobs.dispatch.runner import RunDirectory, runs_root
+
+    def _moment(value: object) -> Optional[datetime]:
+        try:
+            return datetime.fromisoformat(str(value))
+        except (TypeError, ValueError):
+            return None
 
     request = journal.stand_down(home, run_id)
     if request is None:
@@ -223,7 +231,12 @@ def transfer_in_progress(home: Path, run_id: str) -> bool:
     if meta.get(FINISH_PENDING) is not None:
         return False
     pid = request.get("holder_pid")
-    return isinstance(pid, int) and pid != os.getpid() and process_alive(pid)
+    if not isinstance(pid, int) or pid == os.getpid():
+        return False
+    # The requester was running when it wrote the request, so a process at that number
+    # created afterwards is a different one (task-505). Believing a stranger here means
+    # the poller waits for a transfer nobody is performing.
+    return recorded_process_alive(pid, recorded_at=_moment(request.get("requested_at")))
 
 
 def _say(manager: TaskManagerLike, task_id: str, body: str, data: dict) -> None:

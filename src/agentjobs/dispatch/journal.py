@@ -444,13 +444,30 @@ def attempt_evidence(
     4. **A legacy-imported run whose meta reads terminal** -- the only evidence that ever
        existed for it.
     """
-    from agentjobs.dispatch.ledger import (
-        process_alive as default_alive,
-        read_run,
-    )
+    from agentjobs.dispatch.ledger import read_run
+    from agentjobs.dispatch.pids import process_alive as default_alive, process_created_after
     from agentjobs.dispatch.runner import runs_root
 
     alive = process_alive or default_alive
+
+    def holder_still_running(attempt: Attempt) -> bool:
+        """Whether the process that admitted this attempt is the one at its pid now.
+
+        A bare ``alive`` here kept an attempt owned forever whenever the dead holder's
+        number had been handed to something else, which on this machine takes seconds
+        (task-505). The holder was already running when it admitted the attempt, so a
+        process created after that moment cannot be it.
+        """
+        if attempt.holder_pid is None:
+            return False
+        pid = int(attempt.holder_pid)
+        if not alive(pid):
+            return False
+        try:
+            admitted = datetime.fromisoformat(str(attempt.admitted_at))
+        except (TypeError, ValueError):
+            return True
+        return not process_created_after(pid, admitted)
 
     def verdict(attempt: Attempt) -> Optional[Tuple[str, str, str]]:
         directory = runs_root(home) / attempt.run_id
@@ -482,7 +499,7 @@ def attempt_evidence(
             # that ownership and let a second writer start beside a possible orphan
             # (task-419).
             marked = directory.is_dir() and bool(_launch_marker(directory))
-            if not launched and not marked and not alive(int(attempt.holder_pid)):
+            if not launched and not marked and not holder_still_running(attempt):
                 return (
                     DispatchOutcome.CRASHED.value,
                     "failed",

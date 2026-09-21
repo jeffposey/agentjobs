@@ -29,6 +29,7 @@ from agentjobs.instrumentation import (
 )
 from agentjobs.projects import ProjectError, ProjectRegistry, default_home
 from agentjobs.dispatch.credentials import verify_run_credential
+from agentjobs.dispatch.runner import settle_supervisors
 from agentjobs.principals import set_run_credential_verifier
 from agentjobs.taskfiles import TaskLoadError
 from agentjobs.store_factory import close_databases, mark_server_process
@@ -218,6 +219,11 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
             task.cancel()
             with suppress(asyncio.CancelledError):
                 await task
+        # A live batch run's supervisor is the only writer of that run's terminal
+        # entry, and it writes it from a thread. Closing the stores under it loses that
+        # entry to an exception nobody awaits (task-505), so it gets a bounded moment
+        # to finish first.
+        settle_supervisors()
         # Let SQLite checkpoint the WAL and run PRAGMA optimize now rather than
         # leaving both to the next start. A restart is meant to be a pause a client
         # rides through, and a store that has to recover on open makes it longer.

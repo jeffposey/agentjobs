@@ -51,6 +51,10 @@ from agentjobs.dispatch.runner import (
 )
 from agentjobs.dispatch.atomic_yaml import merge_yaml_atomically
 from agentjobs.dispatch.phases import RUN_ID_ENV
+from agentjobs.dispatch.pids import (  # noqa: F401 - re-exported; see the note below
+    process_alive,
+    process_identity,
+)
 from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.execution.store import Attempt
 from agentjobs.manager import TaskManager
@@ -287,90 +291,10 @@ def _elapsed_phrase(seconds: float) -> str:
     return f"{minutes // 60}h {minutes % 60:02d}m"
 
 
-def process_alive(pid: int) -> bool:
-    """Whether a process with this id exists right now.
-
-    ``os.kill(pid, 0)`` is the Unix idiom and is **not** available here: on Windows
-    CPython implements ``os.kill`` with ``TerminateProcess`` for every signal that is
-    not a console event, so the usual liveness probe would kill the process it is
-    asking about. Windows therefore goes through ``OpenProcess`` and
-    ``GetExitCodeProcess``.
-
-    Pid reuse means a ``True`` here can be wrong -- some unrelated process may have
-    inherited the number. That is the safe direction: a wrongly-alive answer refuses a
-    lock rather than clearing one. It is consulted only when the ledger has nothing to
-    say, and a wrongly-*dead* answer is not reachable: a pid that no longer exists is a
-    fact, not an inference.
-    """
-    if pid <= 0:
-        return False
-    if os.name != "nt":
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:  # exists, owned by somebody else
-            return True
-        return True
-
-    import ctypes
-
-    still_active = 259
-    query_limited_information = 0x1000
-    # getattr rather than ctypes.windll.kernel32: the attribute only exists on
-    # Windows, so the direct spelling is a type error wherever mypy is not run here.
-    kernel32 = getattr(ctypes, "windll").kernel32
-    handle = kernel32.OpenProcess(query_limited_information, False, pid)
-    if not handle:
-        return False
-    try:
-        code = ctypes.c_ulong()
-        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
-            return True  # cannot tell; treat as alive, which refuses rather than clears
-        return code.value == still_active
-    finally:
-        kernel32.CloseHandle(handle)
-
-
-def process_identity(pid: int) -> Optional[str]:
-    """A string naming *this* process rather than whichever one holds its pid next.
-
-    The process's creation time, which a reused pid does not share: ``GetProcessTimes``
-    on Windows, ``/proc/<pid>/stat``'s start time elsewhere. ``None`` when the process is
-    gone or the platform offers neither -- and a caller treats ``None`` as "cannot prove
-    it is the same process", never as "it is" (task-416: no PID-only adoption).
-    """
-    if pid <= 0:
-        return None
-    if os.name == "nt":
-        import ctypes
-
-        query_limited_information = 0x1000
-        kernel32 = getattr(ctypes, "windll").kernel32
-        handle = kernel32.OpenProcess(query_limited_information, False, pid)
-        if not handle:
-            return None
-        try:
-            created = ctypes.c_ulonglong()
-            ignored = [ctypes.c_ulonglong() for _ in range(3)]
-            if not kernel32.GetProcessTimes(
-                handle,
-                ctypes.byref(created),
-                ctypes.byref(ignored[0]),
-                ctypes.byref(ignored[1]),
-                ctypes.byref(ignored[2]),
-            ):
-                return None
-            return f"win:{pid}:{created.value}"
-        finally:
-            kernel32.CloseHandle(handle)
-    try:
-        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-    except OSError:
-        return None
-    # The command name is parenthesised and may contain spaces; fields follow its close.
-    fields = stat.rsplit(")", 1)[-1].split()
-    return f"proc:{pid}:{fields[19]}" if len(fields) > 19 else None
+# ``process_alive`` and ``process_identity`` moved to ``dispatch.pids`` with task-505,
+# which needed the same creation-time read that ``execution.store`` had grown its own
+# copy of. Re-exported here because every caller in the subsystem imports them from
+# this module and a pid rule wants one implementation, not three halves of one.
 
 
 def stale_lock_reason(home: Path, holder: LockHolder) -> Optional[str]:
@@ -1048,6 +972,14 @@ class RunRecord:
     outcome: Optional[str] = None
     session_id: Optional[str] = None
     pid: Optional[int] = None
+    pid_identity: str = ""
+    """What :func:`agentjobs.dispatch.pids.process_identity` said about :attr:`pid` at spawn.
+
+    The receipt that tells this run's worker from whoever inherits its number, which on
+    this machine happens within seconds (task-505). Written for every batch run since
+    task-416 and empty on a session, on a hand-written meta, and on anything older --
+    empty means "cannot prove", never "it is".
+    """
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     caused_by: Optional[int] = None
@@ -1206,6 +1138,7 @@ def read_run(directory: Path) -> RunRecord:
         outcome=str(meta["outcome"]) if meta.get("outcome") else None,
         session_id=str(meta["session_id"]) if meta.get("session_id") else None,
         pid=_as_optional_int(meta.get("pid")),
+        pid_identity=str(meta.get("pid_identity") or ""),
         started_at=_as_moment(meta.get("started_at")),
         finished_at=_as_moment(meta.get("finished_at")),
         caused_by=_as_optional_int(meta.get("caused_by")),
@@ -1709,18 +1642,36 @@ class DispatchLedger:
         )
 
     def _stop_batch(self, record: RunRecord) -> StopResult:
-        """Signal the process group, then kill the tree.
+        """Signal the process group, then kill the tree -- once the pid is proved to be it.
 
         The tree, not the process: an agent that shelled out to pytest must not leave the
         pytest behind. Windows is the platform this runs on, so it is the reference path
         rather than the port.
+
+        **The proof is not optional** (task-505). This used to run
+        ``taskkill /PID <recorded pid> /T /F`` on whatever number the meta held, however
+        old. A recorded pid is only as good as the machine's recycling rate, and this one
+        recycles a number in seconds; the losing side of that coin flip kills a stranger,
+        which on a machine running the gate is another pytest worker's child. A worker
+        that is already gone is the ordinary case here and reports as stopped, because
+        it is -- what it must not do is take somebody else with it.
         """
         if record.pid is None:
             return StopResult(record.run_id, False, "no pid recorded")
         from agentjobs.dispatch.runner import _kill_tree  # local: same subsystem
 
-        _kill_tree(record.pid)
-        return StopResult(record.run_id, True, f"killed process tree at pid {record.pid}")
+        killed = _kill_tree(
+            record.pid,
+            identity=record.pid_identity or None,
+            recorded_at=None if record.pid_identity else record.started_at,
+        )
+        if killed:
+            return StopResult(record.run_id, True, f"killed process tree at pid {record.pid}")
+        return StopResult(
+            record.run_id,
+            True,
+            f"worker pid {record.pid} is not this run's process any more; nothing was killed",
+        )
 
     def stop_everything(self, *, actor: str = "dispatcher") -> List[StopResult]:
         """The panic button: refuse all new runs, then stop every live one.
