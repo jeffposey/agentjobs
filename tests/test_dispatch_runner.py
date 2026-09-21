@@ -1403,8 +1403,16 @@ class TestCodexBatchRunner:
             pid=4242,
             session_id="thread-1",
         )
-        probes = iter([OSError("temporarily unavailable"), None])
-        monkeypatch.setattr("agentjobs.dispatch.runner.os.kill", lambda _pid, _sig: next(probes))
+        # The probe is `recorded_process_alive` since task-505, not `os.kill(pid, 0)`:
+        # on Windows CPython implements `os.kill` with TerminateProcess for anything but
+        # a console event, so the Unix liveness idiom was a kill wearing a question mark.
+        # A miss is now `False` rather than an OSError; what the test asserts is
+        # unchanged, and it is patched at the name the code actually calls.
+        probes = iter([False, True])
+        monkeypatch.setattr(
+            "agentjobs.dispatch.runner.recorded_process_alive",
+            lambda _pid, **_kwargs: next(probes),
+        )
 
         assert runner.poll_session(handle) is SessionPhase.RUNNING
         assert yaml.safe_load((directory.path / "meta.yaml").read_text())["status"] == "running"
@@ -1471,8 +1479,10 @@ class TestCodexBatchRunner:
                 return {"thread": {"id": thread_id}}
 
         monkeypatch.setattr("agentjobs.dispatch.runner.CodexAppServerProcess", FakeAppServer)
+        # The pid is gone. Patched at the probe the code calls since task-505; see the
+        # note on the transient-miss test above.
         monkeypatch.setattr(
-            "agentjobs.dispatch.runner.os.kill", lambda _pid, _sig: (_ for _ in ()).throw(OSError())
+            "agentjobs.dispatch.runner.recorded_process_alive", lambda _pid, **_kwargs: False
         )
 
         assert runner.poll_session(handle) is SessionPhase.RUNNING
