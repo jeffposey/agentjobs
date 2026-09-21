@@ -42,7 +42,23 @@ const LOG_CLASSES: Record<string, string> = {
   decision: "border-purple-500",
   question: "border-yellow-500",
   instruction: "border-red-500",
+  authorization: "border-emerald-500",
 };
+
+/**
+ * The human an `authorization` entry relays, or null for every other entry (task-506).
+ *
+ * The badge alone says `authorization` and the actor column says the agent — so without
+ * this a reader sees an agent's entry of an unfamiliar type and has to open `data` to
+ * learn whose act it records. Naming both parties on the header row is what makes a
+ * relayed authorisation tell itself apart from a click *at a glance*, which is the whole
+ * point of recording it honestly rather than under the person's name.
+ */
+function relayedAuthorizer(entry: LogEntry): string | null {
+  if (entry.type !== "authorization") return null;
+  const named = entry.data?.authorized_by;
+  return typeof named === "string" && named.trim() ? named.trim() : null;
+}
 
 function taskPath(projectId: string, taskId: string) {
   return `/p/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`;
@@ -752,9 +768,11 @@ function Log({ entries, projectId, taskId }: { entries: Array<LogEntry>; project
       <div className="space-y-4 p-4 @min-[768px]:p-6">
         {ordered.map((entry, index) => {
           const openQuestion = entry.type === "question" && !answered.has(entry.id);
+          const authorizer = relayedAuthorizer(entry);
           return (
             <article className={`border-l-2 pl-4 ${LOG_CLASSES[entry.type] ?? "border-blue-500"}`} key={entry.id} data-log-id={entry.id}>
               <div className="flex flex-wrap items-center gap-2 text-xs uppercase text-dark-muted"><span>#{entry.id}</span><span>•</span><span>{entry.actor}</span><span>•</span><time dateTime={entry.ts}>{new Date(entry.ts).toLocaleString()}</time><span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 lowercase">{openQuestion ? "open question" : entry.type}</span>{entry.re && <span>re #{entry.re}</span>}</div>
+              {authorizer && <p className="mt-1 text-xs text-emerald-300" data-relayed-authorizer={authorizer}>Authorised by {authorizer}, relayed by {entry.actor}. Not their signature.</p>}
               {entry.body && <details key={String(expandAll)} open={expandAll || index === 0 || entry.body.length <= 400} className="mt-2"><summary className="touch-target cursor-pointer text-xs text-blue-300">{entry.body.length > 400 ? "Entry details" : "Entry"}</summary><SpecText muted>{entry.body}</SpecText></details>}
               <EntryAttachments entry={entry} projectId={projectId} taskId={taskId} />
             </article>
