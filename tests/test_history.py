@@ -44,7 +44,7 @@ from agentjobs.remote_manager import RemoteTaskManager
 from agentjobs.sqlstore import SqlTaskStore
 from agentjobs.sqlstore.connection import Database
 from agentjobs.sqlstore.history import EXISTS, UNKNOWN_TASK, history_counts
-from agentjobs.sqlstore.migrations import available, current_version, upgrade
+from agentjobs.sqlstore.migrations import available, current_version, latest_version, upgrade
 
 from support import task_store
 
@@ -192,10 +192,12 @@ def rows(database: Database, sql: str, *params: Any) -> List[Dict[str, Any]]:
 
 
 class TestMigration:
-    def test_the_store_is_at_version_five_with_the_four_tables_and_their_indexes(
-        self, database: Database
-    ) -> None:
-        assert current_version(database.writer) == 5
+    def test_the_store_carries_the_four_tables_and_their_indexes(self, database: Database) -> None:
+        # Against `latest_version()` rather than the literal 5 this used to name. The
+        # number moved the first time an unrelated migration landed (006, task-506), and
+        # a literal here says nothing about this migration -- what it is checking is that
+        # 005's tables and indexes survive whatever is applied after them.
+        assert current_version(database.writer) == latest_version()
         names = {
             row["name"]
             for row in database.reader().execute(
@@ -274,7 +276,9 @@ class TestMigration:
                     "'manual', 1, 'abc', 'C:/demo', '[]', '2026-09-07T19:03:31Z', '2026-09-07T19:03:31Z')"
                 )
             report = upgrade(db, agentjobs_version="test", snapshot_before=False)
-            assert report.applied == ["005_finish_and_gate_history"]
+            # 005 is the one being exercised; anything numbered after it comes along and
+            # is not this test's business.
+            assert report.applied[0] == "005_finish_and_gate_history"
             row = (
                 db.reader()
                 .execute("SELECT started_at, ended_at FROM task_run WHERE run_id = 'run_deadbeef'")
