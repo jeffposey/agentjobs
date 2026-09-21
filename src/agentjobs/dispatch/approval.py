@@ -445,6 +445,35 @@ def dispose(
         return
 
 
+def consuming_finish(home: Path, project_id: str, receipt: ApprovalReceipt) -> str:
+    """The finish that has already acted on this approval, or ``""`` when none has.
+
+    ``dispose`` marks an approval ``consumed`` naming the finish that spent it, and
+    until task-514 nothing ever read that back. It is the one piece of evidence that
+    survives the consuming finish itself: a second finish spawned on the same approval
+    can meet a lock only while the first is alive, whereas the disposition says the
+    approval was spent whether or not anything is still running.
+
+    Never raises. An unreadable journal answers ``""`` -- the direction that lets a
+    finish proceed -- for the reason ``stop_requests`` gives: the refusals that protect
+    a merge are on the task record too, and refusing every finish while the journal is
+    busy would strand the feature.
+    """
+    from agentjobs.dispatch.journal import journal
+    from agentjobs.execution.errors import ExecutionStoreError
+
+    try:
+        store = journal(home)
+        item = store.signal(_source(project_id), receipt.source_event_id)
+        if item is None or item.status != "consumed":
+            return ""
+        disposition = store.signal_disposition(_source(project_id), receipt.source_event_id)
+    except ExecutionStoreError:
+        return ""
+    by = str((disposition or {}).get("by") or "")
+    return by[len("finish:") :] if by.startswith("finish:") else by
+
+
 def supersede_earlier_approvals(
     home: Path,
     project_id: str,
