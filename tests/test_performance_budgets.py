@@ -52,7 +52,7 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Tuple
 
 import pytest
 import yaml
@@ -142,12 +142,12 @@ SAMPLE_TASK = "task-001-generated-benchmark-task"
 #: next test no longer looks in. What that made expensive was building the rows: 1.3
 #: seconds per test at 480 records, times every test in this module. Copying a file is
 #: about 30ms, and the copy is the same rows.
-_DATABASE_TEMPLATES: Dict[int, Path] = {}
+_DATABASE_TEMPLATES: Dict[Tuple[str, int], Path] = {}
 
 #: The YAML text of each generated record, per size, per process. Dumping it is 6ms a
 #: record -- the whole cost of the corpus generator -- and the files are identical for
 #: every test, so it is paid once and written many times.
-_CORPUS_TEXT: Dict[int, List[Tuple[str, str]]] = {}
+_CORPUS_TEXT: Dict[Tuple[str, int], List[Tuple[str, str]]] = {}
 
 
 def _documents(count: int) -> List[Dict[str, Any]]:
@@ -156,35 +156,156 @@ def _documents(count: int) -> List[Dict[str, Any]]:
     return documents
 
 
-def _corpus_text(count: int) -> List[Tuple[str, str]]:
-    cached = _CORPUS_TEXT.get(count)
+#: The two shapes of generated corpus these budgets run over.
+#:
+#: ``generated`` is the shared one, and every figure in :data:`PAYLOAD_BUDGETS`,
+#: :data:`FIXED_PAYLOAD_BUDGETS` and most of :data:`QUERY_BUDGETS` was measured over it.
+#: It is every task ``ready``/``agent``/``available`` with no parent.
+#:
+#: ``attention`` exists because that shape has nothing for the attention poll to do
+#: (task-502). ``GET /attention`` answers with what a person is holding up, and the
+#: expensive part of answering was a lookup **per human-held candidate**; over a corpus
+#: with no human-held task there are no candidates, so a budget taken there is the same
+#: number before the fan-out is removed as after, and says nothing about either.
+SHAPE_GENERATED = "generated"
+SHAPE_ATTENTION = "attention"
+
+#: Which shape each budgeted path is measured over. Absent means the shared one.
+#:
+#: Two paths, and the second is the legacy Jinja header: ``count_blocking_human`` ran the
+#: same per-candidate lookup and ``web.py`` calls it once per page, so it needs the same
+#: corpus to be measuring anything.
+SHAPE_FOR: Dict[str, str] = {
+    f"{LOCAL}/attention": SHAPE_ATTENTION,
+    f"/p/{LOCAL_PROJECT_ID}/tasks": SHAPE_ATTENTION,
+}
+
+
+def shape_for(path: str) -> str:
+    """The corpus shape a budgeted path is measured over."""
+    return SHAPE_FOR.get(path, SHAPE_GENERATED)
+
+
+#: How many generated tasks there are per human-held parent in the attention corpus.
+#:
+#: A ratio rather than a count, because the property :class:`TestTheQueryCountIsAConstant`
+#: needs is that the number of candidates *grows with the corpus*: a fixed number of them
+#: would sit under any ceiling at both sizes, and a lookup per candidate would pass.
+ATTENTION_PARENT_EVERY = 10
+
+#: How many tasks in the attention corpus are claimed, quiet and stalled -- fixed, and
+#: deliberately not a ratio.
+#:
+#: This is the other half of the pair. The stall check reads one log row per candidate it
+#: admits, and that read is *meant* to be bounded by the candidates rather than by the
+#: corpus -- so the number of stalled tasks has to stay put while the corpus grows, or
+#: :meth:`TestTheAttentionPollReadsABoundedSliceOfTheLog` would be asserting that a
+#: bounded read is unbounded. Three rather than one so an off-by-one in the lookup shows.
+ATTENTION_STALLED = 3
+
+
+def _attention_documents(count: int) -> List[Dict[str, Any]]:
+    """The generated corpus, reshaped so the attention poll has work to do.
+
+    Three things the shared corpus does not have, each named by an acceptance criterion
+    on task-502:
+
+    *   **Human-held parents with children, growing with the corpus.** One in every
+        :data:`ATTENTION_PARENT_EVERY`, each with the next generated task as its child.
+        Every one of them is a candidate for the per-candidate lookup this budget exists
+        to refuse, so at 480 records there are 48 of them and at 60 there are 6.
+    *   **A child holding its parent's ask.** Every other pair, so half the parents are
+        withdrawn by :func:`agentjobs.dashboard.deferred_to_child` and half are not --
+        which is what makes the answer worth comparing rather than a constant.
+    *   **Stalled tasks**: :data:`ATTENTION_STALLED` of them, claimed and long quiet,
+        with nothing in the run ledger. Fixed in number, for the reason above.
+
+    An ``active`` task is a claimed one, so each reshaped record gets an owner; the
+    record model refuses one without.
+
+    Nothing here touches ``priority`` or ``queue_position``. The generator hands out
+    positions per band round-robin, so moving a task between bands would collide with
+    another task's place in line, and the queue's own checks would then be measuring a
+    corrupt corpus rather than this endpoint.
+    """
+    documents = _documents(count)
+    by_index = {index + 1: document for index, document in enumerate(documents)}
+    for index, document in by_index.items():
+        if index % ATTENTION_PARENT_EVERY != 1:
+            continue
+        child = by_index.get(index + 1)
+        if child is None:
+            continue
+        document.update(
+            lifecycle="active",
+            ball="human",
+            ball_reason="review",
+            ball_prompt="Review the branch and say whether it merges.",
+            assignment={"owner": "claude", "eligible": []},
+        )
+        child["parent"] = document["id"]
+        # Half the children hold the ask themselves, which withdraws their parent from
+        # the waiting set; the other half are agent work, which does not. Both shapes
+        # have to be in the corpus, because a lookup that answered "no children" for
+        # everything would agree with one of them.
+        if (index // ATTENTION_PARENT_EVERY) % 2 == 0:
+            child.update(
+                lifecycle="active",
+                ball="human",
+                ball_reason="approval",
+                ball_prompt="Approve the merge.",
+                assignment={"owner": "claude", "eligible": []},
+            )
+    for offset in range(ATTENTION_STALLED):
+        # Indices 3, 5, 7: odd, so never the first of a pair, and below the smaller
+        # corpus size so both sizes carry the same three.
+        stalled = by_index[3 + offset * 2]
+        stalled.update(
+            lifecycle="active",
+            ball="agent",
+            ball_reason="work",
+            ball_prompt="Finish the branch.",
+            assignment={"owner": "claude", "eligible": []},
+        )
+    return documents
+
+
+def documents_for(count: int, shape: str) -> List[Dict[str, Any]]:
+    """The generated documents of one shape, at one size."""
+    if shape == SHAPE_ATTENTION:
+        return _attention_documents(count)
+    return _documents(count)
+
+
+def _corpus_text(count: int, shape: str) -> List[Tuple[str, str]]:
+    cached = _CORPUS_TEXT.get((shape, count))
     if cached is None:
         cached = [
             (
                 f"{document['id']}.yaml",
                 yaml.safe_dump(document, sort_keys=False, allow_unicode=False),
             )
-            for document in _documents(count)
+            for document in documents_for(count, shape)
         ]
-        _CORPUS_TEXT[count] = cached
+        _CORPUS_TEXT[(shape, count)] = cached
     return cached
 
 
-def _template_database(count: int) -> Path:
+def _template_database(count: int, shape: str) -> Path:
     """A store holding the generated corpus, built once per process for copying."""
-    cached = _DATABASE_TEMPLATES.get(count)
+    cached = _DATABASE_TEMPLATES.get((shape, count))
     if cached is not None and cached.exists():
         return cached
-    directory = Path(tempfile.mkdtemp(prefix=f"agentjobs-budget-{count}-"))
+    directory = Path(tempfile.mkdtemp(prefix=f"agentjobs-budget-{shape}-{count}-"))
     path = directory / "template.db"
     store = SqlTaskStore(open_database(path), LOCAL_PROJECT_ID)
     store.ensure_project(root=str(directory))
-    for document in _documents(count):
+    for document in documents_for(count, shape):
         store.save_task(Task.model_validate(document))
     # Fold the write-ahead log into the file before anything copies it: the copy is one
     # file, and rows still sitting in the WAL would not be in it.
     store.database.writer.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-    _DATABASE_TEMPLATES[count] = path
+    _DATABASE_TEMPLATES[(shape, count)] = path
     # It is outside pytest's temporary root, because it outlives the test that built it.
     # Nothing else would remove it, and a full suite builds one per size per xdist
     # worker -- five megabytes each, on a machine that runs three gates at once.
@@ -192,8 +313,8 @@ def _template_database(count: int) -> Path:
     return path
 
 
-def build_budget_project(root: Path, count: int) -> Path:
-    """A generated project of stated size, as both rows and files.
+def build_budget_project(root: Path, count: int, shape: str = SHAPE_GENERATED) -> Path:
+    """A generated project of stated size and shape, as both rows and files.
 
     **Both, and the files are not decoration.** The zero-parse tripwire asserts that no
     request reads the task directory; against an empty directory it would assert nothing,
@@ -210,7 +331,7 @@ def build_budget_project(root: Path, count: int) -> Path:
     )
     tasks_dir = root / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
-    for name, text in _corpus_text(count):
+    for name, text in _corpus_text(count, shape):
         (tasks_dir / name).write_text(text, encoding="utf-8")
 
     # The rows arrive as a copy of the template rather than by importing the files. The
@@ -218,7 +339,7 @@ def build_budget_project(root: Path, count: int) -> Path:
     # from, and it is what the parse tripwire needs to exist.
     database = local_database(tasks_dir)
     database.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(_template_database(count), database)
+    shutil.copyfile(_template_database(count, shape), database)
     # Opening it through the product's own resolver, which stamps this root onto the
     # project row the template carried the template's own directory in.
     task_store(tasks_dir, root=root)
@@ -264,6 +385,28 @@ def client_for(root: Path, monkeypatch) -> Iterator[TestClient]:
 def budget_client(budget_project: Path, monkeypatch) -> Iterator[TestClient]:
     with client_for(budget_project, monkeypatch) as client:
         yield client
+
+
+@pytest.fixture
+def project_for(tmp_path_factory, count_sql) -> Callable[..., Path]:
+    """Build the corpus a budgeted path is measured over, at a stated size.
+
+    A factory rather than a fixture because the shape follows the path, and the path is
+    a parameter: ``/attention`` and the legacy Jinja list are measured over a corpus that
+    has human-held parents with children, and everything else over the shared one. See
+    :data:`SHAPE_FOR`.
+
+    It takes ``count_sql`` for the reason :func:`budget_project` does -- so the statement
+    counter is installed before this project's database is first opened, rather than
+    counting nothing very convincingly.
+    """
+
+    def make(path: str, count: int = CORPUS_SIZE) -> Path:
+        shape = shape_for(path)
+        root = tmp_path_factory.mktemp(f"budget-{shape}-{count}")
+        return build_budget_project(root, count, shape)
+
+    return make
 
 
 # ---------------------------------------------------------------------------------
@@ -599,6 +742,18 @@ QUERY_BUDGETS: Dict[str, Tuple[int, int]] = {
     f"{LOCAL}/tasks/next": (11, 20),
     f"{LOCAL}/tasks/broken": (1, 8),
     f"{LOCAL}/revision": (1, 4),
+    # Measured over the attention corpus, not the shared one -- see `SHAPE_FOR`. Both of
+    # these answer "what is a person holding up", and the shared corpus holds nothing for
+    # them to answer it over.
+    #
+    # **These two are the pair task-502 is about**, and they are the only figures in this
+    # table that were ever a fan-out. On the commit before that work, over this corpus:
+    # `/attention` ran 90 statements at 60 records and 657 at 480, and the legacy list 91
+    # and 658 -- because `manager.get_subtasks` loads the named task to check it exists,
+    # once per human-held candidate, and this corpus grows its candidates with itself.
+    # Both are 4 and 13 at either size now.
+    f"{LOCAL}/attention": (4, 20),
+    f"/p/{LOCAL_PROJECT_ID}/tasks": (13, 24),
 }
 
 
@@ -613,10 +768,11 @@ class TestARequestRunsAConstantNumberOfQueries:
 
     @pytest.mark.parametrize("path", sorted(QUERY_BUDGETS))
     def test_a_request_runs_a_small_constant_number_of_queries(
-        self, budget_client, count_sql: StatementLog, path: str
+        self, project_for, monkeypatch, count_sql: StatementLog, path: str
     ) -> None:
         measured, ceiling = QUERY_BUDGETS[path]
-        result = measure(budget_client, count_sql, path)
+        with client_for(project_for(path), monkeypatch) as client:
+            result = measure(client, count_sql, path)
         assert len(result.queries) <= ceiling, (
             f"{path} ran {len(result.queries)} SQL statements over {CORPUS_SIZE} "
             f"records, against a ceiling of {ceiling} and {measured} when this budget "
@@ -639,12 +795,22 @@ class TestTheQueryCountIsAConstant:
     ) -> None:
         counts: Dict[int, Dict[str, int]] = {}
         for count in (COMPARISON_CORPUS_SIZE, CORPUS_SIZE):
-            root = build_budget_project(tmp_path_factory.mktemp(f"scale-{count}"), count)
-            with client_for(root, monkeypatch) as client:
-                counts[count] = {
-                    path: len(measure(client, count_sql, path).queries)
-                    for path in sorted(QUERY_BUDGETS)
-                }
+            # One project per shape rather than one per size, because the shape follows
+            # the path: the two attention-corpus paths are measured over a corpus whose
+            # human-held parents grow with `count`, which is the thing a lookup per
+            # candidate would follow.
+            counts[count] = {}
+            for shape in (SHAPE_GENERATED, SHAPE_ATTENTION):
+                paths = [path for path in sorted(QUERY_BUDGETS) if shape_for(path) == shape]
+                if not paths:
+                    continue
+                root = build_budget_project(
+                    tmp_path_factory.mktemp(f"scale-{shape}-{count}"), count, shape
+                )
+                with client_for(root, monkeypatch) as client:
+                    counts[count].update(
+                        {path: len(measure(client, count_sql, path).queries) for path in paths}
+                    )
         moved = {
             path: (counts[COMPARISON_CORPUS_SIZE][path], counts[CORPUS_SIZE][path])
             for path in sorted(QUERY_BUDGETS)
@@ -681,6 +847,15 @@ class TestTheQueryCountIsAConstant:
 LOG_ROWS_BUDGET: Dict[str, Tuple[int, int]] = {
     # path                        measured  ceiling
     f"{LOCAL}/dashboard": (11, 64),
+    # The attention poll's own bounded read (task-502). It used to list the project as
+    # whole records, which joins every `log_entry` row there is, to take one timestamp
+    # off each of the handful of tasks the stall detector admits. What it reads now is
+    # that lookup and nothing else: one row per candidate, and the attention corpus holds
+    # `ATTENTION_STALLED` of those whatever size it is built at.
+    #
+    # Before that work, over this corpus: 414 rows at 60 records and 3,312 at 480 -- the
+    # whole log, plus the six entries of each candidate loaded again by `get_subtasks`.
+    f"{LOCAL}/attention": (ATTENTION_STALLED, 32),
 }
 
 
@@ -711,20 +886,26 @@ def _log_rows_in(project: Path) -> int:
         connection.close()
 
 
-class TestTheDashboardReadsABoundedSliceOfTheLog:
-    """The read task-498 removed, in the units it happened in.
+class TestAPolledEndpointReadsABoundedSliceOfTheLog:
+    """The read task-498 removed, in the units it happened in -- and task-502's.
 
     ``GET /dashboard`` answered a ten-entry panel by assembling every record in the
     project, log entries and all. Nothing in this file noticed: the payload had already
     been cut to a card (task-495), the statement count did not move, and a request that
     runs one query and reads twelve thousand rows out of it parses no files.
+
+    ``GET /attention`` was the same read behind a smaller answer: 42 bytes and one
+    integer, off every record and every log entry in the project, on a poll the header
+    makes on every surface and the push watcher makes every fifteen seconds with no
+    browser open at all.
     """
 
     @pytest.mark.parametrize("path", sorted(LOG_ROWS_BUDGET))
     def test_no_statement_reads_an_unbounded_slice_of_the_log(
-        self, budget_project: Path, monkeypatch, count_sql: StatementLog, path: str
+        self, project_for, monkeypatch, count_sql: StatementLog, path: str
     ) -> None:
         measured, ceiling = LOG_ROWS_BUDGET[path]
+        budget_project = project_for(path)
         with client_for(budget_project, monkeypatch) as client:
             queries = measure(client, count_sql, path).queries
         rows = _log_rows_read(budget_project, queries)
@@ -740,15 +921,17 @@ class TestTheDashboardReadsABoundedSliceOfTheLog:
             f"{path} read {total:,} log_entry rows over {CORPUS_SIZE} records, against a "
             f"ceiling of {ceiling} and {measured} when this budget was written -- out of "
             f"{whole_log:,} in the project. A count near that total is the whole-corpus "
-            "read task-498 removed: the panel shows ten entries, so it asks the store "
-            "for ten. The statements were:\n"
+            "read task-498 and task-502 removed: an endpoint that wants ten entries asks "
+            "the store for ten, and one that wants a timestamp off each of a handful of "
+            "candidates asks for those. The statements were:\n"
             + "\n".join(
                 f"    {count:>6} rows  {' '.join(sql.split())[:100]}" for sql, count in rows.items()
             )
         )
 
+    @pytest.mark.parametrize("path", sorted(LOG_ROWS_BUDGET))
     def test_the_log_rows_read_do_not_move_with_the_corpus(
-        self, tmp_path_factory, monkeypatch, count_sql: StatementLog
+        self, tmp_path_factory, monkeypatch, count_sql: StatementLog, path: str
     ) -> None:
         """Eight times the corpus, the same slice of the log.
 
@@ -758,16 +941,20 @@ class TestTheDashboardReadsABoundedSliceOfTheLog:
         """
         read: Dict[int, int] = {}
         for count in (COMPARISON_CORPUS_SIZE, CORPUS_SIZE):
-            root = build_budget_project(tmp_path_factory.mktemp(f"log-{count}"), count)
+            shape = shape_for(path)
+            root = build_budget_project(
+                tmp_path_factory.mktemp(f"log-{shape}-{count}"), count, shape
+            )
             with client_for(root, monkeypatch) as client:
-                queries = measure(client, count_sql, f"{LOCAL}/dashboard").queries
+                queries = measure(client, count_sql, path).queries
             read[count] = sum(_log_rows_read(root, queries).values())
         small, large = read[COMPARISON_CORPUS_SIZE], read[CORPUS_SIZE]
         assert large == small, (
-            f"GET /dashboard read {small} log rows over {COMPARISON_CORPUS_SIZE} records "
+            f"GET {path} read {small} log rows over {COMPARISON_CORPUS_SIZE} records "
             f"and {large} over {CORPUS_SIZE}. A number of log rows that follows the "
-            "corpus is the whole-corpus read arriving back: the panel draws ten entries "
-            "whatever the project's history is."
+            "corpus is the whole-corpus read arriving back: what these endpoints draw -- "
+            "ten entries, or one timestamp per candidate the stall detector admits -- is "
+            "the same size whatever the project's history is."
         )
 
 

@@ -23,8 +23,8 @@ from agentjobs.models_v2 import (
     Lifecycle,
     Outcome,
     RecentLogEntry,
-    Task,
     TaskCard,
+    TaskSummary,
 )
 from agentjobs.queue import REPAIR_COMMAND, QueueCorruptionError, problem_dicts
 
@@ -120,6 +120,28 @@ def deferred_to_child(
     return None
 
 
+def children_of_lookup(tasks: Sequence[RecordT]) -> Callable[[str], Sequence[RecordT]]:
+    """A parent-id lookup over a corpus already in hand, built in one pass.
+
+    The argument :func:`human_waiting` and :func:`attention_waiting` take, given a name
+    because three callers now want the same one and the third was the defect: the
+    attention reconcile passed ``manager.get_subtasks``, which lists the whole project as
+    whole records once per human-held candidate, so one poll assembled the corpus N+1
+    times for N tasks parked on a person (task-502). The dashboard had already stopped
+    doing that at task-467 by building this map inline; this is that map, extracted, so
+    the fourth caller finds it rather than writing a fifth copy.
+
+    ``()`` for an unknown parent rather than raising, unlike ``get_subtasks``: the
+    callers here ask about tasks they read out of this same corpus, so "no such task" is
+    not a distinction any of them can act on.
+    """
+    children: Dict[str, List[RecordT]] = defaultdict(list)
+    for task in tasks:
+        if task.parent:
+            children[task.parent].append(task)
+    return lambda task_id: children.get(task_id, ())
+
+
 def human_waiting(
     tasks: Sequence[RecordT], children_of: Callable[[str], Sequence[LabelledTask]]
 ) -> List[RecordT]:
@@ -129,10 +151,9 @@ def human_waiting(
     disagree -- which they did before task-422, and would again the moment a second
     caller grew its own copy of :func:`deferred_to_child`.
 
-    ``children_of`` is a lookup rather than a manager because the two callers reach
-    children differently: the dashboard already holds every task and can build the map
-    once, while the attention poll holds only the handful of human-held candidates and
-    asks for each one's subtasks.
+    ``children_of`` is a lookup rather than a manager so that a caller which already
+    holds the corpus answers from it instead of asking storage again. Every caller does
+    hold one, and :func:`children_of_lookup` is how each of them builds it.
     """
     return _inbox_order(
         [
@@ -170,16 +191,29 @@ def attention_waiting(
     return _inbox_order(list(waiting.values()))
 
 
-def human_waiting_tasks(manager: TaskManager) -> List[Task]:
+def human_waiting_tasks(manager: TaskManager) -> List[TaskSummary]:
     """Every task a person is actually holding up, in the order the inbox shows them.
 
-    The set behind the badge number, given a name because task-422 needs the records
+    The set behind the badge number, given a name because task-422 needs the tasks
     rather than only the count: a notification has to say *which* task when there is
     one, and open the filtered list when there are several. Same predicate and same
     order as the dashboard's own panel, so an alert and the page it leads to cannot
     disagree about what is waiting or which of them is first.
+
+    **Rows, and one read of them** (task-502). What this answers with is a title, an id
+    and a ball reason, and what it reads to decide is a ball, a lifecycle, a priority and
+    an ``updated`` -- all of them on a listing row. It used to load whole records and
+    then list the project again, as whole records, once per candidate: the legacy Jinja
+    header calls it three times a page, so a page with six tasks parked on a person
+    assembled the corpus twenty-one times.
+
+    Unfiltered on the way in, where it used to ask for ``ball=HUMAN``, because the
+    children decide the answer too: a parent is withdrawn by an open child holding the
+    ask, and that child is not itself in a ball-filtered listing. :func:`human_waiting`
+    applies ``blocks_human`` over the corpus, so the set is the same one.
     """
-    return human_waiting(manager.list_tasks(ball=Ball.HUMAN), manager.get_subtasks)
+    rows = manager.list_task_summaries()
+    return human_waiting(rows, children_of_lookup(rows))
 
 
 def count_blocking_human(manager: TaskManager) -> int:
@@ -320,13 +354,7 @@ def build_dashboard_snapshot(
     # asks the store for the ten entries it shows instead of being handed every log in
     # the project to pick them out of (task-498).
     tasks = manager.list_task_cards()
-    children_by_parent: Dict[str, List[TaskCard]] = defaultdict(list)
-    for task in tasks:
-        if task.parent:
-            children_by_parent[task.parent].append(task)
-    waiting_tasks = attention_waiting(
-        tasks, lambda task_id: children_by_parent.get(task_id, ()), stalled_ids
-    )
+    waiting_tasks = attention_waiting(tasks, children_of_lookup(tasks), stalled_ids)
     backlog_tasks = _inbox_order([task for task in tasks if awaits_human_input(task)])
     # Selection refuses to guess an order it cannot justify (design section 8), and
     # that refusal is a RuntimeError which no route handler catches -- so before

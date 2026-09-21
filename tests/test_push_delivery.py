@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Sequence, Tuple
 
 import httpx
 import pytest
@@ -37,6 +37,8 @@ from agentjobs.models_v2 import (
     Priority,
     Spec,
     Task,
+    TaskSummary,
+    summary_of,
 )
 from agentjobs.projects import ProjectRegistry
 from agentjobs.push import (
@@ -83,22 +85,32 @@ def waiting_task(task_id: str, *, title: str = "") -> Task:
 
 
 class FakeManager:
-    """Just enough manager for :func:`human_waiting_tasks`.
+    """Just enough manager for :func:`agentjobs.attention.reconcile`.
 
     A real store would make every case below pay for a database to say something about
-    a set of task ids. ``reconcile`` reads two methods: the tasks, and each candidate's
-    children -- the second since task-467, because a parent merely waiting on a child a
-    person already holds is not a second thing for that person to do.
+    a set of task ids. ``reconcile`` reads two methods: the listing rows, and the newest
+    log timestamp of the handful of tasks the stall detector admits as candidates.
+
+    **Rows, not records, and the projection is real** (task-502). The stand-in holds
+    whole records because the cases here are written as records, and hands over
+    ``summary_of`` each one -- so a field this path reads that a listing row does not
+    carry fails here rather than only against SQLite. The children lookup it used to
+    answer per candidate is gone: ``reconcile`` builds that map from these same rows.
     """
 
     def __init__(self, tasks: List[Task]) -> None:
         self._tasks = tasks
 
-    def list_tasks(self, **_kwargs: Any) -> List[Task]:
-        return list(self._tasks)
+    def list_task_summaries(self, **_kwargs: Any) -> List[TaskSummary]:
+        return [summary_of(task) for task in self._tasks]
 
-    def get_subtasks(self, task_id: str) -> List[Task]:
-        return [task for task in self._tasks if task.parent == task_id]
+    def newest_log_ts(self, task_ids: Sequence[str]) -> Dict[str, datetime]:
+        wanted = set(task_ids)
+        return {
+            task.id: max(entry.ts for entry in task.log)
+            for task in self._tasks
+            if task.id in wanted and task.log
+        }
 
     def set(self, tasks: List[Task]) -> None:
         self._tasks = tasks
@@ -107,7 +119,7 @@ class FakeManager:
 def fake_manager(tasks: List[Task]) -> Any:
     """A :class:`FakeManager` handed over as the real thing.
 
-    Deliberately ``Any``: the stand-in satisfies the one method ``reconcile`` reads and
+    Deliberately ``Any``: the stand-in satisfies the two methods ``reconcile`` reads and
     nothing else, and casting it at each of a dozen call sites would say the same thing
     twelve times.
     """

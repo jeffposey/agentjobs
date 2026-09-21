@@ -53,10 +53,10 @@ from pathlib import Path
 from urllib.parse import quote
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from .dashboard import attention_waiting
+from .dashboard import attention_waiting, children_of_lookup
 from .dispatch.atomic_yaml import merge_yaml_atomically, read_yaml_resiliently
 from .manager import TaskManager
-from .models_v2 import BallReason, Task
+from .models_v2 import BallReason, LabelledTask
 from .projects import default_home
 from .stalled import Stall, stalled_in
 
@@ -119,7 +119,7 @@ class AttentionState:
     """What the API answers with: the count, the waiting tasks, and the episode."""
 
     blocking: int
-    waiting: Tuple[Task, ...]
+    waiting: Tuple[LabelledTask, ...]
     episode: Optional[Episode]
     stalls: Tuple[Stall, ...] = ()
     """Why any of ``waiting`` is there because nobody is working it (task-499).
@@ -224,7 +224,7 @@ still changing what the person does next.
 """
 
 
-def ask_phrase(task: Task) -> str:
+def ask_phrase(task: LabelledTask) -> str:
     """The lead task's ask, or empty where it has none a person would act on.
 
     Empty rather than a placeholder: a client that prints "Needs something" has added a
@@ -383,12 +383,27 @@ def reconcile(
     and skipping the write when nothing changed would mean deciding what "changed"
     means in two places instead of one.
     """
-    # One listing for both halves of the set. `human_waiting_tasks` would load the
-    # corpus again to filter it by ball, and the stall check needs the same rows to read
-    # each candidate's newest log entry.
-    tasks = manager.list_tasks()
-    stalls = stalled_in(tasks, project_id=project_id, home=home, now=now)
-    waiting = attention_waiting(tasks, manager.get_subtasks, {stall.task_id for stall in stalls})
+    # One listing, of rows, for all three things below. Nothing on this path reads prose,
+    # acceptance or a log: the answer is an id, a title and a ball reason, and what
+    # decides it is a ball, a lifecycle, a priority, an `updated` and each candidate's
+    # newest log timestamp -- every one of them on a listing row, the last through
+    # `newest_log_ts` (task-502). The corpus serves the stall check, the human-held
+    # predicate and the children map alike, so it is read once.
+    tasks = manager.list_task_summaries()
+    stalls = stalled_in(
+        tasks,
+        project_id=project_id,
+        home=home,
+        now=now,
+        newest_log_ts=manager.newest_log_ts,
+    )
+    # The children map, from the rows already in hand. `manager.get_subtasks` was here,
+    # and it is `storage.list_tasks()` filtered by parent -- a whole-corpus read of whole
+    # records **per human-held candidate**, so a person holding six tasks had the project
+    # assembled seven times to answer with one integer.
+    waiting = attention_waiting(
+        tasks, children_of_lookup(tasks), {stall.task_id for stall in stalls}
+    )
     ids = [task.id for task in waiting]
     episode = _write_locked(
         episode_path(project_id, home=home),
