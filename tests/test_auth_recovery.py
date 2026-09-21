@@ -27,12 +27,13 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 import pytest
 import yaml
 
 from agentjobs.dispatch import auth_recovery
+from agentjobs.dispatch import clock as dispatch_clock
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV, read_limit_stall
 from agentjobs.dispatch.auth_probe import (
     PROBE_TOKEN,
@@ -56,6 +57,8 @@ from agentjobs.dispatch.ledger import find_run
 from agentjobs.dispatch.poller import poll_live_sessions
 from agentjobs.dispatch.runner import DispatchRunner, RunDirectory, SessionPhase, runs_root
 from agentjobs.manager import TaskManager
+from skipping_clock import SkippingClock
+
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
@@ -509,7 +512,21 @@ print("backgrounded · b55b35ad · aj-task")
 
 
 class Machine:
-    def __init__(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def __init__(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        clock: Optional[SkippingClock] = None,
+    ) -> None:
+        # One origin for the whole machine: every simulated moment this harness writes --
+        # a tick, a transcript line, a planned reply -- is an offset from it, and so is
+        # every moment the production code reads. Before task-518 each of those called
+        # `datetime.now()` separately, so the timeline the test thought it was driving
+        # drifted from the one the code read by however long the machine took to get
+        # between two lines of the test. See `advance_to`.
+        self.clock = clock if clock is not None else SkippingClock()
+        self._reached = 0.0
         self.tmp = tmp_path
         self.home = tmp_path / "home"
         self.root = tmp_path / "project"
@@ -539,7 +556,7 @@ class Machine:
         monkeypatch.setenv(CLAUDE_HOME_ENV, str(self.claude))
         ProjectRegistry(home=self.home).add(self.root, project_id="sandbox")
         self.manager = TaskManager(task_store(self.root / "tasks", project_id="sandbox"))
-        self.base = datetime.now(timezone.utc)
+        self.base = self.clock.origin
         # The poller's own recovery pass runs on the wall clock; these tests drive the
         # recovery tick themselves on a fake clock, so the poll only detects and parks.
         monkeypatch.setattr("agentjobs.dispatch.poller._recover_parked", lambda *a: [])
@@ -642,13 +659,13 @@ class Machine:
         return write_transcript(self.claude, lines, session=full)
 
     def die_on_login(self, *, offset: float = 1.0, full: str = FULL) -> datetime:
-        at = datetime.now(timezone.utc) + timedelta(seconds=offset)
+        at = self.clock.at(offset)
         self.transcript([auth_failure_line(at=at, session=full, text=LOGIN_EXPIRED)], full=full)
         return at
 
     def reply_on_wake(self, *, full: str = FULL, offset_seconds: float = 30.0) -> None:
         path = self.claude / "projects" / "C--projects-x" / f"{full}.jsonl"
-        at = datetime.now(timezone.utc) + timedelta(seconds=offset_seconds)
+        at = self.clock.at(offset_seconds)
         (self.cli.parent / "reply_on_wake.json").write_text(
             json.dumps(
                 {
@@ -681,12 +698,36 @@ class Machine:
     def poll(self) -> Dict[str, Any]:
         return {result.run_id: result for result in poll_live_sessions(self.home)}
 
+    def advance_to(self, seconds: float) -> None:
+        """Carry the clock to ``seconds`` past the origin, by waiting the way the poller does.
+
+        Deliberately not ``clock.advance(seconds)``. The poller reaches its next tick by
+        sleeping, so this sleeps, through the subsystem's one time source; the skipping
+        clock then moves *itself* because every registered waiter is blocked and nothing
+        can run until it does. A test that called an ``advance`` method would be stating
+        the schedule, which is the thing task-518 is removing -- it can only skip the
+        moments its author predicted.
+
+        The step is **relative to the last one**, not absolute from the origin, and the
+        difference is not cosmetic: reading the clock moves it (see ``skipping_clock.TICK``),
+        so a deadline the code computed as "sixty seconds from the moment I am reading now"
+        lands a few microseconds past the origin plus sixty. Sleeping the *difference*
+        carries that drift forward with the schedule, which is what a real clock does.
+        Sleeping to an absolute offset would leave every such deadline a hair in the
+        future and silently skip the tick that was meant to meet it.
+        """
+        remaining = seconds - self._reached
+        assert remaining >= 0, f"a harness clock never runs backwards ({seconds})"
+        self._reached = seconds
+        if remaining > 0:
+            dispatch_clock.sleep(remaining)
+
     def tick(self, seconds: float, **kwargs: Any) -> List[str]:
-        moment = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+        """One recovery pass, ``seconds`` after the origin, on the installed clock."""
+        self.advance_to(seconds)
         return auth_recovery.tick(
             self.home,
             managers={"sandbox": self.manager},
-            clock=lambda: moment,
             **kwargs,
         )
 
@@ -706,8 +747,16 @@ class Machine:
 
 
 @pytest.fixture
-def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Machine:
-    return Machine(tmp_path, monkeypatch)
+def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Machine]:
+    """A machine whose clock the dispatch subsystem reads, for the test's whole length."""
+    # Anchored on the wall clock rather than ahead of it: this harness's transcripts and
+    # journal rows are written by production code that stamps real time, so an origin two
+    # hours ahead -- task-414's choice, right for a harness that owns every stamp -- would
+    # make a usage limit that has not reset look long expired. What matters here is that
+    # there is exactly one origin, not where it is.
+    fake = SkippingClock(datetime.now(timezone.utc))
+    with dispatch_clock.installed(fake), fake.waiter():
+        yield Machine(tmp_path, monkeypatch, clock=fake)
 
 
 # ----- a1 ----------------------------------------------------------------------------
@@ -880,7 +929,7 @@ class TestADeadStore:
         machine.start()
         book = machine.book()
         profile = Profile("claude", ("claude",), "claude-opus-5", str(machine.claude))
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         joined = book.join(
             kind="auth",
             profile=profile,
@@ -1003,7 +1052,7 @@ class TestALostAcknowledgement:
         class Dies:
             def nudge(self, session_id: str, message: str) -> NudgeReceipt:
                 if deliver:
-                    at = datetime.now(timezone.utc) + timedelta(seconds=5)
+                    at = machine.clock.at(5)
                     path = machine.claude / "projects" / "C--projects-x" / f"{FULL}.jsonl"
                     with path.open("a", encoding="utf-8") as handle:
                         handle.write(
@@ -1051,7 +1100,7 @@ class TestALostAcknowledgement:
         path = machine.claude / "projects" / "C--projects-x" / f"{FULL}.jsonl"
         with path.open("a", encoding="utf-8") as handle:
             reply = real_reply_line(
-                at=datetime.now(timezone.utc) + timedelta(seconds=30), session=FULL
+                at=machine.clock.at(auth_recovery.NUDGE_LEASE_SECONDS + 30), session=FULL
             )
             handle.write(json.dumps(reply) + "\n")
         machine.tick(auth_recovery.NUDGE_LEASE_SECONDS + 40, probe=ready)
@@ -1161,7 +1210,7 @@ class TestUsageLimits:
         self, machine: Machine
     ) -> None:
         run_id, task_id = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         resets = (now + timedelta(hours=2)).replace(microsecond=0)
         machine.transcript([self._limit_line(at=now + timedelta(seconds=1), resets=resets)])
         machine.go_idle()
@@ -1206,7 +1255,7 @@ class TestUsageLimits:
 
     def test_a_probe_still_refused_waits_for_its_own_reported_reset(self, machine: Machine) -> None:
         run_id, _ = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         resets = now + timedelta(minutes=10)
         machine.transcript([self._limit_line(at=now + timedelta(seconds=1), resets=resets)])
         machine.go_idle()
@@ -1258,7 +1307,7 @@ class TestTheParkSaysWhatItIs:
 
     def test_a_usage_limit_park_names_the_reset_time(self, machine: Machine) -> None:
         run_id, task_id = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         resets = (now + timedelta(hours=2)).replace(second=0, microsecond=0)
         machine.transcript([self._limit_line(at=now + timedelta(seconds=1), resets=resets)])
         machine.go_idle()
@@ -1276,7 +1325,7 @@ class TestTheParkSaysWhatItIs:
     def test_an_unreported_reset_still_reads_as_a_wait(self, machine: Machine) -> None:
         """A refusal with no reset time is no less self-clearing -- recovery still probes."""
         run_id, task_id = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         line = auth_failure_line(
             at=now + timedelta(seconds=1),
             session=FULL,
@@ -1295,7 +1344,7 @@ class TestTheParkSaysWhatItIs:
     def test_a_spend_limit_still_reads_as_needing_a_person(self, machine: Machine) -> None:
         """Only the account owner can raise a spend limit, so it must not read as a wait."""
         run_id, task_id = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         machine.transcript([self._spend_line(at=now + timedelta(seconds=1))])
         machine.go_idle()
         assert machine.poll()[run_id].phase is SessionPhase.AUTH_STALLED
@@ -1308,7 +1357,7 @@ class TestTheParkSaysWhatItIs:
     def test_a_quota_escalation_reads_as_needing_a_person(self, machine: Machine) -> None:
         """Refused again for the same window: recovery gives up, and the label says so."""
         run_id, task_id = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         resets = (now + timedelta(hours=2)).replace(microsecond=0)
         machine.transcript([self._limit_line(at=now + timedelta(seconds=1), resets=resets)])
         machine.go_idle()
