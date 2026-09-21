@@ -39,6 +39,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
+from agentjobs.dispatch import clock as dispatch_clock
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -71,7 +72,7 @@ def record_phase(directory: Path, kind: str, **fields: Any) -> Optional[Path]:
     different processes in the same run are comparable.
     """
     record: Dict[str, Any] = {
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": dispatch_clock.utcnow().isoformat(),
         "kind": kind,
         **fields,
     }

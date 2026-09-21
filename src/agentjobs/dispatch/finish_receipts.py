@@ -28,6 +28,7 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from agentjobs.dispatch import clock as dispatch_clock
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -85,7 +86,7 @@ class FinishReceipts:
         """Record that ``activity`` is about to happen. Raises ``OSError`` if it cannot."""
         self._append(
             {
-                "ts": datetime.now(timezone.utc).isoformat(),
+                "ts": dispatch_clock.utcnow().isoformat(),
                 "phase": INTENT,
                 "finish_id": finish_id,
                 "activity": activity,
@@ -104,7 +105,7 @@ class FinishReceipts:
         try:
             self._append(
                 {
-                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "ts": dispatch_clock.utcnow().isoformat(),
                     "phase": RESULT,
                     "finish_id": finish_id,
                     "activity": activity,

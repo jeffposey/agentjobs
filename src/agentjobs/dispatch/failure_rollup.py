@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
+from agentjobs.dispatch import clock as dispatch_clock
 from agentjobs.execution import reducer
 from agentjobs.execution.store import ExecutionStore
 
@@ -248,7 +249,7 @@ def _journal_occurrences(store: ExecutionStore) -> List[Occurrence]:
         "SELECT run_id, project_id, task_id, outcome, concluded_at, cancel_requested "
         "FROM run_attempt WHERE execution_id IS NULL AND state = 'terminal'"
     ):
-        at = _moment(row["concluded_at"]) or datetime.now(timezone.utc)
+        at = _moment(row["concluded_at"]) or dispatch_clock.utcnow()
         if int(row["cancel_requested"]) and str(cancels.get(row["run_id"], {}).get("source")) != (
             "internal_transfer"
         ):
@@ -288,7 +289,7 @@ def _journal_occurrences(store: ExecutionStore) -> List[Occurrence]:
 
         for index, event in enumerate(history):
             payload = _loads(event["payload_json"])
-            at = _moment(event["observed_at"]) or datetime.now(timezone.utc)
+            at = _moment(event["observed_at"]) or dispatch_clock.utcnow()
             common = {
                 "at": at,
                 "project_id": execution["project_id"],
@@ -348,7 +349,7 @@ def _journal_occurrences(store: ExecutionStore) -> List[Occurrence]:
         for activity in acts:
             if activity["state"] != "unknown" or activity["kind"] == "escalate":
                 continue
-            at = _moment(activity["updated_at"]) or datetime.now(timezone.utc)
+            at = _moment(activity["updated_at"]) or dispatch_clock.utcnow()
             escalated = next(
                 (a for a in escalations if a["error_class"] == reducer.EFFECT_UNKNOWN), None
             )
@@ -374,7 +375,7 @@ def _journal_occurrences(store: ExecutionStore) -> List[Occurrence]:
                     str(activity["error_class"] or "escalated"),
                     STOPPED,
                     cost(activity),
-                    at=_moment(activity["updated_at"]) or datetime.now(timezone.utc),
+                    at=_moment(activity["updated_at"]) or dispatch_clock.utcnow(),
                     project_id=execution["project_id"],
                     task_id=execution["task_id"],
                     run_id=str(activity["run_id"] or ""),
@@ -426,7 +427,7 @@ def _incident_occurrences(store: ExecutionStore) -> List[Occurrence]:
                 klass,
                 disposition,
                 actions,
-                at=_moment(waiter["joined_at"]) or datetime.now(timezone.utc),
+                at=_moment(waiter["joined_at"]) or dispatch_clock.utcnow(),
                 project_id=str(waiter["project_id"]),
                 task_id=str(waiter["task_id"]),
                 run_id=str(waiter["run_id"]),
@@ -491,7 +492,7 @@ def _directory_occurrences(home: Path) -> List[Occurrence]:
             task_id = str(meta.get("task_id") or "")
             run_id = str(meta.get("run_id") or meta.get("finish_id") or directory.name)
             for record in phases:
-                at = _moment(record.get("ts")) or datetime.now(timezone.utc)
+                at = _moment(record.get("ts")) or dispatch_clock.utcnow()
                 kind = record.get("kind")
                 if kind == "gate_stage_browser_gone":
                     passed = bool(record.get("retried")) and bool(record.get("passed"))

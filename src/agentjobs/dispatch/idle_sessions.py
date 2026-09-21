@@ -44,6 +44,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from agentjobs.dispatch import clock as dispatch_clock
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -812,7 +813,7 @@ class IdleSessionBook:
         event = IdleSessionEvent(
             event_id=f"ise_{uuid.uuid4().hex[:12]}",
             kind=kind,
-            at=at or datetime.now(timezone.utc).isoformat(),
+            at=at or dispatch_clock.utcnow().isoformat(),
             session_id=session_id,
             outcome=outcome,
             detail=dict(detail),

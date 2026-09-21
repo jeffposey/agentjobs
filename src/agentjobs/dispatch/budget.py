@@ -38,6 +38,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
+from agentjobs.dispatch import clock as dispatch_clock
 from agentjobs.dispatch.config import AutoDispatchLimits, DispatchLimits
 from agentjobs.dispatch.ledger import RunRecord, list_runs
 from agentjobs.dispatch.record_commit import commit_task_record
@@ -48,7 +49,6 @@ from agentjobs.models_v2 import (
     LogEntryType,
     Task,
     spends_a_run,
-    utcnow,
 )
 from agentjobs.store_factory import TaskManagerLike
 
@@ -111,7 +111,7 @@ def check_budget(
     machine-local configuration, and renaming it would silently return a tuned machine to
     the defaults, which is the one direction a cap must never move by accident.
     """
-    moment = now or utcnow()
+    moment = now or dispatch_clock.utcnow()
 
     lifetime = task.dispatch_count
     if lifetime >= limits.per_task_lifetime:
@@ -191,7 +191,7 @@ def check_machine_budget(
     loop that starts and immediately fails a run never holds a slot for long enough to
     be refused by it.
     """
-    moment = now or utcnow()
+    moment = now or dispatch_clock.utcnow()
     started = dispatches_since(home, moment - timedelta(hours=1))
     if len(started) < limits.dispatches_per_hour:
         return None

@@ -60,6 +60,7 @@ from typing import (
 )
 
 
+from agentjobs.dispatch import clock as dispatch_clock
 from agentjobs.dispatch.address import resolve_api_base
 from agentjobs.dispatch.atomic_yaml import (
     merge_yaml_atomically,
@@ -125,7 +126,6 @@ from agentjobs.models_v2 import (
     DispatchTrigger,
     LogEntryType,
     Task,
-    utcnow,
 )
 from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
 from agentjobs.dispatch.pids import (
@@ -1430,7 +1430,7 @@ def finish_stamped(meta: Dict[str, object], fields: Dict[str, object]) -> Dict[s
     merged = {**meta, **fields}
     status = merged.get("status")
     if isinstance(status, str) and status in TERMINAL_STATUSES and not merged.get("finished_at"):
-        merged["finished_at"] = datetime.now(timezone.utc).isoformat()
+        merged["finished_at"] = dispatch_clock.utcnow().isoformat()
     return merged
 
 
@@ -1684,7 +1684,7 @@ class DispatchRunner:
         home: Path,
         api_base: Optional[str] = None,
         grace_seconds: float = GRACE_SECONDS,
-        clock: Callable[[], datetime] = utcnow,
+        clock: Callable[[], datetime] = dispatch_clock.utcnow,
         claude_home: Optional[Path] = None,
         playbook: Optional[PlaybookPointer] = None,
         posture: Optional[ResolvedPosture] = None,

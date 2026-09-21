@@ -36,6 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from agentjobs.dispatch import clock as dispatch_clock
 from agentjobs.dispatch.ledger import RunRecord, live_runs, write_status
 from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
@@ -79,7 +80,7 @@ def release_slot(home: Path, record: RunRecord, *, reason: str = TASK_CLOSED) ->
         pass
     write_status(
         record,
-        slot_released_at=datetime.now(timezone.utc).isoformat(),
+        slot_released_at=dispatch_clock.utcnow().isoformat(),
         slot_released_reason=reason,
     )
     return True

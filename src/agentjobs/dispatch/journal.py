@@ -29,6 +29,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Mapping, Optional, Protocol, Sequence, Tuple
 
+from agentjobs.dispatch import clock as dispatch_clock
 from agentjobs.execution.coordinator import release_ended_attempts
 from agentjobs.execution.errors import ExecutionStoreError, OwnershipConflict
 from agentjobs.execution.factory import execution_store_for
@@ -402,7 +403,7 @@ def legacy_view(
     from agentjobs.dispatch.ledger import list_runs
 
     store = journal(home)
-    moment = now or datetime.now(timezone.utc)
+    moment = now or dispatch_clock.utcnow()
     hour_ago = moment - timedelta(hours=1)
     slots: List[str] = []
     owners: List[str] = []

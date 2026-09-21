@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
+from agentjobs.dispatch import clock as dispatch_clock
 from agentjobs.dispatch.address import probe_api_base
 from agentjobs.dispatch.budget import DISPATCHER_ACTOR, check_budget, check_machine_budget
 from agentjobs.dispatch.config import (
@@ -476,7 +477,7 @@ def start_due(
     ``limit`` bounds how many entries one pass may start; ``0`` means "as many as there
     are free slots", which is the application's value.
     """
-    clock = now or (lambda: datetime.now(timezone.utc))
+    clock = now or (lambda: dispatch_clock.utcnow())
     decisions: List[QueueDecision] = []
     try:
         store = journal(home)

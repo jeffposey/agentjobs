@@ -101,6 +101,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
+from agentjobs.dispatch import clock as dispatch_clock
 from agentjobs.actors import Actor
 from agentjobs.dispatch.config import DispatchError, Posture, PostureSource, SelectionSource
 from agentjobs.queue import order_key
@@ -1076,7 +1077,7 @@ class _Supervision:
         entry = parent_authorizing_entry(parent) if parent is not None else None
         if entry is None:
             return None  # nothing authorises children; the walk refuses them as before
-        clock = wall or (lambda: datetime.now(timezone.utc))
+        clock = wall or (lambda: dispatch_clock.utcnow())
         try:
             store = journal(home)
             walk, _resumed = store.open_walk(
@@ -2114,7 +2115,7 @@ def utc_stamp(moment: Optional[datetime] = None) -> str:
     view, and reconstructing the 2026-09-13 double walk meant ordering its lines by lock
     files and run meta because the lines themselves carried no time.
     """
-    return (moment or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return (moment or dispatch_clock.utcnow()).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def walk_report(result: WalkResult, *, started_at: Optional[datetime] = None) -> str:
@@ -2125,7 +2126,7 @@ def walk_report(result: WalkResult, *, started_at: Optional[datetime] = None) ->
     says what that child did; what nothing else says is the order they were taken in and
     where the walk stopped.
     """
-    when = (started_at or datetime.now(timezone.utc)).isoformat()
+    when = (started_at or dispatch_clock.utcnow()).isoformat()
     header = "**Epic walk**"
     if result.stop.is_success:
         header += " -- every open child is done."

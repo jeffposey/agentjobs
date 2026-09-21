@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
+from agentjobs.dispatch import clock as dispatch_clock
 from agentjobs.actors import FINISHER
 from agentjobs.dispatch.finish import (
     APPROVAL,
@@ -217,14 +218,14 @@ def _claim(directory: Path, name: str, payload: Mapping[str, Any]) -> bool:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return dispatch_clock.utcnow().isoformat()
 
 
 def _started(meta: Mapping[str, Any]) -> datetime:
     try:
         moment = datetime.fromisoformat(str(meta.get("started_at") or ""))
     except ValueError:
-        return datetime.now(timezone.utc)
+        return dispatch_clock.utcnow()
     return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
 
 
