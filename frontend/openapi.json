@@ -4806,7 +4806,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional machine-checkable hint, mirroring the task field.",
+            "description": "Optional prose for a person, mirroring the task field: how somebody would satisfy themselves this criterion holds. Never executed.",
             "title": "Verify"
           }
         },

@@ -3424,7 +3424,7 @@ export type PlaybookAcceptance = {
     /**
      * Verify
      *
-     * Optional machine-checkable hint, mirroring the task field.
+     * Optional prose for a person, mirroring the task field: how somebody would satisfy themselves this criterion holds. Never executed.
      */
     verify?: string | null;
 };
