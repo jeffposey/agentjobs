@@ -54,10 +54,20 @@ from agentjobs.dispatch.finish_status import (
     read_finish_status,
     read_meta,
 )
-from agentjobs.dispatch.ledger import LedgerError, find_run, process_alive
+from agentjobs.dispatch.ledger import LedgerError, find_run
+from agentjobs.dispatch.pids import recorded_process_alive
 from agentjobs.models_v2 import Ball, BallReason
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
 from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
+
+
+def _moment(value: object) -> Optional[datetime]:
+    """An ISO timestamp off a meta file, or ``None`` where it is missing or unparseable."""
+    try:
+        return datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
 
 RESUME_CLAIM = "auto-resume.json"
 """Created exclusively in an attempt's directory by whoever spends its one resume."""
@@ -275,7 +285,14 @@ def _decide(
         if status.directory is not None and status.directory != directory:
             return None
         pid = meta.get("pid")
-        if isinstance(pid, int) and process_alive(pid):
+        receipt = meta.get("pid_identity")
+        # The run's own receipt, not its number: a stranger inheriting a dead finish's
+        # pid would hold the resume off forever (task-505).
+        if isinstance(pid, int) and recorded_process_alive(
+            pid,
+            identity=receipt if isinstance(receipt, str) else None,
+            recorded_at=_moment(meta.get("started_at")),
+        ):
             # A posture finish's lock is its run's. A run settled as gone can leave its
             # `agentjobs finish` child running, and a resume beside it is two finishes.
             return decision(WAITING, f"its process {pid} is still running")
