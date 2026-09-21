@@ -108,7 +108,12 @@ class Capability(str, Enum):
     """
 
     DISPATCH = "dispatch.start"
-    """Spend money: start a run on a task or a playbook, or cancel one."""
+    """Spend money: start a run on a task or a playbook, or cancel one.
+
+    Also what it takes to run a task's acceptance checks (task-147). Not a purchase, but
+    the same class of act: a command out of a task record, executed on this machine, at
+    a caller's request.
+    """
 
     DISPATCH_RELAY = "dispatch.relay_authorization"
     """Write an ``authorization`` log entry: relay a human's authorisation of a dispatch

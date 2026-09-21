@@ -3858,6 +3858,86 @@ def show(task_id: str) -> None:
     typer.echo(json.dumps(task.model_dump(mode="json", by_alias=True), indent=2))
 
 
+@app.command()
+def check(
+    task_id: str,
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+    actor: Optional[str] = typer.Option(
+        None, "--actor", help="Who asked. Defaults to the project's default_user."
+    ),
+) -> None:
+    """Run a task's executable acceptance checks and say what each one did (task-147).
+
+    A criterion may carry a ``check``: an argv list whose exit code decides ``met`` or
+    ``failed``. This runs every one of them from the project root, writes their verdicts
+    onto the criteria, and appends one ``check_result`` entry recording the pass.
+
+    **Exits non-zero when any check failed**, so it composes: a script can run this and
+    branch on the result without parsing anything. A criterion that could not be started
+    at all is a failure like any other, never a pass and never a skip.
+
+    Refused, with its own message, on a task that has no checks: zero of zero passing is
+    not a definition of done being met.
+    """
+    from agentjobs.dispatch.checks import NoChecksError, evaluate_task
+    from agentjobs.models_v2 import AcceptanceStatus
+
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    # The dispatch family's local manager, for the reason store_factory documents: this
+    # verb executes commands, so it is gated by `assert_dispatch_permitted` rather than
+    # by the run credential a service client would present.
+    manager = dispatch_manager_for(project)
+    task = manager.get_task(task_id)
+    if task is None:
+        typer.secho(f"Task '{task_id}' not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    who = _resolve_actor(project.load_config(), actor)
+
+    try:
+        report = evaluate_task(task, project=project)
+    except NoChecksError as exc:
+        typer.secho(str(exc), fg=typer.colors.YELLOW)
+        raise typer.Exit(code=1) from exc
+    except DispatchError as exc:
+        typer.secho(f"Refused ({getattr(exc, 'reason', 'refused')}): {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    for outcome in report.results:
+        met = outcome.status is AcceptanceStatus.MET
+        typer.secho(
+            f"{'✅' if met else '❌'} {outcome.id}  {outcome.status.value}"
+            f"  {outcome.duration_seconds:.1f}s"
+            + (f"  exit {outcome.exit_code}" if outcome.exit_code is not None else "")
+            + (f"  ({outcome.cause})" if outcome.cause else ""),
+            fg=typer.colors.GREEN if met else typer.colors.RED,
+        )
+        # The tail only on a failure: on a pass it is the output of a command that did
+        # what it was asked, and printing it buries the one line that did not.
+        if not met and outcome.output_tail:
+            for line in outcome.output_tail.splitlines():
+                typer.echo(f"     {line}")
+    if report.unchecked:
+        typer.echo(f"\n{len(report.unchecked)} criteria have no check: {', '.join(report.unchecked)}")
+
+    updated = manager.record_check_result(
+        task.id,
+        actor=who,
+        results=report.results,
+        unchecked=report.unchecked,
+    )
+    typer.echo(f"\nRecorded entry {updated.log[-1].id} on {task.id}.")
+    if report.failed:
+        raise typer.Exit(code=1)
+
+
 def _resolve_actor(config: dict, actor: Optional[str]) -> str:
     """Resolve who is acting, preferring an explicit --actor over the configured human.
 

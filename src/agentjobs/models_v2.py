@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 from pydantic import (
     BaseModel,
@@ -403,6 +403,14 @@ class LogEntryType(ValueEnum):
     than a field on a ``note`` -- see :class:`AuthorizationData`.
     """
 
+    CHECK_RESULT = "check_result"
+    """One evaluation pass over a task's executable acceptance checks (task-147).
+
+    One entry per *pass*, never one per criterion. A pass is the unit that was asked
+    for and the unit a loop would act on, and splitting it would leave a reader
+    reassembling which entries belonged to the same invocation from timestamps.
+    """
+
 
 MANAGER_WRITTEN_LOG_TYPES = frozenset(
     {
@@ -411,6 +419,7 @@ MANAGER_WRITTEN_LOG_TYPES = frozenset(
         LogEntryType.DISPATCH_RESULT,
         LogEntryType.QUEUE_MOVE,
         LogEntryType.AUTHORIZATION,
+        LogEntryType.CHECK_RESULT,
     }
 )
 """Entry types only the manager may append (design doc section 3, rule 5).
@@ -420,6 +429,11 @@ a process was started, a process ended. Letting a caller post one would put a cl
 append-only record with no event behind it, which is a lie the log can never retract.
 Every write path is expected to refuse these by consulting this set rather than by
 listing types of its own, so a type added here cannot be forgotten at one of them.
+
+``check_result`` is here for the plainest version of that argument (task-147). It asserts
+that a command ran and exited with a particular code. A loop reads those codes to decide
+whether it has converged, so a caller able to post one could declare a task's definition
+of done met without anything having been executed.
 
 ``authorization`` is here for the same reason and one more (task-506). It asserts that a
 person authorised a run, which is an event; and because a ``run`` principal holds
@@ -626,15 +640,94 @@ class Assignment(StrictModel):
 
 
 class AcceptanceCriterion(StrictModel):
-    """One element of the definition of done."""
+    """One element of the definition of done.
+
+    Two fields describe how it is verified and they are not the same kind of thing
+    (task-147). ``verify`` is prose, addressed to a person: it says what somebody should
+    do to satisfy themselves the criterion holds, and nothing executes it. ``check`` is
+    an argv list, addressed to this machine: its exit code decides ``met`` or ``failed``,
+    and it is the only one of the two that anything runs.
+
+    They are kept apart rather than merged because most criteria can only have the
+    first. "The dashboard reads clearly on a phone" is verifiable and not executable,
+    and a schema that offered one field would either lose that criterion or invite a
+    command written where prose belongs.
+    """
 
     id: str = Field(..., description="Identifier scoped to the task, e.g. ac-1.")
     text: str = Field(..., description="What must be true.")
     verify: Optional[str] = Field(
         default=None,
-        description="Optional machine-checkable hint, e.g. a command to run.",
+        description=(
+            "Optional prose for a person: how someone would satisfy themselves this "
+            "criterion holds. Never executed -- an executable check is `check`."
+        ),
+    )
+    check: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Optional argv list whose exit code decides this criterion: 0 is met, "
+            "anything else is failed. A list, never a string -- nothing splits it and "
+            "no shell sees it."
+        ),
+        examples=[["poetry", "run", "pytest", "tests/test_concurrency.py", "-q"]],
     )
     status: AcceptanceStatus = Field(default=AcceptanceStatus.PENDING)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _check_is_a_runnable_argv(cls, data: Any) -> Any:
+        """Refuse a ``check`` that could never be executed, naming what was wrong.
+
+        Each shape gets its own message because each has its own cause. An empty list is
+        usually a field left half-written; a non-string element is usually a number or a
+        ``Path`` a caller expected to be stringified; an empty first element is the one
+        that would otherwise reach ``subprocess`` and fail there, far from the edit that
+        caused it.
+
+        ``mode="before"`` rather than ``after`` so that the element-type case gets this
+        message. ``List[str]`` refuses a non-string on its own, but it does so as
+        ``check.0: Input should be a valid string`` -- correct, and no help at all to a
+        reader who does not know that ``check`` is argv and that every element of it is
+        handed to the process verbatim.
+
+        ``None`` is the ordinary case and is untouched: most criteria are prose.
+        """
+        if not isinstance(data, Mapping):
+            return data
+        check = data.get("check")
+        if check is None:
+            return data
+        identifier = data.get("id", "?")
+        if isinstance(check, str):
+            raise ValueError(
+                f"acceptance criterion {identifier!r}: check is a string. It is an argv "
+                "list -- nothing splits it and no shell sees it, so write "
+                '["pytest", "-q"] rather than "pytest -q".'
+            )
+        if not isinstance(check, (list, tuple)):
+            raise ValueError(
+                f"acceptance criterion {identifier!r}: check is "
+                f"{type(check).__name__}, not a list of strings."
+            )
+        if not check:
+            raise ValueError(
+                f"acceptance criterion {identifier!r}: check is an empty list. Give the "
+                "argv to run, or leave check unset."
+            )
+        for position, word in enumerate(check):
+            if not isinstance(word, str):
+                raise ValueError(
+                    f"acceptance criterion {identifier!r}: check[{position}] is "
+                    f"{type(word).__name__}, not a string. check is an argv list and "
+                    "every element is passed to the process verbatim."
+                )
+        if not check[0].strip():
+            raise ValueError(
+                f"acceptance criterion {identifier!r}: check[0] is empty, so there is no "
+                "program to run. The first element is the executable."
+            )
+        return data
 
 
 class Deliverable(StrictModel):
@@ -992,6 +1085,87 @@ class DispatchResultData(StrictModel):
     )
 
 
+class CheckOutcome(StrictModel):
+    """What one acceptance criterion's ``check`` did on one pass (task-147).
+
+    ``status`` is only ever ``met`` or ``failed``: there is no third value, because a
+    check that could not be started is ``failed`` and not skipped. That is the whole
+    security argument for the loop this feeds -- if a broken check were "unknown" and
+    unknown were tolerated, a loop could converge by breaking its own tests.
+    """
+
+    id: str = Field(..., description="The acceptance criterion this is the result for.")
+    status: AcceptanceStatus = Field(
+        ..., description="`met` on exit 0, `failed` on anything else."
+    )
+    exit_code: Optional[int] = Field(
+        default=None,
+        description=(
+            "The process's exit code, or absent when there was no process -- a timeout "
+            "killed it, or it could not be started at all."
+        ),
+    )
+    duration_seconds: float = Field(
+        ..., ge=0, description="Wall-clock time this check took, including a timeout."
+    )
+    cause: Optional[str] = Field(
+        default=None,
+        description=(
+            "Why it failed, when the exit code does not say: `timeout`, `not_started`, "
+            "or `pass_timeout` for a check the pass budget cut short."
+        ),
+    )
+    output_tail: Optional[str] = Field(
+        default=None,
+        description="Last lines of the check's combined output. Absent when it printed nothing.",
+    )
+
+    @model_validator(mode="after")
+    def _a_failure_says_why(self) -> "CheckOutcome":
+        """A ``failed`` outcome must carry either an exit code or a named cause.
+
+        Otherwise the entry records that something did not pass and gives a reader
+        nothing to act on, which is the one thing this payload exists to prevent.
+        """
+        if self.status is AcceptanceStatus.FAILED and self.exit_code is None and not self.cause:
+            raise ValueError(
+                f"check outcome for {self.id!r} is failed but names neither an exit code "
+                "nor a cause"
+            )
+        return self
+
+
+class CheckResultData(StrictModel):
+    """Payload of a ``check_result`` entry: one evaluation pass over a task (task-147).
+
+    ``chain_id`` and ``iteration`` are null outside a loop, which is every invocation
+    this build can make: the loop driver is task-150. They are in the payload now rather
+    than added later so that an entry written today and an entry written by the driver
+    are the same shape, and a reader of the log never has to know which came first.
+    """
+
+    chain_id: Optional[str] = Field(
+        default=None,
+        description="The loop this pass belongs to, or null for a one-off evaluation.",
+    )
+    iteration: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Which turn of that loop this was, or null outside one.",
+    )
+    results: List[CheckOutcome] = Field(
+        default_factory=list,
+        description="One entry per criterion that has a check, in the task's own order.",
+    )
+    unchecked: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Criteria with no check, named rather than omitted: what a pass did not "
+            "decide is as much a part of its result as what it did."
+        ),
+    )
+
+
 class QuestionOption(StrictModel):
     """One answer an agent is offering for a ``question`` entry (task-017).
 
@@ -1166,6 +1340,7 @@ LOG_PAYLOADS: Dict[LogEntryType, type[StrictModel]] = {
     LogEntryType.QUESTION: QuestionData,
     LogEntryType.ANSWER: AnswerData,
     LogEntryType.AUTHORIZATION: AuthorizationData,
+    LogEntryType.CHECK_RESULT: CheckResultData,
 }
 """Typed ``data`` payloads, enforced on the entry rather than only at the write path.
 

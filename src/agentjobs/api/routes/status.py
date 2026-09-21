@@ -27,6 +27,7 @@ from starlette.concurrency import run_in_threadpool
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.capabilities import Capability
 from agentjobs.dispatch.address import api_base_from_server
+from agentjobs.dispatch.checks import NoChecksError, evaluate_task
 from agentjobs.dispatch.config import DispatchError, Posture
 from agentjobs.dispatch import queue as dispatch_queue
 from agentjobs.dispatch.guards import DispatchRequest, actor_kind, assert_authorizer_is_human
@@ -44,6 +45,7 @@ from agentjobs.sqlstore import TaskLockTimeout
 from ..authorization import assert_actor_agrees, assert_holds
 from ..dependencies import get_task_manager, project_config, request_project, storage_for
 from ..models import (
+    CheckRunResult,
     ClaimRequest,
     CloseRequest,
     DispatchRequestBody,
@@ -995,6 +997,81 @@ async def dispatch_task_endpoint(
         runner=handle.runner,
         group=handle.group,
         over_ceiling=payload.over_ceiling,
+    )
+
+
+@router.post("/{task_id}/check", response_model=CheckRunResult)
+async def check_task_acceptance(
+    task_id: str,
+    request: Request,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> CheckRunResult:
+    """Run this task's executable acceptance checks and answer with what each one did.
+
+    The same vector ``agentjobs check`` prints, written to the record the same way: the
+    criteria's statuses move and exactly one ``check_result`` entry records the pass.
+
+    **A POST because it executes commands**, not because it writes -- and that is also
+    why it is classified under ``dispatch.start`` rather than under the ``task.*``
+    capabilities a run already holds. A run may edit its own task, so a run able to call
+    this could write a check and then have this machine run it, which is starting a
+    process of its own choosing on somebody else's hardware. That is the act the dispatch
+    gates bound, and this goes through the same gate: ``assert_dispatch_permitted`` runs
+    before any process starts, and its refusals render under their own reason codes.
+
+    Refused with ``no_checks`` on a task whose criteria are all prose. Answering an empty
+    success would be indistinguishable, to any client, from every check having passed.
+    """
+    task = manager.get_task(task_id)
+    if task is None:
+        raise _error(
+            status.HTTP_404_NOT_FOUND,
+            "task_not_found",
+            f"Task '{task_id}' not found.",
+            task_id=task_id,
+        )
+    # Resolved before anything runs, so a project that cannot attribute the entry is
+    # refused rather than left with processes having run and nothing recording it.
+    configured = project_config(project)
+    default_user = str(configured.get("default_user") or "")
+    if not default_user:
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            "no_actor",
+            "This project configures no default_user, so there is nobody to attribute "
+            "the check_result entry to. Set default_user in .agentjobs/config.yaml, or "
+            "run `agentjobs check --actor <id>`.",
+            task_id=task_id,
+        )
+    actor = acting_actor(request, project, default_user)
+    try:
+        # Off the event loop: a pass may run for its whole 900-second budget, and every
+        # other request to this server would wait behind it.
+        report = await run_in_threadpool(evaluate_task, task, project=project)
+    except NoChecksError as exc:
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            "no_checks",
+            str(exc),
+            task_id=task_id,
+            suggested_action="Give a criterion a `check` argv, then run this again.",
+        ) from exc
+    except DispatchError as exc:
+        raise dispatch_refusal_error(exc, task_id) from exc
+
+    updated = manager.record_check_result(
+        task_id,
+        actor=actor,
+        results=report.results,
+        unchecked=report.unchecked,
+    )
+    return CheckRunResult(
+        task_id=task_id,
+        results=report.results,
+        unchecked=report.unchecked,
+        ok=report.ok,
+        entry_id=updated.log[-1].id,
     )
 
 
