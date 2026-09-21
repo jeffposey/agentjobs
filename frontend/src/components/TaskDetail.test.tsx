@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AnswerSubmission } from "../api/generated";
 import type { AttachmentUpload, TaskDetailResponse, TaskRead } from "../api/types";
-import { TaskDetail } from "./TaskDetail";
+import { TaskDetail, heldByAgent } from "./TaskDetail";
 
 function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
   return {
@@ -687,5 +687,75 @@ describe("a task whose dispatch is waiting for a slot", () => {
 
     expect(screen.getAllByText("Queued").length).toBeGreaterThan(0);
     expect(screen.queryByText(/place 2/)).toBeNull();
+  });
+});
+
+/**
+ * The record half of task-179: reading a claim off the task, before any run is consulted.
+ *
+ * `heldByAgent` is exported and tested directly rather than through the rendered panel
+ * because it is the expression the defect lived in. The old one was
+ * `task.ball === "agent" && task.lifecycle !== "closed"` — `ball_reason` was missing and
+ * `assignment.owner` was never looked at, so `agent/available` and `agent/work` were the
+ * same answer. Asserting on the four fields is asserting on the fix.
+ */
+describe("who the record says is working a task (task-179)", () => {
+  const claimed = (overrides: Partial<TaskRead> = {}) =>
+    task("task-claimed", {
+      lifecycle: "active",
+      ball: "agent",
+      ball_reason: "work",
+      assignment: { owner: "claude", eligible: [] },
+      log: [
+        { id: 1, ts: "2026-08-19T13:00:00Z", actor: "Jeff Posey", type: "note", body: "Go ahead." },
+        {
+          id: 2,
+          ts: "2026-08-19T14:05:00Z",
+          actor: "claude",
+          type: "transition",
+          body: "Claimed by claude.",
+          data: { ball: "agent", ball_reason: "work", lifecycle: "active" },
+        },
+        { id: 3, ts: "2026-08-19T15:00:00Z", actor: "Jeff Posey", type: "note", body: "Any news?" },
+      ],
+      ...overrides,
+    });
+
+  it("names the owner and the moment the seat was taken", () => {
+    // Not `updated`, which moved when the human note at 15:00 was added. The claim is
+    // when an agent took it, and that is what a reader judging whether it is stuck needs.
+    expect(heldByAgent(claimed())).toEqual({ owner: "claude", since: "2026-08-19T14:05:00Z" });
+  });
+
+  it("says nobody on a ready task whose ball is with an agent", () => {
+    // The exact pair the old expression could not tell apart. This is the common case:
+    // every task in the queue is `agent`/`available` and none of them is being worked.
+    expect(
+      heldByAgent(claimed({ lifecycle: "ready", ball_reason: "available", assignment: { owner: null, eligible: [] } })),
+    ).toBeNull();
+  });
+
+  it("says nobody when an active task's ball came back for revision", () => {
+    // Still active and still owned — the ball moving off `work` is a manager verb saying
+    // the seat is free, which is the thing no dead process can say for itself.
+    expect(heldByAgent(claimed({ ball_reason: "revise" }))).toBeNull();
+  });
+
+  it("says nobody when the ball is with a human", () => {
+    expect(heldByAgent(claimed({ ball: "human", ball_reason: "review" }))).toBeNull();
+  });
+
+  it("says nobody when nothing owns the task, whatever the ball says", () => {
+    expect(heldByAgent(claimed({ assignment: { owner: null, eligible: [] } }))).toBeNull();
+  });
+
+  it("names the owner with no time when no entry carries a ball stamp", () => {
+    // An older record, or one written by hand. The owner is the load-bearing half and
+    // survives; nothing guesses a time, because a guessed one reads as evidence.
+    const bare = claimed({
+      log: [{ id: 1, ts: "2026-08-19T13:00:00Z", actor: "claude", type: "progress", body: "Working." }],
+    });
+
+    expect(heldByAgent(bare)).toEqual({ owner: "claude", since: null });
   });
 });

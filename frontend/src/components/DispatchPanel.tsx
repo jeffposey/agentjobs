@@ -67,6 +67,8 @@ export const REFUSAL_ACTIONS: Record<string, string> = {
   task_on_hold:
     "A person put this task on hold, and the release condition is in the panel above. Resume it there before dispatching an agent at it.",
   live_run_exists: "A run for this task is already going. Wait for it, or cancel it below.",
+  task_being_worked:
+    "An agent this machine did not start is holding this task. AgentJobs cannot see it or stop it — it ends when that agent hands off, releases or closes the task. If it is gone, release the task and dispatch a fresh one.",
   concurrency_limit:
     "The machine is full. Choose below: wait for the next free slot, start anyway above the ceiling, or leave it — or cancel one of the runs named above.",
   dirty_tree: "The project's working tree has uncommitted changes. Commit or stash them first.",
@@ -230,6 +232,15 @@ export type DispatchPanelProps = {
   /** True when this task's ball is with an agent and the task is open. */
   taskIsDispatchable: boolean;
   /**
+   * Who the task record says is working this task, and since when (task-179).
+   *
+   * Non-null does not on its own mean the button is withheld: a claim with a run behind
+   * it is a run, and `liveRun` above already speaks for those. What this catches is a
+   * claim with *no run at all* — an agent AgentJobs did not start, which is the only
+   * kind that writes a claim and nothing else. See `unseenAgent` below.
+   */
+  heldByAgent: { owner: string; since: string | null } | null;
+  /**
    * Who the server would attribute this run's authorising entry to.
    *
    * Required, and not optional-with-a-fallback on purpose. The entry has to name a real
@@ -320,6 +331,7 @@ export function DispatchPanel({
   state,
   runs,
   taskIsDispatchable,
+  heldByAgent,
   identity,
   recordCanBrief,
   busy = false,
@@ -378,8 +390,23 @@ export function DispatchPanel({
   // second one with `already_queued` (task-476). Withheld for the same reason `liveRun`
   // is: the answer the button would get back is already known, and what the reader
   // actually wants at this point is the entry and a way to call it off.
+  // The record says an agent is working this task and this machine has no run for it at
+  // all — not a live one and not a finished one (task-179). That pair is an agent
+  // AgentJobs did not start: a session from the spawn-session skill, a person in a
+  // terminal, another tool. The server refuses the click with `task_being_worked`, and
+  // the same two facts are readable here, so the page says so before the press.
+  //
+  // `runs.length === 0` rather than `!liveRun`, and the difference is the whole rule: a
+  // *finished* run for this task is AgentJobs saying it started an agent here and
+  // watched it end, which accounts for a claim left behind by a process that is gone.
+  // With no run ever, nothing accounts for the claim and the claim is all there is.
+  const unseenAgent = heldByAgent && runs.length === 0 ? heldByAgent : null;
   const offerButton =
-    taskIsDispatchable && Boolean(state?.can_dispatch) && !liveRun && !queuedDispatch;
+    taskIsDispatchable &&
+    Boolean(state?.can_dispatch) &&
+    !liveRun &&
+    !queuedDispatch &&
+    !unseenAgent;
   const user = identity.ok ? identity.user : null;
   // The special occasion, from either direction: the record looks insufficient here, or
   // the server said so when the button was pressed. Honouring the server's answer as
@@ -457,6 +484,29 @@ export function DispatchPanel({
             {liveRun.mode === "interactive"
               ? "It is a chat session rather than a dispatched agent, so AgentJobs did not start it and will not stop it. It ends when the task is handed off, released or closed."
               : "Watch it below. Cancel it there if you want to start a different one."}
+          </p>
+        </div>
+      )}
+
+      {taskIsDispatchable && unseenAgent && (
+        // Task-179's state: the record's claim is the only thing that knows this agent
+        // exists. Status rather than alert, for the same reason the live-run box above
+        // is one — it describes the world rather than answering an act the reader took.
+        <div
+          role="status"
+          data-refusal-reason="task_being_worked"
+          className="rounded-lg border border-sky-600/50 bg-sky-950/40 p-3 text-sm text-sky-100"
+        >
+          <p>
+            <strong>{unseenAgent.owner}</strong> is working this task
+            {unseenAgent.since ? <> since {new Date(unseenAgent.since).toLocaleString()}</> : null}.
+            One agent per task, so there is nothing to start.
+          </p>
+          <p className="mt-2 text-sky-200">
+            AgentJobs did not start it and has no run for it, so it cannot show you the
+            agent or stop it. It ends when that agent hands the task off, releases it, or
+            closes it. If it is gone, release the task — that records that somebody
+            decided so — and dispatch a fresh one.
           </p>
         </div>
       )}

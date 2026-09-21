@@ -2875,6 +2875,60 @@ raising a project's posture.
     before, and that is where an agent's code commits land.
 - **The causing actor must be human** (§2).
 
+### AgentJobs cannot see agents it did not start (task-179, 2026-09-21)
+
+**And it never will be able to.** This is a property of the world rather than a gap in
+the implementation, and every guarantee about "one agent per task" has to be read against
+it.
+
+The ledger is a directory of runs *this* dispatcher created. The per-task run lock is
+taken by *this* dispatcher on its way to a spawn. Both are excellent at the question they
+answer — is one of my own children working this task — and both are silent about a
+session started through the spawn-session skill, by a person in a terminal, by another
+editor's agent, or by any tool that has not been written yet. None of those writes a run
+directory and none of them takes the lock. Registration (`agentjobs run register`, §9,
+task-320) closes the gap for agents that *follow the convention*, which is exactly the
+population that was never the risk.
+
+**So the claim on the task record is the only cross-tool signal that exists.** Every agent
+writes it, because claiming is how a task is taken; only the ones AgentJobs started write
+anything else. That makes `lifecycle: active` + `ball: agent`/`work` + an owner the thing
+the guard has to consult, and `TaskBeingWorkedError` (`task_being_worked`) is that
+consultation. The browser withholds the Dispatch button on the same two facts and names
+the holder instead, because a lit button that produces a refusal is a worse answer than a
+control that says who has the task.
+
+**The hard part is not detecting the claim; it is deciding what a missing run means.** A
+dispatched run that died without releasing leaves an active, owned, `agent`/`work` record
+— which is byte-for-byte what an agent working the task right now leaves. Nothing on the
+record distinguishes them, because nothing about a record changes when a process stops
+existing. Re-dispatching over the first is legitimate and is what `_claim_or_verify` was
+written to serve; re-dispatching over the second is two agents on one branch.
+
+The answer is that **absence of a live run is not evidence of death — absence of any run
+ever is absence of knowledge.** Three states, in the order the gates check them:
+
+| What the ledger holds for this task | What it means | Dispatch |
+|---|---|---|
+| A live run | An agent is running, and it is one of ours | `live_run_exists` |
+| No live run, but a concluded one | We started an agent here and watched it end | **Allowed** |
+| No run at all, and the record claims an agent | Something is holding it that we cannot see | `task_being_worked` |
+
+The middle row is the whole reason this is a question about the ledger's *memory* rather
+than about its live rows. A terminal run record is AgentJobs saying *I started an agent
+at this task and I watched it stop*, which is the only evidence of deadness it can
+honestly have. For an agent it never started, it has none, so it believes the claim.
+
+**The remedy is `release`, and there is deliberately no force flag.** A flag would be a
+lever whose only use is to be pulled when the question "is that agent alive" is
+unanswered, which is precisely when pulling it is least safe. `release` is a manager verb,
+it writes its own log entry, and it makes somebody state that the agent holding the task
+is gone — which is a decision, recorded, rather than a checkbox. The refusal names it.
+
+**What this does not do** is register externally started sessions so the ledger can track
+them. That is a much larger idea and it is not required to close this hole; the guard here
+needs the record to be believed, not the world to be observable.
+
 ### The dispatcher commits what it writes
 
 Every write to a task record has a committer except one. A human's goes through their own

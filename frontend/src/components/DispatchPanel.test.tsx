@@ -76,6 +76,7 @@ function renderPanel(props: Partial<Parameters<typeof DispatchPanel>[0]> = {}) {
       state={state()}
       runs={[]}
       taskIsDispatchable
+      heldByAgent={null}
       identity={identity()}
       recordCanBrief
       onDispatch={onDispatch}
@@ -209,6 +210,7 @@ describe("one click (task-188)", () => {
         state={state()}
         runs={[]}
         taskIsDispatchable
+        heldByAgent={null}
         identity={identity()}
         recordCanBrief={false}
         onDispatch={onDispatch}
@@ -236,6 +238,7 @@ describe("one click (task-188)", () => {
         state={state()}
         runs={[]}
         taskIsDispatchable
+        heldByAgent={null}
         identity={identity()}
         recordCanBrief={false}
         onDispatch={onDispatch}
@@ -1074,6 +1077,96 @@ describe("a task that something is already working (task-354)", () => {
 
     expect(screen.getByRole("button", { name: /^▶ Dispatch/ })).toBeInTheDocument();
     expect(screen.queryByText(/already working/i)).toBeNull();
+  });
+});
+
+/**
+ * The other half of that defect, and the dangerous one (task-179).
+ *
+ * The block above reads the ledger, so it only ever sees agents AgentJobs started. An
+ * agent from the spawn-session skill, or a person in a terminal, writes a claim on the
+ * task record and nothing else — no run row, no lock — so to every test above it looks
+ * exactly like a task nobody is working.
+ */
+describe("a task held by an agent AgentJobs never started (task-179)", () => {
+  const held = { owner: "claude", since: "2026-08-19T14:05:00Z" };
+
+  it("withholds the Dispatch button and names who is holding the task", () => {
+    renderPanel({ heldByAgent: held, runs: [] });
+
+    expect(screen.queryByRole("button", { name: /^▶ Dispatch/ })).toBeNull();
+    const note = screen.getByRole("status");
+    expect(note).toHaveAttribute("data-refusal-reason", "task_being_worked");
+    expect(note).toHaveTextContent("claude");
+    expect(note).toHaveTextContent(/is working this task/i);
+  });
+
+  it("says AgentJobs cannot see or stop it, and what ends it", () => {
+    // The sentence that stops the reader hunting for a Cancel button. A dispatched run
+    // has one, right below; this has nothing, and saying so is the difference between a
+    // withheld control that explains itself and one that just looks broken.
+    renderPanel({ heldByAgent: held, runs: [] });
+
+    const note = screen.getByRole("status");
+    expect(note).toHaveTextContent(/did not start it/i);
+    expect(note).toHaveTextContent(/hands the task off, releases it, or closes it/i);
+    expect(note).toHaveTextContent(/release the task/i);
+  });
+
+  it("says since when, so the reader can judge whether it is still alive", () => {
+    renderPanel({ heldByAgent: held, runs: [] });
+
+    // The rendered time, not the ISO string the record carries: a reader deciding
+    // whether an agent is stuck reads a clock, and asserting on the input would pass
+    // against a page showing the raw timestamp.
+    expect(screen.getByRole("status")).toHaveTextContent(
+      new Date(held.since).toLocaleString(),
+    );
+  });
+
+  it("still says who holds it when the record cannot say since when", () => {
+    // An older record, or one written by hand, carries no ball stamp to read a time
+    // off. The owner is the part that matters and it is still there; nothing invents a
+    // time, because a wrong one would be read as evidence about whether it is alive.
+    renderPanel({ heldByAgent: { owner: "claude", since: null }, runs: [] });
+
+    const note = screen.getByRole("status");
+    expect(note).toHaveAttribute("data-refusal-reason", "task_being_worked");
+    expect(note).toHaveTextContent("claude is working this task.");
+  });
+
+  it("offers the button when a finished run accounts for the claim", () => {
+    // The distinction the server makes, made identically here: a finished run is
+    // AgentJobs saying it started an agent at this task and watched it end, which is
+    // the one thing that explains a claim left behind by a process that is gone. Same
+    // `heldByAgent` as every test above — only the run list differs.
+    renderPanel({
+      heldByAgent: held,
+      runs: [run({ live: false, status: "finished", outcome: "completed" })],
+    });
+
+    expect(screen.getByRole("button", { name: /^▶ Dispatch/ })).toBeInTheDocument();
+    expect(screen.queryByText(/did not start it/i)).toBeNull();
+  });
+
+  it("leaves a live run to the gate that knows about runs", () => {
+    // Both conditions true at once, which is the ordinary state of any dispatched run:
+    // the record says an agent is working it *and* the ledger has the run. One box, and
+    // it is the one that can offer a Cancel.
+    renderPanel({ heldByAgent: held, runs: [run({ mode: "session", live: true })] });
+
+    expect(screen.queryByRole("button", { name: /^▶ Dispatch/ })).toBeNull();
+    const note = screen.getByRole("status");
+    expect(note).toHaveAttribute("data-refusal-reason", "live_run_exists");
+  });
+
+  it("offers the button on a task nobody has claimed", () => {
+    // The state almost every dispatch is made from. `agent/available` and `agent/work`
+    // were indistinguishable to the expression this replaced; they must not become
+    // indistinguishable again in the direction that withholds the button from everyone.
+    renderPanel({ heldByAgent: null, runs: [] });
+
+    expect(screen.getByRole("button", { name: /^▶ Dispatch/ })).toBeInTheDocument();
   });
 });
 

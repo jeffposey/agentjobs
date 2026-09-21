@@ -244,6 +244,35 @@ class LiveRunExistsError(DispatchRefused):
     reason = "live_run_exists"
 
 
+class TaskBeingWorkedError(DispatchRefused):
+    """The record says an agent is working this task and the ledger has never heard of it.
+
+    The gate above this one catches every agent AgentJobs started. This one catches the
+    agents it did not: a session from the spawn-session skill, a person in a terminal,
+    another tool entirely. None of them write a run directory and none of them take the
+    per-task run lock, so the only thing that knows they exist is the claim they wrote on
+    the task record -- which is exactly what this reads.
+
+    **Why the absence of a run is not evidence of death.** A dispatched run that died
+    without releasing leaves ``lifecycle: active`` / ``agent`` / ``work`` with an owner,
+    and so does an agent that is working the task right now. No field on the record tells
+    them apart, because nothing about the record changes when a process stops existing.
+    What tells them apart is whether AgentJobs ever started a run here at all: if it did,
+    it watched that run reach a terminal state and the stale claim is accounted for; if
+    it never did, the claim is all there is and it says somebody is on it. So the rule is
+    about the ledger's *memory* of the task rather than its live rows, and re-dispatching
+    over a dead dispatched run stays possible -- which is what ``_claim_or_verify`` is
+    for and what this must not break.
+
+    The remedy named in the message is ``release``, not a force flag on this request. It
+    is a manager verb, it writes its own log entry, and it makes somebody say out loud
+    that the agent holding the task is gone. A flag would be a lever whose only use is to
+    be pulled when that question is unanswered, which is when pulling it is least safe.
+    """
+
+    reason = "task_being_worked"
+
+
 class AlreadyAdmittedError(DispatchRefused):
     """An admission with this operation id already exists; nothing new was started.
 
@@ -776,6 +805,49 @@ def live_runs(home: Path) -> List[LiveRun]:
     return found
 
 
+def record_says_worked(task: Task) -> bool:
+    """Whether the task record claims an agent is working this task right now.
+
+    The four fields together, because no one of them means it. ``active`` alone is true
+    of a task parked on review; ``agent``/``work`` alone is true of a task whose owner
+    has been cleared; an owner alone is true of a closed task. What means "somebody is on
+    it" is an active task whose ball is with a named agent for work -- which is precisely
+    what ``claim_task`` writes and what nothing but a manager verb clears.
+
+    This is a statement about the record and not about the world, and the distinction is
+    the whole of task-179: no process has to exist for this to be true. What it is worth
+    is that it is the *only* cross-tool signal AgentJobs has, because every agent writes
+    it and only the ones AgentJobs started write anything else.
+    """
+    return (
+        task.lifecycle is Lifecycle.ACTIVE
+        and task.ball is Ball.AGENT
+        and task.ball_reason is BallReason.WORK
+        and task.assignment.owner is not None
+    )
+
+
+def ledger_has_ever_run(home: Path, project_id: str, task_id: str) -> bool:
+    """Whether this machine's ledger holds any run for this task, live or concluded.
+
+    Deliberately not ``live_runs``. A concluded row is the point: it is AgentJobs saying
+    *I started an agent here and I watched it end*, which is the one thing that can
+    account for a claim left on the record by a process that no longer exists. A live row
+    is handled a gate earlier by ``LiveRunExistsError`` and never reaches the caller of
+    this.
+
+    ``strictly_same_task``, not ``same_task``. The looser form exists so a run whose
+    record names no project still *refuses* a dispatch -- it cannot be shown to be
+    somebody else's. Here a matching row does the opposite and permits one, so a row that
+    cannot be shown to be this project's must not count.
+    """
+    from agentjobs.dispatch.ledger import list_runs
+
+    return any(
+        journal.strictly_same_task(record, project_id, task_id) for record in list_runs(home)
+    )
+
+
 #: How many slot holders a refusal names before it summarises the rest.
 #:
 #: A ceiling of three names three. A machine whose ceiling was raised to twenty and hit
@@ -1279,6 +1351,21 @@ def dispatch_task(
                 + ". One live run per task, always -- a second would have two agents "
                 "editing the same repository with the same task record."
             )
+    # Immediately after the ledger scan, and reading what the ledger cannot: the agents
+    # AgentJobs did not start (task-179). The scan above has just established there is no
+    # live run, which for a dispatched agent settles it and for every other kind of agent
+    # says nothing at all -- they write no run directory. So the record's own claim is
+    # asked, and a ledger row for this task from any time is what makes it safe to
+    # override. See `TaskBeingWorkedError` for why absence of a row is not evidence of
+    # death, and the ordering: a live run is still named by the error that names runs.
+    if record_says_worked(task) and not ledger_has_ever_run(machine_home, project.id, task.id):
+        raise TaskBeingWorkedError(
+            f"{task.id} is active and {task.assignment.owner!r} is working it, and this "
+            "machine has no run for it -- so whatever is holding it was not started by "
+            "AgentJobs and cannot be seen from here. Nothing was started. If that agent "
+            "is gone, release the task (which records that somebody decided so) and "
+            "dispatch the fresh one."
+        )
     # Slots, not runs: an interactive session holds its task (above) but no slot
     # (task-354), so it is not what stands between this click and a free machine.
     holding = [run for run in running if run.takes_slot]
