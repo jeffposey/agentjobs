@@ -3764,19 +3764,12 @@ class DispatchRunner:
             # wearing a question mark; and a bare pid answers about a number this
             # machine recycles in seconds, so a dead App Server whose number was
             # reissued polled as running indefinitely.
+            # The receipt only. The App Server child is created *after* the run records
+            # its start, so the weaker "created after the record" proof would call a
+            # legitimate child a stranger on a machine where the spawn took a moment.
+            # With no receipt this is the bare liveness answer, exactly as before.
             receipt = meta.get("pid_identity")
-            started = meta.get("started_at")
-            recorded_at: Optional[datetime] = None
-            if isinstance(started, str):
-                try:
-                    recorded_at = datetime.fromisoformat(started)
-                except ValueError:
-                    recorded_at = None
-            if recorded_process_alive(
-                pid,
-                identity=receipt if isinstance(receipt, str) else None,
-                recorded_at=recorded_at,
-            ):
+            if recorded_process_alive(pid, identity=receipt if isinstance(receipt, str) else None):
                 # Clear a transient miss once the process is observable again.  A null
                 # value keeps the run metadata self-describing without growing a new
                 # schema just for this one startup race.

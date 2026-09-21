@@ -851,8 +851,16 @@ class Controller:
         # The worker's own receipt, not its number: a stranger who inherited the pid
         # would otherwise hold this run open for as long as it happened to live
         # (task-505).
+        #
+        # The receipt **only**, and deliberately not the weaker `recorded_at` proof that
+        # serves elsewhere. This is the one place where a wrong "it is gone" concludes a
+        # run whose worker may still be writing, and a batch worker is the one process
+        # that is created *after* the moment its run recorded -- so on a loaded machine
+        # a legitimate worker could read as created-after-the-record and be declared
+        # dead. With no receipt this falls through to the bare liveness answer, which is
+        # what it was before and errs the safe way.
         if not record.is_session and self.still_running(
-            record.pid, identity=record.pid_identity or None, recorded_at=record.started_at
+            record.pid, identity=record.pid_identity or None
         ):
             return f"stop not confirmed: pid {record.pid} is still alive"
         ledger._conclude(
