@@ -1296,8 +1296,9 @@ run](#the-projects-own-mcp-servers-travel-with-the-run).
 
 !!! warning "`supervised` was the default until 2026-08-19, and could not finish work"
     The table below says `acceptEdits` + allow-list runs an arbitrary command with no
-    prompt. That is true only of the nine allow-listed prefixes. **Everything else still
-    parks** — and "everything else" includes `ls`, `cat`, `find`, `grep` and `sed`.
+    prompt. That is true only of the allow-listed prefixes — `ALLOW_PREFIXES` in
+    `dispatch/runner.py` is the list. **Everything else still parks** — and "everything
+    else" includes `ls`, `cat`, `find`, `grep` and `sed`.
 
     Observed on the first two real dispatches ever run, both of task-107: run_a6deb292
     started cleanly, read its task, then parked asking permission to run
@@ -1322,17 +1323,32 @@ ball → `human`/`input` with the pending command quoted in the `ball_prompt`, a
 from a phone. The seed list is deliberately boring: `poetry run pytest:*`,
 `poetry run ruff:*`, `poetry run black:*`, `poetry run mypy:*`, `npm run:*`,
 `git status:*`, `git diff:*`, `git add:*`, `git commit:*` — and, since
-2026-08-21, `git merge:*`.
+2026-09-20, `agentjobs finish:*` and `poetry run agentjobs finish:*`.
 
-That last one is the exception that proves the rule, and task-222 records why it was
-made on Jeff's explicit authorisation rather than by a widening nobody reviewed.
-`git merge` is not boring the way `git status` is: it writes to the working tree and
-creates commits. What makes it acceptable is that the merge is the sanctioned end of
-the documented lifecycle and is gated on a human approval recorded on the task —
-the classifier was never the thing authorising it, only an unreliable obstacle in
-front of it, and a run that does all of its work and then cannot land it is the most
-expensive shape a failure takes. `git push` stays absent and must: pushing is a
-separate act from merging here, and nothing authorises it.
+Those last two replaced `git merge:*`, which was on the list from 2026-08-21 to
+2026-09-20. Task-222 added it on Jeff's explicit authorisation rather than by a
+widening nobody reviewed, on the argument that the merge is the sanctioned end of the
+documented lifecycle and **is gated on a human approval recorded on the task** — the
+classifier being an unreliable obstacle in front of a gate rather than the gate itself.
+Task-245 withdrew it, because an allow rule cannot read a task record. `git merge`
+merges whatever is in front of it whether or not anybody approved anything, so the
+pre-approval was resting on a check the pre-approved command does not make.
+
+Worse, the command that *does* make it was not on the list at all. `AUTOMATIC_CLAUSE`
+tells an `autonomous` run to merge with `agentjobs finish <task> --project <id>
+--posture-release`; §5a is what that does. It refuses without a standing human approval
+on the record, re-checks the approval has not been withdrawn, and honours
+`--posture-release` only where the project's own configured posture releases the gate.
+So pre-approving it grants nothing the project's configuration has not granted already —
+while `git merge` sitting on the list and the finisher sitting off it meant the ungated
+path ran with no round trip and the gated one went to the classifier. The list was
+steering runs towards the command that reads nothing.
+
+A run that still needs to merge by hand — a project with `finish.enabled` off — meets
+the classifier for `git merge`. On a `--bg` run with nobody to answer that ends in a
+park and a handoff, which is the correct failure for an unreviewed merge; the incorrect
+one is the merge. `git push` stays absent and must: pushing is a separate act from
+merging here, and nothing authorises it.
 
 The allow-list is still a maintenance surface that will be widened under pressure. What
 changes is that widening it is a **visible act** — a prompt someone answered with "don't
@@ -1621,8 +1637,8 @@ Clamping is strictly safer, and the run says on its record that it happened.
 `read_only` < `supervised` < `auto` < `autonomous`.
 
 `supervised` sitting below `auto` surprises people and is deliberate. The question a
-ceiling asks is what a run may do **unattended**: supervised runs nine allow-listed
-command prefixes and parks on everything else, where `auto` is classifier-gated over a
+ceiling asks is what a run may do **unattended**: supervised runs the handful of
+allow-listed command prefixes and parks on everything else, where `auto` is classifier-gated over a
 far larger set. Supervised *feels* wider because a human at a terminal can approve
 whatever it parks on -- but that is a second authorisation arriving, not something the
 run was granted, and a `--bg` session at `supervised` gets no such approval and simply

@@ -318,8 +318,14 @@ class TestPosture:
         for prefix in ("poetry run pytest", "git commit", "npm run"):
             assert f"({prefix}:*)" in rules
 
-    def test_the_merge_command_is_allowed_in_both_shells(self) -> None:
-        """task-222. Every dispatched run that finishes its work ends in a merge.
+    def test_the_finish_command_is_allowed_in_both_shells(self) -> None:
+        """task-245. The sanctioned merge path is the one that runs without a round trip.
+
+        ``agentjobs finish`` is what ``AUTOMATIC_CLAUSE`` tells an autonomous run to use,
+        and it is the command that re-reads the approval before merging. Both spellings,
+        because the clause names the bare one and the repository's prose uses the Poetry
+        one, and a run that meets a classifier on whichever it picked is a run that has
+        been pushed towards the other.
 
         The rules are written out as literal strings rather than rebuilt with
         ``f"{tool}({prefix}:*)"``. A test that composes its expectation from the same
@@ -329,19 +335,38 @@ class TestPosture:
         """
         rules = allow_rules()
 
-        assert "Bash(git merge:*)" in rules
-        assert "PowerShell(git merge:*)" in rules
+        assert "Bash(agentjobs finish:*)" in rules
+        assert "PowerShell(agentjobs finish:*)" in rules
+        assert "Bash(poetry run agentjobs finish:*)" in rules
+        assert "PowerShell(poetry run agentjobs finish:*)" in rules
+
+    def test_merging_by_hand_is_not_pre_approved(self) -> None:
+        """task-245, replacing task-222's assertion that it was.
+
+        ``git merge`` was pre-approved on Jeff's explicit authorisation recorded on
+        task-222, on the reasoning that the merge is the sanctioned end of the lifecycle
+        and is gated on a human approval recorded on the task. An allow rule cannot read
+        a task record, so the justification named a check the pre-approved command does
+        not make -- and the command the scripted finish replaced it with was not on the
+        list at all. Both halves are fixed by the swap above.
+
+        A run that still wants to merge by hand meets the classifier for it. On a
+        ``--bg`` run with nobody to answer that ends in a park and a handoff, which is
+        the right outcome for an unreviewed merge.
+        """
+        rules = allow_rules()
+
+        assert "Bash(git merge:*)" not in rules
+        assert "PowerShell(git merge:*)" not in rules
+        assert not any("git merge" in rule for rule in rules)
 
     def test_pushing_is_not_pre_approved(self) -> None:
-        """The anti-rot half of the pair above, also task-222.
+        """The anti-rot half of the pair above, from task-222 and unchanged by task-245.
 
-        ``git merge`` was added on Jeff's explicit authorisation recorded on that task,
-        because the merge is the sanctioned end of the documented lifecycle and is
-        gated on a human approval rather than on the classifier. Pushing is a separate
-        act from merging in this repository and nothing authorises it. Asserting its
-        absence next to the entry that was added means a later widening has to delete
-        a test stating why, instead of slipping in beside a list that merely happens
-        not to mention it.
+        Pushing is a separate act from merging in this repository and nothing authorises
+        it, at any posture. Asserting its absence beside the entries that are present
+        means a later widening has to delete a test stating why, instead of slipping in
+        beside a list that merely happens not to mention it.
         """
         rules = allow_rules()
 
