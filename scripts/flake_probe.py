@@ -57,7 +57,15 @@ AFFECTED = [
 """The files task-505 was filed about: each drives a real child process or shells out to
 git, and across six gate runs of one tree nothing else in 5384 tests failed once."""
 
-FAILED = re.compile(r"^FAILED (\S+)", re.MULTILINE)
+CSI = re.compile(r"\x1b\[[0-9;]*m")
+"""Colour, which pytest emits even into a pipe and which hid every failing test id the
+first time this script was used. ``finish.failing_tests`` had the identical defect and
+the identical fix (task-419); stripping first is not optional here."""
+
+FAILED = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
+"""A failing test *or* one that errored in setup. Only ``FAILED`` was matched at first,
+so a fixture error read as "red, no test named" -- which is exactly the sort of red this
+script exists to explain."""
 
 
 # ----- pid recycling ----------------------------------------------------------
@@ -118,15 +126,17 @@ def _slots_held(count: int):
         yield
 
 
-def measure_runs(times: int, slots: int, files: Sequence[str]) -> int:
+def measure_runs(times: int, slots: int, files: Sequence[str], keep: Path) -> int:
     import gate_slots
 
     victims: collections.Counter[str] = collections.Counter()
     red = 0
+    keep.mkdir(parents=True, exist_ok=True)
     with _slots_held(slots):
         workers = gate_slots.workers()
         gates = gate_slots.active()
         print(f"{times} runs of {len(files)} files at -n {workers} ({gates} gates hold slots)")
+        print(f"red runs are kept under {keep}")
         for attempt in range(1, times + 1):
             started = time.monotonic()
             completed = subprocess.run(
@@ -136,15 +146,24 @@ def measure_runs(times: int, slots: int, files: Sequence[str]) -> int:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                env={**os.environ},
+                # No colour from the child. A red run's output is read by this script
+                # and by whoever opens the kept file, and CSI sequences broke both --
+                # the same defect `finish.failing_tests` had (task-419).
+                env={**os.environ, "NO_COLOR": "1", "PY_COLORS": "0"},
             )
             elapsed = time.monotonic() - started
-            failing = FAILED.findall(completed.stdout or "")
+            output = CSI.sub("", (completed.stdout or "") + (completed.stderr or ""))
+            failing = FAILED.findall(output)
             victims.update(failing)
+            verdict = "green"
             if completed.returncode != 0:
                 red += 1
-            verdict = "red" if completed.returncode else "green"
-            named = (" " + ", ".join(failing)) if failing else ""
+                verdict = "red"
+                # **Kept, always.** A red whose cause nobody can look at afterwards is
+                # worth almost nothing, and re-running to capture it is the waste this
+                # script exists to stop.
+                (keep / f"run-{attempt:02d}.log").write_text(output, encoding="utf-8")
+            named = (" " + ", ".join(failing)) if failing else (" (no test named)" if red else "")
             print(f"  run {attempt:>3} {verdict} {elapsed:6.1f}s{named}", flush=True)
     print(f"{red}/{times} red")
     if victims:
@@ -166,11 +185,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     runs.add_argument("--times", type=int, default=20)
     runs.add_argument("--slots", type=int, default=0, help="extra gate slots to hold")
     runs.add_argument("--files", nargs="*", default=AFFECTED)
+    runs.add_argument(
+        "--keep",
+        type=Path,
+        default=ROOT / "flake-probe-reds",
+        help="where a red run's output is written (gitignored)",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "pids":
         return measure_pids(args.spawns, args.width)
-    return measure_runs(args.times, args.slots, args.files)
+    return measure_runs(args.times, args.slots, args.files, args.keep)
 
 
 if __name__ == "__main__":

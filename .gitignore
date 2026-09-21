@@ -83,3 +83,6 @@ evals/context/results/
 # directory, which is exactly what a careless `git add -A` sweeps into a commit.
 # Ignoring the path does not endorse it: the convention is still ../worktrees/<repo>-<nnn>.
 .claude/worktrees/
+
+# What scripts/flake_probe.py keeps from a red run so nobody has to re-run to see it.
+flake-probe-reds/
