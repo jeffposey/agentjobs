@@ -506,29 +506,39 @@ class RunLock:
         except OSError:  # pragma: no cover - the lock was cleared underneath us
             pass
 
+    def held_by_another(self, holder: Optional["LockHolder"]) -> bool:
+        """Whether the lock file now names somebody other than this handle.
+
+        **The rule is the holder's, not the releaser's**, and that asymmetry is the whole
+        of task-514. A run's terminal write and its lock release are two steps, and
+        between them the lock can legitimately have been reclaimed -- by a second
+        dispatch, or, the case that cost an hour, by the *scripted finish* the approval
+        started. A finish's lock names a finish and no run at all, so the old test --
+        "both sides name a run and the names differ" -- was never satisfied by it: the
+        poller settling ``run_c39ec860`` deleted ``fin_9323da60``'s lock, and the
+        duplicate spawned two seconds later walked in through a door nothing was holding.
+
+        So each identifying field the *holder* carries has to match ours, and a field it
+        carries that we do not is a mismatch rather than a licence. The direction that
+        errs leaves a lock behind, which ``stale_lock_reason`` reclaims; the direction
+        that errs the other way puts two finishes on one task.
+        """
+        if holder is None:
+            return False
+        if holder.run_id and holder.run_id != self.run_id:
+            return True
+        if holder.finish_id and holder.finish_id != self.finish_id:
+            return True
+        return False
+
     def release(self) -> None:
         """Delete the lock. Safe to call twice, and safe to call late.
 
-        A lock file that has come to name a *different* run is left alone. That is not
-        defensive padding: a run's terminal write and its lock release are two steps,
-        and between them a second dispatch can legitimately reclaim the lock and take
-        it for a new run. Releasing blind would delete the new run's lock and let a
-        third dispatch in beside it.
+        A lock file that has come to name a *different* holder is left alone -- see
+        :meth:`held_by_another`. Releasing blind would delete the new holder's lock and
+        let a third claimant in beside it.
         """
-        holder = read_lock_holder(self.path)
-        if holder is not None and self.run_id and holder.run_id and holder.run_id != self.run_id:
-            return
-        # The same rule for a holder identified by finish id rather than run id, which
-        # is every scripted finish and every runway (task-223). A runway names no run at
-        # all, so without this its release was unconditional -- and an unconditional
-        # release of a *shared* lock deletes whatever peer reclaimed it in between and
-        # lets a third finish in beside them.
-        if (
-            holder is not None
-            and self.finish_id
-            and holder.finish_id
-            and holder.finish_id != self.finish_id
-        ):
+        if self.held_by_another(read_lock_holder(self.path)):
             return
         try:
             self.path.unlink()
@@ -647,7 +657,15 @@ def acquire_run_lock(
                 # acquisition means something is creating them faster than they can be
                 # judged, and looping on that would be a busy-wait dressed as recovery.
                 reclaimed = True
-                RunLock(task_id=task_id, path=path, run_id=holder.run_id).release()
+                # Both identities, because since task-514 a release only deletes a lock
+                # whose holder it can name. A finish's lock carries a finish id and no
+                # run id, so reclaiming one on the run id alone would now be refused.
+                RunLock(
+                    task_id=task_id,
+                    path=path,
+                    run_id=holder.run_id,
+                    finish_id=holder.finish_id,
+                ).release()
                 continue
 
         if time.monotonic() >= deadline:
@@ -707,6 +725,7 @@ def acquire_runway_lock(
     timeout: float = RUNWAY_TIMEOUT_SECONDS,
     poll: float = 1.0,
     on_wait: Optional[Callable[[LockHolder], None]] = None,
+    on_poll: Optional[Callable[[], None]] = None,
 ) -> RunLock:
     """Take the one runway this repository has, waiting for it rather than refusing.
 
@@ -734,6 +753,12 @@ def acquire_runway_lock(
     doing this task, which is an error. Contention here means the queue is working.
     ``on_wait`` is called at most once, with the holder found the first time the runway
     was busy, so a caller can say on its own record that it is queued rather than hung.
+
+    ``on_poll`` is called once per wait, and **may raise to abandon the queue** (task-514).
+    The one-at-a-time rule is untouched by it: what it adds is the question nothing asked
+    for an hour, which is whether the thing this finish is queued to do still needs doing.
+    Waiting out the timeout to be told the branch was merged and the worktree removed is
+    the worst available outcome, and it costs the *next* finish in line its place.
     """
     deadline = time.monotonic() + timeout
     announced = False
@@ -758,6 +783,9 @@ def acquire_runway_lock(
             announced = True
             if holder is not None:
                 on_wait(holder)
+
+        if on_poll is not None:
+            on_poll()
 
         if time.monotonic() >= deadline:
             holder = read_lock_holder(locks_root(home) / f"{runway_lock_name(root)}.lock")
@@ -890,7 +918,13 @@ def release_stale_locks(home: Path) -> List[StaleLock]:
         if reason is None:
             continue
         project_id, task_id = split_lock_name(path.stem)
-        RunLock(task_id=task_id, path=path, run_id=holder.run_id, project_id=project_id).release()
+        RunLock(
+            task_id=task_id,
+            path=path,
+            run_id=holder.run_id,
+            finish_id=holder.finish_id,
+            project_id=project_id,
+        ).release()
         released.append(
             StaleLock(task_id=task_id, run_id=holder.run_id, reason=reason, project_id=project_id)
         )
