@@ -5156,6 +5156,70 @@ The first rollup over this machine's real runs (2026-09-13, `--since 3`) found s
 deaths, all retried, two of them on repeated test ids, plus one flaky test and one
 `worker_gone` with no execution row.
 
+### What task-505 fixed: a recorded pid is not a name for a process (2026-09-21)
+
+Task-444's recycled pid, above, was not one call site. It was the whole subsystem, and it
+is why the dispatch tests had been going red on a different test roughly one run in three,
+declining reviewed branches at the merge gate.
+
+**The measurement first, because everything else follows from it.** 2000 short-lived
+children spawned eight at a time on this machine used **988 distinct pids**: a number is
+handed to a new process a median of 23.7 seconds after its owner dies, and as little as
+0.35. `scripts/flake_probe.py pids` is that measurement. The gate spawns far faster than
+ten processes a second, and three or four live agent sessions spawn beside it — which is
+why the flake scaled with how busy the machine was and not with any one gate's worker
+count.
+
+A pid recorded and acted on later therefore fails in both directions:
+
+| | What it looks like | What it cost |
+| --- | --- | --- |
+| Believed alive | A stranger inherits the number, so `Controller._observe_batch` returns early forever | The run is never concluded, its slot never released, its retry never scheduled. `AssertionError: []` from `TestBatchRecovery` |
+| Killed | `_kill_tree` runs `taskkill /PID <recorded> /T /F` on whoever holds the number | An unrelated process dies. A process killed that way **exits 1 with empty stdout and stderr**, which is not something a Python traceback can produce — and under the gate the stranger is usually another xdist worker's child, so the victim was a different test every run |
+
+**`dispatch/pids.py` is the one home for the rule.** It holds `process_alive` and
+`process_identity` (task-416) and `process_created_after` (task-444), which were three
+halves of one answer in three modules, plus the two predicates the rest of the subsystem
+needed:
+
+- `recorded_process_alive` — the liveness question. Doubt answers **yes**, which is what
+  every call site did before: refusing to conclude a live run is recoverable.
+- `is_the_recorded_process` — the gate in front of anything that kills. Doubt answers
+  **no**, because the cost of that error is somebody else's process. A bare pid is never
+  sufficient authority, and `_kill_tree` returns `False` rather than raising when it
+  refuses, a dead worker being the ordinary case.
+
+Two receipts, and which one a caller has decides which it passes. `identity` is exact and
+is recorded at spawn — a batch run's worker has one, and `supervisor_identity` was added
+so its supervisor does too. `recorded_at` is the weaker proof, for a process that was
+already running when it wrote the record: the holder that admitted an attempt, a
+supervisor started before its run. Such a process cannot have been created after what it
+wrote, so a later creation time proves reuse.
+
+Applied at every site that trusted a bare pid: the holder check in
+`perform_launch_reconcile` and in `attempt_evidence`, the supervisor check in
+`_observe_batch`, the stop confirmation, `DispatchLedger._stop_batch`, and the Codex App
+Server poll — which was also using `os.kill(pid, 0)`, the Unix liveness idiom, on a
+platform where CPython implements `os.kill` with `TerminateProcess`. `terminate_group` is
+exempt and says so: it holds the `Popen`, and an open OS handle is what keeps the number
+reserved.
+
+**A second cause, found on the way and fixed with it.** A batch run's supervisor is a
+thread and is the only writer of that run's terminal `dispatch_result`. The application's
+lifespan closed every SQLite store at shutdown without waiting for one, so the write
+raised `sqlite3.ProgrammingError: Cannot operate on a closed database` inside a thread
+nobody awaits — the run's ending lost, the only trace a warning. A server restarted under
+a live batch run did this, and so did every test whose `TestClient` left the lifespan:
+thirteen such warnings in `tests/test_dispatch_api.py` alone. `runner.settle_supervisors`
+is a bounded join, called before the close in both places. Bounded is the design: a
+supervisor may be watching a worker that legitimately runs for an hour.
+
+**Proof.** `tests/dispatch/test_pid_reuse.py` spawns a real stranger and proves what the
+code does with its number, in both directions, including that `taskkill /F` leaves exit 1
+and two empty streams. `tests/dispatch/test_supervisor_settle.py` drives the real lifespan
+with a live supervisor. `TestBatchRecovery` gained the twin of its worker test for the
+supervisor pid; both fail without the fix with the original `AssertionError: []`.
+
 ### The supervisor holds no slot (task-458, 2026-09-18)
 
 Jeff, 2026-09-18: the epic session that sits idle should not take one of the machine's
