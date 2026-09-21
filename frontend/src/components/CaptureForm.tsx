@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import type {
+  AttachmentUpload,
   DispatchStarted,
   Priority,
   SpecDraftResponse,
@@ -121,6 +122,27 @@ export type CaptureFormProps = {
    * paying for one to put a dialog on screen is a request nobody asked for.
    */
   onExpandedChange?: (expanded: boolean) => void;
+  /**
+   * Put what is typed on the tray instead of filing it now (task-121). Absent means the
+   * surface offers no tray, and the form is the single-capture form it has always been.
+   *
+   * It hands over the assembled request rather than the typed fields, because the whole
+   * argument for one builder is that a batch must produce the records a single capture
+   * produces -- the same tags, the same attribution, and the provenance of *this* page
+   * rather than whichever page the batch is eventually sent from. The images travel
+   * beside it: the tray keeps one copy of the bytes and joins them back on when it
+   * sends, so the stored list is not carrying each screenshot twice.
+   */
+  onCollect?: (collected: {
+    projectId: string;
+    request: TaskCreateRequest;
+    attachments: Array<PendingAttachment>;
+    route: string;
+    /** The note as typed, which is what a model is asked to expand -- never the footer. */
+    note: string;
+    /** Whether the drafting checkbox is on, so one control governs both paths. */
+    wantsDraft: boolean;
+  }) => void;
 };
 
 function optional(value: string) {
@@ -158,6 +180,7 @@ export function CaptureForm({
   dispatchState = null,
   onDestinationChange,
   onStart,
+  onCollect,
 }: CaptureFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   // The attachment picker owns its own textarea, so the microphone beside it needs a
@@ -188,6 +211,10 @@ export function CaptureForm({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Lifted out of `SpecDraftControl` so the same checkbox decides both what its own
+  // button does and whether a collected finding is fleshed out (task-121). On by
+  // default, which is what it has always been.
+  const [wantsDraft, setWantsDraft] = useState(true);
 
   // Fall back to the first registered project only when the capture happened on a page
   // with no project of its own; never silently override the one being viewed.
@@ -270,59 +297,137 @@ export function CaptureForm({
     [writeValues],
   );
 
+  /**
+   * The request this form currently describes, assembled once for both paths.
+   *
+   * Extracted for task-121 so that adding a finding to the tray and filing it now
+   * cannot produce different records. Throws the sentence a malformed Context or
+   * Dependency line deserves, which both callers show in the same alert box.
+   *
+   * `requestAttachments` is a parameter rather than read from state because the two
+   * paths differ on exactly this: a single capture sends its images with the request,
+   * and a collected one leaves them to the tray, which holds one copy of the bytes and
+   * joins them back on when the batch is sent.
+   */
+  const buildRequest = (
+    form: FormData,
+    destinationProjectId: string,
+    filingAs: string,
+    operationId: string,
+    requestAttachments: Array<AttachmentUpload>,
+  ): TaskCreateRequest => {
+    const specContext = parseRows(String(form.get("context") ?? ""), "Context", true).map(
+      ({ first, reason }) => ({ path: first, why: reason }),
+    );
+    const dependencies = parseRows(
+      String(form.get("dependencies") ?? ""),
+      "Dependency",
+      false,
+    ).map(({ first, reason }) => ({
+      task: first,
+      type: "needs" as const,
+      ...(reason ? { note: reason } : {}),
+    }));
+    const acceptance = String(form.get("acceptance") ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const tags = String(form.get("tags") ?? "")
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    return buildCaptureRequest({
+      draft: { title, details, actionable },
+      context,
+      destinationProjectId,
+      reporter: filingAs,
+      operationId,
+      attachments: requestAttachments,
+      tags,
+      priority,
+      spec: {
+        summary: String(form.get("summary") ?? ""),
+        intent: String(form.get("intent") ?? ""),
+        constraints: String(form.get("constraints") ?? ""),
+        out_of_scope: String(form.get("out_of_scope") ?? ""),
+        acceptance,
+        context: specContext,
+        dependencies,
+        id: optional(String(form.get("id") ?? "")),
+        parent: optional(String(form.get("parent") ?? "")),
+        category: String(form.get("category") ?? "general").trim() || "general",
+        effort: optional(String(form.get("effort") ?? "")),
+      },
+    });
+  };
+
+  /**
+   * Add what is typed to the tray, without leaving the capture flow.
+   *
+   * Validated here rather than by the browser, because this is a `type="button"` and
+   * native constraint validation only runs on a submit. One readable sentence in the
+   * form's own alert box is also what the rest of this form does with a bad value.
+   *
+   * The caller remounts the form afterwards, which is how every field, every attachment
+   * and the expansion state reset and focus returns to Title -- the same mechanism
+   * "File another" has used since task-346, rather than a reset function that has to be
+   * kept in step with the state.
+   */
+  const collect = () => {
+    const form = formRef.current;
+    if (!form || !onCollect || !reporter || !effectiveDestination) return;
+    if (!title.trim() || !details.trim()) {
+      setError("A finding needs a title and a note before it can go on the list.");
+      return;
+    }
+    setError(null);
+    try {
+      onCollect({
+        projectId: effectiveDestination,
+        request: buildRequest(
+          new FormData(form),
+          effectiveDestination,
+          reporter,
+          // Minted once, here, and stored with the item: a batch may be sent twice
+          // because the first attempt's answer was lost, and the server resolves a
+          // repeated operation_id to the task the first attempt made. See `tray.ts`.
+          newOperationId(),
+          [],
+        ),
+        attachments,
+        route: context.route,
+        // What the person actually typed, with no provenance footer on it: that block
+        // is AgentJobs talking about itself and is not part of the finding a model is
+        // being asked to expand.
+        note: details,
+        wantsDraft,
+      });
+    } catch (caught) {
+      setError(
+        caught instanceof Error && caught.message
+          ? caught.message
+          : "It could not be added to the list.",
+      );
+    }
+  };
+
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!reporter || !effectiveDestination) return;
     setError(null);
     const form = new FormData(event.currentTarget);
     try {
-      const specContext = parseRows(String(form.get("context") ?? ""), "Context", true).map(
-        ({ first, reason }) => ({ path: first, why: reason }),
-      );
-      const dependencies = parseRows(
-        String(form.get("dependencies") ?? ""),
-        "Dependency",
-        false,
-      ).map(({ first, reason }) => ({
-        task: first,
-        type: "needs" as const,
-        ...(reason ? { note: reason } : {}),
-      }));
-      const acceptance = String(form.get("acceptance") ?? "")
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean);
-      const tags = String(form.get("tags") ?? "")
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean);
-
       setBusy(true);
-      const request = buildCaptureRequest({
-        draft: { title, details, actionable },
-        context,
-        destinationProjectId: effectiveDestination,
+      const request = buildRequest(
+        form,
+        effectiveDestination,
         reporter,
         // A retry after a timeout resolves to the task the first attempt made instead
         // of filing the same thing twice.
-        operationId: newOperationId(),
-        attachments: toUploads(attachments),
-        tags,
-        priority,
-        spec: {
-          summary: String(form.get("summary") ?? ""),
-          intent: String(form.get("intent") ?? ""),
-          constraints: String(form.get("constraints") ?? ""),
-          out_of_scope: String(form.get("out_of_scope") ?? ""),
-          acceptance,
-          context: specContext,
-          dependencies,
-          id: optional(String(form.get("id") ?? "")),
-          parent: optional(String(form.get("parent") ?? "")),
-          category: String(form.get("category") ?? "general").trim() || "general",
-          effort: optional(String(form.get("effort") ?? "")),
-        },
-      });
+        newOperationId(),
+        toUploads(attachments),
+      );
       // Two requests in order, and two outcomes reported separately: the create, then
       // the ordinary dispatch the task page's button makes. A refused start never
       // undoes the create -- see `fileAndMaybeStart`.
@@ -349,7 +454,20 @@ export function CaptureForm({
   };
 
   return (
-    <form ref={formRef} onSubmit={(event) => void submit(event)} className="space-y-4">
+    <form
+      ref={formRef}
+      onSubmit={(event) => void submit(event)}
+      // Ctrl+Enter adds to the list, which is the keyboard-first half of task-121: a
+      // review pass types a title, a note, Ctrl+Enter, and is in an empty Title box
+      // again without a hand having left the keyboard. Plain Enter is left alone, so
+      // the form still submits the way every other form in the app does.
+      onKeyDown={(event) => {
+        if (!onCollect || event.key !== "Enter" || !(event.ctrlKey || event.metaKey)) return;
+        event.preventDefault();
+        collect();
+      }}
+      className="space-y-4"
+    >
       {error && (
         <div
           role="alert"
@@ -419,6 +537,9 @@ export function CaptureForm({
           readInput={readInput}
           onApply={applyDraft}
           onUndo={writeValues}
+          enabled={wantsDraft}
+          onEnabledChange={setWantsDraft}
+          collecting={Boolean(onCollect)}
         />
       )}
 
@@ -638,6 +759,25 @@ export function CaptureForm({
 
       <div className="mobile-action-row flex items-center justify-end gap-3">
         {cancel}
+        {onCollect && (
+          <button
+            type="button"
+            onClick={collect}
+            // Off while an agent is wanted, rather than quietly dropping the box: a
+            // batch files tasks and starts nothing, so a checked "start an agent" and
+            // "add to the list" are two different intentions and the button says which
+            // one it cannot serve.
+            disabled={busy || !reporter || wantsStart}
+            title={
+              wantsStart
+                ? "A batch files tasks without starting agents. Clear the start box, or file this one now."
+                : "Add this finding to the list and start another (Ctrl+Enter)"
+            }
+            className="touch-target rounded-lg border border-blue-500/60 px-4 font-semibold text-blue-200 hover:bg-dark-border disabled:opacity-60"
+          >
+            Add to the list
+          </button>
+        )}
         <button
           type="submit"
           disabled={busy || !reporter}
@@ -646,6 +786,19 @@ export function CaptureForm({
           {busy ? "Filing…" : "File it"}
         </button>
       </div>
+      {onCollect && (
+        <p className="text-right text-xs text-dark-muted">
+          {wantsStart ? (
+            "A batch files tasks without starting agents. Clear the box above to add this to the list."
+          ) : (
+            <>
+              <kbd className="rounded border border-dark-border bg-dark-bg px-1">Ctrl</kbd>+
+              <kbd className="rounded border border-dark-border bg-dark-bg px-1">Enter</kbd> adds
+              to the list and clears the form for the next finding.
+            </>
+          )}
+        </p>
+      )}
     </form>
   );
 }

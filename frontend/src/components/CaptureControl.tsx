@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useMatch } from "react-router-dom";
@@ -7,13 +7,26 @@ import type { Task } from "../api/generated";
 import {
   createTaskApiProjectsProjectIdTasksPostMutation,
   dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation,
+  draftTaskSpecApiProjectsProjectIdModelDraftPostMutation,
   getDispatchStateApiProjectsProjectIdDispatchGetOptions,
+  getModelStatusApiModelGetOptions,
   getProjectsApiProjectsGetOptions,
   listTasksApiProjectsProjectIdTasksGetOptions,
 } from "../api/generated/@tanstack/react-query.gen";
 import { readRefusal } from "../api/mutation-error";
+import { newOperationId } from "../api/operationId";
 import { readReportContext } from "../report/issueReport";
+import {
+  inCollectedOrder,
+  nextOrder,
+  trayRequest,
+  type TrayFiling,
+  type TrayItem,
+} from "../report/tray";
+import { mergeDraft } from "../report/trayDraft";
+import { trayStore } from "../report/trayStore";
 import { CaptureForm, type CaptureDestination } from "./CaptureForm";
+import { CaptureTray } from "./CaptureTray";
 import { FiledNotice, type FiledOutcome } from "./DispatchOnCreate";
 
 /**
@@ -61,6 +74,103 @@ function PlusIcon() {
   );
 }
 
+/** What the form hands over when a finding goes on the list. */
+type Collected = Omit<TrayItem, "id" | "order">;
+
+export type CaptureTrayHandle = {
+  items: ReadonlyArray<TrayItem>;
+  /** The items as they are right now, for a callback that outlived its render. */
+  current: () => Array<TrayItem>;
+  add: (collected: Collected) => TrayItem;
+  /** Replace one item. A no-op once it has been removed or filed. */
+  update: (item: TrayItem) => void;
+  remove: (itemId: string) => void;
+  durable: boolean;
+};
+
+/**
+ * The collected findings, loaded from this device and written back as they change
+ * (task-121).
+ *
+ * **Held here rather than in the dialog**, because the count has to be visible on the
+ * trigger. A tray that only exists while a modal is open is a tray nobody can tell they
+ * still have -- which is the same leak as not persisting it, arriving one step later.
+ *
+ * React state is what renders; the store is a write-through copy. A refused write
+ * therefore costs durability and not the capture, which is why nothing here awaits one.
+ */
+function useCaptureTray(): CaptureTrayHandle {
+  const store = useMemo(() => trayStore(), []);
+  const [items, setItems] = useState<Array<TrayItem>>([]);
+  /**
+   * The same list, readable synchronously.
+   *
+   * A draft comes back a few seconds after the collect that asked for it, by which time
+   * the person may have removed that card or filed the batch. Both the write-back and
+   * the submit therefore need to know what is on the tray *now* rather than what was on
+   * it when a closure was made -- and a stale answer here would resurrect a removed
+   * finding on disk. Maintained by every mutator below rather than by an effect, so it
+   * is never a render behind.
+   */
+  const held = useRef<Array<TrayItem>>([]);
+
+  const commit = useCallback((next: Array<TrayItem>) => {
+    held.current = next;
+    setItems(next);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void store.load().then((stored) => {
+      // Merged in front of whatever has been collected since the load was asked for,
+      // rather than assigned over it: the load is asynchronous and a fast Ctrl+Enter can
+      // land first. Two items can then hold the same `order`, which `inCollectedOrder`
+      // resolves by array position -- `sort` is stable -- so the stored ones stay first.
+      if (!alive) return;
+      const seen = held.current;
+      commit([...stored.filter((item) => !seen.some((one) => one.id === item.id)), ...seen]);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [store, commit]);
+
+  const add = useCallback(
+    (collected: Collected) => {
+      const item: TrayItem = {
+        id: newOperationId(),
+        order: nextOrder(held.current),
+        ...collected,
+      };
+      commit([...held.current, item]);
+      void store.put(item);
+      return item;
+    },
+    [commit, store],
+  );
+
+  const update = useCallback(
+    (item: TrayItem) => {
+      // Dropped on the floor when the card is gone. A draft that resolved after its
+      // finding was removed or filed must not put it back, on screen or on disk.
+      if (!held.current.some((one) => one.id === item.id)) return;
+      commit(held.current.map((one) => (one.id === item.id ? item : one)));
+      void store.put(item);
+    },
+    [commit, store],
+  );
+
+  const remove = useCallback(
+    (itemId: string) => {
+      commit(held.current.filter((item) => item.id !== itemId));
+      void store.remove([itemId]);
+    },
+    [commit, store],
+  );
+
+  return { items, current: () => held.current, add, update, remove, durable: store.durable };
+}
+
 /**
  * The trigger, and the dialog it opens.
  *
@@ -71,6 +181,8 @@ function PlusIcon() {
 export function CaptureControl({ className = "" }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const tray = useCaptureTray();
+  const waiting = tray.items.length;
 
   // By hand, because the overlay is not a browser dialog: the node holding focus is
   // about to leave the document, and the browser would otherwise leave focus on
@@ -81,15 +193,20 @@ export function CaptureControl({ className = "" }: { className?: string }) {
   };
 
   return (
-    <div className={`shrink-0 ${className}`}>
+    <div className={`relative shrink-0 ${className}`}>
       <button
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label="New task or issue"
-        title="New task or issue"
+        // The count is in the name, not only in the badge. A list waiting to be filed is
+        // the one thing about this control that is not obvious from its glyph, and a
+        // screen reader gets nothing from a coloured dot.
+        aria-label={
+          waiting > 0 ? `New task or issue (${waiting} collected)` : "New task or issue"
+        }
+        title={waiting > 0 ? `New task or issue — ${waiting} collected` : "New task or issue"}
         // No accent, and that is task-336 rather than a style preference: blue in
         // this bar means "you are here" and nothing else, which is what stopped a
         // coloured Create link reading as the selected tab. The glyph and the corner
@@ -99,14 +216,22 @@ export function CaptureControl({ className = "" }: { className?: string }) {
       >
         <PlusIcon />
       </button>
-      {open && createPortal(<CaptureDialog onClose={close} />, document.body)}
+      {waiting > 0 && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-blue-500 px-1 text-center text-[10px] font-bold leading-4 text-white"
+        >
+          {waiting}
+        </span>
+      )}
+      {open && createPortal(<CaptureDialog onClose={close} tray={tray} />, document.body)}
     </div>
   );
 }
 
 type Filed = { projectId: string; outcome: FiledOutcome };
 
-function CaptureDialog({ onClose }: { onClose: () => void }) {
+function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTrayHandle }) {
   const location = useLocation();
   const queryClient = useQueryClient();
   const projectsQuery = useQuery(getProjectsApiProjectsGetOptions());
@@ -164,6 +289,144 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
     enabled: wantsTaskIds && Boolean(context.projectId),
   });
 
+  const modelStatus = useQuery(getModelStatusApiModelGetOptions());
+  const draftSpec = useMutation(draftTaskSpecApiProjectsProjectIdModelDraftPostMutation());
+  /**
+   * The drafts still in the air, so a submit can wait for them.
+   *
+   * A ref rather than state: nothing renders from it, and it is written from callbacks
+   * that outlive the render which created them.
+   */
+  const drafting = useRef(new Map<string, Promise<void>>());
+
+  /**
+   * Flesh one collected finding out, in the background (task-121).
+   *
+   * Started at collect time rather than at submit time, and that is the whole design
+   * decision. Collecting is the idle time -- the next finding is being typed -- and
+   * drafting fifteen findings at the moment somebody presses "Create 15 tasks" would put
+   * a minute of waiting exactly where they wanted to be finished.
+   *
+   * **It can never stop a finding being filed.** Every failure path below writes a
+   * reason onto the card and leaves the request exactly as it was typed, and the submit
+   * waits for outstanding drafts rather than requiring them.
+   */
+  const flesh = (item: TrayItem, note: string) => {
+    const run = (async () => {
+      try {
+        const result = await draftSpec.mutateAsync({
+          path: { project_id: item.projectId },
+          // The note as typed. The provenance footer in `request.description` is
+          // AgentJobs talking about itself, and is not part of the finding.
+          body: { title: item.request.title, description: note },
+        });
+        if (!result.drafted) {
+          // A refusal is a 200 carrying its reason, so it reads as "no draft, here is
+          // why" rather than as a failure.
+          tray.update({
+            ...item,
+            draft: { state: "declined", detail: result.detail ?? "No draft was produced." },
+          });
+          return;
+        }
+        const model = modelStatus.data?.model ?? null;
+        const merged = mergeDraft(item.request, result, model);
+        tray.update({
+          ...item,
+          request: merged.request,
+          draft: { state: "applied", model, filled: merged.filled },
+        });
+      } catch {
+        tray.update({
+          ...item,
+          draft: {
+            state: "declined",
+            detail: "The model could not be reached. It will be filed as you typed it.",
+          },
+        });
+      } finally {
+        drafting.current.delete(item.id);
+      }
+    })();
+    drafting.current.set(item.id, run);
+  };
+
+  /** Every task this dialog has created, so a batch and a retry both leave a link. */
+  const [filedInSession, setFiledInSession] = useState<Array<TrayFiling>>([]);
+  /** The last batch's outcomes: each card's error, and the sentence under the list. */
+  const [lastBatch, setLastBatch] = useState<Array<TrayFiling>>([]);
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+    /** Set while a submit is waiting on drafts that have not come back yet. */
+    fleshing?: number;
+  } | null>(null);
+
+  /**
+   * File the whole tray: one user action, N ordinary creates, one outcome per card.
+   *
+   * **Sequential on purpose.** Creation takes the project's creation and queue locks to
+   * decide the next id and the bottom of the band, so fifteen parallel posts would
+   * queue on the server anyway -- and would report their failures in an order nobody can
+   * map back to the list. One at a time also means a card is removed the moment its own
+   * task exists, so a batch interrupted half way through has left exactly the half it
+   * confirmed.
+   *
+   * **Nothing is removed that was not confirmed**, and nothing is retried that was.
+   * Those are the two halves of retry safety; the third is the `operation_id` each item
+   * has carried since it was collected, which is what covers a create that succeeded on
+   * a request whose answer never arrived.
+   */
+  const submitTray = async () => {
+    if (tray.current().length === 0 || progress !== null) return;
+    setLastBatch([]);
+    // Wait for what is already in the air, then read the tray again: a draft that lands
+    // during the wait has replaced its item's request, and filing the copy captured
+    // before the wait would file the version the model had not expanded yet.
+    const outstanding = [...drafting.current.values()];
+    if (outstanding.length > 0) {
+      setProgress({ fleshing: outstanding.length, done: 0, total: 0 });
+      await Promise.allSettled(outstanding);
+    }
+    const queue = inCollectedOrder(tray.current());
+    if (queue.length === 0) {
+      setProgress(null);
+      return;
+    }
+    setProgress({ done: 0, total: queue.length });
+    const outcomes: Array<TrayFiling> = [];
+    for (const item of queue) {
+      const shared = {
+        itemId: item.id,
+        title: item.request.title,
+        projectId: item.projectId,
+      };
+      try {
+        const task = await create.mutateAsync({
+          path: { project_id: item.projectId },
+          body: trayRequest(item),
+        });
+        outcomes.push({ ...shared, taskId: task.id, error: null });
+        setFiledInSession((was) => [...was, { ...shared, taskId: task.id, error: null }]);
+        // Confirmed, so it stops being unsent composition state -- here and on disk.
+        tray.remove(item.id);
+      } catch (caught) {
+        const refusal = readRefusal(caught);
+        outcomes.push({
+          ...shared,
+          taskId: null,
+          error: refusal
+            ? refusal.message
+            : "It could not be filed. Check the server, then press the button again.",
+        });
+      }
+      setLastBatch([...outcomes]);
+      setProgress({ done: outcomes.length, total: queue.length });
+    }
+    setProgress(null);
+    void queryClient.invalidateQueries();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
       <section
@@ -177,8 +440,38 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
         </h2>
         <p className="mt-1 text-sm text-dark-muted">
           Two sentences files what you just noticed, tagged <code>reported-issue</code> and
-          carrying where you were. Add the full specification when it deserves one.
+          carrying where you were. Add the full specification when it deserves one, or add
+          this to the list and keep going.
         </p>
+
+        {/*
+          Above the form, not below it. Below and unbounded was the first arrangement and
+          it failed the only test that matters here: three findings on a tall desktop
+          window already put the list and its button off the bottom of the dialog, so the
+          badge said three and there was nothing on screen to press. It also stays on
+          screen through the single-capture receipt, so a list collected earlier is not
+          lost behind a "Filed as" card.
+        */}
+        <div className="mt-5">
+          <CaptureTray
+            items={tray.items}
+            filedInSession={filedInSession}
+            lastBatch={lastBatch}
+            progress={progress}
+            durable={tray.durable}
+            draftingUnavailable={
+              modelStatus.data && modelStatus.data.available !== true
+                ? (modelStatus.data.detail ?? "no model is configured on this machine.")
+                : null
+            }
+            projectName={(projectId) =>
+              destinations.find((entry) => entry.id === projectId)?.name ?? projectId
+            }
+            onSubmit={() => void submitTray()}
+            onRemove={tray.remove}
+            onNavigate={onClose}
+          />
+        </div>
 
         {filed ? (
           <div className="mt-5 space-y-4">
@@ -248,6 +541,30 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
                 void queryClient.invalidateQueries();
                 setFiled({ projectId, outcome });
               }}
+              // Collect and stay: the form remounts empty with focus back in Title, so a
+              // review pass adds a finding without the dialog closing and without a hand
+              // leaving the keyboard. The remount is the same mechanism "File another"
+              // uses, rather than a reset that has to track the form's state.
+              onCollect={({ note, wantsDraft, ...collected }) => {
+                // Declined up front, with the short reason, when there is nothing to ask
+                // or the person turned it off -- so the card states its own state rather
+                // than sitting on "pending" for a call that is never made.
+                const unavailable = modelStatus.data?.available !== true;
+                const item = tray.add({
+                  ...collected,
+                  draft:
+                    !wantsDraft || unavailable
+                      ? {
+                          state: "declined",
+                          detail: wantsDraft
+                            ? "No model is configured, so it is filed as you typed it."
+                            : "Fleshing out is switched off.",
+                        }
+                      : { state: "pending" },
+                });
+                if (wantsDraft && !unavailable) flesh(item, note);
+                setAttempt((count) => count + 1);
+              }}
               cancel={
                 <button
                   type="button"
@@ -260,6 +577,7 @@ function CaptureDialog({ onClose }: { onClose: () => void }) {
             />
           </div>
         )}
+
       </section>
     </div>
   );
