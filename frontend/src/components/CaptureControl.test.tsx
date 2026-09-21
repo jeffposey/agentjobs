@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { TaskCreateRequest } from "../api/types";
 import { client } from "../api/generated/client.gen";
 import { MAX_ATTACHMENT_BYTES } from "../report/attachments";
+import { draftStore, setDraftStore } from "../report/draftStore";
 import { apiMockServer } from "../test/api-mock";
 import { CaptureControl } from "./CaptureControl";
 
@@ -388,5 +389,140 @@ describe("CaptureControl", () => {
     expect(await screen.findByText(/No model is configured on this machine/)).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /Flesh this out with AI/ })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Draft the spec" })).toBeNull();
+  });
+
+  it("puts back what was being typed when the dialog is opened again", async () => {
+    // The durability the tray has had since task-121 and the form had not: everything
+    // typed before Ctrl+Enter lived only in React state, so the page going away for any
+    // reason took it. Closing the dialog is the cheapest way to make the page go away.
+    client.setConfig({ baseUrl: "http://localhost" });
+    apiMockServer.use(
+      http.get("*/api/projects", () =>
+        HttpResponse.json([project("agentjobs", "AgentJobs", "Jeff Posey")]),
+      ),
+      http.get("*/api/projects/agentjobs/tasks", () => HttpResponse.json([])),
+    );
+
+    await openCapture("/p/agentjobs/tasks");
+    fill("Half a finding", "Typed and not yet collected.");
+    // The specification too, which is the half held in the DOM rather than in state.
+    fireEvent.click(screen.getByRole("button", { name: "Add the full specification" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: /^Summary/ }), {
+      target: { value: "One sentence for a reader with no context." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "New task or issue" }));
+    await screen.findByRole("dialog", { name: "New task" });
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /^Title/ })).toHaveValue("Half a finding"),
+    );
+    expect(screen.getByRole("textbox", { name: /^What happened/ })).toHaveValue(
+      "Typed and not yet collected.",
+    );
+    // The section comes back open, because a restored field nobody can see is a field
+    // that will be filed without being read.
+    expect(screen.getByRole("textbox", { name: /^Summary/ })).toHaveValue(
+      "One sentence for a reader with no context.",
+    );
+  });
+
+  it("keeps no draft for a dialog that was opened and typed in and emptied", async () => {
+    client.setConfig({ baseUrl: "http://localhost" });
+    apiMockServer.use(
+      http.get("*/api/projects", () =>
+        HttpResponse.json([project("agentjobs", "AgentJobs", "Jeff Posey")]),
+      ),
+    );
+
+    await openCapture("/p/agentjobs/tasks");
+    fill("Never mind", "Nor this.");
+    fill("", "");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    expect(await draftStore().load("capture")).toBeNull();
+  });
+
+  it("forgets the draft the moment the finding is on the tray", async () => {
+    // ac-3, and the one duplicate this feature could produce: a finding that is on the
+    // tray *and* offered back as something still to type would be filed twice by
+    // somebody working quickly.
+    client.setConfig({ baseUrl: "http://localhost" });
+    apiMockServer.use(
+      http.get("*/api/projects", () =>
+        HttpResponse.json([project("agentjobs", "AgentJobs", "Jeff Posey")]),
+      ),
+    );
+
+    await openCapture("/p/agentjobs/tasks");
+    fill("The dashboard cards overlap", "At 375px they sit on top of each other.");
+    fireEvent.keyDown(screen.getByRole("textbox", { name: /^Title/ }), {
+      key: "Enter",
+      ctrlKey: true,
+    });
+
+    const tray = await screen.findByRole("region", { name: "Collected findings" });
+    expect(within(tray).getByText("The dashboard cards overlap")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /^Title/ })).toHaveValue(""),
+    );
+    expect(await draftStore().load("capture")).toBeNull();
+
+    // And reopening offers one finding on the tray with an empty form, not two findings.
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: /New task or issue/ }));
+    await screen.findByRole("dialog", { name: "New task" });
+    const restored = await screen.findByRole("region", { name: "Collected findings" });
+    expect(within(restored).getAllByText("The dashboard cards overlap")).toHaveLength(1);
+    expect(screen.getByRole("textbox", { name: /^Title/ })).toHaveValue("");
+  });
+
+  it("forgets the draft once the server has the task", async () => {
+    client.setConfig({ baseUrl: "http://localhost" });
+    apiMockServer.use(
+      http.get("*/api/projects", () =>
+        HttpResponse.json([project("agentjobs", "AgentJobs", "Jeff Posey")]),
+      ),
+      http.post("*/api/projects/agentjobs/tasks", () =>
+        HttpResponse.json({ id: "task-145" }, { status: 201 }),
+      ),
+    );
+
+    await openCapture("/p/agentjobs/tasks");
+    fill("Filed, not drafted", "This one went straight to the server.");
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
+
+    await screen.findByText("task-145");
+    expect(await draftStore().load("capture")).toBeNull();
+  });
+
+  it("still files from a browser that will not keep a draft at all", async () => {
+    // ac-4. jsdom has no IndexedDB, which is exactly the state of a private window or a
+    // browser with site data blocked -- so this is the real fallback, not a simulation
+    // of one. What is lost is durability; what is not lost is the capture.
+    setDraftStore(null);
+    expect(draftStore().durable).toBe(false);
+
+    client.setConfig({ baseUrl: "http://localhost" });
+    let received: TaskCreateRequest | null = null;
+    apiMockServer.use(
+      http.get("*/api/projects", () =>
+        HttpResponse.json([project("agentjobs", "AgentJobs", "Jeff Posey")]),
+      ),
+      http.post("*/api/projects/agentjobs/tasks", async ({ request }) => {
+        received = (await request.json()) as TaskCreateRequest;
+        return HttpResponse.json({ id: "task-146" }, { status: 201 });
+      }),
+    );
+
+    await openCapture("/p/agentjobs/tasks");
+    fill("Filed without durability", "No store, and the form still works.");
+    fireEvent.click(screen.getByRole("button", { name: "File it" }));
+
+    await screen.findByText("task-146");
+    expect((received as unknown as TaskCreateRequest).title).toBe("Filed without durability");
   });
 });

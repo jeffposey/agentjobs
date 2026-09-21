@@ -1,3 +1,4 @@
+import { TRAY_STORE, readFrom, writeTo } from "./captureDb";
 import type { PendingAttachment } from "./attachments";
 import type { TrayItem } from "./tray";
 
@@ -24,11 +25,11 @@ import type { TrayItem } from "./tray";
  * or a browser that refuses to open the database leaves `durable` false: the tray is
  * then session state, which the UI says out loud rather than implying a durability it
  * does not have.
+ *
+ * The database itself is opened by `captureDb.ts`, which the draft of the finding being
+ * typed shares (task-512). Two modules opening `agentjobs-capture` at two versions is
+ * how the second store never gets created.
  */
-
-const DB_NAME = "agentjobs-capture";
-const DB_VERSION = 1;
-const STORE = "tray";
 
 /** A tray item as it sits in the database: no derived preview. */
 type StoredAttachment = Omit<PendingAttachment, "preview">;
@@ -64,55 +65,15 @@ export type TrayStore = {
   durable: boolean;
 };
 
-function promised<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("The tray store refused."));
-  });
-}
-
-function open(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(STORE)) {
-        request.result.createObjectStore(STORE, { keyPath: "id" });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("The tray store would not open."));
-    // A second tab holding an older version open blocks the upgrade forever otherwise.
-    request.onblocked = () => reject(new Error("Another tab is holding the tray store open."));
-  });
-}
-
 /** The real store, against this browser's IndexedDB. */
 export function indexedDbTrayStore(): TrayStore {
-  // One connection, opened lazily and shared. Reopening per call would serialise every
-  // capture behind a handshake, and the tray is written to on every keystroke-sized act.
-  let connection: Promise<IDBDatabase> | null = null;
-  const db = () => {
-    connection ??= open();
-    return connection;
-  };
-
-  const write = async (apply: (store: IDBObjectStore) => void) => {
-    const transaction = (await db()).transaction(STORE, "readwrite");
-    const done = new Promise<void>((resolve, reject) => {
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error ?? new Error("The tray write failed."));
-      transaction.onabort = () => reject(transaction.error ?? new Error("The tray write aborted."));
-    });
-    apply(transaction.objectStore(STORE));
-    await done;
-  };
-
   return {
     durable: true,
     load: async () => {
       try {
-        const transaction = (await db()).transaction(STORE, "readonly");
-        const stored = await promised<Array<StoredItem>>(transaction.objectStore(STORE).getAll());
+        const stored = await readFrom<Array<StoredItem>>(TRAY_STORE, (store) =>
+          store.getAll(),
+        );
         return stored.map(hydrate).sort((left, right) => left.order - right.order);
       } catch {
         // An unreadable store is an empty tray, not a page that will not render. The
@@ -123,14 +84,14 @@ export function indexedDbTrayStore(): TrayStore {
     },
     put: async (item) => {
       try {
-        await write((store) => store.put(dehydrate(item)));
+        await writeTo(TRAY_STORE, (store) => store.put(dehydrate(item)));
       } catch {
         /* Durability lost, capture kept. The caller holds it in React state regardless. */
       }
     },
     remove: async (ids) => {
       try {
-        await write((store) => {
+        await writeTo(TRAY_STORE, (store) => {
           for (const id of ids) store.delete(id);
         });
       } catch {
