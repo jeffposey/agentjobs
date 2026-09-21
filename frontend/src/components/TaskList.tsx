@@ -274,6 +274,10 @@ const EMPTY_WAITING: ReadonlySet<string> = new Set();
 type PendingMove = { signature: string; tasks: Array<TaskSummaryRead> };
 type MoveNotice = { taskId: string } & MoveVerdict;
 type BandChange = { taskId: string; from: string; to: string; before: string };
+/** Which side of a row the drop under way would land on. */
+type DropSide = "before" | "after";
+/** The row an insertion line is currently drawn on, and which edge of it. */
+type DropTarget = { id: string; side: DropSide };
 /** Where focus goes after the next render, and whether to scroll it into view. */
 type FocusTarget = { elementId: string; reveal: boolean };
 
@@ -344,6 +348,11 @@ export function TaskList({
   const moveCount = useRef(0);
   const [bandChange, setBandChange] = useState<BandChange | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  // The row the pointer is over and the side of it the drop would use, so the list can
+  // draw an insertion line there. State rather than a CSS `:hover` rule, because the
+  // side is not a fact about the pointer: it depends on which way the dragged task is
+  // travelling, and only `dropSide` knows that.
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   // What should hold focus after the next render.
   const restoreFocus = useRef<FocusTarget | null>(null);
   // The selection whose ancestors have already been unfolded, so a reader who folds the
@@ -754,22 +763,44 @@ export function TaskList({
     }
   };
 
+  /**
+   * Which edge of `task` the drag under way would land on, or `null` if this row would
+   * not take it at all.
+   *
+   * One function, two callers: the insertion line is drawn from it and the drop is
+   * decided by it. The alternative -- an indicator with its own idea of which side it
+   * is on -- can only ever be right by coincidence, and a reader who aims at a line
+   * that lies has been given worse feedback than no line.
+   *
+   * A cross-band hover answers `before`, which is the position the band-change prompt
+   * offers; the prompt still runs it, and this says nothing about whether it is taken.
+   */
+  const dropSide = (task: TaskSummaryRead): DropSide | null => {
+    if (!handlers || !dragging || dragging === task.id || !movableRow(task)) return null;
+    const source = ordered.find((candidate) => candidate.id === dragging);
+    if (!source || !movableRow(source)) return null;
+    if (bandOf(source) !== bandOf(task)) return "before";
+    const band = bandMembers(ordered, bandOf(source));
+    const from = band.findIndex((candidate) => candidate.id === source.id);
+    const to = band.findIndex((candidate) => candidate.id === task.id);
+    return from < to ? "after" : "before";
+  };
+
   const onRowDrop = (task: TaskSummaryRead) => {
+    const side = dropSide(task);
     const sourceId = dragging;
     setDragging(null);
-    if (!handlers || !sourceId || sourceId === task.id || !movableRow(task)) return;
+    setDropTarget(null);
+    if (!sourceId || !side) return;
     const source = ordered.find((candidate) => candidate.id === sourceId);
-    if (!source || !movableRow(source)) return;
+    if (!source) return;
     if (bandOf(source) !== bandOf(task)) {
       // Two decisions in one gesture -- where it stands, and how urgent it is. The
       // second is asked out loud rather than inferred from where a finger let go.
       setBandChange({ taskId: source.id, from: bandOf(source), to: bandOf(task), before: task.id });
       return;
     }
-    const band = bandMembers(ordered, bandOf(source));
-    const from = band.findIndex((candidate) => candidate.id === source.id);
-    const to = band.findIndex((candidate) => candidate.id === task.id);
-    void runMove(source.id, from < to ? { after: task.id } : { before: task.id });
+    void runMove(source.id, side === "after" ? { after: task.id } : { before: task.id });
   };
 
   /**
@@ -803,9 +834,23 @@ export function TaskList({
         if (event.dataTransfer) {
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData(DRAG_TYPE, task.id);
+          // The browser's default drag image is a picture of whatever carries
+          // `draggable`, and that is this handle: a 20px glyph floating over a list
+          // where nothing else has changed. What is moving is the row, so the row is
+          // what follows the pointer. The snapshot is taken synchronously here, before
+          // React re-renders the source row faded, so the ghost is a picture of the row
+          // as it reads rather than of the hole it leaves.
+          const row = event.currentTarget.closest<HTMLElement>("[data-task]");
+          if (row && typeof event.dataTransfer.setDragImage === "function") {
+            const box = row.getBoundingClientRect();
+            event.dataTransfer.setDragImage(row, event.clientX - box.left, event.clientY - box.top);
+          }
         }
       }}
-      onDragEnd={() => setDragging(null)}
+      onDragEnd={() => {
+        setDragging(null);
+        setDropTarget(null);
+      }}
       // The name says what this handle is and what it currently holds. The keys are
       // `aria-keyshortcuts`, which is what that attribute is for -- a screen reader
       // announces them as shortcuts, and announces them once, rather than reading a
@@ -819,14 +864,38 @@ export function TaskList({
     </button>
   );
 
+  /**
+   * What every row needs to take part in a drag, in both list shapes.
+   *
+   * The two `data-` attributes are the whole of the feedback: `styles.css` fades the
+   * row in flight and draws the insertion line, so a `<li>` and a `<tr>` say the same
+   * thing without either of them carrying a class list the other does not.
+   *
+   * There is no `onDragLeave`. `dragleave` bubbles out of a row's own children, so
+   * clearing on it makes the line flicker every time the pointer crosses the title
+   * link; hovering a row that will not take the drop clears it instead, and `dragend`
+   * clears it when the gesture leaves the list altogether.
+   */
   const dragProps = (task: TaskSummaryRead) => ({
     onDragOver: (event: React.DragEvent) => {
-      if (movableRow(task) && dragging && dragging !== task.id) event.preventDefault();
+      const side = dropSide(task);
+      if (!side) {
+        setDropTarget((current) => (current === null ? current : null));
+        return;
+      }
+      event.preventDefault();
+      setDropTarget((current) =>
+        current && current.id === task.id && current.side === side
+          ? current
+          : { id: task.id, side },
+      );
     },
     onDrop: (event: React.DragEvent) => {
       event.preventDefault();
       onRowDrop(task);
     },
+    "data-dragging": dragging === task.id ? "true" : undefined,
+    "data-drop-side": dropTarget?.id === task.id ? dropTarget.side : undefined,
   });
 
   const treeBody = (
