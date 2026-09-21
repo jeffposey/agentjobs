@@ -1419,6 +1419,94 @@ def dispatch_disable(
     typer.echo(f"✅ Dispatch disabled for '{project_id}'.")
 
 
+@dispatch_app.command("authorize")
+def dispatch_authorize(
+    task_id: str = typer.Argument(..., help="Task the authorisation is about."),
+    actor: str = typer.Option(
+        ...,
+        "--actor",
+        help="The agent relaying it. This is who signs the entry, and it is you.",
+    ),
+    by: str = typer.Option(
+        ...,
+        "--by",
+        help="The human who authorised it. Must be a kind: human actor of this project.",
+    ),
+    ask: str = typer.Option(
+        ...,
+        "--ask",
+        help="What they asked for, in your own words. Never a quotation of them.",
+    ),
+    surface: Optional[str] = typer.Option(
+        None, "--surface", help="Where they said it, e.g. 'an interactive chat session'."
+    ),
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+) -> None:
+    """Record that a human authorised a dispatch, as the agent they told (task-506).
+
+    For an agent sitting at the owner's keyboard that has just been told, in a chat
+    session, to file a task and start it. That instruction is a genuine human act and the
+    server cannot see it: the newest entry on the task is the agent's own, so
+    ``dispatch run`` refuses it ``not_human_clocked``, correctly.
+
+    This writes the entry that says what happened. ``--actor`` is you, so the signature
+    in the log is yours; ``--by`` is the person, recorded inside the entry rather than on
+    it. Then ``dispatch run`` proceeds on the ordinary rule, because the entry names a
+    human. The two flags are separate and both required **because that is the whole
+    feature** -- collapsing them is the workaround this replaces, and it puts a person's
+    name on a sentence they did not write.
+
+    ``--ask`` becomes the entry's body, which is where this repository's paraphrase rule
+    reaches it. Say what they wanted, not how they said it.
+
+    It starts nothing. Every dispatch gate and every spend cap is judged afterwards
+    exactly as before, and the entry is not consumed -- it clocks as many runs as a
+    human's own note would.
+    """
+    from agentjobs.actors import UnknownActorError, validate_actor
+    from agentjobs.dispatch.guards import assert_authorizer_is_human
+
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    config = project.load_config()
+    try:
+        authorizer = assert_authorizer_is_human(config, by)
+    except DispatchError as exc:
+        typer.secho(f"Refused ({getattr(exc, 'reason', 'refused')}): {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    try:
+        validate_actor(config, actor)
+    except UnknownActorError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    manager = dispatch_manager_for(project)
+    try:
+        task = manager.record_relayed_authorization(
+            task_id,
+            actor=actor,
+            authorized_by=authorizer.id,
+            ask=ask,
+            surface=surface,
+        )
+    except ValueError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        f"✅ Recorded entry {task.log[-1].id} on {task.id}: {actor} relaying an "
+        f"authorisation by {authorizer.display_name}."
+    )
+    typer.echo(f"   `agentjobs dispatch run {task.id}` will now clock on it.")
+
+
 @dispatch_app.command("run")
 def dispatch_run(
     task_id: str = typer.Argument(..., help="Task to start an agent on."),
@@ -1477,11 +1565,18 @@ def dispatch_run(
     human, and a task whose newest entry is an agent's is refused with
     ``not_human_clocked``.
 
-    To satisfy it, write the entry as yourself first -- the ``Add a note`` control on
-    the task page, or the MCP ``task_log_append`` tool with your own actor id -- then
-    dispatch. Giving the CLI a ``--as`` flag was considered and left alone: it is the
-    same trust model the HTTP path already has, but it is a new surface for authorising
-    runs and nothing currently needs it.
+    To satisfy it as a person, write the entry as yourself first -- the ``Add a note``
+    control on the task page, or the MCP ``task_log_append`` tool with your own actor
+    id -- then dispatch.
+
+    **An agent relaying a human's instruction uses ``dispatch authorize`` (task-506).**
+    A ``--as`` flag on *this* command was declined for years on the grounds that nothing
+    needed it; something did, and the flag was still the wrong answer. ``--as`` would
+    have let the caller assert the authorisation inside the request that consumes it,
+    leaving nothing on the record but a run attributed to somebody who had not written a
+    word. The sibling verb instead writes an entry naming both parties -- the agent as
+    its author, the human inside it -- and this command then clocks on that entry through
+    the unchanged rule above. Two acts, two rows, and the log says who typed which.
     """
     registry = ProjectRegistry()
     try:

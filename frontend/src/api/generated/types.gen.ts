@@ -2890,7 +2890,7 @@ export type LogEntry = {
  *
  * Type of a log entry (design doc section 4).
  */
-export type LogEntryType = 'note' | 'progress' | 'transition' | 'handoff' | 'decision' | 'question' | 'answer' | 'instruction' | 'dispatch' | 'dispatch_result' | 'queue_move';
+export type LogEntryType = 'note' | 'progress' | 'transition' | 'handoff' | 'decision' | 'question' | 'answer' | 'instruction' | 'dispatch' | 'dispatch_result' | 'queue_move' | 'authorization';
 
 /**
  * MachineHolderView
@@ -4920,6 +4920,53 @@ export type RejectActionRequest = {
      * User performing the action
      */
     user: string;
+};
+
+/**
+ * RelayAuthorizationRequest
+ *
+ * Relay a human's authorisation of a dispatch, as the agent they said it to (task-506).
+ *
+ * Its own request rather than a field on :class:`LogAppendRequest`, because it is its
+ * own capability: a ``run`` holds the log route and may not hold this. The route table
+ * is keyed by endpoint, so a separate endpoint is how one caller is refused what the
+ * other is allowed.
+ *
+ * ``actor`` is the agent writing the entry -- checked against the principal like every
+ * other actor, so a run cannot name a person here either. ``authorized_by`` is the
+ * human, and is refused unless this project configures them ``kind: human``.
+ */
+export type RelayAuthorizationRequest = {
+    /**
+     * Actor
+     *
+     * Actor id writing the entry: the agent relaying.
+     */
+    actor: string;
+    /**
+     * Ask
+     *
+     * What they asked for, in the relaying agent's words. Becomes the entry body, where the repository's paraphrase rule reaches it. Never a quotation.
+     */
+    ask: string;
+    /**
+     * Authorized By
+     *
+     * Actor id of the human who authorised it. Must be kind: human.
+     */
+    authorized_by: string;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
+    /**
+     * Surface
+     *
+     * Where they said it, for a reader. Never read back by a check.
+     */
+    surface?: string | null;
 };
 
 /**
@@ -10459,6 +10506,49 @@ export type GetAttachmentApiProjectsProjectIdTasksTaskIdAttachmentsFilenameGetRe
     200: unknown;
 };
 
+export type RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostData = {
+    body: RelayAuthorizationRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/projects/{project_id}/tasks/{task_id}/authorization';
+};
+
+export type RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostError = RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostErrors[keyof RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostErrors];
+
+export type RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostResponses = {
+    /**
+     * Response Relay Authorization Api Projects  Project Id  Tasks  Task Id  Authorization Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostResponse = RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostResponses[keyof RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostResponses];
+
 export type ClaimTaskApiProjectsProjectIdTasksTaskIdClaimPostData = {
     body: ClaimRequest;
     path: {
@@ -12151,6 +12241,45 @@ export type GetAttachmentApiTasksTaskIdAttachmentsFilenameGetResponses = {
      */
     200: unknown;
 };
+
+export type RelayAuthorizationApiTasksTaskIdAuthorizationPostData = {
+    body: RelayAuthorizationRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: {
+        /**
+         * Envelope
+         *
+         * Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.
+         */
+        envelope?: boolean;
+    };
+    url: '/api/tasks/{task_id}/authorization';
+};
+
+export type RelayAuthorizationApiTasksTaskIdAuthorizationPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RelayAuthorizationApiTasksTaskIdAuthorizationPostError = RelayAuthorizationApiTasksTaskIdAuthorizationPostErrors[keyof RelayAuthorizationApiTasksTaskIdAuthorizationPostErrors];
+
+export type RelayAuthorizationApiTasksTaskIdAuthorizationPostResponses = {
+    /**
+     * Response Relay Authorization Api Tasks  Task Id  Authorization Post
+     *
+     * Successful Response
+     */
+    200: MutationResultOutput | Task;
+};
+
+export type RelayAuthorizationApiTasksTaskIdAuthorizationPostResponse = RelayAuthorizationApiTasksTaskIdAuthorizationPostResponses[keyof RelayAuthorizationApiTasksTaskIdAuthorizationPostResponses];
 
 export type ClaimTaskApiTasksTaskIdClaimPostData = {
     body: ClaimRequest;

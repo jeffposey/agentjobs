@@ -193,7 +193,10 @@ def build_projects_list(client: TaskClient) -> ToolDefinition:
             "List every AgentJobs project this service serves, with each project's "
             "configured actor vocabulary and its human default_user. Call this first: "
             "every other tool requires an exact project_id from here, including on a "
-            "single-project installation. Never adopt default_user as your own actor."
+            "single-project installation. Never adopt default_user as your own actor: "
+            "when a person asks you to start a task, record that with "
+            "`task_authorize_dispatch`, which names them beside you, rather than by "
+            "writing as them."
         ),
         input_schema={"type": "object", "additionalProperties": False, "properties": {}},
         output_schema={

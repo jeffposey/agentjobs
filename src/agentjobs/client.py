@@ -753,6 +753,33 @@ class TaskClient:
         )
         return self._parse_task(response.json())
 
+    def relay_authorization(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        authorized_by: str,
+        ask: str,
+        surface: Optional[str] = None,
+    ) -> Task:
+        """Record that ``authorized_by`` authorised a dispatch, in ``actor``'s words.
+
+        The only write here whose author and subject are different people (task-506):
+        the agent signs the entry, the human is named inside it. It authorises a dispatch
+        without starting one, and a caller presenting a run credential is refused.
+        """
+        response = self._request(
+            "POST",
+            self._path(f"/tasks/{task_id}/authorization"),
+            json={
+                "actor": actor,
+                "authorized_by": authorized_by,
+                "ask": ask,
+                "surface": surface,
+            },
+        )
+        return self._parse_task(response.json())
+
     def add_progress_update(
         self,
         task_id: str,
@@ -1306,6 +1333,38 @@ class TaskOperations:
                 "body": body,
                 "re": re,
                 "data": data or {},
+            },
+            operation_id=operation_id,
+        )
+
+    def relay_authorization(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        authorized_by: str,
+        ask: str,
+        surface: Optional[str] = None,
+    ) -> MutationResult:
+        """Relay a human's authorisation of a dispatch, as the agent they told (task-506).
+
+        ``actor`` is the agent writing the entry and ``authorized_by`` is the human whose
+        act it records -- the one write in this client where those are two different
+        people, which is why it is not a ``type`` passed to :meth:`append_log`. It starts
+        nothing: a dispatch afterwards is an ordinary one, gated and counted as always.
+        Refused for a caller presenting a run credential, because
+        ``dispatch.relay_authorization`` is not a run's to hold.
+
+        No expected_revision, for the same reason an append has none.
+        """
+        return self._client._mutation(
+            f"/tasks/{task_id}/authorization",
+            {
+                "actor": actor,
+                "authorized_by": authorized_by,
+                "ask": ask,
+                "surface": surface,
             },
             operation_id=operation_id,
         )

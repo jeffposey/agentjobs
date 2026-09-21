@@ -29,7 +29,7 @@ from agentjobs.capabilities import Capability
 from agentjobs.dispatch.address import api_base_from_server
 from agentjobs.dispatch.config import DispatchError, Posture
 from agentjobs.dispatch import queue as dispatch_queue
-from agentjobs.dispatch.guards import DispatchRequest, actor_kind
+from agentjobs.dispatch.guards import DispatchRequest, actor_kind, assert_authorizer_is_human
 from agentjobs.dispatch.queue import dispatch_or_queue
 from agentjobs.execution.store import QueuedDispatch
 from agentjobs.dispatch.interactive import settle_for_task, start_interactive_run
@@ -58,6 +58,7 @@ from ..models import (
     QueueKeepRequest,
     QueueMoveRequest,
     RedactRequest,
+    RelayAuthorizationRequest,
     ReleaseRequest,
     ReprioritizeRequest,
     TaskRead,
@@ -596,6 +597,70 @@ async def append_log_entry(
             body=payload.body,
             re=payload.re,
             data=payload.data,
+            operation_id=payload.operation_id,
+        ),
+        task_id=task_id,
+        project=project,
+        operation_id=payload.operation_id,
+        envelope=envelope,
+    )
+
+
+@router.post(
+    "/{task_id}/authorization", response_model=MutationResponse, status_code=status.HTTP_200_OK
+)
+async def relay_authorization(
+    task_id: str,
+    request: Request,
+    payload: RelayAuthorizationRequest,
+    envelope: bool = ENVELOPE_QUERY,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> Any:
+    """Record that a human authorised a dispatch, as the agent they told (task-506).
+
+    The third shape of an authorising entry, and the only one whose author and subject
+    are different people. A person clicking Dispatch gets an entry under their own name.
+    A person writing a note by hand gets the same. An agent told in a chat session to
+    start the task it has just filed had neither, and the workaround was to write the
+    note as *them* -- a signature in an append-only log that its owner did not put
+    there, indistinguishable by any reader from a click. This writes an entry that says
+    what actually happened: ``actor`` is the agent, ``authorized_by`` is the person,
+    ``body`` is what the agent was asked for in its own words.
+
+    **It is a separate route because it is a separate capability.**
+    ``dispatch.relay_authorization`` is held by the two human kinds and by no ``run``,
+    and the route table is keyed by endpoint -- so putting this on ``POST /log``, which
+    every run may call, would have made the gate a condition inside a handler instead of
+    a row in the table ``tests/test_authorization.py`` checks for completeness.
+
+    **It starts nothing.** It is not an approval, it releases no merge gate, it arms
+    nothing, and it spends no run slot. A dispatch afterwards is an ordinary ``manual``
+    dispatch, judged by every gate in ``dispatch/guards.py`` and counted against every
+    cap in ``dispatch/budget.py``. Nor is the entry consumed: it clocks exactly as many
+    runs as a human's own note would, which is to say as many as those caps allow.
+
+    **What it is not is proof.** The server cannot tell whether the person said anything,
+    just as it cannot verify the ``user`` field on a dispatch (design section 2's P1-2).
+    What it buys is a record that is true about who typed it, and a write a dispatched
+    run is refused -- see ``docs/authorization.md``.
+    """
+    actor = acting_actor(request, project, payload.actor)
+    # Refused before anything is written, so a bad or agent id never leaves a row in an
+    # append-only log. The same guard the dispatch endpoint's `user` passes through, for
+    # the same reason and with the same refusal code: an agent named as the authoriser is
+    # `authorizer_not_human`, and relaying one does not change who authorised it.
+    try:
+        assert_authorizer_is_human(project_config(project), payload.authorized_by)
+    except DispatchError as exc:
+        raise dispatch_refusal_error(exc, task_id) from exc
+    return _run(
+        lambda: manager.record_relayed_authorization(
+            task_id,
+            actor=actor,
+            authorized_by=payload.authorized_by,
+            ask=payload.ask,
+            surface=payload.surface,
             operation_id=payload.operation_id,
         ),
         task_id=task_id,

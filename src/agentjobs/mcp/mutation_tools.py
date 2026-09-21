@@ -801,6 +801,46 @@ def _build_log_append(client: TaskClient) -> Any:
     return handler
 
 
+def _build_relay_authorization(client: TaskClient) -> Any:
+    async def handler(arguments: Mapping[str, Any]) -> Union[ToolOutput, types.CallToolResult]:
+        project_id = require_project_id(arguments)
+        project = resolve_project(client, project_id)
+        # `actor` is the agent relaying, checked the way every other write's is: the id
+        # must be one this project configures, and a caller presenting a run credential
+        # may not name a person. The human goes in `authorized_by`, which the server
+        # refuses unless this project configures them `kind: human` -- and the route
+        # refuses a run outright, whoever it names.
+        actor = require_actor(arguments, project)
+        task_id = _require(arguments, "task_id")
+        operation_id = _require(arguments, "operation_id")
+        authorized_by = _require(arguments, "authorized_by")
+        ask = _require(arguments, "ask")
+        try:
+            result = client.for_project(project_id).operations.relay_authorization(
+                task_id,
+                actor=actor,
+                operation_id=operation_id,
+                authorized_by=authorized_by,
+                ask=ask,
+                surface=arguments.get("surface"),
+            )
+        except TaskClientError as exc:
+            raise _service_error(exc, project_id=project_id, task_id=task_id) from exc
+        payload, summary = _add_record_warnings(
+            _result_payload(result, project_id),
+            (
+                "Already applied"
+                if result.replayed
+                else f"Recorded an authorisation by {authorized_by} on {task_id}."
+            ),
+            result.task,
+            "relay_authorization",
+        )
+        return success(payload, summary)
+
+    return handler
+
+
 def _build_update_content(client: TaskClient) -> Any:
     async def handler(arguments: Mapping[str, Any]) -> Union[ToolOutput, types.CallToolResult]:
         project_id = require_project_id(arguments)
@@ -1082,6 +1122,48 @@ def mutation_tool_definitions(client: TaskClient) -> List[ToolDefinition]:
                 also_required=["body"],
             ),
             _build_log_append(client),
+        ),
+        _mutation_tool(
+            "task_authorize_dispatch",
+            "Relay a dispatch authorisation",
+            (
+                "Record that a human authorised a dispatch of this task, when they "
+                "told you so rather than clicking it. Use this when a person at the "
+                "keyboard asks you to start a task -- including one you just filed. "
+                "`actor` stays you, because you are writing the entry; "
+                "`authorized_by` is the person, and must be an actor this project "
+                "configures as a human. Never write their id into `actor` to get the "
+                "same effect: that puts a signature in an append-only log under a name "
+                "its owner did not type, and no later reader can tell it from a click. "
+                "`ask` is what they wanted in your own words, not a quotation of them. "
+                "This starts nothing -- it writes the one entry a dispatch may be "
+                "clocked on, and a dispatch afterwards is gated and counted as always. "
+                "A dispatched run may not call this at all."
+            ),
+            _verb_schema(
+                extra={
+                    "authorized_by": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": (
+                            "Actor id of the human who authorised it. Must be kind: human."
+                        ),
+                    },
+                    "ask": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": (
+                            "What they asked for, in your words. Becomes the entry body."
+                        ),
+                    },
+                    "surface": {
+                        "type": "string",
+                        "description": "Where they said it, e.g. 'an interactive chat session'.",
+                    },
+                },
+                also_required=["authorized_by", "ask"],
+            ),
+            _build_relay_authorization(client),
         ),
         _mutation_tool(
             "task_update_content",

@@ -4111,7 +4111,8 @@
           "instruction",
           "dispatch",
           "dispatch_result",
-          "queue_move"
+          "queue_move",
+          "authorization"
         ],
         "title": "LogEntryType",
         "type": "string"
@@ -6800,6 +6801,59 @@
           "reason"
         ],
         "title": "RejectActionRequest",
+        "type": "object"
+      },
+      "RelayAuthorizationRequest": {
+        "additionalProperties": false,
+        "description": "Relay a human's authorisation of a dispatch, as the agent they said it to (task-506).\n\nIts own request rather than a field on :class:`LogAppendRequest`, because it is its\nown capability: a ``run`` holds the log route and may not hold this. The route table\nis keyed by endpoint, so a separate endpoint is how one caller is refused what the\nother is allowed.\n\n``actor`` is the agent writing the entry -- checked against the principal like every\nother actor, so a run cannot name a person here either. ``authorized_by`` is the\nhuman, and is refused unless this project configures them ``kind: human``.",
+        "properties": {
+          "actor": {
+            "description": "Actor id writing the entry: the agent relaying.",
+            "title": "Actor",
+            "type": "string"
+          },
+          "ask": {
+            "description": "What they asked for, in the relaying agent's words. Becomes the entry body, where the repository's paraphrase rule reaches it. Never a quotation.",
+            "minLength": 1,
+            "title": "Ask",
+            "type": "string"
+          },
+          "authorized_by": {
+            "description": "Actor id of the human who authorised it. Must be kind: human.",
+            "title": "Authorized By",
+            "type": "string"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.",
+            "title": "Operation Id"
+          },
+          "surface": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where they said it, for a reader. Never read back by a check.",
+            "title": "Surface"
+          }
+        },
+        "required": [
+          "actor",
+          "authorized_by",
+          "ask"
+        ],
+        "title": "RelayAuthorizationRequest",
         "type": "object"
       },
       "ReleaseRequest": {
@@ -14560,6 +14614,88 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/authorization": {
+      "post": {
+        "description": "Record that a human authorised a dispatch, as the agent they told (task-506).\n\nThe third shape of an authorising entry, and the only one whose author and subject\nare different people. A person clicking Dispatch gets an entry under their own name.\nA person writing a note by hand gets the same. An agent told in a chat session to\nstart the task it has just filed had neither, and the workaround was to write the\nnote as *them* -- a signature in an append-only log that its owner did not put\nthere, indistinguishable by any reader from a click. This writes an entry that says\nwhat actually happened: ``actor`` is the agent, ``authorized_by`` is the person,\n``body`` is what the agent was asked for in its own words.\n\n**It is a separate route because it is a separate capability.**\n``dispatch.relay_authorization`` is held by the two human kinds and by no ``run``,\nand the route table is keyed by endpoint -- so putting this on ``POST /log``, which\nevery run may call, would have made the gate a condition inside a handler instead of\na row in the table ``tests/test_authorization.py`` checks for completeness.\n\n**It starts nothing.** It is not an approval, it releases no merge gate, it arms\nnothing, and it spends no run slot. A dispatch afterwards is an ordinary ``manual``\ndispatch, judged by every gate in ``dispatch/guards.py`` and counted against every\ncap in ``dispatch/budget.py``. Nor is the entry consumed: it clocks exactly as many\nruns as a human's own note would, which is to say as many as those caps allow.\n\n**What it is not is proof.** The server cannot tell whether the person said anything,\njust as it cannot verify the ``user`` field on a dispatch (design section 2's P1-2).\nWhat it buys is a record that is true about who typed it, and a write a dispatched\nrun is refused -- see ``docs/authorization.md``.",
+        "operationId": "relay_authorization_api_projects__project_id__tasks__task_id__authorization_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+            "in": "query",
+            "name": "envelope",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+              "title": "Envelope",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelayAuthorizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationResult-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  ],
+                  "title": "Response Relay Authorization Api Projects  Project Id  Tasks  Task Id  Authorization Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Relay Authorization",
+        "tags": [
+          "status"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/claim": {
       "post": {
         "description": "Claim a ready task: one winner, everyone else gets a 409.\n\nA claim that names its session also writes an interactive run record (task-354), so\nthe work shows as running on every surface that reads the ledger. Only after the\nclaim landed, only for an agent actor, and never a second one for a task that has a\nlive run -- which is what makes a replayed claim harmless.",
@@ -17552,6 +17688,79 @@
         "summary": "Get Attachment",
         "tags": [
           "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/authorization": {
+      "post": {
+        "description": "Record that a human authorised a dispatch, as the agent they told (task-506).\n\nThe third shape of an authorising entry, and the only one whose author and subject\nare different people. A person clicking Dispatch gets an entry under their own name.\nA person writing a note by hand gets the same. An agent told in a chat session to\nstart the task it has just filed had neither, and the workaround was to write the\nnote as *them* -- a signature in an append-only log that its owner did not put\nthere, indistinguishable by any reader from a click. This writes an entry that says\nwhat actually happened: ``actor`` is the agent, ``authorized_by`` is the person,\n``body`` is what the agent was asked for in its own words.\n\n**It is a separate route because it is a separate capability.**\n``dispatch.relay_authorization`` is held by the two human kinds and by no ``run``,\nand the route table is keyed by endpoint -- so putting this on ``POST /log``, which\nevery run may call, would have made the gate a condition inside a handler instead of\na row in the table ``tests/test_authorization.py`` checks for completeness.\n\n**It starts nothing.** It is not an approval, it releases no merge gate, it arms\nnothing, and it spends no run slot. A dispatch afterwards is an ordinary ``manual``\ndispatch, judged by every gate in ``dispatch/guards.py`` and counted against every\ncap in ``dispatch/budget.py``. Nor is the entry consumed: it clocks exactly as many\nruns as a human's own note would, which is to say as many as those caps allow.\n\n**What it is not is proof.** The server cannot tell whether the person said anything,\njust as it cannot verify the ``user`` field on a dispatch (design section 2's P1-2).\nWhat it buys is a record that is true about who typed it, and a write a dispatched\nrun is refused -- see ``docs/authorization.md``.",
+        "operationId": "relay_authorization_api_tasks__task_id__authorization_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+            "in": "query",
+            "name": "envelope",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return a MutationResult with replayed/warnings instead of the bare task. Defaults to false, so existing callers see no change.",
+              "title": "Envelope",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelayAuthorizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MutationResult-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  ],
+                  "title": "Response Relay Authorization Api Tasks  Task Id  Authorization Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Relay Authorization",
+        "tags": [
+          "status"
         ]
       }
     },
