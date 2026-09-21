@@ -24,7 +24,9 @@ import {
   type TrayItem,
 } from "../report/tray";
 import { mergeDraft } from "../report/trayDraft";
+import { draftStore, type CaptureDraft } from "../report/draftStore";
 import { trayStore } from "../report/trayStore";
+import { setUnsentComposition } from "../unsentComposition";
 import { CaptureForm, type CaptureDestination } from "./CaptureForm";
 import { CaptureTray } from "./CaptureTray";
 import { FiledNotice, type FiledOutcome } from "./DispatchOnCreate";
@@ -171,6 +173,106 @@ function useCaptureTray(): CaptureTrayHandle {
   return { items, current: () => held.current, add, update, remove, durable: store.durable };
 }
 
+/** The draft store key, and the name this dialog's claim on the reload is held under. */
+const CAPTURE_DRAFT_KEY = "capture";
+
+/**
+ * How long a keystroke waits before it reaches the disk.
+ *
+ * Short enough that the window in which a reload loses a word is not worth reasoning
+ * about, long enough that a typed sentence is one write rather than forty. A *clear* is
+ * never debounced -- see below.
+ */
+const DRAFT_WRITE_MS = 400;
+
+type CaptureDraftHandle = {
+  /** Null while the stored draft is still being read; `{ draft }` once it is known. */
+  restored: { draft: CaptureDraft | null } | null;
+  /** What the form reports on every change, and null when it has nothing left to keep. */
+  onChange: (draft: CaptureDraft | null) => void;
+};
+
+/**
+ * The finding currently being typed, kept on this device (task-512).
+ *
+ * **Write late, forget immediately.** A save is debounced because it is a copy of state
+ * the form already holds and 400ms of it is a word. A clear is not, because it is the
+ * record of a finding that has just become something else: delaying that by even a
+ * moment opens the window where a reload restores a draft of a finding already sitting
+ * on the tray, which is the one duplicate this feature could produce.
+ *
+ * **The claim on the reload is released when the dialog closes**, not when the draft is
+ * deleted. By then the text is on disk and the composition is not on screen, so a
+ * reload costs nothing -- whereas a tab holding a stored draft would otherwise refuse to
+ * reload for the rest of its life, which is not a guard but a leak.
+ */
+function useCaptureDraft(): CaptureDraftHandle {
+  const store = useMemo(() => draftStore(), []);
+  const [restored, setRestored] = useState<{ draft: CaptureDraft | null } | null>(null);
+  /** Whether a record exists for this key, so an empty form does not write a delete. */
+  const stored = useRef(false);
+  const timer = useRef<number | null>(null);
+  const pending = useRef<CaptureDraft | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void store.load(CAPTURE_DRAFT_KEY).then((draft) => {
+      if (!alive) return;
+      stored.current = draft !== null;
+      setRestored({ draft });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [store]);
+
+  const write = useCallback(() => {
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const draft = pending.current;
+    pending.current = null;
+    if (!draft) return;
+    stored.current = true;
+    void store.save(CAPTURE_DRAFT_KEY, draft);
+  }, [store]);
+
+  const onChange = useCallback(
+    (draft: CaptureDraft | null) => {
+      setUnsentComposition(CAPTURE_DRAFT_KEY, draft !== null);
+      if (draft === null) {
+        pending.current = null;
+        if (timer.current !== null) {
+          window.clearTimeout(timer.current);
+          timer.current = null;
+        }
+        if (!stored.current) return;
+        stored.current = false;
+        void store.clear(CAPTURE_DRAFT_KEY);
+        return;
+      }
+      pending.current = draft;
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(write, DRAFT_WRITE_MS);
+    },
+    [store, write],
+  );
+
+  // Closing the dialog, or the page going away, must not be the one gesture that loses
+  // the last few hundred milliseconds of typing.
+  useEffect(() => {
+    window.addEventListener("pagehide", write);
+    return () => {
+      window.removeEventListener("pagehide", write);
+      write();
+      setUnsentComposition(CAPTURE_DRAFT_KEY, false);
+    };
+  }, [write]);
+
+  return { restored, onChange };
+}
+
 /**
  * The trigger, and the dialog it opens.
  *
@@ -241,6 +343,8 @@ function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTr
   // when you noticed, and it must not drift if the page updates behind the overlay.
   const openedAt = useRef(location.pathname);
   const context = useMemo(() => readReportContext(openedAt.current), []);
+
+  const draft = useCaptureDraft();
 
   const [filed, setFiled] = useState<Filed | null>(null);
   // Bumped to remount the form for a second capture, which is how every field, every
@@ -504,77 +608,91 @@ function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTr
           </div>
         ) : (
           <div className="mt-5">
-            <CaptureForm
-              key={attempt}
-              context={context}
-              destinations={destinations}
-              existingTaskIds={(tasksQuery.data ?? []).map((task) => task.id)}
-              onExpandedChange={(expanded) => {
-                if (expanded) setWantsTaskIds(true);
-              }}
-              autoFocus
-              onSubmit={async (projectId, request) => {
-                try {
-                  return await create.mutateAsync({
-                    path: { project_id: projectId },
-                    body: request,
-                  });
-                } catch (caught) {
-                  // A refusal carries a sentence written for a person; anything else
-                  // gets the one the form falls back to.
-                  const refusal = readRefusal(caught);
-                  throw new Error(refusal ? refusal.message : "");
+            {/*
+              Nothing is rendered until the stored draft has been read, which takes a
+              tick. A form mounted before that answer arrived would have to be told its
+              own initial values afterwards, and would fight whatever had been typed in
+              the meantime.
+            */}
+            {draft.restored && (
+              <CaptureForm
+                key={attempt}
+                context={context}
+                // Restored into the first form of a session only. The second capture
+                // starts empty by construction: the finding before it was collected,
+                // which deleted the draft, and re-reading a deleted record is the one
+                // way this could offer a duplicate.
+                initialDraft={attempt === 0 ? draft.restored.draft : null}
+                onDraftChange={draft.onChange}
+                destinations={destinations}
+                existingTaskIds={(tasksQuery.data ?? []).map((task) => task.id)}
+                onExpandedChange={(expanded) => {
+                  if (expanded) setWantsTaskIds(true);
+                }}
+                autoFocus
+                onSubmit={async (projectId, request) => {
+                  try {
+                    return await create.mutateAsync({
+                      path: { project_id: projectId },
+                      body: request,
+                    });
+                  } catch (caught) {
+                    // A refusal carries a sentence written for a person; anything else
+                    // gets the one the form falls back to.
+                    const refusal = readRefusal(caught);
+                    throw new Error(refusal ? refusal.message : "");
+                  }
+                }}
+                dispatchState={dispatchState.data ?? null}
+                onDestinationChange={setDestination}
+                // The ordinary dispatch call, with the ordinary body: `user` names the
+                // human filing, and the guard layer writes their authorising entry and
+                // checks it like any other. Nothing here is exempt from anything.
+                onStart={(projectId, taskId) =>
+                  start.mutateAsync({
+                    path: { project_id: projectId, task_id: taskId },
+                    body: reporterFor(projectId) ? { user: reporterFor(projectId)! } : {},
+                  })
                 }
-              }}
-              dispatchState={dispatchState.data ?? null}
-              onDestinationChange={setDestination}
-              // The ordinary dispatch call, with the ordinary body: `user` names the
-              // human filing, and the guard layer writes their authorising entry and
-              // checks it like any other. Nothing here is exempt from anything.
-              onStart={(projectId, taskId) =>
-                start.mutateAsync({
-                  path: { project_id: projectId, task_id: taskId },
-                  body: reporterFor(projectId) ? { user: reporterFor(projectId)! } : {},
-                })
-              }
-              onFiled={(projectId, outcome) => {
-                void queryClient.invalidateQueries();
-                setFiled({ projectId, outcome });
-              }}
-              // Collect and stay: the form remounts empty with focus back in Title, so a
-              // review pass adds a finding without the dialog closing and without a hand
-              // leaving the keyboard. The remount is the same mechanism "File another"
-              // uses, rather than a reset that has to track the form's state.
-              onCollect={({ note, wantsDraft, ...collected }) => {
-                // Declined up front, with the short reason, when there is nothing to ask
-                // or the person turned it off -- so the card states its own state rather
-                // than sitting on "pending" for a call that is never made.
-                const unavailable = modelStatus.data?.available !== true;
-                const item = tray.add({
-                  ...collected,
-                  draft:
-                    !wantsDraft || unavailable
-                      ? {
-                          state: "declined",
-                          detail: wantsDraft
-                            ? "No model is configured, so it is filed as you typed it."
-                            : "Fleshing out is switched off.",
-                        }
-                      : { state: "pending" },
-                });
-                if (wantsDraft && !unavailable) flesh(item, note);
-                setAttempt((count) => count + 1);
-              }}
-              cancel={
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="touch-target rounded-lg px-4 font-semibold text-dark-muted hover:bg-dark-border"
-                >
-                  Cancel
-                </button>
-              }
-            />
+                onFiled={(projectId, outcome) => {
+                  void queryClient.invalidateQueries();
+                  setFiled({ projectId, outcome });
+                }}
+                // Collect and stay: the form remounts empty with focus back in Title, so a
+                // review pass adds a finding without the dialog closing and without a hand
+                // leaving the keyboard. The remount is the same mechanism "File another"
+                // uses, rather than a reset that has to track the form's state.
+                onCollect={({ note, wantsDraft, ...collected }) => {
+                  // Declined up front, with the short reason, when there is nothing to ask
+                  // or the person turned it off -- so the card states its own state rather
+                  // than sitting on "pending" for a call that is never made.
+                  const unavailable = modelStatus.data?.available !== true;
+                  const item = tray.add({
+                    ...collected,
+                    draft:
+                      !wantsDraft || unavailable
+                        ? {
+                            state: "declined",
+                            detail: wantsDraft
+                              ? "No model is configured, so it is filed as you typed it."
+                              : "Fleshing out is switched off.",
+                          }
+                        : { state: "pending" },
+                  });
+                  if (wantsDraft && !unavailable) flesh(item, note);
+                  setAttempt((count) => count + 1);
+                }}
+                cancel={
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="touch-target rounded-lg px-4 font-semibold text-dark-muted hover:bg-dark-border"
+                  >
+                    Cancel
+                  </button>
+                }
+              />
+            )}
           </div>
         )}
 

@@ -9,6 +9,7 @@ import type {
   TaskCreateRequest,
 } from "../api/generated";
 import { toUploads, type PendingAttachment } from "../report/attachments";
+import { draftHasContent, type CaptureDraft } from "../report/draftStore";
 import { newOperationId } from "../api/operationId";
 import {
   REPORTED_ISSUE_TAG,
@@ -57,6 +58,29 @@ import { SpecDraftControl } from "./SpecDraftControl";
  * `FormData` at submit, which is what lets a draft write into the inputs and an undo
  * restore the person's own text rather than a normalised copy of it.
  */
+
+/**
+ * The specification inputs, which are uncontrolled and therefore live in the DOM.
+ *
+ * Listed once, here, because a draft has to read and write exactly the fields
+ * `buildRequest` reads: a field missing from this list is one that is typed, restored as
+ * blank, and silently lost -- the failure this whole feature exists to remove, wearing a
+ * smaller hat. `title` and `details` are absent because they are React state.
+ */
+const DRAFTED_FIELDS = [
+  "summary",
+  "intent",
+  "constraints",
+  "out_of_scope",
+  "context",
+  "acceptance",
+  "id",
+  "parent",
+  "category",
+  "effort",
+  "tags",
+  "dependencies",
+] as const;
 
 const inputClass =
   "touch-target mt-1 w-full rounded-lg border border-dark-border bg-dark-bg px-3 py-2 text-dark-text placeholder:text-dark-muted focus:border-blue-500 focus:outline-none";
@@ -143,6 +167,29 @@ export type CaptureFormProps = {
     /** Whether the drafting checkbox is on, so one control governs both paths. */
     wantsDraft: boolean;
   }) => void;
+  /**
+   * What was being typed here when the page last went away, put back (task-512).
+   *
+   * Read once, at mount, because that is what it is: the initial value of a form.
+   * `CaptureControl` remounts this component for each new capture, so "at mount" is also
+   * exactly when a restore is wanted and never after -- the second capture of a session
+   * must start empty, not holding the first one's text.
+   */
+  initialDraft?: CaptureDraft | null;
+  /**
+   * Called with everything currently typed, or null once there is nothing to lose.
+   *
+   * Synchronous and undebounced, because it answers two questions at two speeds. One is
+   * "keep this", which the caller may defer as long as it likes. The other is "is this
+   * tab holding unsent text", which decides whether a service worker may reload the page
+   * out from under it -- and an answer 400ms behind the keyboard is wrong at exactly the
+   * moment it is asked.
+   *
+   * Null is also how the form says it has *finished* with a draft: it is sent the moment
+   * a finding becomes a tray item or a task, so a restore can never resurrect something
+   * that was already collected or filed.
+   */
+  onDraftChange?: (draft: CaptureDraft | null) => void;
 };
 
 function optional(value: string) {
@@ -181,6 +228,8 @@ export function CaptureForm({
   onDestinationChange,
   onStart,
   onCollect,
+  initialDraft = null,
+  onDraftChange,
 }: CaptureFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   // The attachment picker owns its own textarea, so the microphone beside it needs a
@@ -188,17 +237,21 @@ export function CaptureForm({
   const detailsRef = useRef<HTMLTextAreaElement>(null);
   const specHeadingId = useId();
 
-  const [title, setTitle] = useState("");
-  const [details, setDetails] = useState("");
-  const [attachments, setAttachments] = useState<Array<PendingAttachment>>([]);
-  const [destination, setDestination] = useState(context.projectId ?? "");
-  const [actionable, setActionable] = useState(false);
+  const [title, setTitle] = useState(initialDraft?.title ?? "");
+  const [details, setDetails] = useState(initialDraft?.details ?? "");
+  const [attachments, setAttachments] = useState<Array<PendingAttachment>>(
+    initialDraft?.attachments ?? [],
+  );
+  const [destination, setDestination] = useState(
+    initialDraft?.destination ?? context.projectId ?? "",
+  );
+  const [actionable, setActionable] = useState(initialDraft?.actionable ?? false);
   // Unchecked on every mount, and never persisted anywhere. See `DispatchOnCreate.tsx`
   // for why a remembered "spend money" is the default this feature exists not to have;
   // the dialog remounts this form for a second capture, so it resets there too.
   const [startOnFile, setStartOnFile] = useState(false);
-  const [priority, setPriority] = useState<Priority>("medium");
-  const [expanded, setExpandedState] = useState(startExpanded);
+  const [priority, setPriority] = useState<Priority>(initialDraft?.priority ?? "medium");
+  const [expanded, setExpandedState] = useState(initialDraft?.expanded ?? startExpanded);
   const setExpanded = useCallback(
     (next: boolean | ((was: boolean) => boolean)) => {
       setExpandedState((was) => {
@@ -214,7 +267,7 @@ export function CaptureForm({
   // Lifted out of `SpecDraftControl` so the same checkbox decides both what its own
   // button does and whether a collected finding is fleshed out (task-121). On by
   // default, which is what it has always been.
-  const [wantsDraft, setWantsDraft] = useState(true);
+  const [wantsDraft, setWantsDraft] = useState(initialDraft?.wantsDraft ?? true);
 
   // Fall back to the first registered project only when the capture happened on a page
   // with no project of its own; never silently override the one being viewed.
@@ -250,6 +303,81 @@ export function CaptureForm({
       ? found
       : null;
   };
+
+  /**
+   * Put a restored draft's specification back into the inputs (task-512).
+   *
+   * In an effect rather than as `defaultValue`, because these fields are addressed by
+   * name through the DOM everywhere else in this file -- the model's draft writes them,
+   * the undo restores them -- and a second mechanism for the same job is a second
+   * opinion about what is in the box. Once, at mount: the empty dependency list is the
+   * point, since re-running it would overwrite what is being typed.
+   */
+  useEffect(() => {
+    if (!initialDraft) return;
+    for (const name of DRAFTED_FIELDS) {
+      const element = fieldElement(name);
+      const value = initialDraft.fields[name];
+      if (element && value !== undefined) element.value = value;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only; see above.
+  }, []);
+
+  /** Everything typed here, in the shape the draft store keeps. */
+  const readDraft = (): CaptureDraft => {
+    const fields: Record<string, string> = {};
+    for (const name of DRAFTED_FIELDS) fields[name] = fieldElement(name)?.value ?? "";
+    return {
+      title,
+      details,
+      attachments,
+      destination,
+      actionable,
+      priority,
+      expanded,
+      wantsDraft,
+      fields,
+    };
+  };
+
+  /**
+   * True once this form's content has become a tray item or a task.
+   *
+   * After that nothing here may write a draft again -- not the effect below, not a
+   * stray change event -- or the finding just collected would be offered back as
+   * something still to type. The component is remounted for the next capture, so this
+   * lives exactly as long as the composition it is about.
+   */
+  const settled = useRef(false);
+
+  /** Tell the caller what is unsent, or that there is nothing left to keep. */
+  const reportDraft = () => {
+    if (!onDraftChange || settled.current) return;
+    const draft = readDraft();
+    onDraftChange(draftHasContent(draft) ? draft : null);
+  };
+
+  /** This composition is over: it is on the tray, or on the server. Forget it. */
+  const discardDraft = () => {
+    if (!onDraftChange || settled.current) return;
+    settled.current = true;
+    onDraftChange(null);
+  };
+
+  // The controlled half. The specification inputs report themselves through the form's
+  // own change handler instead, which is what keeps them uncontrolled: mirroring twelve
+  // textareas into state to notice a keystroke would re-render the form on every one.
+  useEffect(reportDraft, [
+    title,
+    details,
+    attachments,
+    destination,
+    actionable,
+    priority,
+    expanded,
+    wantsDraft,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reportDraft is rebuilt each render.
+  ]);
 
   /**
    * What the draft control compares against.
@@ -403,6 +531,11 @@ export function CaptureForm({
         note: details,
         wantsDraft,
       });
+      // It is on the tray now, and the tray is itself durable -- so the draft has done
+      // its job and must go before the caller remounts this form for the next finding.
+      // Second, not first: if the page died between the two, a visible duplicate the
+      // person can delete is a far better outcome than prose nobody can get back.
+      discardDraft();
     } catch (caught) {
       setError(
         caught instanceof Error && caught.message
@@ -442,6 +575,8 @@ export function CaptureForm({
             ? onStart(effectiveDestination, taskId)
             : Promise.reject(new Error("This surface does not start agents.")),
       });
+      // The server has it. Same rule as a collect: this composition is over.
+      discardDraft();
       onFiled(effectiveDestination, outcome);
     } catch (caught) {
       setError(
@@ -466,6 +601,10 @@ export function CaptureForm({
         event.preventDefault();
         collect();
       }}
+      // The uncontrolled half of the draft. A change event from any specification input
+      // bubbles up to here, which is how those fields are noticed without mirroring
+      // twelve textareas into React state to watch them.
+      onChange={reportDraft}
       className="space-y-4"
     >
       {error && (
