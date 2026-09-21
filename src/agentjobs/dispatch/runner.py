@@ -127,6 +127,11 @@ from agentjobs.models_v2 import (
     utcnow,
 )
 from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
+from agentjobs.dispatch.pids import (
+    is_the_recorded_process,
+    process_identity,
+    recorded_process_alive,
+)
 from agentjobs.dispatch.credentials import (
     CREDENTIAL_ENV,
     mint_run_credential,
@@ -371,8 +376,8 @@ CODEX_PID_MISSING_GRACE_SECONDS = 30.0
 """How long a Codex App Server PID may be temporarily invisible before reaping.
 
 Windows can briefly reject or miss a process probe while a newly-started App Server is
-initializing.  A single failed ``os.kill(pid, 0)`` is therefore not evidence that the
-session ended; the supervisor state remains authoritative until this grace expires.
+initializing.  A single failed probe is therefore not evidence that the session ended;
+the supervisor state remains authoritative until this grace expires.
 """
 
 OUTPUT_TAIL_LINES = 40
@@ -2141,6 +2146,9 @@ class DispatchRunner:
             codex_status="running",
             codex_lifecycle="running_turn",
             pid=started.pid,
+            # The receipt that tells this App Server from whoever inherits its number
+            # (task-505); `_poll_codex_app_server` compares against it.
+            pid_identity=process_identity(started.pid),
             session_id=started.session_id,
             thread_id=started.thread_id,
             turn_id=started.turn_id,
@@ -3710,18 +3718,31 @@ class DispatchRunner:
             return SessionPhase.PARKED
         pid = meta.get("pid")
         if isinstance(pid, int) and pid > 0:
-            try:
-                os.kill(pid, 0)
+            # Was ``os.kill(pid, 0)``, which is wrong here twice over (task-505). On
+            # Windows CPython implements ``os.kill`` with ``TerminateProcess`` for
+            # everything but a console event, so the Unix liveness idiom is a kill
+            # wearing a question mark; and a bare pid answers about a number this
+            # machine recycles in seconds, so a dead App Server whose number was
+            # reissued polled as running indefinitely.
+            receipt = meta.get("pid_identity")
+            started = meta.get("started_at")
+            recorded_at: Optional[datetime] = None
+            if isinstance(started, str):
+                try:
+                    recorded_at = datetime.fromisoformat(started)
+                except ValueError:
+                    recorded_at = None
+            if recorded_process_alive(
+                pid,
+                identity=receipt if isinstance(receipt, str) else None,
+                recorded_at=recorded_at,
+            ):
                 # Clear a transient miss once the process is observable again.  A null
                 # value keeps the run metadata self-describing without growing a new
                 # schema just for this one startup race.
                 if meta.get("pid_missing_since") is not None:
                     handle.directory.update_meta(pid_missing_since=None)
-            except PermissionError:
-                # The process exists but Windows denied the probe; that is still alive
-                # for polling purposes.
-                pass
-            except (OSError, ProcessLookupError):
+            else:
                 now = self.clock()
                 missing_raw = meta.get("pid_missing_since")
                 missing_since: Optional[datetime] = None
@@ -4479,13 +4500,12 @@ class DispatchRunner:
         # The worker receipt (task-416): a pid alone can be reused by an unrelated process,
         # so its creation time goes down with it. A coordinator recovering this run after
         # the supervisor's process died adopts nothing on a pid that does not match both.
-        from agentjobs.dispatch.ledger import process_identity  # local: ledger imports this module
-
         directory.update_meta(
             status="running",
             pid=process.pid,
             pid_identity=process_identity(process.pid),
             supervisor_pid=os.getpid(),
+            supervisor_identity=process_identity(os.getpid()),
             dispatch_entry_id=entry_id,
         )
         self._mark_launched(directory, run_id, None)
@@ -4715,20 +4735,48 @@ class DispatchRunner:
 
         # Only now, and only while the parent is still alive: `taskkill /T` walks the
         # tree by parent pid, so calling it after the parent exited would aim at a pid
-        # the OS may have handed to something else.
-        _kill_tree(process.pid)
+        # the OS may have handed to something else. This caller still holds the Popen,
+        # and that open handle is what keeps the number reserved, so it needs no receipt.
+        _kill_tree(process.pid, holding_handle=True)
         try:
             process.wait(timeout=self.grace_seconds)
         except subprocess.TimeoutExpired:  # pragma: no cover - the OS refused to kill it
             pass
 
 
-def _kill_tree(pid: int) -> None:
-    """Kill a process and everything it started.
+def _kill_tree(
+    pid: int,
+    *,
+    identity: Optional[str] = None,
+    recorded_at: Optional[datetime] = None,
+    holding_handle: bool = False,
+) -> bool:
+    """Kill a process and everything it started, once it is proved to be that process.
 
     ``taskkill /T`` walks the tree by parent pid, which is what makes an orphaned
     ``pytest`` reachable; ``killpg`` does the equivalent on POSIX.
+
+    **A pid alone is not authority to kill** (task-505). This machine hands a dead
+    process's number to a new one within seconds, so a recorded pid acted on a minute
+    later is a coin flip -- and the losing side kills a stranger. A process killed this
+    way exits 1 with empty stdout and empty stderr, which is the signature that had the
+    gate declining reviewed branches: the stranger was usually another pytest worker's
+    child.
+
+    So the caller says how it knows. ``identity`` is the receipt recorded at spawn and
+    is exact. ``recorded_at`` is for a process that was already running when the record
+    was written, where a later creation time proves reuse. ``holding_handle`` is for a
+    live ``Popen`` the caller still owns -- the open OS handle is itself what stops the
+    number being reused, so no further proof exists or is needed.
+
+    Returns whether anything was killed. **Nothing** is, and ``False`` comes back, when
+    the caller offers no proof or the proof fails; a refusal is a normal outcome here
+    rather than an error, because the process it would have killed is already gone.
     """
+    if not holding_handle and not is_the_recorded_process(
+        pid, identity=identity, recorded_at=recorded_at
+    ):
+        return False
     if os.name == "nt":
         subprocess.run(
             ["taskkill", "/PID", str(pid), "/T", "/F"],
@@ -4738,8 +4786,9 @@ def _kill_tree(pid: int) -> None:
             errors="replace",
             check=False,
         )
-        return
+        return True
     try:
         os.killpg(os.getpgid(pid), signal.SIGKILL)  # type: ignore[attr-defined]
     except (OSError, ProcessLookupError):
         pass
+    return True

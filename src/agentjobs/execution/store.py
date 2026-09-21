@@ -56,6 +56,7 @@ from typing import (
     Tuple,
 )
 
+from agentjobs.dispatch.pids import process_created_after
 from agentjobs.execution.errors import (
     ActivityConflict,
     AlreadyQueued,
@@ -484,56 +485,9 @@ def this_holder() -> Tuple[str, int]:
     return f"{socket.gethostname()}:{pid}", pid
 
 
-def process_created_after(pid: int, moment: datetime) -> bool:
-    """Whether the process now answering to ``pid`` was started after ``moment``.
-
-    ``True`` is proof the pid was reused: a holder that recorded something at ``moment``
-    was already running then. Windows hands a dead process's pid to a new one within
-    seconds under load, and a walk refused on a recycled pid refuses forever (task-444,
-    seen in the gate). ``False`` whenever the start time cannot be read, so the answer
-    only ever clears a holder on evidence and never on doubt.
-    """
-    started: Optional[datetime] = None
-    try:
-        if os.name == "nt":
-            import ctypes
-            from ctypes import wintypes
-
-            kernel32 = getattr(ctypes, "windll").kernel32
-            handle = kernel32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
-            if not handle:
-                return False
-            try:
-                created, unused = wintypes.FILETIME(), wintypes.FILETIME()
-                if not kernel32.GetProcessTimes(
-                    handle,
-                    ctypes.byref(created),
-                    ctypes.byref(unused),
-                    ctypes.byref(wintypes.FILETIME()),
-                    ctypes.byref(wintypes.FILETIME()),
-                ):
-                    return False
-            finally:
-                kernel32.CloseHandle(handle)
-            ticks = (created.dwHighDateTime << 32) | created.dwLowDateTime
-            started = datetime(1601, 1, 1, tzinfo=timezone.utc) + timedelta(
-                microseconds=ticks // 10
-            )
-        else:
-            stat = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
-            since_boot = int(stat.rsplit(")", 1)[1].split()[19]) / getattr(os, "sysconf")(
-                "SC_CLK_TCK"
-            )
-            boot = next(
-                int(line.split()[1])
-                for line in Path("/proc/stat").read_text(encoding="ascii").splitlines()
-                if line.startswith("btime ")
-            )
-            started = datetime.fromtimestamp(boot + since_boot, tz=timezone.utc)
-    except Exception:  # noqa: BLE001 - an unreadable start time is "cannot tell"
-        return False
-    # A second of slack for clock granularity; a reused pid is minutes newer in practice.
-    return started is not None and started > moment + timedelta(seconds=1)
+# ``process_created_after`` moved to ``dispatch.pids`` with task-505. It was task-444's
+# answer to a recycled pid and the only one in the codebase; the dispatch subsystem had
+# the same question in five more places and was answering it with a bare liveness probe.
 
 
 @dataclass(frozen=True)
