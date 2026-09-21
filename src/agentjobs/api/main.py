@@ -34,6 +34,7 @@ from agentjobs.taskfiles import TaskLoadError
 from agentjobs.store_factory import close_databases, mark_server_process
 
 from .authorization import Forbidden, enforce_capability
+from .live_finish import bind_live_finishes
 from .queued_dispatch import bind_queued_dispatches
 from .dependencies import PRINCIPAL_STATE_ATTR, resolve_request_principal
 from .routes import (
@@ -258,7 +259,15 @@ app = FastAPI(
     # a route builds, so a route added tomorrow cannot be the one surface that tells
     # a person nothing is happening to a task already promised a slot. It is lazy --
     # a request that builds no `TaskRead` reads nothing.
-    dependencies=[Depends(enforce_capability), Depends(bind_queued_dispatches)],
+    # The third, and the same argument again for the fact a *running* finish is
+    # (task-509): a finish moves nothing on the record it is finishing, so without this
+    # every surface but the task page shows a task mid-merge as an ordinary agent-held
+    # one. Also lazy, and it costs one scan of the finishes rather than one per row.
+    dependencies=[
+        Depends(enforce_capability),
+        Depends(bind_queued_dispatches),
+        Depends(bind_live_finishes),
+    ],
 )
 
 MEASUREMENT_HEADER = "X-Response-Time-Ms"

@@ -55,6 +55,31 @@ describe("QueueDispatch", () => {
     expect(screen.getByText("Acting as jeff.")).toBeVisible();
   });
 
+  it("withholds the click while a finish is merging that branch", () => {
+    // task-509. The server refuses this with `live_run_exists` -- the finish holds the
+    // task's run lock -- so the only question is whether the board says so before the
+    // click or after it. The row beside this button reads *Finishing*; offering a run
+    // there would be the board contradicting itself.
+    const onDispatch = renderButton({ finishing: true });
+    const button = screen.getByRole("button", { name: "▶ Dispatch" });
+
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+
+    expect(onDispatch).not.toHaveBeenCalled();
+    expect(screen.getByText(/A finish is merging this branch/)).toBeVisible();
+  });
+
+  it("does not send a finishing task to the brief box instead", () => {
+    // A task being merged does not need a brief, it needs nothing at all, so the
+    // finish gate sits above the brief gate. "Brief and dispatch →" here would be an
+    // invitation to a click that cannot work.
+    renderButton({ finishing: true, canBrief: false });
+
+    expect(screen.queryByRole("link", { name: /Brief and dispatch/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "▶ Dispatch" })).toBeDisabled();
+  });
+
   it("sends a record that cannot brief an agent to the page with the brief box", () => {
     renderButton({ canBrief: false });
 

@@ -43,6 +43,8 @@ from fastapi import Request
 from agentjobs.models_v2 import QueuedDispatchState
 from agentjobs.projects import default_home
 
+from .request_scope import request_project_id
+
 _BINDING: ContextVar[Optional["QueuedDispatchBinding"]] = ContextVar(
     "agentjobs_queued_dispatch_binding", default=None
 )
@@ -79,7 +81,7 @@ class QueuedDispatchBinding:
             return {}
         if not entries:
             return {}
-        project_id = self._project_id()
+        project_id = request_project_id(self._request)
         if not project_id:
             return {}
         # The position is assigned over the machine's whole queue before the project
@@ -128,28 +130,6 @@ class QueuedDispatchBinding:
                 ),
             )
         return states
-
-    def _project_id(self) -> str:
-        """Which project this request addresses, or ``""`` when it cannot be told.
-
-        The path parameter where there is one, exactly as ``request_project`` reads it,
-        because every API router is mounted both unscoped and under
-        ``/api/projects/{project_id}``. An unscoped request falls back to the positional
-        default, resolved through the same visibility filter: a project this caller may
-        not see answers ``None`` there, and the queue of a project whose tasks are hidden
-        must not leak through a label.
-        """
-        from .dependencies import try_resolve_default_project
-        from .dependencies import get_principal
-
-        scoped = self._request.path_params.get("project_id")
-        if scoped:
-            return str(scoped)
-        try:
-            project = try_resolve_default_project(get_principal(self._request))
-        except Exception:  # noqa: BLE001 - a label may not cost the read
-            return ""
-        return project.id if project is not None else ""
 
 
 async def bind_queued_dispatches(request: Request) -> None:

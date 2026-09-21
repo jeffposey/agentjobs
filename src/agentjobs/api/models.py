@@ -19,6 +19,7 @@ from agentjobs.models_v2 import (
     DispatchPosture,
     Lifecycle,
     Link,
+    LiveFinishState,
     LogEntryType,
     Outcome,
     Priority,
@@ -29,11 +30,12 @@ from agentjobs.models_v2 import (
     Task,
     TaskCard,
     TaskSummary,
-    queued_display_status,
+    derived_display_status,
     self_clearing_wait,
     summary_of,
 )
 
+from .live_finish import live_finish_for
 from .queued_dispatch import queued_dispatch_for
 
 
@@ -74,6 +76,22 @@ class TaskRead(Task):
     ENGINEERING.md's rendered-value rule exists to prevent.
     """
 
+    live_finish: Optional[LiveFinishState] = None
+    """Set when a scripted finish is running against this task's branch right now.
+
+    The third derived fact on this model and the third for the same reason: a finish
+    changes nothing on the record it is finishing. An approval hands the ball to
+    `agent`/`work` and there it stays through the rebase, the gate and the merge, so
+    without this a task three minutes from being merged is indistinguishable from one a
+    session is editing (task-509).
+
+    Filled by the request-scoped binding `api.live_finish` installs, which scans the
+    machine's finishes once per request rather than once per row. Structure rather than
+    only `display_status`'s word: the Dispatch button has to disable itself and say
+    which step it is waiting on, and matching on the prose of a label is what
+    ENGINEERING.md's rendered-value rule exists to prevent.
+    """
+
     @model_validator(mode="after")
     def _fill_self_clearing_wait(self) -> "TaskRead":
         """Derive the wait from this record, overwriting anything passed for it.
@@ -97,16 +115,28 @@ class TaskRead(Task):
         self.queued_dispatch = queued_dispatch_for(self.id)
         return self
 
+    @model_validator(mode="after")
+    def _fill_live_finish(self) -> "TaskRead":
+        """Ask this request's finishes about the task, overwriting what was passed.
+
+        Here for the reason the two validators above are: the construction sites are
+        many and a site that forgot would be a surface offering a Dispatch button on a
+        branch that is mid-merge.
+        """
+        self.live_finish = live_finish_for(self.id)
+        return self
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def display_status(self) -> str:
         """The record's label, with a waiting dispatch named where there is one.
 
-        Overridden here rather than on `Task`, which cannot see the machine's queue. The
-        derivation itself stays in `models_v2` beside the one it falls back to, so the
-        label and `queued_dispatch` cannot disagree about what is happening.
+        Overridden here rather than on `Task`, which cannot see the machine's queue or
+        its finishes. The derivation itself stays in `models_v2` beside the one it falls
+        back to, so the label and the structures it is drawn from cannot disagree about
+        what is happening.
         """
-        return queued_display_status(self, self.queued_dispatch)
+        return derived_display_status(self, self.queued_dispatch, self.live_finish)
 
     @classmethod
     def from_tasks(cls, manager: TaskManager, tasks: List[Task]) -> List["TaskRead"]:
@@ -161,17 +191,31 @@ class TaskSummaryRead(TaskSummary):
     so no amount of the record would carry it.
     """
 
+    live_finish: Optional[LiveFinishState] = None
+    """Set when a scripted finish is running against this task's branch right now.
+
+    Filled by the same request-scoped binding ``TaskRead`` reads, and carried on the
+    listing row because the list is the surface this exists for: it is where a finishing
+    task used to read "In progress" beside tasks an agent was genuinely working.
+    """
+
     @model_validator(mode="after")
     def _fill_queued_dispatch(self) -> "TaskSummaryRead":
         """Ask this request's dispatch queue about the task, overwriting what was passed."""
         self.queued_dispatch = queued_dispatch_for(self.id)
         return self
 
+    @model_validator(mode="after")
+    def _fill_live_finish(self) -> "TaskSummaryRead":
+        """Ask this request's finishes about the task, overwriting what was passed."""
+        self.live_finish = live_finish_for(self.id)
+        return self
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def display_status(self) -> str:
-        """The record's label, with a waiting dispatch named where there is one."""
-        return queued_display_status(self, self.queued_dispatch)
+        """The record's label, with a waiting dispatch or a running finish named."""
+        return derived_display_status(self, self.queued_dispatch, self.live_finish)
 
     @classmethod
     def from_summaries(

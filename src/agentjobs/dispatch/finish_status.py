@@ -41,10 +41,11 @@ one that is in the middle of that step.
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import yaml
 
@@ -53,10 +54,13 @@ from agentjobs.dispatch.finish import (
     finishes_root,
     spawn_log_path,
     spawn_marker_path,
+    spawn_root,
 )
 from agentjobs.dispatch.ledger import (
     LockHolder,
+    live_lock_holders,
     read_task_lock_holder,
+    split_lock_name,
     stale_lock_reason,
 )
 from agentjobs.dispatch.phases import read_phases
@@ -405,14 +409,35 @@ def read_finish_status(home: Path, task_id: str, project_id: str = "") -> Option
     exactly what it says: no finish has ever run for this one on this machine, within
     the scan limit. A page renders nothing at all for it.
     """
-    directory = newest_finish_directory(home, task_id, project_id)
+    return _status_of(home, task_id, project_id, newest_finish_directory(home, task_id, project_id))
+
+
+def _status_of(
+    home: Path, task_id: str, project_id: str, directory: Optional[Path]
+) -> Optional[FinishStatus]:
+    """:func:`read_finish_status`, once the task's newest finish directory is known.
+
+    Split out so a caller that has *already* found that directory does not pay for
+    finding it again. :func:`live_finishes` is the one such caller: it resolves the
+    newest directory for every candidate from a single scan, and then asks this the same
+    question the task page asks, about the same attempt, through the same code. That is
+    what stops the chip a list draws and the panel a page draws from ever disagreeing --
+    there is one liveness rule, not a batched copy of one.
+    """
     marker = read_spawn_marker(home, task_id)
+    if directory is None and marker is None:
+        # Nothing has ever finished this task, so there is no question to answer and no
+        # reason to ask the lock. Asked before `holder_is_working` rather than after
+        # because that call reaches `process_identity`, which is the single most
+        # expensive read in this module -- it inspects a live process -- and a batched
+        # caller asks about tasks in this state far more often than about any other.
+        return None
+
     holder = finish_lock_holder(home, task_id, project_id=project_id)
     working = holder_is_working(home, holder)
 
     if directory is None:
-        if marker is None:
-            return None
+        assert marker is not None  # the pair is excluded above
         return _starting(task_id, project_id, marker, working)
 
     meta = read_meta(directory)
@@ -497,6 +522,157 @@ def read_finish_status(home: Path, task_id: str, project_id: str = "") -> Option
         ),
     )
     return replace(status, next_action=next_action(status, meta))
+
+
+def live_finishes(home: Path, project_id: str = "") -> Dict[str, FinishStatus]:
+    """Every task a finish is *live* for right now, for a caller holding many tasks.
+
+    The batched form of :func:`read_finish_status`, written for the task list: a list of
+    500 rows asking the per-task form would resolve the newest finish directory 500
+    times over for a fact that is ``None`` on all but one or two of them (task-509).
+
+    **Nothing here judges liveness.** The two halves below only decide *whom to ask
+    about*; :func:`_status_of` gives the answer, about the same attempt and through the
+    same code the task page's panel reads. So the chip a list draws and the panel a page
+    draws cannot disagree.
+
+    **What it costs, measured on this machine on 2026-09-20** against the live home --
+    258 finish directories, 43 spawn markers, three agent runs holding task locks:
+
+    - **Nothing in the project holds a lock: 1.7 ms**, and not one finish directory
+      read. The candidate scan comes first precisely so that this case exists: with no
+      candidate there is nothing to resolve a directory *for*, so the expensive half
+      never runs at all.
+    - **Candidates present: 86 ms**, of which 41 ms is the one shared scan and the rest
+      is confirming them. A candidate with no finish behind it costs 0.03 ms; one with a
+      finish directory to read costs about 45 ms, which is what a task page pays for the
+      same task and for the same reasons.
+
+    **Neither figure moves with the number of tasks**, which is the property that
+    matters and the one ``tests/test_performance_budgets.py`` asserts: a list of 500 rows
+    pays what a list of one pays, because the work is bounded by the machine's live locks
+    rather than by the corpus. The per-task alternative was measured beside it at 42 ms
+    a row -- **21 seconds** for a 500-row list -- which is the whole reason this exists.
+    """
+    candidates = _finishing_candidates(home, project_id)
+    if not candidates:
+        return {}
+    unresolved = {task_id for task_id, named in candidates.items() if named is None}
+    scanned = _newest_directories(home, project_id, unresolved) if unresolved else {}
+    live: Dict[str, FinishStatus] = {}
+    for task_id in sorted(candidates):
+        directory = candidates[task_id] or scanned.get(task_id)
+        status = _status_of(home, task_id, project_id, directory)
+        if status is not None and status.live:
+            live[task_id] = status
+    return live
+
+
+def _finishing_candidates(home: Path, project_id: str) -> Dict[str, Optional[Path]]:
+    """Tasks that could have a finish in flight, mapped to its directory where that is known.
+
+    Deliberately generous and deliberately cheap. Every task named here is confirmed or
+    dropped by :func:`_status_of`, so a false candidate costs a lookup and never a wrong
+    answer; a task *missing* from here would be a finish nobody is told about, which is
+    the failure that matters.
+
+    **The locks are the first half, because liveness is the lock's answer** -- the rule
+    this module opens with. A finish holds its task's run lock for the whole attempt, and
+    ``live_lock_holders`` has already applied ``stale_lock_reason``, so a held lock is a
+    process that is really working.
+
+    **A ``kind=finish`` lock names its attempt, so it needs no scan at all.** The lock
+    adopts the finish id a moment after creating the directory (``RunLock.adopt_finish``,
+    task-298), which makes it the cheapest possible answer to "which directory": a
+    ``Path``, resolved from the lock, for the shape every approved finish comes in.
+
+    **Ordinary dispatch locks are candidates too, and they are the reason a scan still
+    exists.** A run finishing *itself* under ``--posture-release`` keeps its own
+    ``kind=run`` lock and never adopts a finish one (``dispatch.finish.run_finish``), so
+    filtering on ``holder.is_finish`` would miss exactly the case an autonomous project
+    merges through. Such a candidate maps to ``None`` and is resolved by the shared scan,
+    which is also what confirms -- cheaply, from its own newest attempt being terminal or
+    absent -- that an agent merely *working* a task is not finishing it.
+
+    **The markers are the second half**, for the one window the locks cannot see: between
+    ``spawn_finish`` writing its marker and the spawned process taking the lock a second
+    or two later. Bounded by ``STARTING_GRACE_SECONDS``, the same constant ``_starting``
+    judges that window against, so this asks the markers nothing the confirmation would
+    not also ask rather than introducing a second rule.
+    """
+    candidates: Dict[str, Optional[Path]] = {}
+    try:
+        holders = live_lock_holders(home)
+    except OSError:  # pragma: no cover - unreadable home
+        holders = []
+    for name, holder in holders:
+        if holder.is_runway:
+            continue
+        held_project, task_id = split_lock_name(name)
+        if not task_id:
+            continue
+        if project_id and held_project not in ("", project_id):
+            continue
+        named: Optional[Path] = None
+        if holder.finish_id:
+            candidate = finishes_root(home) / holder.finish_id
+            # A lock may name a directory for the instant between the two writes that
+            # create them. Falling back to the scan there is correct and costs nothing
+            # that is not already being paid.
+            named = candidate if candidate.is_dir() else None
+        candidates[task_id] = named
+    horizon = time.time() - STARTING_GRACE_SECONDS
+    spawn = spawn_root(home)
+    if spawn.is_dir():
+        try:
+            markers = list(spawn.glob("*.json"))
+        except OSError:  # pragma: no cover - unreadable home
+            markers = []
+        for marker in markers:
+            if _written(marker) >= horizon:
+                candidates.setdefault(marker.stem, None)
+    return candidates
+
+
+def _newest_directories(
+    home: Path, project_id: str, task_ids: Set[str]
+) -> Dict[str, Optional[Path]]:
+    """Each task's newest finish directory, from **one** scan of the finishes root.
+
+    :func:`newest_finish_directory` for a set of tasks rather than for one, and it keeps
+    that function's two rules exactly: directories are visited most-recently-written
+    first and capped at ``SCAN_LIMIT``, so this and a task page agree about which
+    attempts are old enough to have fallen out of view; and the newest attempt is the one
+    with the greatest ``started_at`` rather than the first hit, because a retry writing
+    into an older directory would otherwise win on mtime and hide the attempt that
+    matters.
+
+    A task with no directory inside the cap maps to ``None`` rather than being absent, so
+    the caller still asks about it: the spawn marker alone answers for a finish whose
+    directory does not exist yet.
+    """
+    newest: Dict[str, Optional[Path]] = {task_id: None for task_id in task_ids}
+    started: Dict[str, str] = {}
+    root = finishes_root(home)
+    if not root.is_dir():
+        return newest
+    try:
+        entries = [entry for entry in root.iterdir() if entry.is_dir()]
+    except OSError:  # pragma: no cover - unreadable home
+        return newest
+    entries = [entry for entry in entries if entry.name != SPAWN_DIRNAME]
+    entries.sort(key=_written, reverse=True)
+    for entry in entries[:SCAN_LIMIT]:
+        meta = read_meta(entry)
+        task_id = str(meta.get("task_id") or "")
+        if task_id not in newest:
+            continue
+        if project_id and str(meta.get("project_id") or "") not in ("", project_id):
+            continue
+        key = str(meta.get("started_at") or "")
+        if newest[task_id] is None or key > started.get(task_id, ""):
+            newest[task_id], started[task_id] = entry, key
+    return newest
 
 
 def merge_commit_of(meta: Dict[str, Any], records: List[Dict[str, Any]]) -> str:

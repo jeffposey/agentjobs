@@ -313,3 +313,105 @@ describe("a queued dispatch", () => {
     expect(state.kind).toBe("actionable");
   });
 });
+
+/**
+ * A scripted finish merging the task's branch (task-509).
+ *
+ * The row read "In flight" — the same badge a task an agent is editing gets, because
+ * the record says the same thing about both. A reader scanning the list had no way to
+ * tell a task three minutes from being merged from one being worked on.
+ */
+describe("a task being finished", () => {
+  function task(overrides: Partial<TaskRead>): TaskRead {
+    return {
+      schema: 2,
+      id: "task-finishing",
+      title: "A task whose branch is being merged",
+      created: "2026-09-20T15:00:00Z",
+      updated: "2026-09-20T15:29:00Z",
+      lifecycle: "active",
+      ball: "agent",
+      ball_reason: "work",
+      display_status: "In progress (claude)",
+      priority: "high",
+      category: "ops",
+      tags: [],
+      assignment: { owner: "claude", eligible: [] },
+      spec: { summary: "Summary.", description: "Body." },
+      ...overrides,
+    };
+  }
+
+  const finish = {
+    finish_id: "fin_a1b2c3d4",
+    state: "running",
+    started_at: "2026-09-20T15:26:00Z",
+    current_step: "gate",
+    step_meaning: "Running the full gate on the rebased branch",
+    branch: "feat/task-509-finishing-status",
+  };
+
+  it("shows the server's label instead of the badge a worked task gets", () => {
+    const state = dependencyState(
+      task({ display_status: "Finishing", live_finish: finish }),
+    );
+
+    expect(state.label).toBe("Finishing");
+    expect(state.kind).toBe("flight");
+  });
+
+  it("is what separates it from a task an agent is genuinely working", () => {
+    // The two rows differ in nothing the record carries. This is the defect, stated as
+    // a test: without `live_finish` both of these return the identical badge.
+    const working = dependencyState(task({ id: "task-worked" }));
+
+    expect(working.label).toBe("In flight");
+    expect(dependencyState(task({ display_status: "Finishing", live_finish: finish })).label)
+      .not.toBe(working.label);
+  });
+
+  it("names the step in flight, which the one-word chip has no room for", () => {
+    const state = dependencyState(
+      task({ display_status: "Finishing", live_finish: finish }),
+    );
+
+    expect(state.reasons.join(" ")).toMatch(/Running the full gate on the rebased branch/);
+  });
+
+  it("falls back to the step's own name when no sentence was resolved for it", () => {
+    const state = dependencyState(
+      task({
+        display_status: "Finishing",
+        live_finish: { ...finish, step_meaning: "" },
+      }),
+    );
+
+    expect(state.reasons.join(" ")).toMatch(/gate/);
+  });
+
+  it("leaves a closed task reading its outcome while the finish cleans up", () => {
+    // The finish closes the task and then spends a second or two removing the worktree.
+    // "Completed" is the answer a reader wants there; "Finishing" would replace it with
+    // a process. The server decides this, and the closed branch above it is what keeps
+    // the component agreeing.
+    const state = dependencyState(
+      task({
+        lifecycle: "closed",
+        ball: null,
+        ball_reason: null,
+        outcome: "completed",
+        display_status: "Completed",
+        live_finish: { ...finish, current_step: "worktree" },
+      }),
+    );
+
+    expect(state.label).toBe("Completed");
+    expect(state.kind).toBe("done");
+  });
+
+  it("renders the label a reader actually sees, not merely the structure", () => {
+    render(<DependencyState task={task({ display_status: "Finishing", live_finish: finish })} />);
+
+    expect(screen.getByText("Finishing")).toBeVisible();
+  });
+});

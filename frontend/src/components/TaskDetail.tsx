@@ -957,7 +957,14 @@ export function TaskDetail(props: TaskDetailProps) {
             task.ball === "agent" && task.ball_reason !== "hold" && task.lifecycle !== "closed"
           }
           identity={detail.identity}
-          finishLive={Boolean(props.finish?.live)}
+          // Either answer means a finish is live, and they are the same answer: since
+          // task-509 the task read carries `live_finish`, derived by `_status_of` --
+          // the very function the finish query's own view is built from. The record is
+          // named first because it arrives with the page, where the finish query is a
+          // second request that resolves a moment later; without it the button is
+          // briefly pressable on a branch that is already mid-merge, which is the
+          // window somebody who just pressed Approve is actually looking at.
+          finishLive={Boolean(task.live_finish) || Boolean(props.finish?.live)}
           // The same field the server checks, so the page and the guard agree without a
           // second round trip. `spec.description` is the working specification; an empty
           // one is the only state that means there is nothing here to work from. Notably

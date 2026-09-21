@@ -39,6 +39,16 @@ export type QueueDispatchProps = {
   taskHref: string;
   /** A dispatch for this task is in flight. */
   busy?: boolean;
+  /**
+   * A scripted finish is merging this task's branch right now (task-509).
+   *
+   * Disabled rather than pressable-into-a-refusal, for the reason every other gate on
+   * this button is: the server would refuse the click with `live_run_exists`, because
+   * the finish holds the task's run lock, and the page already knows that. Read off the
+   * card's `live_finish`, the same structure the row's status chip reads, so the board
+   * cannot offer a run on a task it is simultaneously labelling *Finishing*.
+   */
+  finishing?: boolean;
   /** The last refusal from pressing this button, if it was this task's. */
   refusal?: DispatchRefusal | null;
   onDispatch: () => void;
@@ -102,6 +112,7 @@ export function QueueDispatch({
   canBrief,
   taskHref,
   busy = false,
+  finishing = false,
   refusal = null,
   onDispatch,
 }: QueueDispatchProps) {
@@ -124,6 +135,26 @@ export function QueueDispatch({
           ▶ Dispatch
         </button>
         <span className="max-w-[16rem] text-right text-xs text-orange-200">{identityDetail}</span>
+      </span>
+    );
+  }
+
+  if (finishing) {
+    // Above the brief gate: a task being merged does not need a brief, it needs
+    // nothing at all, and "Brief and dispatch →" would invite a click that cannot work.
+    return (
+      <span className="flex flex-col items-end gap-1">
+        <button
+          type="button"
+          disabled
+          data-refusal-reason="finish_in_progress"
+          className="touch-target rounded-lg bg-sky-600 px-3 text-sm font-semibold text-white opacity-60"
+        >
+          ▶ Dispatch
+        </button>
+        <span className="max-w-[16rem] text-right text-xs text-indigo-200">
+          A finish is merging this branch. Nothing can be dispatched at it until that ends.
+        </span>
       </span>
     );
   }

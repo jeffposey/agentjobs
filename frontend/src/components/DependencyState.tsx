@@ -33,6 +33,27 @@ export function dependencyState(task: TaskSummaryRead) {
       reasons: [],
     };
   }
+  if (task.live_finish) {
+    // A scripted finish is rebasing, gating and merging this task's branch right now
+    // (task-509). Above every branch below it because while a finish holds the task's
+    // run lock nothing else can be happening to the task: no dispatch can start, no
+    // second finish can begin, and the agent the row used to name has already handed
+    // the work over. Below the closed branch, though -- the finish closes the task at
+    // its `close` step and spends a second or two afterwards removing the worktree, and
+    // "Completed" is the more useful truth in that window.
+    //
+    // Drawn in the in-flight colour because it is work in flight; the label is what
+    // separates it from a session editing files, which is the whole defect. It reads
+    // `display_status` rather than spelling "Finishing" here, for the reason every
+    // other branch does: the server decides the word, so the chip and the task page's
+    // panel cannot drift apart.
+    const step = task.live_finish.step_meaning || task.live_finish.current_step;
+    return {
+      kind: "flight" as const,
+      label: task.display_status,
+      reasons: [step ? `Merging this branch. ${step}.` : "Merging this branch."],
+    };
+  }
   if (task.ball === "agent" && task.ball_reason === "hold") {
     // Before this, a held task fell through to `lifecycle === "active"` and read "In
     // flight" -- the badge asserting work was underway on the one task a human had
