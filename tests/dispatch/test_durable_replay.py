@@ -14,10 +14,11 @@ probe is answered), the agent's own work (the test hands off or closes as the ag
 and the clock. Isolated real-driver checks are ``TestTheRealDriverContract``, opt-in.
 
 **Deterministic by construction** (task-414's owner direction, 2026-09-13). The clock is a
-``FakeClock`` injected into every runner, the controller and auth recovery; nothing here
-sleeps; a subprocess is either a fake CLI invocation that answers at once or a child that
-dies at a named line. Two clocks cannot disagree under load, because the fake one starts two
-hours ahead of the wall clock and only moves when a test moves it.
+``FakeClock`` over ``skipping_clock.SkippingClock``, installed over ``agentjobs.clock`` for
+the fixture's life, so every production call site reads it rather than only the objects the
+harness hands one to (task-518); nothing here sleeps; a subprocess is either a fake CLI
+invocation that answers at once or a child that dies at a named line, and the child installs
+the same clock from its argv. Two clocks cannot disagree under load because there is one.
 
 **Human actions are counted, and so is delivery.** ``Person`` performs an action only when
 the task record asks for it, and records it. A scenario asserts the count *and* that the run
@@ -175,10 +176,10 @@ class FakeClock:
     forty-three of those -- was simply not on this timeline. That is a second clock by
     another name, and two clocks that can disagree is the bug the epic exists to remove.
 
-    Two hours ahead of the wall clock, so anything that did stamp real time -- a task log
-    entry, a journal admission -- is always in this clock's past however slowly a loaded
-    machine runs the test. Offsets are seconds since ``zero``, which a scenario sets at its
-    fixture's ``at: 0``.
+    It starts where the machine is, rather than two hours ahead as task-414's did; the
+    reason that skew existed is gone and the reason it now has to be zero is in
+    ``skipping_clock.DEFAULT_SKEW``. Offsets are seconds since ``zero``, which a scenario
+    sets at its fixture's ``at: 0``.
     """
 
     def __init__(self) -> None:

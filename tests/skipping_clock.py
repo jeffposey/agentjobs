@@ -45,12 +45,25 @@ from typing import Any, Dict, Iterator, List, Optional
 
 from agentjobs import clock as dispatch_clock
 
-#: Where a skipping clock starts unless a test says otherwise: two hours ahead of the
-#: wall clock, so anything that did stamp real time -- a task log entry written by the
-#: manager, a journal admission -- is always in this clock's past however slowly a
-#: loaded machine runs the test. Copied from task-414's ``FakeClock``, which chose it
-#: for that reason and was right.
-DEFAULT_SKEW = timedelta(hours=2)
+#: How far a skipping clock starts from the wall clock, and the answer is **not at all**.
+#:
+#: Task-414's ``FakeClock`` started two hours ahead, for a good reason that has since gone
+#: away: anything stamped with real time -- a task log entry from the manager, an execution
+#: attempt's admission -- was then always in the fake clock's past, however slowly a loaded
+#: machine ran the test. Since task-518 those stamps read this clock too, so there is
+#: nothing left to stay ahead of.
+#:
+#: And the skew actively breaks one thing, which is why it is zero rather than merely
+#: unnecessary. **A process's creation time is an OS fact and cannot be faked.** Task-505's
+#: pid-reuse guard asks whether the process now at a recorded pid was created *after* the
+#: moment that pid was recorded -- and with the clock two hours ahead, every process on the
+#: machine was created before every recorded moment, so a stranger holding a dead child's
+#: pid read as the original. That is task-505's defect reintroduced by the harness, and it
+#: turned `test_an_unknown_launch_keeps_its_ownership_when_another_dispatch_runs` red under
+#: a contended gate while it passed alone.
+#:
+#: So: a clock a test owns may skip forward freely, and must start where the machine is.
+DEFAULT_SKEW = timedelta(0)
 
 
 class ClockDeadlock(AssertionError):
@@ -66,11 +79,7 @@ class SkippingClock:
     """A :class:`~agentjobs.clock.Clock` that moves when nothing else can."""
 
     def __init__(self, start: Optional[datetime] = None) -> None:
-        self.origin = (
-            start
-            if start is not None
-            else datetime.now(timezone.utc).replace(microsecond=0) + DEFAULT_SKEW
-        )
+        self.origin = start if start is not None else datetime.now(timezone.utc) + DEFAULT_SKEW
         self._offset = 0.0
         self._condition = threading.Condition()
         self._registered = 0
