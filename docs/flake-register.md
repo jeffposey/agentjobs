@@ -22,6 +22,11 @@ to fix it -- including a dispatched agent whose gate went red on a test its own 
 not touch. Whoever fixes one updates its entry rather than closing a task quietly. Nobody
 owns the page.
 
+**The work is task-524.** Every open row here is a child of that epic, and a new row
+that needs fixing gets a child there rather than a task of its own. The finisher's
+escalation does not yet point at this page (task-526); until it does, an agent whose gate
+went red on a test it did not touch has to know to come here.
+
 ## How to use this page
 
 - **Adding an entry** is the job of whoever sees the failure, at the moment they see it,
@@ -43,14 +48,17 @@ owns the page.
 | # | test | failure | cause | class | status |
 |---|---|---|---|---|---|
 | 1 | `test_auth_recovery.py::TestSelfHealingNeedsNobody::test_a_store_that_recovers_is_probed_and_the_session_resumed_in_place` | `assert 'nudged' == 'recovered'` | two timelines in one test | clock race | **fixed** (task-518) |
-| 2 | `test_execution_controller.py::TestBatchRecovery::test_a_surviving_worker_is_left_alone_and_its_death_is_proved_not_guessed` | `AssertionError: []` -- the controller concluded nothing | Windows pid reuse: a stranger answered a dead supervisor's pid | production defect | **fixed** (task-505) |
+| 2 | `test_execution_controller.py::TestBatchRecovery::test_a_surviving_worker_is_left_alone_and_its_death_is_proved_not_guessed` | `AssertionError: []` -- the controller concluded nothing | Windows pid reuse: a stranger answered a dead supervisor's pid | production defect | **fixed** (task-505); task-454, filed 2026-09-18 on the same test, is still open and has to be closed or kept on its own evidence |
 | 3 | various dispatch tests, `exit 1` with empty stdout and stderr | a killed process's signature | `_stop_batch` ran `taskkill /T /F` at a recycled pid | production defect | **fixed** (task-505) |
-| 4 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | times out | a 30s budget sized for a machine running one gate | test premise | open -- **task-325** |
+| 4 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | times out | a 30s budget sized for a machine running one gate | test premise | open -- **task-325**, and task-243, the same test filed a week earlier; whoever takes one closes the other |
 | 5 | `test_dispatch_api.py::...::test_cancelling_a_live_run_stops_it_and_marks_it_cancelled` | `assert 'failed' == 'cancelled'` | the `cancel_requested` guard still races at 32 workers | production defect | open -- **task-370** |
 | 6 | `test_dispatch_registration.py::TestRefusals::test_a_session_the_ledger_does_not_hold_is_refused` | the refusal names the ledger rather than the live session | process creation itself failed; the runner never ran | environment, surfaced as a defect | **cause removed** (task-518) |
 | 7 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_marked_launch_the_listing_cannot_find_is_unknown_not_absent` | `AssertionError: []` -- the controller decided nothing | the attempt store stamped `admitted_at` on the machine's clock while the controller read another | clock race | **fixed** (task-518) |
 | 8 | `test_dispatch_journal.py::TestACancelLandingMidPoll::test_the_cancel_wins_and_the_poll_writes_nothing` | `the poller never reached its conclusion` | a ten-second wall-clock budget for a thread that spawns a subprocess | test premise | open -- **task-522** |
 | 9 | `test_task_queued_status.py::TestTheLabel::test_a_waiting_dispatch_reads_queued_and_a_task_without_one_still_reads_ready` | `assert 'In progress (claude)' == 'Queued'` | a dispatch poll reconciled the fixture's fake sessions away, so the full machine emptied and the dispatch started instead of queuing | test premise | open -- **task-522** |
+| 10 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_fresh_process_performs_the_recovery` | `assert 'never launched' in '\n'` -- an empty report | `attempt_evidence` asks a bare `process_alive` with no start-time guard, so a reused pid keeps a dead launcher's attempt owned | production defect | open -- **task-489** |
+| 11 | `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output` | `sqlite3.ProgrammingError: Cannot operate on a closed database` | a supervisor thread outlives its test and writes through a store the fixture has closed | teardown lifetime | open -- **task-497** |
+| 12 | whichever test an xdist worker happens to be running (`test_auto_dispatch.py` and `test_dispatch_api.py` seen) | `Windows fatal exception: access violation`, `worker 'gwN' crashed` | `_classify_batch_exit` reads SQLite from a background thread while the fixture closes the database | teardown lifetime | open -- **task-438** |
 
 ### 1. The two timelines in `test_auth_recovery` (clock race, fixed)
 
@@ -79,7 +87,7 @@ parameter -- but four `_parse(row[...]) or utcnow()` fallbacks called the wall c
 so did forty-three call sites elsewhere in the subsystem. A partly injected clock is
 worse than none, because it looks finished.
 
-**The fix.** `agentjobs.dispatch.clock` is the subsystem's one time source, and
+**The fix.** `agentjobs.clock` is the process's one time source, and
 `tests/skipping_clock.py` is a clock a test owns that advances itself when every
 registered waiter is blocked. The harness has one origin; every simulated moment is an
 offset from it, and no amount of wall clock can pass between two of them.
@@ -279,6 +287,44 @@ owns the pair of rates. **What is evidence here is the two gate logs**, kept at
 **Related, and not the same.** Task-513 budgets the run ceiling so concurrent tasks stop
 tripling the gate. That lowers the rate both of these fire at. It does not make either
 premise true.
+
+### 10, 11 and 12, filed before this page existed, open
+
+Three tasks that predate the register and were missed when it was written on 2026-09-21.
+Added 2026-09-22 by the review of task-518. Each is a child of task-524, the epic that
+holds every open row here.
+
+**10. `test_execution_controller.py::TestLaunchCrashWindows::test_a_fresh_process_performs_the_recovery`
+(task-489).** Seen 2026-09-19 in task-482's handoff gate with three gates running: the
+test crashes a launch before its marker is written, runs a controller tick in a fresh
+subprocess, and expects the report to name the attempt as admitted but never launched.
+The report came back empty. `attempt_evidence`'s never-launched branch asks a bare
+`process_alive(holder_pid)`, which answers whether *some* process holds that number, and
+under `-n auto` the crashed launcher's pid is routinely reissued before the tick. The
+store's own holder check already compares process start times for exactly this reason;
+this branch does not. **A production rule, not a test premise**: a run whose launcher died
+keeps its task and its slot until a person notices. **Reproduction:** construct the state
+directly, a live pid whose process started after the attempt was admitted, rather than
+loading the machine and hoping.
+
+**11. `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output`
+(task-497).** Seen 2026-09-20 in task-175's scripted finish, green on the retry. The
+traceback ends in `connection.write()` executing `BEGIN IMMEDIATE` on a closed handle,
+reached from `manager.handoff` on a `dispatch-run_*` thread. A lifetime question, not a
+timing one: something closed the writer while a handoff was still in flight through it,
+and the leading candidate is a supervisor thread outliving the test that started it. The
+same message appears in task-438's logs from the same thread name, so 11 and 12 are very
+likely one cause with two faces. **Reproduction:** `tests/test_dispatch_api.py` alone
+under `-n 8`, repeatedly; task-438 measured one worker crash in nine runs on a branch and
+none in nine on `main`, so the rate is low and the instrument has to be stated.
+
+**12. An xdist worker crash, on whatever test it was running (task-438).** `Windows fatal
+exception: access violation` with `_classify_batch_exit` -> `manager.get_task` ->
+`store.load_task` on the current thread, during a `served` fixture's TestClient teardown.
+Seen 2026-09-06, 09-07, 09-13 (three finishes) and 09-18; the finish logs are listed on
+the task. A native crash takes the worker and every test still queued on it, so the test
+id in the report is not the culprit. **Reproduction:** as for 11, and grep
+`~/.agentjobs/finishes/*/gate*.log` for `access violation`.
 
 ## Proving a converted test still catches its threshold
 
