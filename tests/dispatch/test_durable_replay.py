@@ -1772,7 +1772,14 @@ class TestCapabilities:
         task_id = world.task()
         caused_by = world.authorise(task_id)
         die_in_child(world, "dispatch", "after_marker", f"{task_id}:{caused_by}")
-        world.ticks(10, 20)
+        # Past the reconcile deadline, because a launch is only `effect_unknown` once it
+        # has had its 600 seconds to turn up in a listing. This used to say `20` and pass,
+        # and the reason is task-518's whole subject: the child stamped its admission on
+        # the machine's clock and the harness read one two hours ahead, so *every* attempt
+        # was two hours old on its first tick and the deadline was never actually tested.
+        # Two ticks past it, because the tick that classifies the launch `effect_unknown`
+        # is not the one that hands it to a person.
+        world.ticks(10, 620, 621)
         [attempt] = journal(world.home).live_attempts()
         assert "effect_unknown" in (world.get(task_id).ball_prompt or "")
 
