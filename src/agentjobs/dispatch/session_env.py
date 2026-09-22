@@ -88,6 +88,41 @@ session may do: a peer message arrives as external content inside an XML wrapper
 marked as not typed by the user, and is acted on under the receiver's own permission mode.
 """
 
+AUTO_CONTINUE_AT_USAGE_LIMIT = "autoContinueAtUsageLimit"
+AUTO_CONTINUE_OWNED_BY_AGENTJOBS = False
+"""Whether Claude Code's own quota auto-resume is left armed for this run (task-455).
+
+**`False`, because AgentJobs owns the resume and two owners is one too many.** Claude
+Code has its own wait-for-the-reset-and-continue, it defaults to **on**, and the settings
+document this module writes never mentioned it -- so which mechanism continued a run was
+decided by whatever the machine's user settings happened to say on the day. That is the
+silent input this epic exists to remove: a run's behaviour is resolved at dispatch and
+written down.
+
+Read out of Claude Code **2.1.278** on 2026-09-22 (strings, not documentation):
+
+- `autoContinueAtUsageLimit` is a boolean in settings, read as `Dct()??!0` -- **on unless
+  something says otherwise**, and `--settings` is a `flagSettings` source, which is one of
+  the things that may say otherwise.
+- Its cancellation reasons include `background_handoff`, carrying "this session moved to
+  the background, so the task will not resume on its own when the usage limit resets",
+  and `process_exit`. Every AgentJobs run is launched `--bg`, and a run whose session dies
+  on the refusal has exited -- which is the state our recovery is built for.
+- It knows nothing about a task record: no park to `external`/`service`, no reset time on
+  the ball prompt, no incident shared across the several runs that lose one limit
+  together, and nothing a human reading the board can see.
+
+So the vendor feature **cannot** be the owner, and `True` was rejected on that ground
+rather than on a preference. Leaving the key unset was rejected too: the value would go on
+being inherited, and a future version that made background sessions eligible would
+introduce a double-continue nobody would think to look for.
+
+It is **defaulted, not imposed**, the same way `crossSessionInbound` is: an operator who
+wrote the key into a runner's own settings meant it. Pinning it also never widens what a
+run may do -- `False` is the value Claude Code's own policy table marks as the restrictive
+one for this key.
+"""
+
 DAEMON_START_BANNER = "starting background service"
 """What the launcher prints when *this* launch is the one that starts the daemon.
 
@@ -208,6 +243,11 @@ def merged_document(
     ``crossSessionInbound`` is **defaulted, not imposed** (task-451): a run that does not
     take it is a run the in-place wake cannot reach, so it goes in unless the operator
     said otherwise, and an operator who wrote the key meant it.
+
+    ``autoContinueAtUsageLimit`` goes in the same way and for the mirror-image reason
+    (task-455): the vendor's own quota resume defaults to *on*, so leaving the key out
+    means a second mechanism believing it owns the continue. See
+    :data:`AUTO_CONTINUE_OWNED_BY_AGENTJOBS`.
     """
     document: Dict[str, object] = dict(base or {})
     merged: Dict[str, str] = {}
@@ -217,6 +257,7 @@ def merged_document(
     merged.update(environment)
     document["env"] = merged
     document.setdefault(CROSS_SESSION_INBOUND, CROSS_SESSION_ACCEPT)
+    document.setdefault(AUTO_CONTINUE_AT_USAGE_LIMIT, AUTO_CONTINUE_OWNED_BY_AGENTJOBS)
     return document
 
 

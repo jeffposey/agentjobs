@@ -33,6 +33,8 @@ from agentjobs.dispatch.session_env import (
     Delivery,
     daemon_was_started,
     deliver_identity,
+    AUTO_CONTINUE_AT_USAGE_LIMIT,
+    AUTO_CONTINUE_OWNED_BY_AGENTJOBS,
     CROSS_SESSION_ACCEPT,
     CROSS_SESSION_INBOUND,
     merged_document,
@@ -106,6 +108,27 @@ class TestTheDocument:
         )
 
         assert document[CROSS_SESSION_INBOUND] == "reject"
+
+    def test_exactly_one_mechanism_owns_the_resume_after_a_usage_limit(self) -> None:
+        """task-455.
+
+        Claude Code's own `autoContinueAtUsageLimit` defaults to **on**, so a document
+        that does not mention it leaves a second mechanism believing it owns the
+        continue -- and which one that is gets decided by the machine's user settings
+        rather than by the dispatch. AgentJobs owns the resume, so the key is pinned off.
+        """
+        document = merged_document({"AGENTJOBS_RUN_ID": "run_abc123"})
+
+        assert document[AUTO_CONTINUE_AT_USAGE_LIMIT] is False
+        assert AUTO_CONTINUE_OWNED_BY_AGENTJOBS is False
+
+    def test_an_operator_who_wants_the_vendors_resume_keeps_it(self) -> None:
+        """Defaulted, not imposed -- the same trade `crossSessionInbound` makes."""
+        document = merged_document(
+            {"AGENTJOBS_RUN_ID": "run_abc123"}, {AUTO_CONTINUE_AT_USAGE_LIMIT: True}
+        )
+
+        assert document[AUTO_CONTINUE_AT_USAGE_LIMIT] is True
 
     def test_redaction_keeps_the_names_and_drops_the_values(self) -> None:
         """ "Which variables did this run get" is worth answering from the record. The
