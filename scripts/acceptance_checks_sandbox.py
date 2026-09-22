@@ -82,12 +82,9 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any
 
 import yaml
-
-if TYPE_CHECKING:
-    from agentjobs.models_v2 import CheckOutcome
 
 DEFAULT_PORT = 8913
 
@@ -156,61 +153,63 @@ def criteria(*, failing: bool, decided: bool = True) -> list[dict[str, object]]:
     ]
 
 
-def passing_results() -> list["CheckOutcome"]:
-    """A recorded pass in which every check exited 0."""
-    from agentjobs.models_v2 import CheckOutcome
+def passing_results() -> list[dict[str, Any]]:
+    """A recorded pass in which every check exited 0.
 
+    Plain mappings, validated into ``CheckOutcome`` by :func:`seed` rather than here.
+    Nothing in this module may name ``agentjobs`` outside a function body: a sandbox is
+    refused if it imports the package before ``main`` has pointed ``AGENTJOBS_HOME`` at
+    scratch, and ``tests/test_sandbox_store.py`` reads that off the syntax tree -- so a
+    ``TYPE_CHECKING`` import counts, however little it runs.
+    """
     return [
-        CheckOutcome.model_validate(raw)
-        for raw in [
-            {"id": "ac-1", "status": "met", "exit_code": 0, "duration_seconds": 41.2},
-            {"id": "ac-2", "status": "met", "exit_code": 0, "duration_seconds": 128.0},
-            {"id": "ac-3", "status": "met", "exit_code": 0, "duration_seconds": 0.83},
-        ]
+        {"id": "ac-1", "status": "met", "exit_code": 0, "duration_seconds": 41.2},
+        {"id": "ac-2", "status": "met", "exit_code": 0, "duration_seconds": 128.0},
+        {"id": "ac-3", "status": "met", "exit_code": 0, "duration_seconds": 0.83},
     ]
 
 
-def failing_results() -> list["CheckOutcome"]:
+def failing_results() -> list[dict[str, Any]]:
     """A recorded pass with both kinds of failure in it, which is the point of it.
 
     One check exited non-zero, which is the branch's problem. One never started at all,
     which is the machine's. They render as different sentences because they call for
     different actions, and a page that collapsed them into one red word would be sending
-    somebody to read a diff that is fine.
+    somebody to read a diff that is fine. Plain mappings, for the reason given on
+    :func:`passing_results`.
     """
-    from agentjobs.models_v2 import CheckOutcome
-
     return [
-        CheckOutcome.model_validate(raw)
-        for raw in [
-            {
-                "id": "ac-1",
-                "status": "failed",
-                "exit_code": 1,
-                "duration_seconds": 0.8,
-                "output_tail": (
-                    "FAILED tests/test_loop.py::test_converges - AssertionError: "
-                    "expected 3 iterations, got 7\n"
-                    "=========================== short test summary ===========================\n"
-                    "1 failed, 214 passed in 0.79s"
-                ),
-            },
-            {"id": "ac-2", "status": "met", "exit_code": 0, "duration_seconds": 126.4},
-            {
-                "id": "ac-3",
-                "status": "failed",
-                "exit_code": None,
-                "duration_seconds": 5.0,
-                "cause": "not_started",
-                "output_tail": "FileNotFoundError: [WinError 2] The system cannot find the file specified",
-            },
-        ]
+        {
+            "id": "ac-1",
+            "status": "failed",
+            "exit_code": 1,
+            "duration_seconds": 0.8,
+            "output_tail": (
+                "FAILED tests/test_loop.py::test_converges - AssertionError: "
+                "expected 3 iterations, got 7\n"
+                "=========================== short test summary ===========================\n"
+                "1 failed, 214 passed in 0.79s"
+            ),
+        },
+        {"id": "ac-2", "status": "met", "exit_code": 0, "duration_seconds": 126.4},
+        {
+            "id": "ac-3",
+            "status": "failed",
+            "exit_code": None,
+            "duration_seconds": 5.0,
+            "cause": "not_started",
+            "output_tail": "FileNotFoundError: [WinError 2] The system cannot find the file specified",
+        },
     ]
 
 
 def seed(manager, *, failing_copy: bool) -> None:
     """Four tasks: a green one, a red one, one nothing has run, and one with no checks."""
-    from agentjobs.models_v2 import Lifecycle, Priority
+    from agentjobs.models_v2 import CheckOutcome, Lifecycle, Priority
+
+    def outcomes(raw: list[dict[str, Any]]) -> list[CheckOutcome]:
+        """Validate here, where naming the package is allowed, rather than at the top."""
+        return [CheckOutcome.model_validate(item) for item in raw]
 
     manager.create_task(
         id="task-001",
@@ -229,7 +228,7 @@ def seed(manager, *, failing_copy: bool) -> None:
     manager.record_check_result(
         "task-001",
         actor="Jeff Posey",
-        results=passing_results(),
+        results=outcomes(passing_results()),
         unchecked=["ac-4"],
     )
 
@@ -255,7 +254,7 @@ def seed(manager, *, failing_copy: bool) -> None:
     manager.record_check_result(
         "task-002",
         actor="Jeff Posey",
-        results=failing_results(),
+        results=outcomes(failing_results()),
         unchecked=["ac-4"],
     )
 
