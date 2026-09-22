@@ -117,13 +117,28 @@ def measure_pids(spawns: int, width: int) -> int:
 
 @contextlib.contextmanager
 def _slots_held(count: int):
-    """Hold ``count`` gate slots, so pytest is handed a contended gate's worker count."""
+    """Hold ``count`` gate slots, so pytest is handed a contended gate's worker count.
+
+    The capacity is lifted for the length of this block (task-536): above two, a
+    synthetic slot would otherwise queue for a gate that does not exist, and this probe
+    is asking what a *worker count* does to the failure rate rather than how many gates
+    the machine admits. The pytest it launches passes ``-n`` explicitly, so it resolves
+    nothing of its own.
+    """
     import gate_slots  # type: ignore[import-not-found]
 
-    with contextlib.ExitStack() as stack:
-        for _ in range(count):
-            stack.enter_context(gate_slots.hold(ROOT))
-        yield
+    previous = os.environ.get(gate_slots.CAPACITY_ENV)
+    os.environ[gate_slots.CAPACITY_ENV] = str(count + 1)
+    try:
+        with contextlib.ExitStack() as stack:
+            for _ in range(count):
+                stack.enter_context(gate_slots.hold(ROOT))
+            yield
+    finally:
+        if previous is None:
+            os.environ.pop(gate_slots.CAPACITY_ENV, None)
+        else:
+            os.environ[gate_slots.CAPACITY_ENV] = previous
 
 
 def measure_runs(times: int, slots: int, files: Sequence[str], keep: Path) -> int:

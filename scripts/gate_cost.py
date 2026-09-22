@@ -94,13 +94,29 @@ def slots_held(count: int) -> Iterator[None]:
 
     A held slot is a file `gate_slots` counts, nothing more, so this buys the worker
     count of a contended machine without the contention -- which is the whole experiment.
+
+    **Above the capacity this has to say so, or it deadlocks** (task-536). Since a third
+    gate queues rather than taking a third share, the third synthetic slot would wait
+    forty minutes for itself and the `check.py` below would then wait behind it. The
+    capacity is therefore lifted for this process and its subprocess, through
+    `gate_slots.CAPACITY_ENV`, which is the one sanctioned use of that variable: the
+    experiment's whole purpose is to run a gate at a width it would not otherwise be
+    handed, and that is a different question from how many gates the machine allows.
     """
     import gate_slots  # type: ignore[import-not-found]
 
-    with contextlib.ExitStack() as stack:
-        for _ in range(count):
-            stack.enter_context(gate_slots.hold(ROOT))
-        yield
+    previous = os.environ.get(gate_slots.CAPACITY_ENV)
+    os.environ[gate_slots.CAPACITY_ENV] = str(count + 1)
+    try:
+        with contextlib.ExitStack() as stack:
+            for _ in range(count):
+                stack.enter_context(gate_slots.hold(ROOT))
+            yield
+    finally:
+        if previous is None:
+            os.environ.pop(gate_slots.CAPACITY_ENV, None)
+        else:
+            os.environ[gate_slots.CAPACITY_ENV] = previous
 
 
 def _active() -> int:

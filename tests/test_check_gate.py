@@ -275,8 +275,10 @@ class TestPytestOptions:
     what those numbers were measured under.
 
     Since task-339 the ``-n`` *value* is a placeholder here and is resolved when pytest is
-    about to run, from how many gates share the machine -- see ``tests/test_gate_slots.py``.
-    These tests assert on the flag's presence for that reason, not by accident.
+    about to run, from how many gates share the machine -- and since task-536 it is never
+    ``auto``, because six cores are the owner's and at most two gates run pytest at once.
+    See ``tests/test_gate_slots.py``. These tests assert on the flag's presence for that
+    reason, not by accident.
     """
 
     @staticmethod
@@ -883,14 +885,17 @@ class TestConcurrentStages:
 
     def test_pytest_reserves_cores_for_the_lane_beside_it(self) -> None:
         """``gate_slots`` divides the machine between *gates*, and the frontend lane of a
-        concurrent run is not a gate -- it is inside one."""
+        concurrent run is not a gate -- it is inside one. Since task-536 that reserve
+        comes off *after* the division and on top of the owner's, so it is this gate's
+        own cost rather than something it takes out of the six that are not its."""
         stage = next(stage for stage in check.stages() if stage.name == "pytest")
 
         alone, _ = check.commands_for(stage, "npm.cmd")
         reserved, _ = check.commands_for(stage, "npm.cmd", reserve=check.CONCURRENT_RESERVE)
 
-        assert alone[0][alone[0].index("-n") + 1] == "auto"
-        assert reserved[0][reserved[0].index("-n") + 1] != "auto"
+        lone_value = int(alone[0][alone[0].index("-n") + 1])
+        reserved_value = int(reserved[0][reserved[0].index("-n") + 1])
+        assert reserved_value == lone_value - check.CONCURRENT_RESERVE
 
     def test_captured_output_cannot_kill_the_run_it_is_reporting(
         self, monkeypatch: pytest.MonkeyPatch
