@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from pathlib import Path
-from typing import Iterator
+from types import ModuleType
+from typing import Any, Iterator, Optional
 
 from starlette.testclient import TestClient
 
@@ -241,3 +244,135 @@ def no_database_survives_a_test() -> Iterator[None]:
     close_databases()
     close_execution_stores()
     reset_server_process()
+
+
+# ---------------------------------------------------------------------------
+# A hand-run parallel pytest obeys the gate's core budget too (task-536).
+# ---------------------------------------------------------------------------
+
+_GATE_SLOTS_PATH = Path(__file__).resolve().parents[1] / "scripts" / "gate_slots.py"
+
+
+def _load_gate_slots() -> Optional[ModuleType]:
+    """``scripts/gate_slots.py``, or ``None`` if it cannot be loaded.
+
+    By path rather than by import, because ``scripts/`` is not a package and putting it
+    on ``sys.path`` would make every other script in it importable as a side effect of
+    running the suite. ``None`` is a supported outcome: the budget is an optimisation
+    and this file is the test suite's, so nothing here may stop a test run.
+    """
+    try:
+        import importlib.util
+
+        import sys
+
+        name = "agentjobs_gate_slots"
+        spec = importlib.util.spec_from_file_location(name, _GATE_SLOTS_PATH)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        # In ``sys.modules`` *before* it executes, because `@dataclass` resolves a
+        # string annotation by looking its own module up there -- and this file has
+        # ``from __future__ import annotations``, so every annotation is a string.
+        # Without this the module fails to load and the budget silently reverts to
+        # every core, which is the failure it exists to prevent.
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+        return module
+    except Exception:  # noqa: BLE001 - see the docstring
+        return None
+
+
+gate_slots: Any = _load_gate_slots()
+_held_slot: Any = None
+
+
+@pytest.fixture(autouse=True)
+def the_budget_forgets_a_failed_acquire() -> Iterator[None]:
+    """Clear ``gate_slots._DEGRADED`` around every test.
+
+    It is process-wide by design -- the acquire and the ``-n`` resolution minutes later
+    have no call path between them -- and a process-wide flag is exactly what leaks from
+    one test into the next one xdist happens to schedule beside it. A test that wants it
+    set sets it.
+    """
+    if gate_slots is not None:
+        gate_slots.reset_degraded()
+    yield
+    if gate_slots is not None:
+        gate_slots.reset_degraded()
+
+
+def a_slot_is_wanted(config: Any, workers: int) -> bool:
+    """Whether this pytest process should take a gate slot of its own.
+
+    Three things disqualify it. **A serial run** costs one core and is not what the
+    capacity protects -- ``pytest -k one_test`` must never wait for anything. **A run
+    inside a gate** is already covered by the slot the gate is holding, which it says so
+    through ``gate_slots.SLOT_ENV``; taking a second would have one gate counted twice.
+    **An xdist worker** is one of the processes the controller's slot already paid for.
+    Collection-only is excluded too: it starts no workers whatever ``-n`` says.
+    """
+    if gate_slots is None or workers <= 1:
+        return False
+    if hasattr(config, "workerinput"):
+        return False
+    if config.getoption("collectonly", False):
+        return False
+    return not gate_slots.held_by_an_enclosing_gate()
+
+
+def take_a_slot(config: Any, workers: int) -> None:
+    """Queue for a slot and hold it, at most once per process, never raising."""
+    global _held_slot
+    if _held_slot is not None or not a_slot_is_wanted(config, workers):
+        return
+    try:
+        _held_slot = gate_slots.acquire(Path(__file__).resolve().parents[1])
+    except Exception:  # noqa: BLE001 - a slot is an optimisation; the suite is not
+        _held_slot = None
+
+
+@pytest.hookimpl
+def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
+    """What ``-n auto`` means here: the gate's budget, not every core.
+
+    ``gate_slots`` only ever saw ``scripts/check.py``, so an agent running
+    ``pytest -n auto`` by hand took all 32 cores and was invisible to every gate on the
+    machine while doing it. xdist 3.8 has this hook and calls it from its own
+    ``pytest_cmdline_main``, before anything else in a session -- which is the right
+    moment, because the slot has to be taken *before* the budget is resolved for the run
+    to count itself.
+
+    Returning a number is not optional here: this hook is ``firstresult``, so a ``None``
+    would fall through to xdist's own implementation and the reserve would be lost.
+    """
+    take_a_slot(config, workers=2)
+    try:
+        return gate_slots.budget() if gate_slots is not None else (os.cpu_count() or 1)
+    except Exception:  # noqa: BLE001 - never fail a run over the budget
+        return os.cpu_count() or 1
+
+
+@pytest.hookimpl
+def pytest_configure(config: pytest.Config) -> None:
+    """The explicit ``-n 8`` case, which never reaches the hook above.
+
+    By ``pytest_configure`` xdist's ``pytest_cmdline_main`` has already turned ``auto``
+    into a number, so ``numprocesses`` is an int either way and this is idempotent with
+    the acquire above.
+    """
+    count = getattr(config.option, "numprocesses", None)
+    take_a_slot(config, workers=count if isinstance(count, int) else 0)
+
+
+@pytest.hookimpl
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """Give the slot back. A missed release expires within ``STALE_SECONDS`` anyway."""
+    global _held_slot
+    if _held_slot is not None:
+        try:
+            _held_slot.release()
+        except Exception:  # noqa: BLE001 - releasing is best-effort by construction
+            pass
+        _held_slot = None

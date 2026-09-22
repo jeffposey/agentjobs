@@ -835,6 +835,11 @@ configured globally, so a hand-run `pytest` is serial. That is deliberate: xdist
 more than it saves on a small selection, and its interleaved output is the wrong trade
 when you are reading one failure.
 
+What a hand-run `pytest -n auto` *means* is no longer xdist's business either (task-536):
+`tests/conftest.py` implements `pytest_xdist_auto_num_workers`, so it resolves through
+the same budget the gate uses and takes a gate slot while it runs. A serial hand-run
+still takes nothing and waits for nothing.
+
 ### How the gate degrades under contention
 
 | Concurrent gates | Serial suite (historical) | Parallel suite | Parallel suite, 2026-09-06 |
@@ -1010,6 +1015,68 @@ earlier at dispatch. The baseline also moved: the same stage measured 257.4 / 28
 (chrome held 12.2 GB across 64 processes against python's 8.8 GB, with 7.2 GB free of
 64 GB). A weighted admission budget would be predicting one variable it cannot see from
 another it does not control.
+
+#### Two gates, thirteen workers each, and a queue (task-536, 2026-09-22)
+
+The sections above are the evidence this change rests on; it adds no measurement of its
+own, which is deliberate and is why task-534 follows it. What it does is stop the
+regime those sections describe from recurring: on 2026-09-22 three gates overlapped on
+this machine, each handed a third of it, and one of them took **45 minutes** and went red.
+
+Four changes, in `scripts/gate_slots.py` and `scripts/check.py`, plus a hook in
+`tests/conftest.py`:
+
+| | Before | After |
+|---|---|---|
+| Gates running pytest at once | unbounded | **2**, a third queues |
+| A lone gate's `-n` | `auto` (32) | **26** |
+| A paired gate's `-n` | 16 | **13** |
+| A third gate's `-n` | 10 | queued, or 13 if it waits out 40 minutes |
+| Cores never given to pytest | 0 | **6** |
+| A slot's life without a heartbeat | 30 minutes | **5 minutes**, touched every 60s |
+| A hand-run `pytest -n auto` | 32, invisible | budgeted, and takes a slot |
+
+**Why two at thirteen and not one at thirty or three at ten.** The owner asked for one of
+those two; neither is right on the curve
+[above](#the-29x-spread-was-the-budget-not-contention-task-513-2026-09-21). The suite is
+nearly flat from 32 workers to 16 — 8% for half the machine — and steep below about ten,
+with `-n 6` at 3.0x a lone run.
+
+- **Three at ten** sits at the knee. Each gate is 1.5 to 2x its lone cost, and it is the
+  regime that produced the 45-minute gate.
+- **One at thirty** gives the best per-gate time and the deepest queue: with
+  `limits.max_concurrent_runs` at three, the third run waits two whole gates.
+- **Two at thirteen** stays on the flat part, so each gate costs close to what it costs
+  alone, and the third run waits one gate. Memory is inside what task-339 measured for
+  two at sixteen — 6.4 GB peak, 1452 MB lowest free — because 2 × 13 is fewer workers
+  than 2 × 16.
+
+**Why the heartbeat is the load-bearing part.** `STALE_SECONDS` was thirty minutes and
+the gates that caused this ran forty-five, so each one *disappeared from the count while
+it was still running*. The next gate then measured a quieter machine than it had, took a
+larger share, and made everything slower — a pileup that feeds itself, and one that no
+amount of tuning the division would have fixed. A daemon thread now touches the slot
+every 60 seconds and staleness drops to five minutes, so liveness is the heartbeat and
+nothing else: a killed gate frees its slot within five minutes with no pid check and no
+sweeper, and a live one is never mistaken for a corpse however long it runs.
+
+**Why a hand-run pytest is in scope.** `gate_slots` only ever saw `scripts/check.py`. An
+agent running `pytest -n auto` by hand took all 32 cores and was invisible to every gate
+on the machine while doing it, which is a third gate by another name. The
+`pytest_xdist_auto_num_workers` hook in `tests/conftest.py` resolves that count through
+the same budget and takes a slot the same way; a serial `pytest -k one_test` takes
+nothing and waits for nothing, and the pytest *inside* a gate recognises the slot its
+gate is already holding through `AGENTJOBS_GATE_SLOT`.
+
+**What task-534 should judge this against.** Whether two at thirteen beats three at ten
+and one at twenty-six on time-to-review across a real day of dispatched runs, which is
+the cost being minimised and not per-gate seconds. If a different shape wins there, the
+numbers change and the mechanism stays.
+
+**Outside this repository.** `limits.max_concurrent_runs` in `~/.agentjobs/dispatch.yaml`
+still admits three runs, and should: a run is not a gate, and the third run's *work*
+proceeds while only its gate queues. Its comment is the owner's to update — the
+recommended text is on task-536.
 
 #### Running the stages concurrently (task-268, 2026-09-06)
 

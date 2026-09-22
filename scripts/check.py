@@ -240,15 +240,16 @@ parallel while a hand-run `pytest -k something` stays serial. That is the right 
 both directions: xdist costs more than it saves on a handful of tests, and its
 interleaved output is worse to read when you are debugging one.
 
-**`auto` is every core, and this machine runs three agents at once** (task-339). What two
-concurrent gates run out of is not cores but memory: measured 2026-09-05, two at `-n auto`
-drove free memory on this 64GB machine to **6MB** at 32% CPU. `gate_slots.workers`
-therefore resolves `@workers` to `auto` when this gate is alone -- byte for byte what it
-was -- and to a share of the machine when it is not, which holds the machine-wide worker
-count at one gate's however many are running. It buys reliability, not speed: 5% of this
-stage and 0.8% of the whole gate. See `scripts/gate_slots.py` and docs/performance.md.
+**`-n auto` is every core, and nothing here asks for it any more** (task-536).
+`gate_slots.workers` resolves `@workers` to `(cores - OWNER_RESERVE) // min(gates,
+CAPACITY)`: 26 for a lone gate on this 32-core machine, 13 for a paired one, and a third
+gate queues rather than taking a third share. Two things are being protected. The machine
+is somebody's desktop -- six cores stay theirs whatever is running -- and the suite's
+worker curve is nearly flat from 32 to 16 and steep below ten (task-513), so dividing
+without a ceiling makes every gate slow at once instead of sharing anything.
 
-`--serial` turns it off for the case where the interleaving is the problem.
+`--serial` turns it off for the case where the interleaving is the problem, and takes no
+slot: one worker is not what the capacity is protecting.
 """
 
 COVERAGE_ARGS = ("--cov=src/agentjobs", "--cov-report=term-missing", "--cov-report=html")
@@ -384,10 +385,15 @@ def stages(*, coverage: bool = False, parallel: bool = True) -> list[Stage]:
 def commands_for(stage: Stage, npm: str, *, reserve: int = 0) -> tuple[list[list[str]], str | None]:
     """One stage's argvs, with the worker budget decided as late as it can be.
 
-    Returns the commands and, when the budget bit, a line saying so. Every failure inside
-    `gate_slots` lands here as the default: `-n auto`, which is what the gate did before
-    task-339. Instrumentation that can break the thing it measures is worse than none,
-    and a core budget that can refuse a gate is a new way for an agent to be stuck.
+    Returns the commands and a line saying what the suite was given -- every time now
+    (task-536), because a timing in the gate's own table can only be read against the
+    width it ran at, and the width is no longer "every core".
+
+    Every failure inside `gate_slots` lands here as `MIN_WORKERS`: the floor, chosen
+    over the old `-n auto` fallback because `auto` is the behaviour the owner's reserve
+    exists to prevent, and a gate that cannot tell how many neighbours it has must not
+    assume it is alone. Instrumentation that can break the thing it measures is worse
+    than none, and a core budget that can refuse a gate is a new way to be stuck.
 
     `reserve` is what a concurrent run holds back for the frontend lane running beside
     pytest; it is zero for the serial gate, which is every gate unless `--concurrent` was
@@ -396,12 +402,13 @@ def commands_for(stage: Stage, npm: str, *, reserve: int = 0) -> tuple[list[list
     commands = stage.commands(npm)
     if not any(WORKERS_TOKEN in command for command in commands):
         return commands, None
+    note: str | None
     try:
-        gates = gate_slots.active()
+        gates = gate_slots.visible_gates()
         value = gate_slots.workers(gates=gates, reserve=reserve)
         note = gate_slots.note(value, gates, reserve=reserve)
     except Exception:  # noqa: BLE001 - see the docstring; never fail the gate over this
-        value, note = "auto", None
+        value, note = str(gate_slots.MIN_WORKERS), None
     return [
         [value if arg == WORKERS_TOKEN else arg for arg in command] for command in commands
     ], note
@@ -477,9 +484,14 @@ CONCURRENT_RESERVE = 4
 `gate_slots` divides this machine between *gates*, and the frontend lane of a
 `--concurrent` run is not a gate -- it is inside one, invisible to the slot count, and it
 is where the two stages with their own timeouts live. Playwright's server start and each
-of its tests are bounded at 30s, and a `-n auto` pytest that has taken every core is
-exactly what makes a 30s bound bite. Four is the smallest reserve that leaves a whole
-core for each of `npm`, `node`, the Playwright driver and the server under test.
+of its tests are bounded at 30s, and a pytest that has taken every core is exactly what
+makes a 30s bound bite. Four is the smallest reserve that leaves a whole core for each of
+`npm`, `node`, the Playwright driver and the server under test.
+
+**It is a second reserve, on top of `gate_slots.OWNER_RESERVE` and after the division**
+(task-536), so a lone concurrent gate now asks for `(32 - 6) - 4 = 22` where it used to
+ask for 28, and a paired one for `13 - 4 = 9`. The owner's six are not this gate's to
+lend to its own frontend lane.
 
 It is a floor on reliability rather than a tuning knob: `gate_slots.MIN_WORKERS` still
 wins on a small machine, so a four-core host reserves nothing it cannot afford.
@@ -716,7 +728,8 @@ def run_concurrently(selected: list[Stage], npm: str) -> tuple[list[tuple[str, f
     """
     positions = {stage.name: index for index, stage in enumerate(selected, start=1)}
     wanted = set(positions)
-    # Nothing runs beside a single stage, so `--only pytest --concurrent` is `-n auto`.
+    # Nothing runs beside a single stage, so `--only pytest --concurrent` keeps the whole
+    # budget and reserves nothing on top of the owner's.
     reserve = CONCURRENT_RESERVE if len(selected) > 1 else 0
 
     pending = list(selected)
@@ -1119,8 +1132,13 @@ def main(argv: list[str] | None = None) -> int:
 
     # The slot is held for the whole gate rather than for the pytest stage alone, so a
     # neighbour deciding its own budget can see this gate coming while it is still in the
-    # cheap block. See `scripts/gate_slots.py`.
-    with gate_slots.hold(ROOT):
+    # cheap block -- and, since task-536, so that a third gate queues *before* paying for
+    # the cheap block rather than after it. Only a run that will start a parallel pytest
+    # takes one: `--only oxlint` and `--serial` are not what the capacity protects, and
+    # queueing the iteration loop behind two suites would be a bad trade.
+    # See `scripts/gate_slots.py`.
+    wants_a_slot = not args.serial and any(stage.name == "pytest" for stage in selected)
+    with gate_slots.hold(ROOT, needed=wants_a_slot):
         if args.concurrent:
             timings, failure = run_concurrently(selected, npm)
         else:
