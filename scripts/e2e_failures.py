@@ -1,8 +1,9 @@
 """Tell a browser that died between two tests apart from a test that failed (task-404).
 
-**What this is for.** The `e2e` stage runs every spec against one Chromium process --
-`workers: 1`, and no spec overrides a worker-scoped option -- and on this machine that
-process is sometimes terminated between two tests. Observed on at least thirteen gate runs
+**What this is for.** The `e2e` stage runs each of its workers against one Chromium
+process -- no spec overrides a worker-scoped option, so a worker starts one browser and
+keeps it -- and on this machine such a process is sometimes terminated between two
+tests. Observed on at least thirteen gate runs
 from 2026-08-23 to 2026-09-13, always the same shape: the previous test passed, the next
 one fails with `browser.newContext: Target page, context or browser has been closed`
 before a line of it runs, and Playwright starts a fresh worker for the test after that.

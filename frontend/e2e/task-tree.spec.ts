@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 /**
  * task-238: the task list as the master column beside the record.
@@ -143,8 +143,8 @@ test.describe("the task list as a sidebar tree", () => {
   // on a closed context and leave three open rows in every later spec's list.
   let api: APIRequestContext;
 
-  test.beforeAll(async ({ playwright, baseURL }) => {
-    api = await playwright.request.newContext({ baseURL });
+  test.beforeAll(async ({ playwright, serverURL }) => {
+    api = await playwright.request.newContext({ baseURL: serverURL });
     fixtures = await seed(api);
   });
 

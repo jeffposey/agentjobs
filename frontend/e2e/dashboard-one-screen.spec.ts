@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route } from "./fixtures";
 
 /**
  * task-294: the Dashboard is one screen, and the document never scrolls on it.

@@ -1,71 +1,39 @@
-import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-
 import { defineConfig } from "@playwright/test";
 
-// The port has to be unique per checkout. Several agents work this repository at once
-// in sibling worktrees, each required to run scripts/check.py before every commit, so
-// two gates running at the same time is the normal case rather than an unusual one. A
-// module-level constant made the second one fail to bind roughly four minutes into a
-// five-minute gate, naming a port rather than a cause.
-//
-// The port is derived from the checkout's own path, so it is stable for a given
-// worktree and a developer can work out which checkout owns which port from the path
-// alone. Two checkouts whose paths hash into the same slot would still collide; that
-// is a 1-in-10000 event which produces exactly today's loud failure, not a silent one.
-const PORT_ENV = "AGENTJOBS_E2E_PORT";
-const PORT_BASE = 20000;
-const PORT_SPAN = 10000;
+import { PORT_ENV, checkoutRoot, firstPort, portForSlot, workerCount } from "./e2e/ports";
 
-/** Find the checkout this run belongs to, walking up from the working directory. */
-function checkoutRoot(): string {
-  let directory = resolve(process.cwd());
-  for (;;) {
-    if (
-      existsSync(resolve(directory, "pyproject.toml")) &&
-      existsSync(resolve(directory, "frontend", "playwright.config.ts"))
-    ) {
-      return directory;
-    }
-    const parent = dirname(directory);
-    if (parent === directory) {
-      throw new Error(
-        `Cannot find the AgentJobs checkout above ${process.cwd()}. ` +
-          "Run Playwright from inside the checkout, or set " +
-          `${PORT_ENV} to the port this run should use.`,
-      );
-    }
-    directory = parent;
-  }
-}
+// One server per worker. The port block is derived from the checkout's path -- see
+// e2e/ports.ts for why, and for why four workers is the ceiling -- and resolved exactly
+// once, here, in the process that reads this file. The first port is written back into
+// the environment so every worker Playwright forks from here inherits the answer instead
+// of re-deriving it from a working directory nobody promised would be the same.
+const workers = workerCount();
+const first = firstPort();
+process.env[PORT_ENV] = String(first);
 
-/** The port this checkout owns, unless the environment names one explicitly. */
-function checkoutPort(root: string): number {
-  const override = process.env[PORT_ENV];
-  if (override !== undefined && override.trim() !== "") {
-    const parsed = Number(override);
-    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-      throw new Error(`${PORT_ENV} must be a port number between 1 and 65535, got ${override}.`);
-    }
-    return parsed;
-  }
-  const digest = createHash("sha256").update(`${root}\ne2e`).digest();
-  return PORT_BASE + (digest.readUInt32BE(0) % PORT_SPAN);
-}
-
-const root = checkoutRoot();
-const port = checkoutPort(root);
-const baseURL = `http://127.0.0.1:${port}`;
+const ports = Array.from({ length: workers }, (_, slot) => portForSlot(first, slot));
+const baseURL = `http://127.0.0.1:${ports[0]}`;
 
 // Printed so a bind failure can be attributed without opening this file: the line says
-// which checkout claimed the port and where the number came from.
-console.log(`[e2e] checkout ${root} owns ${baseURL} (derived from the checkout path; ${PORT_ENV} overrides)`);
+// which checkout claimed the block and where the numbers came from. Once, from the
+// process that resolved them -- every worker loads this file too, and four copies of one
+// line reads like four runs.
+if (process.env.TEST_WORKER_INDEX === undefined) {
+  console.log(
+    `[e2e] checkout ${checkoutRoot()} owns ${ports.join(", ")} ` +
+      `(derived from the checkout path; ${PORT_ENV} overrides the first)`,
+  );
+}
 
 export default defineConfig({
   testDir: "./e2e",
+  // Parallel by file, not within one. Several specs build their fixtures in a
+  // `beforeAll` and read them across the tests that follow, and a few assert on an
+  // ordering the tests above them established; `fullyParallel` would break both. The
+  // file is also the unit the isolation audit in e2e/README.md classifies, so it is the
+  // unit that can be reasoned about.
   fullyParallel: false,
-  workers: 1,
+  workers,
   // No retries, deliberately. A blanket retry would also re-run a test whose browser the
   // application crashed. The gate retries one narrow case instead: a test whose browser was
   // already gone before it started, read from the JSON report below (task-404,
@@ -73,6 +41,9 @@ export default defineConfig({
   retries: 0,
   reporter: [["line"], ["json", { outputFile: "playwright-report/e2e-results.json" }]],
   use: {
+    // Worker 0's server, and a default rather than the operative value: every spec
+    // imports `e2e/fixtures.ts`, which overrides this per worker. It is here so that a
+    // spec written without the fixture still reaches a server rather than nothing.
     baseURL,
     browserName: "chromium",
     trace: "retain-on-failure",
@@ -97,15 +68,17 @@ export default defineConfig({
       args: ["--disable-features=OnDeviceWebSpeech,OnDeviceWebSpeechAvailable"],
     },
   },
-  webServer: {
+  webServer: ports.map((port) => ({
     command: "poetry run python e2e/run_server.py",
-    url: `${baseURL}/health`,
+    url: `http://127.0.0.1:${port}/health`,
     // Never attach to a server this run did not start. A gate that can silently
     // exercise another checkout's code is worse than one that fails to bind.
     reuseExistingServer: false,
-    timeout: 30_000,
+    // Four interpreters importing the application at once on a machine that may be
+    // running three gates. Thirty seconds was comfortable for one and is not for four.
+    timeout: 90_000,
     // The server has no default of its own, so it cannot bind a port this config is
     // not watching -- the two halves cannot disagree about which port is in play.
     env: { [PORT_ENV]: String(port) },
-  },
+  })),
 });

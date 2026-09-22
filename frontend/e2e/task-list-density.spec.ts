@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 /**
  * task-341: the task list fits its scrollport, and no one task's prose sizes a row.
@@ -142,8 +142,8 @@ test.describe("the task list fits the screen it is on", () => {
   // fail on a closed context and leave two open rows in every later spec's list.
   let api: APIRequestContext;
 
-  test.beforeAll(async ({ playwright, baseURL }) => {
-    api = await playwright.request.newContext({ baseURL });
+  test.beforeAll(async ({ playwright, serverURL }) => {
+    api = await playwright.request.newContext({ baseURL: serverURL });
     fixtures = [
       await fixture(api, LONG_TITLE, null),
       await fixture(api, `${TOKEN} parked on review with a paragraph to say why`, LONG_PROMPT),

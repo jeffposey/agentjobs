@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 /**
  * task-487: a front-end budget on the interaction task-135 made 36x faster.
@@ -209,8 +209,8 @@ test.describe("the front-end interaction has a budget", () => {
   // fail on a closed context and leave sixty open rows in every later spec's list.
   let api: APIRequestContext;
 
-  test.beforeAll(async ({ playwright, baseURL }) => {
-    api = await playwright.request.newContext({ baseURL });
+  test.beforeAll(async ({ playwright, serverURL }) => {
+    api = await playwright.request.newContext({ baseURL: serverURL });
     const started = Date.now();
     await seedCorpus(api);
     // What this spec costs the `e2e` stage is the seed plus the two tests, and the seed
