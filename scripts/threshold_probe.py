@@ -317,7 +317,8 @@ def main(argv: List[str]) -> int:
     missed = [row for row in results if not str(row["verdict"]).startswith("caught")]
     for row in missed:
         print(f"\n--- {row['case']} ({row['verdict']}) ---")
-        for line in row["tail"]:
+        tail = row["tail"]
+        for line in tail if isinstance(tail, list) else []:
             print(f"    {line}")
     if missed:
         print(

@@ -1035,7 +1035,7 @@ def tick(home: Path, *, deps: Optional[SweepDeps] = None, force: bool = False) -
     from agentjobs.dispatch.config import load_dispatch_config
 
     key = str(home)
-    now = time.monotonic()
+    now = dispatch_clock.monotonic()
     if not force and now - _last_sweep.get(key, -SWEEP_INTERVAL_SECONDS) < SWEEP_INTERVAL_SECONDS:
         return []
     _last_sweep[key] = now

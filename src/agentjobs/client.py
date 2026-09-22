@@ -269,9 +269,7 @@ class TaskClient:
         self._base_url = base_url.rstrip("/") or "http://localhost:8765"
         self._project_id = project_id
         self._patient = patient
-        self._backoff: Tuple[float, ...] = (
-            retry_backoff() if backoff is None else tuple(backoff)
-        )
+        self._backoff: Tuple[float, ...] = retry_backoff() if backoff is None else tuple(backoff)
         self._owns_client = client is None
         if client is not None:
             self._client = client
@@ -1030,9 +1028,7 @@ class TaskClient:
             )
 
         last: Optional[Exception] = None
-        pauses: Tuple[Optional[float], ...] = (
-            (*self._backoff, None) if self._patient else (None,)
-        )
+        pauses: Tuple[Optional[float], ...] = (*self._backoff, None) if self._patient else (None,)
         for index, pause in enumerate(pauses):
             try:
                 response = self._client.request(method, url, **kwargs)

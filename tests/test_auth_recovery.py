@@ -27,7 +27,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, List, Optional
 
 import pytest
 import yaml
@@ -525,7 +525,9 @@ class Machine:
         # `datetime.now()` separately, so the timeline the test thought it was driving
         # drifted from the one the code read by however long the machine took to get
         # between two lines of the test. See `advance_to`.
-        self.clock = clock if clock is not None else install(monkeypatch, datetime.now(timezone.utc))
+        self.clock = (
+            clock if clock is not None else install(monkeypatch, datetime.now(timezone.utc))
+        )
         self._reached = 0.0
         self.tmp = tmp_path
         self.home = tmp_path / "home"
