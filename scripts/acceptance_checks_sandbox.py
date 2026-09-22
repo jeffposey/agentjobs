@@ -160,11 +160,14 @@ def passing_results() -> list["CheckOutcome"]:
     """A recorded pass in which every check exited 0."""
     from agentjobs.models_v2 import CheckOutcome
 
-    return [CheckOutcome.model_validate(raw) for raw in [
-        {"id": "ac-1", "status": "met", "exit_code": 0, "duration_seconds": 41.2},
-        {"id": "ac-2", "status": "met", "exit_code": 0, "duration_seconds": 128.0},
-        {"id": "ac-3", "status": "met", "exit_code": 0, "duration_seconds": 0.83},
-    ]]
+    return [
+        CheckOutcome.model_validate(raw)
+        for raw in [
+            {"id": "ac-1", "status": "met", "exit_code": 0, "duration_seconds": 41.2},
+            {"id": "ac-2", "status": "met", "exit_code": 0, "duration_seconds": 128.0},
+            {"id": "ac-3", "status": "met", "exit_code": 0, "duration_seconds": 0.83},
+        ]
+    ]
 
 
 def failing_results() -> list["CheckOutcome"]:
@@ -177,29 +180,32 @@ def failing_results() -> list["CheckOutcome"]:
     """
     from agentjobs.models_v2 import CheckOutcome
 
-    return [CheckOutcome.model_validate(raw) for raw in [
-        {
-            "id": "ac-1",
-            "status": "failed",
-            "exit_code": 1,
-            "duration_seconds": 0.8,
-            "output_tail": (
-                "FAILED tests/test_loop.py::test_converges - AssertionError: "
-                "expected 3 iterations, got 7\n"
-                "=========================== short test summary ===========================\n"
-                "1 failed, 214 passed in 0.79s"
-            ),
-        },
-        {"id": "ac-2", "status": "met", "exit_code": 0, "duration_seconds": 126.4},
-        {
-            "id": "ac-3",
-            "status": "failed",
-            "exit_code": None,
-            "duration_seconds": 5.0,
-            "cause": "not_started",
-            "output_tail": "FileNotFoundError: [WinError 2] The system cannot find the file specified",
-        },
-    ]]
+    return [
+        CheckOutcome.model_validate(raw)
+        for raw in [
+            {
+                "id": "ac-1",
+                "status": "failed",
+                "exit_code": 1,
+                "duration_seconds": 0.8,
+                "output_tail": (
+                    "FAILED tests/test_loop.py::test_converges - AssertionError: "
+                    "expected 3 iterations, got 7\n"
+                    "=========================== short test summary ===========================\n"
+                    "1 failed, 214 passed in 0.79s"
+                ),
+            },
+            {"id": "ac-2", "status": "met", "exit_code": 0, "duration_seconds": 126.4},
+            {
+                "id": "ac-3",
+                "status": "failed",
+                "exit_code": None,
+                "duration_seconds": 5.0,
+                "cause": "not_started",
+                "output_tail": "FileNotFoundError: [WinError 2] The system cannot find the file specified",
+            },
+        ]
+    ]
 
 
 def seed(manager, *, failing_copy: bool) -> None:
@@ -320,7 +326,12 @@ def write_dispatch_config(home: Path) -> None:
         "enabled": True,
         "runners": {RUNNER: {"argv": [sys.executable, "-c", "pass"], "actor": "claude"}},
         "projects": {
-            PASSING: {"enabled": True, "runner": RUNNER, "posture": "auto", "require_clean_tree": False},
+            PASSING: {
+                "enabled": True,
+                "runner": RUNNER,
+                "posture": "auto",
+                "require_clean_tree": False,
+            },
             REFUSING: {"enabled": False, "runner": RUNNER, "posture": "auto"},
         },
     }
@@ -338,7 +349,9 @@ def serve(port: int) -> None:
 
     registry = ProjectRegistry(home)
     for project_id in (PASSING, REFUSING):
-        registry.add(build(root, project_id=project_id), project_id=project_id, name=NAMES[project_id])
+        registry.add(
+            build(root, project_id=project_id), project_id=project_id, name=NAMES[project_id]
+        )
     write_dispatch_config(home)
 
     base = f"http://127.0.0.1:{port}/app/p/{PASSING}/tasks"
