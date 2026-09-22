@@ -71,6 +71,20 @@ def a_budget_with_no_memory() -> Iterator[None]:
             module.reset_degraded()
 
 
+@pytest.fixture(autouse=True)
+def the_default_capacity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every test here starts at ``CAPACITY``, whatever the gate running it was handed.
+
+    ``CAPACITY_ENV`` is inherited by the pytest a gate launches, which is the point of it
+    for ``gate_cost.py`` and ``gate_shape.py``. It also means the suite ran inside a
+    three-gate measurement arm read a capacity of three, and six tests here that assert on
+    the default of two went red -- which stopped the gate at pytest and cut vitest, build and
+    e2e out of the timing being measured (task-534). A test that wants another capacity sets
+    it itself.
+    """
+    monkeypatch.delenv(gate_slots.CAPACITY_ENV, raising=False)
+
+
 @pytest.fixture()
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv(gate_slots.HOME_ENV, str(tmp_path))
