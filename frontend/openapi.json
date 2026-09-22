@@ -1015,6 +1015,314 @@
         "title": "BrokenTaskFile",
         "type": "object"
       },
+      "ChainAuthorizeRequest": {
+        "description": "Authorise a bounded chain of dispatches against one task (task-150).\n\n**There is no field here for the digest, the chain id, or which criteria are\ncovered**, and that absence is the whole of dispatch design section 2 applied to a\nloop. Those three are computed from the stored task at the moment of the write; a\nrequest that supplied them would be asking the server to take the definition of done\nfrom the caller, which is precisely the move the digest exists to defeat.\n\nThe two bounds *are* here, because they are the thing a person is choosing. Both are\nchecked against the design's ceilings on the way in and again on the payload model.",
+        "properties": {
+          "max_iterations": {
+            "default": 5,
+            "description": "How many dispatches this authorisation buys, at most.",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Iterations",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the person wants the chain to achieve, for the record.",
+            "title": "Note"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The human authorising this. Validated against the project's configured actors and refused unless `kind: human`, exactly as a dispatch's is.",
+            "title": "User"
+          },
+          "wall_clock_seconds": {
+            "default": 14400,
+            "description": "How long the chain may run from the moment it is authorised.",
+            "maximum": 43200.0,
+            "minimum": 1.0,
+            "title": "Wall Clock Seconds",
+            "type": "integer"
+          }
+        },
+        "title": "ChainAuthorizeRequest",
+        "type": "object"
+      },
+      "ChainIteration-Input": {
+        "description": "One turn of a chain, as the task page reads it back.",
+        "properties": {
+          "entry_id": {
+            "description": "The `check_result` entry this turn wrote.",
+            "title": "Entry Id",
+            "type": "integer"
+          },
+          "iteration": {
+            "description": "0 is the baseline recorded at authorisation.",
+            "title": "Iteration",
+            "type": "integer"
+          },
+          "results": {
+            "description": "The result vector, in the task's own order.",
+            "items": {
+              "$ref": "#/components/schemas/CheckOutcome"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "ts": {
+            "description": "When the pass was recorded.",
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "unchecked": {
+            "description": "Criteria this pass did not decide.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Unchecked",
+            "type": "array"
+          }
+        },
+        "required": [
+          "iteration",
+          "entry_id",
+          "ts"
+        ],
+        "title": "ChainIteration",
+        "type": "object"
+      },
+      "ChainIteration-Output": {
+        "description": "One turn of a chain, as the task page reads it back.",
+        "properties": {
+          "entry_id": {
+            "description": "The `check_result` entry this turn wrote.",
+            "title": "Entry Id",
+            "type": "integer"
+          },
+          "iteration": {
+            "description": "0 is the baseline recorded at authorisation.",
+            "title": "Iteration",
+            "type": "integer"
+          },
+          "results": {
+            "description": "The result vector, in the task's own order.",
+            "items": {
+              "$ref": "#/components/schemas/CheckOutcome"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "ts": {
+            "description": "When the pass was recorded.",
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "unchecked": {
+            "description": "Criteria this pass did not decide.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Unchecked",
+            "type": "array"
+          }
+        },
+        "required": [
+          "iteration",
+          "entry_id",
+          "ts"
+        ],
+        "title": "ChainIteration",
+        "type": "object"
+      },
+      "ChainList": {
+        "description": "Every chain a task has ever had, oldest first.",
+        "properties": {
+          "chains": {
+            "items": {
+              "$ref": "#/components/schemas/ChainRead"
+            },
+            "title": "Chains",
+            "type": "array"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id"
+        ],
+        "title": "ChainList",
+        "type": "object"
+      },
+      "ChainRead": {
+        "description": "One chain and its whole history, for the panel on the task page (task-150).\n\nDerived from the task's log rather than stored anywhere: the ``chain_authorized``\nentry, its revocation if it has one, and every ``check_result`` carrying its id. A\nsecond copy of any of that could disagree with the entries it was derived from, and\nthe entries are what a person auditing a loop next week will read.",
+        "properties": {
+          "authorized_at": {
+            "format": "date-time",
+            "title": "Authorized At",
+            "type": "string"
+          },
+          "authorized_by": {
+            "description": "Whose act this was.",
+            "title": "Authorized By",
+            "type": "string"
+          },
+          "chain_id": {
+            "title": "Chain Id",
+            "type": "string"
+          },
+          "check_digest": {
+            "title": "Check Digest",
+            "type": "string"
+          },
+          "criteria": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "deadline": {
+            "description": "When the wall-clock bound expires.",
+            "format": "date-time",
+            "title": "Deadline",
+            "type": "string"
+          },
+          "digest_matches": {
+            "description": "Whether the task's checks are still the ones this authorised.",
+            "title": "Digest Matches",
+            "type": "boolean"
+          },
+          "entry_id": {
+            "description": "The `chain_authorized` entry.",
+            "title": "Entry Id",
+            "type": "integer"
+          },
+          "expired": {
+            "description": "Whether the wall-clock bound has passed.",
+            "title": "Expired",
+            "type": "boolean"
+          },
+          "iterations": {
+            "items": {
+              "$ref": "#/components/schemas/ChainIteration-Output"
+            },
+            "title": "Iterations",
+            "type": "array"
+          },
+          "live": {
+            "description": "Whether an iteration could still start: authorised, not revoked, not expired, and the task's checks still match the digest. This is what a Revoke button is offered on.",
+            "title": "Live",
+            "type": "boolean"
+          },
+          "max_iterations": {
+            "title": "Max Iterations",
+            "type": "integer"
+          },
+          "revoked": {
+            "description": "Whether the authorisation has been withdrawn.",
+            "title": "Revoked",
+            "type": "boolean"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "wall_clock_seconds": {
+            "title": "Wall Clock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chain_id",
+          "task_id",
+          "entry_id",
+          "authorized_by",
+          "authorized_at",
+          "max_iterations",
+          "wall_clock_seconds",
+          "deadline",
+          "check_digest",
+          "revoked",
+          "expired",
+          "live",
+          "digest_matches"
+        ],
+        "title": "ChainRead",
+        "type": "object"
+      },
+      "ChainRevokeRequest": {
+        "description": "Stop a chain. Everything on it is optional, which is the point (task-150).\n\nSection 9 asks for a kill switch as blunt as ``agentjobs dispatch stop``. A revoke\nthat required a chain id copied off a log entry would not be one, so an empty body\nstops whatever is live.",
+        "properties": {
+          "chain_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which chain, when it is not simply the live one.",
+            "title": "Chain Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why, for the record.",
+            "title": "Note"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who is stopping it.",
+            "title": "User"
+          }
+        },
+        "title": "ChainRevokeRequest",
+        "type": "object"
+      },
       "CheckOutcome": {
         "additionalProperties": false,
         "description": "What one acceptance criterion's ``check`` did on one pass (task-147).\n\n``status`` is only ever ``met`` or ``failed``: there is no third value, because a\ncheck that could not be started is ``failed`` and not skipped. That is the whole\nsecurity argument for the loop this feeds -- if a broken check were \"unknown\" and\nunknown were tolerated, a loop could converge by breaking its own tests.",
@@ -4420,7 +4728,9 @@
           "dispatch_result",
           "queue_move",
           "authorization",
-          "check_result"
+          "check_result",
+          "chain_authorized",
+          "chain_revoked"
         ],
         "title": "LogEntryType",
         "type": "string"
@@ -6220,6 +6530,28 @@
         "additionalProperties": false,
         "description": "One answer an agent is offering for a ``question`` entry (task-017).\n\nThe label is what the human taps and what an ``answer`` entry records having been\nchosen, so it is the identity of the option and not a caption over one. There is\ndeliberately no separate id: a log is append-only, so a stored label cannot drift\naway from the option it names, and an id would only add a second thing to read.",
         "properties": {
+          "ball": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ball"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who holds the task once this option is chosen. Required with `dispatches: false` and forbidden otherwise."
+          },
+          "ball_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BallReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why that holder has it. Travels with `ball`."
+          },
           "description": {
             "anyOf": [
               {
@@ -6231,6 +6563,12 @@
             ],
             "description": "What picking this means. Shown under the label.",
             "title": "Description"
+          },
+          "dispatches": {
+            "default": true,
+            "description": "Whether choosing this hands work back to an agent. False for an answer that means *wait*, *stop* or *decline*, which records the choice and starts nothing.",
+            "title": "Dispatches",
+            "type": "boolean"
           },
           "label": {
             "description": "The choice itself. Short enough to be a button.",
@@ -15070,6 +15408,182 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/chain": {
+      "post": {
+        "description": "Authorise a bounded chain of dispatches against this task's checks (task-150).\n\n**Classified under ``dispatch.start``, which no run holds**, and the alternative was\nargued rather than assumed. A capability of its own -- ``CHAIN_AUTHORIZE`` -- would\ndraw exactly the same line for exactly the same principals, and this module's\ncoarseness is deliberate: *a capability per route would be a role system with extra\nsteps*. What a chain authorisation buys is up to twenty dispatches against one task\nwith nobody clicking again, which is the act ``dispatch.start`` already names, bought\nin advance. ``task.review`` was the other candidate and is wrong for the opposite\nreason: this is not a judgement about work somebody did, it is a purchase.\n\nThe digest, the chain id and the covered criteria are computed here from the **stored\ntask**. There is no request field for any of them, so there is nothing a caller could\nsupply that would move the definition of done the chain converges on.\n\n``user`` is validated the way a dispatch's is: the id must be one this project\nconfigures with ``kind: human``. An agent may not authorise a chain any more than it\nmay authorise a dispatch, and this is the same refusal reached through the same\nfunction.",
+        "operationId": "authorize_task_chain_api_projects__project_id__tasks__task_id__chain_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChainAuthorizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Authorize Task Chain",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/chain/revoke": {
+      "post": {
+        "description": "Stop a chain before its next iteration. One click, no arguments required.\n\nShares ``dispatch.start`` with the route above for the reason a kill switch always\nshares a capability with its switch: everyone who may start it may stop it. The\nasymmetric alternative -- anyone may stop, only some may start -- reads well and is\nwrong here, because the principal it would newly admit is a dispatched run, and a run\nable to revoke could stop a chain a person is relying on and then report that it\nconverged.\n\n**This does not stop a run that is already executing.** An iteration is a dispatch and\na dispatch is somebody's session; ``POST .../dispatch/runs/{id}/cancel`` ends one of\nthose. What this guarantees is that no further iteration begins.",
+        "operationId": "revoke_task_chain_api_projects__project_id__tasks__task_id__chain_revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChainRevokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Task Chain",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/tasks/{task_id}/chains": {
+      "get": {
+        "description": "Every chain this task has had, oldest first, each with its iteration history.\n\nA read, and deliberately absent from ``ROUTE_CAPABILITIES``: it executes nothing and\nanswers with what the log already holds. What a caller may *do* with a chain is gated\nat the two verbs below.",
+        "operationId": "read_task_chains_api_projects__project_id__tasks__task_id__chains_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Task Chains",
+        "tags": [
+          "status"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/check": {
       "post": {
         "description": "Run this task's executable acceptance checks and answer with what each one did.\n\nThe same vector ``agentjobs check`` prints, written to the record the same way: the\ncriteria's statuses move and exactly one ``check_result`` entry records the pass.\n\n**A POST because it executes commands**, not because it writes -- and that is also\nwhy it is classified under ``dispatch.start`` rather than under the ``task.*``\ncapabilities a run already holds. A run may edit its own task, so a run able to call\nthis could write a check and then have this machine run it, which is starting a\nprocess of its own choosing on somebody else's hardware. That is the act the dispatch\ngates bound, and this goes through the same gate: ``assert_dispatch_permitted`` runs\nbefore any process starts, and its refusals render under their own reason codes.\n\nRefused with ``no_checks`` on a task whose criteria are all prose. Answering an empty\nsuccess would be indistinguishable, to any client, from every check having passed.",
@@ -18185,6 +18699,155 @@
           }
         },
         "summary": "Relay Authorization",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/chain": {
+      "post": {
+        "description": "Authorise a bounded chain of dispatches against this task's checks (task-150).\n\n**Classified under ``dispatch.start``, which no run holds**, and the alternative was\nargued rather than assumed. A capability of its own -- ``CHAIN_AUTHORIZE`` -- would\ndraw exactly the same line for exactly the same principals, and this module's\ncoarseness is deliberate: *a capability per route would be a role system with extra\nsteps*. What a chain authorisation buys is up to twenty dispatches against one task\nwith nobody clicking again, which is the act ``dispatch.start`` already names, bought\nin advance. ``task.review`` was the other candidate and is wrong for the opposite\nreason: this is not a judgement about work somebody did, it is a purchase.\n\nThe digest, the chain id and the covered criteria are computed here from the **stored\ntask**. There is no request field for any of them, so there is nothing a caller could\nsupply that would move the definition of done the chain converges on.\n\n``user`` is validated the way a dispatch's is: the id must be one this project\nconfigures with ``kind: human``. An agent may not authorise a chain any more than it\nmay authorise a dispatch, and this is the same refusal reached through the same\nfunction.",
+        "operationId": "authorize_task_chain_api_tasks__task_id__chain_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChainAuthorizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Authorize Task Chain",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/chain/revoke": {
+      "post": {
+        "description": "Stop a chain before its next iteration. One click, no arguments required.\n\nShares ``dispatch.start`` with the route above for the reason a kill switch always\nshares a capability with its switch: everyone who may start it may stop it. The\nasymmetric alternative -- anyone may stop, only some may start -- reads well and is\nwrong here, because the principal it would newly admit is a dispatched run, and a run\nable to revoke could stop a chain a person is relying on and then report that it\nconverged.\n\n**This does not stop a run that is already executing.** An iteration is a dispatch and\na dispatch is somebody's session; ``POST .../dispatch/runs/{id}/cancel`` ends one of\nthose. What this guarantees is that no further iteration begins.",
+        "operationId": "revoke_task_chain_api_tasks__task_id__chain_revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChainRevokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Task Chain",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/chains": {
+      "get": {
+        "description": "Every chain this task has had, oldest first, each with its iteration history.\n\nA read, and deliberately absent from ``ROUTE_CAPABILITIES``: it executes nothing and\nanswers with what the log already holds. What a caller may *do* with a chain is gated\nat the two verbs below.",
+        "operationId": "read_task_chains_api_tasks__task_id__chains_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Task Chains",
         "tags": [
           "status"
         ]

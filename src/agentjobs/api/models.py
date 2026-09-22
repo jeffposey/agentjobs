@@ -9,6 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validat
 
 from agentjobs.manager import DependencyFacts, TaskManager
 from agentjobs.models_v2 import (
+    DEFAULT_CHAIN_ITERATIONS,
+    DEFAULT_CHAIN_WALL_CLOCK_SECONDS,
+    MAX_CHAIN_ITERATIONS,
+    MAX_CHAIN_WALL_CLOCK_SECONDS,
     AcceptanceCriterion,
     Ball,
     BallReason,
@@ -1547,6 +1551,115 @@ class CheckRunResult(BaseModel):
     )
     ok: bool = Field(..., description="True when every check exited 0.")
     entry_id: int = Field(..., description="Id of the `check_result` entry this pass wrote.")
+
+
+class ChainAuthorizeRequest(BaseModel):
+    """Authorise a bounded chain of dispatches against one task (task-150).
+
+    **There is no field here for the digest, the chain id, or which criteria are
+    covered**, and that absence is the whole of dispatch design section 2 applied to a
+    loop. Those three are computed from the stored task at the moment of the write; a
+    request that supplied them would be asking the server to take the definition of done
+    from the caller, which is precisely the move the digest exists to defeat.
+
+    The two bounds *are* here, because they are the thing a person is choosing. Both are
+    checked against the design's ceilings on the way in and again on the payload model.
+    """
+
+    user: Optional[str] = Field(
+        default=None,
+        description=(
+            "The human authorising this. Validated against the project's configured "
+            "actors and refused unless `kind: human`, exactly as a dispatch's is."
+        ),
+    )
+    max_iterations: int = Field(
+        default=DEFAULT_CHAIN_ITERATIONS,
+        ge=1,
+        le=MAX_CHAIN_ITERATIONS,
+        description="How many dispatches this authorisation buys, at most.",
+    )
+    wall_clock_seconds: int = Field(
+        default=DEFAULT_CHAIN_WALL_CLOCK_SECONDS,
+        ge=1,
+        le=MAX_CHAIN_WALL_CLOCK_SECONDS,
+        description="How long the chain may run from the moment it is authorised.",
+    )
+    note: Optional[str] = Field(
+        default=None, description="What the person wants the chain to achieve, for the record."
+    )
+
+
+class ChainRevokeRequest(BaseModel):
+    """Stop a chain. Everything on it is optional, which is the point (task-150).
+
+    Section 9 asks for a kill switch as blunt as ``agentjobs dispatch stop``. A revoke
+    that required a chain id copied off a log entry would not be one, so an empty body
+    stops whatever is live.
+    """
+
+    user: Optional[str] = Field(default=None, description="Who is stopping it.")
+    chain_id: Optional[str] = Field(
+        default=None, description="Which chain, when it is not simply the live one."
+    )
+    note: Optional[str] = Field(default=None, description="Why, for the record.")
+
+
+class ChainIteration(BaseModel):
+    """One turn of a chain, as the task page reads it back."""
+
+    iteration: int = Field(..., description="0 is the baseline recorded at authorisation.")
+    entry_id: int = Field(..., description="The `check_result` entry this turn wrote.")
+    ts: datetime = Field(..., description="When the pass was recorded.")
+    results: List[CheckOutcome] = Field(
+        default_factory=list, description="The result vector, in the task's own order."
+    )
+    unchecked: List[str] = Field(
+        default_factory=list, description="Criteria this pass did not decide."
+    )
+
+
+class ChainRead(BaseModel):
+    """One chain and its whole history, for the panel on the task page (task-150).
+
+    Derived from the task's log rather than stored anywhere: the ``chain_authorized``
+    entry, its revocation if it has one, and every ``check_result`` carrying its id. A
+    second copy of any of that could disagree with the entries it was derived from, and
+    the entries are what a person auditing a loop next week will read.
+    """
+
+    chain_id: str
+    task_id: str
+    entry_id: int = Field(..., description="The `chain_authorized` entry.")
+    authorized_by: str = Field(..., description="Whose act this was.")
+    authorized_at: datetime
+    max_iterations: int
+    wall_clock_seconds: int
+    deadline: datetime = Field(..., description="When the wall-clock bound expires.")
+    check_digest: str
+    criteria: List[str] = Field(default_factory=list)
+    revoked: bool = Field(..., description="Whether the authorisation has been withdrawn.")
+    revoked_at: Optional[datetime] = None
+    expired: bool = Field(..., description="Whether the wall-clock bound has passed.")
+    live: bool = Field(
+        ...,
+        description=(
+            "Whether an iteration could still start: authorised, not revoked, not "
+            "expired, and the task's checks still match the digest. This is what a "
+            "Revoke button is offered on."
+        ),
+    )
+    digest_matches: bool = Field(
+        ..., description="Whether the task's checks are still the ones this authorised."
+    )
+    iterations: List[ChainIteration] = Field(default_factory=list)
+
+
+class ChainList(BaseModel):
+    """Every chain a task has ever had, oldest first."""
+
+    task_id: str
+    chains: List[ChainRead] = Field(default_factory=list)
 
 
 class DispatchStarted(BaseModel):

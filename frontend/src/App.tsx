@@ -36,7 +36,9 @@ import {
   promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation,
   queueKeepTaskApiProjectsProjectIdTasksTaskIdQueueKeepPostMutation,
   queueMoveTaskApiProjectsProjectIdTasksTaskIdQueueMovePostMutation,
+  readTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetOptions,
   readTaskFinishApiProjectsProjectIdDispatchFinishesTaskIdGetOptions,
+  revokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostMutation,
   rejectTaskApiProjectsProjectIdTasksTaskIdRejectPostMutation,
   reprioritizeTaskApiProjectsProjectIdTasksTaskIdReprioritizePostMutation,
   answerTaskApiProjectsProjectIdTasksTaskIdAnswerPostMutation,
@@ -73,6 +75,7 @@ import {
   type DispatchRefusal,
 } from "./components/DispatchPanel";
 import { DispatchRunOutput } from "./components/DispatchOutput";
+import { chainPollInterval } from "./components/ChainPanel";
 import { finishPollInterval } from "./components/FinishPanel";
 import { TaskList, type ReorderHandlers, type TaskListVariant } from "./components/TaskList";
 import { TaskDetail } from "./components/TaskDetail";
@@ -760,6 +763,26 @@ function useTaskFinish(projectId: string, taskId: string) {
   return query.data ?? null;
 }
 
+/**
+ * The chains authorised against this task, polled while one is live (task-150).
+ *
+ * Its own query rather than a field on the task detail, for the reason the finish's is:
+ * the two move on different clocks. A chain's history changes when an iteration ends,
+ * which is minutes apart, and folding it into the detail would mean re-reading the whole
+ * record on that clock or watching a chain on the detail's -- which is to say not at
+ * all. The interval is a function of what came back, so a task with no chain (which is
+ * every task) polls nothing.
+ */
+function useTaskChains(projectId: string, taskId: string) {
+  const query = useQuery({
+    ...readTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetOptions({
+      path: { project_id: projectId, task_id: taskId },
+    }),
+    refetchInterval: (state) => chainPollInterval(state.state.data?.chains ?? []),
+  });
+  return query.data?.chains ?? [];
+}
+
 function DispatchSettingsPage({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -883,6 +906,10 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   const [promoteError, setPromoteError] = useState<string | null>(null);
   const dispatch = useTaskDispatch(projectId, taskId, detailQuery.data?.identity.user ?? null);
   const finish = useTaskFinish(projectId, taskId);
+  const chains = useTaskChains(projectId, taskId);
+  const revokeChain = useMutation(
+    revokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostMutation(),
+  );
 
   if (detailQuery.error instanceof UnsupportedTaskSchemaError) return <StatusCard title="Unsupported task schema">{detailQuery.error.message}</StatusCard>;
   if (detailQuery.isPending) return <StatusCard title="Opening task...">Loading the complete task record.</StatusCard>;
@@ -911,6 +938,24 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
       // panel's offer and the status chip in the page header are one answer (task-476).
       dispatch={{ ...dispatch, queuedDispatch: detailQuery.data.task.queued_dispatch ?? null }}
       finish={finish}
+      chains={chains}
+      onRevokeChain={async (chainId) => {
+        if (!user) return;
+        try {
+          await revokeChain.mutateAsync({
+            path: { project_id: projectId, task_id: taskId },
+            body: { user, chain_id: chainId },
+          });
+        } catch (caught) {
+          // The server's own sentence, which names the chain and why it refused.
+          // A generic one here would replace a specific answer with a vaguer one.
+          const refusal = readRefusal(caught);
+          throw new Error(
+            refusal ? refusal.message : "The chain could not be stopped. Reload and try again.",
+          );
+        }
+        await refresh();
+      }}
       onApprove={async (note) => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
       onResume={async (note) => { if (!user) return; await resume.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
       onSendBack={async (reason, feedback, attachments, answers) => {

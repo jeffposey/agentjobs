@@ -508,7 +508,11 @@ def _result_payload(result: MutationResult, project_id: str) -> Dict[str, Any]:
 
 
 def _add_record_warnings(
-    payload: Dict[str, Any], summary: str, task: Task, verb: str
+    payload: Dict[str, Any],
+    summary: str,
+    task: Task,
+    verb: str,
+    unmet_needs: Sequence[str] = (),
 ) -> Tuple[Dict[str, Any], str]:
     """Attach the record-quality check's findings to one tool result.
 
@@ -522,8 +526,13 @@ def _add_record_warnings(
     The findings go in the summary sentence as well as the payload, for the same reason
     the queue check's do: a client that renders only the text is otherwise the one
     surface where a write that damaged the record looks identical to one that did not.
+
+    ``unmet_needs`` is the exception to the first paragraph and proves its rule
+    (task-150). Whether a dependency is open is *not* a pure function of one record, so
+    it cannot be derived here -- it comes off the `TaskRead` the service already sent,
+    which the client lifts onto the mutation result. Nothing new goes over the wire.
     """
-    warnings = check_record(task, verb=verb)
+    warnings = check_record(task, verb=verb, unmet_needs=unmet_needs)
     payload["record_warnings"] = warning_dicts(warnings)
     if warnings:
         summary = " ".join([summary, *(warning.message for warning in warnings)])
@@ -724,6 +733,7 @@ def _build_handoff(client: TaskClient) -> Any:
             _mutation_summary(result, "Handed off"),
             result.task,
             "handoff",
+            unmet_needs=result.unmet_needs,
         )
         return success(payload, summary)
 

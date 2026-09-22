@@ -29,7 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from agentjobs.dispatch.budget import (
     DISPATCHER_ACTOR,
@@ -77,6 +77,13 @@ class AutoDispatchOutcome:
     reason: str
     detail: str = ""
     run_id: Optional[str] = None
+    open_tasks: Tuple[str, ...] = ()
+    """The unmet `needs` dependencies, when that is why nothing started (task-150).
+
+    Carried rather than left in the sentence, because the caller writes the ball prompt
+    a person reads and it has to name them. Empty for every other outcome.
+    """
+
     recorded: bool = False
     """Whether this outcome has already written itself onto the task record.
 
@@ -94,9 +101,17 @@ class AutoDispatchOutcome:
         return self.reason not in {"not_enabled", "not_eligible", "not_configured"}
 
 
-def _skipped(reason: str, detail: str = "", *, recorded: bool = False) -> AutoDispatchOutcome:
+def _skipped(
+    reason: str,
+    detail: str = "",
+    *,
+    recorded: bool = False,
+    open_tasks: Tuple[str, ...] = (),
+) -> AutoDispatchOutcome:
     """An outcome that started nothing, for a reason that is not a failure."""
-    return AutoDispatchOutcome(started=False, reason=reason, detail=detail, recorded=recorded)
+    return AutoDispatchOutcome(
+        started=False, reason=reason, detail=detail, recorded=recorded, open_tasks=open_tasks
+    )
 
 
 # ----- the trigger ------------------------------------------------------------
@@ -188,6 +203,7 @@ def maybe_auto_dispatch(
             getattr(exc, "reason", "dispatch_failed"),
             str(exc),
             recorded=isinstance(exc, BudgetCapError),
+            open_tasks=tuple(getattr(exc, "open_tasks", ()) or ()),
         )
 
     return AutoDispatchOutcome(

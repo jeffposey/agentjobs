@@ -148,6 +148,32 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     # nothing today, since no run holds `DISPATCH` at all, and is named so that scoping
     # that capability one day scopes this route with it.
     "check_task_acceptance": RouteRule(Capability.DISPATCH, task_param=_TASK),
+    # Authorising a chain is buying up to twenty dispatches against one task in advance,
+    # with nobody clicking again (task-150). ``DISPATCH`` is therefore the capability it
+    # already is, spent ahead of time, and no run holds it -- which is the property the
+    # spec asks for and the reason a run cannot authorise or extend its own loop.
+    #
+    # Two alternatives were weighed. A ``CHAIN_AUTHORIZE`` of its own would draw exactly
+    # the same line for exactly the same principals, and is refused on this module's
+    # standing argument: "a capability per route would be a role system with extra
+    # steps", and a second name for one decision is a second thing to keep in step. And
+    # ``TASK_REVIEW``, which also excludes runs, is wrong in kind: it is the capability
+    # for judging work somebody did, and this is a purchase.
+    #
+    # ``DISPATCH_ADMIN`` has the strongest claim against and was still rejected. Arming
+    # pull mode sits there because "it is not one purchase, it is permission for the
+    # machine to keep making them" -- and a chain is, on its face, the same shape. The
+    # difference is that a chain is bounded at authorisation and pull mode is not: a
+    # person naming five iterations against one named task has decided how much to spend
+    # and on what, which is a purchase with a receipt. An arming is standing authority
+    # over a whole backlog with no such ceiling.
+    #
+    # Revocation shares the capability for the ordinary reason a kill switch shares one
+    # with its switch: everyone who may start it may stop it. Widening *only* the revoke
+    # to runs was considered and is worse than it sounds -- a run able to stop a chain
+    # could stop one a person is relying on and then report that it converged.
+    "authorize_task_chain": RouteRule(Capability.DISPATCH, task_param=_TASK),
+    "revoke_task_chain": RouteRule(Capability.DISPATCH, task_param=_TASK),
     "run_playbook_endpoint": RouteRule(Capability.DISPATCH),
     "cancel_dispatch_run": RouteRule(Capability.DISPATCH),
     # Relaying a human's authorisation writes a log entry and starts nothing, so on

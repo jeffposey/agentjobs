@@ -48,7 +48,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from agentjobs.dispatch.auto import DISPATCHER_ACTOR, AutoDispatchOutcome, maybe_auto_dispatch
 from agentjobs.dispatch.config import (
@@ -107,6 +107,9 @@ class HandbackOutcome:
     reason: str
     detail: str = ""
     run_id: Optional[str] = None
+    open_tasks: Tuple[str, ...] = ()
+    """The unmet `needs` dependencies, when that is why nothing started (task-150)."""
+
     recorded: bool = False
 
     @property
@@ -115,9 +118,17 @@ class HandbackOutcome:
         return self.reason not in QUIET_REASONS
 
 
-def _outcome(reason: str, detail: str = "", *, run_id: Optional[str] = None) -> HandbackOutcome:
+def _outcome(
+    reason: str,
+    detail: str = "",
+    *,
+    run_id: Optional[str] = None,
+    open_tasks: Tuple[str, ...] = (),
+) -> HandbackOutcome:
     """An outcome that delivered nothing and has not written anything yet."""
-    return HandbackOutcome(delivered=False, reason=reason, detail=detail, run_id=run_id)
+    return HandbackOutcome(
+        delivered=False, reason=reason, detail=detail, run_id=run_id, open_tasks=open_tasks
+    )
 
 
 def _from_auto(outcome: AutoDispatchOutcome) -> HandbackOutcome:
@@ -127,6 +138,7 @@ def _from_auto(outcome: AutoDispatchOutcome) -> HandbackOutcome:
         reason=outcome.reason,
         detail=outcome.detail,
         run_id=outcome.run_id,
+        open_tasks=outcome.open_tasks,
         recorded=outcome.recorded,
     )
 
@@ -531,6 +543,16 @@ def _previous_dispatch_entry(task: Task, run_id: str) -> Optional[int]:
     return previous
 
 
+def _blocked_prompt(outcome: HandbackOutcome) -> str:
+    """The ask a task waiting on other work carries while it waits."""
+    named = ", ".join(outcome.open_tasks) or "another task"
+    return (
+        f"Blocked on {named}. The answer above was recorded and nothing was started: "
+        "this task cannot be claimed until those close, at which point it becomes "
+        "workable again without anybody doing anything here."
+    )
+
+
 def record_handback(
     manager: TaskManagerLike,
     task: Task,
@@ -541,6 +563,32 @@ def record_handback(
     Separated from ``deliver_handback`` because the poller and the HTTP routes want the
     same sentence written under different circumstances, and because a function that both
     decides and narrates is one whose narration is untestable without its decision.
+
+    **Every refusal reason was checked for the same defect and only one had it**
+    (task-150 section 4). The question is whether a refusal leaves the ball somewhere
+    nothing will ever act on:
+
+    * ``unmet_dependencies`` -- **it did**, and this is the fix. The ball moves to
+      ``external``/``dependency``.
+    * ``delivery_uncertain`` -- already moved the ball to a person, for this exact reason
+      (task-340). Unchanged.
+    * ``live_run_exists`` -- the ball is with an agent and an agent really is there; the
+      poller delivers the message when that run settles. Correct as it stands.
+    * ``on_hold`` -- ``agent``/``hold`` is a person saying stop, which is a state they
+      chose and will leave themselves. Moving it would undo the click.
+    * the budget caps -- ``record_cap_refusal`` already parks a count cap on a person and
+      deliberately leaves a transient one (cooldown, hourly) alone. Unchanged.
+    * ``not_enabled``, ``not_configured``, ``disabled``, ``project_not_enabled``,
+      ``not_eligible`` -- configuration rather than events, and they write nothing at all
+      (``QUIET_REASONS``). A project with auto-dispatch off expects a person to dispatch
+      by hand, so the ball sitting with the agent is the accurate reading.
+    * ``sentinel`` -- a temporary stop somebody put in place by hand and will lift.
+      Writing a note and leaving the ball is what they want to be told.
+    * ``claim_lost``, ``owner_mismatch``, ``task_closed``, ``dispatch_failed`` and the
+      remaining gate refusals -- each names a condition somebody has to look at, and each
+      keeps its note. They are **not** changed here: none of them is the "nothing will
+      ever act on this" shape, and widening the fix to cover them would be moving balls on
+      a guess rather than on the case that was observed.
     """
     if not outcome.considered or outcome.recorded:
         return
@@ -555,6 +603,30 @@ def record_handback(
             ball=Ball.HUMAN,
             ball_reason=BallReason.DECISION,
             ball_prompt=outcome.detail,
+        )
+        return
+    if outcome.reason == "unmet_dependencies":
+        # **The defect task-150 section 4 records, fixed at the point it happened.** The
+        # human's answer moved the ball to `agent`/`answer`; the dispatcher then could not
+        # claim the task because a dependency was open, wrote a note saying so, and left
+        # the ball where it was. Nothing in the world would ever act on that task, and it
+        # read as work in progress on every surface.
+        #
+        # One write, not two: the handoff carries the refusal as its body. Two writes
+        # would leave a window in which the record said an agent had it and gave no
+        # reason, which is the state this is fixing.
+        #
+        # `external`/`dependency` and not `human`/`decision`, because there is nothing for
+        # a person to decide -- the task is waiting on other work and will become
+        # workable when that work closes, which is exactly what `external` means in
+        # docs/agent-workflow.md's External Block rule.
+        manager.handoff(
+            task.id,
+            actor=DISPATCHER_ACTOR,
+            ball=Ball.EXTERNAL,
+            ball_reason=BallReason.DEPENDENCY,
+            ball_prompt=_blocked_prompt(outcome),
+            body=outcome.detail or f"The handback was not delivered: `{outcome.reason}`.",
         )
         return
     manager.add_log_entry(

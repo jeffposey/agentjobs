@@ -9,7 +9,7 @@ import type {
 } from "../api/generated";
 // `TaskRead` is the app-facing alias for the output shape; `verbsFor` needs the record
 // itself, not just the detail envelope around it. See api/types.ts for why it is aliased.
-import type { TaskFinishView, TaskRead } from "../api/types";
+import type { ChainRead, TaskFinishView, TaskRead } from "../api/types";
 import { toUploads, type PendingAttachment } from "../report/attachments";
 import { AcceptanceSection } from "./AcceptanceChecks";
 import { AttachmentPicker } from "./AttachmentPicker";
@@ -22,6 +22,7 @@ import {
 } from "./QuestionForm";
 import { DependencyGraph } from "./DependencyGraph";
 import { DependencyState } from "./DependencyState";
+import { ChainPanel } from "./ChainPanel";
 import { DispatchPanel, type DispatchPanelProps, type DispatchRefusal } from "./DispatchPanel";
 import { FinishPanel } from "./FinishPanel";
 import { identityHeadline } from "./identityProblem";
@@ -897,6 +898,10 @@ export type TaskDetailProps = {
   // is the only useful thing about one of these, and only the server knows it -- so it
   // arrives as the refusal and is rendered by the component the Dispatch panel uses.
   checksRefusal?: DispatchRefusal | null;
+  /** Every chain authorised against this task. Empty for almost every task. */
+  chains?: ChainRead[];
+  /** Stops a live chain. Absent where nobody may. */
+  onRevokeChain?: (chainId: string) => Promise<void>;
 };
 
 export function TaskDetail(props: TaskDetailProps) {
@@ -989,6 +994,10 @@ export function TaskDetail(props: TaskDetailProps) {
       {/* Between the review verbs and Dispatch, because that is where the eye already
           is: a finish is what pressing Approve two feet above this starts, and the
           answer to "did that do anything" has to be where the question was asked. */}
+      {props.chains && props.chains.length > 0 && (
+        <ChainPanel chains={props.chains} onRevoke={props.onRevokeChain} />
+      )}
+
       {props.finish && (
         <div className={MEASURE}>
           <FinishPanel finish={props.finish} />

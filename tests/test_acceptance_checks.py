@@ -220,7 +220,11 @@ class TestTheMigration:
         report = _upgrade(older)
 
         assert report.from_version == 6
-        assert report.to_version == 7
+        # The latest version rather than 7, so this case keeps covering the newest
+        # migration instead of needing an edit -- and a green one -- every time somebody
+        # adds one. What it is asserting is that a *populated* store migrates forward
+        # without losing rows, which is a claim about the whole chain.
+        assert report.to_version == migrations.latest_version()
         after = _census(older)
         assert after == before
         with sqlite3.connect(older) as connection:
@@ -281,7 +285,18 @@ def _census(path: Path) -> Dict[str, int]:
 
 
 def _wind_back_to_version_six(path: Path) -> None:
-    """Undo migration 007 on a copy, so the real one can be applied to a populated store."""
+    """Undo everything above version 6 on a copy, so the real migrations can re-run.
+
+    **The ledger is cleared for *every* version above 6, not just 007**, and that
+    generality is load-bearing rather than tidy (task-150). The store is built by the
+    product at whatever the current version is, so a wind-back that deleted only
+    ``version = 7`` left the rows for 008 and everything after it behind; the re-run then
+    failed on ``UNIQUE constraint failed: schema_migration.version``, in a test about
+    migration 007, the first time anybody added 008. The one thing that has to be undone
+    by hand is 007's column, because SQLite records nothing that would let this be
+    derived -- and ``DROP COLUMN`` on a column a later migration has not touched is safe
+    whatever came after it.
+    """
     connection = sqlite3.connect(path)
     try:
         connection.executescript(
@@ -289,7 +304,7 @@ def _wind_back_to_version_six(path: Path) -> None:
             "BEGIN;\n"
             "ALTER TABLE task_acceptance DROP COLUMN check_argv;\n"
             "PRAGMA user_version = 6;\n"
-            "DELETE FROM schema_migration WHERE version = 7;\n"
+            "DELETE FROM schema_migration WHERE version > 6;\n"
             "COMMIT;\n"
         )
     finally:

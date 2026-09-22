@@ -411,6 +411,25 @@ class LogEntryType(ValueEnum):
     reassembling which entries belonged to the same invocation from timestamps.
     """
 
+    CHAIN_AUTHORIZED = "chain_authorized"
+    """A human's authorisation of a bounded chain of dispatches (task-150).
+
+    The row the loop driver resolves its authority from, and it carries the whole of
+    what was agreed: the iteration cap, the wall-clock ceiling, and the digest over the
+    criteria's ``(id, check)`` pairs as they stood at that moment. Every iteration
+    re-reads it from the stored task and recomputes the digest, so a check edited
+    mid-chain stops the chain rather than moving the finish line.
+    """
+
+    CHAIN_REVOKED = "chain_revoked"
+    """A chain stopped before its next iteration (task-150).
+
+    Its own type rather than a field on the authorisation, because the log is
+    append-only: the authorisation says what was agreed and stays true, and this says
+    when somebody withdrew it. A reader sees both, in order, which is what an audit of a
+    loop is for.
+    """
+
 
 MANAGER_WRITTEN_LOG_TYPES = frozenset(
     {
@@ -420,6 +439,8 @@ MANAGER_WRITTEN_LOG_TYPES = frozenset(
         LogEntryType.QUEUE_MOVE,
         LogEntryType.AUTHORIZATION,
         LogEntryType.CHECK_RESULT,
+        LogEntryType.CHAIN_AUTHORIZED,
+        LogEntryType.CHAIN_REVOKED,
     }
 )
 """Entry types only the manager may append (design doc section 3, rule 5).
@@ -434,6 +455,15 @@ listing types of its own, so a type added here cannot be forgotten at one of the
 that a command ran and exited with a particular code. A loop reads those codes to decide
 whether it has converged, so a caller able to post one could declare a task's definition
 of done met without anything having been executed.
+
+``chain_authorized`` and ``chain_revoked`` are here for the sharper version of the same
+argument (task-150). A chain authorisation is a standing permission to start up to twenty
+runs against one task without anybody clicking again, and the entry *is* the permission --
+the driver reads no other evidence. A run able to post one could authorise its own
+successors twenty at a time, and a run able to post the revocation could pretend a chain
+somebody stopped is still stopped, or the reverse. The capability on the dedicated verbs
+is the other lock; this is the one that covers ``POST /log`` and every other write path at
+once.
 
 ``authorization`` is here for the same reason and one more (task-506). It asserts that a
 person authorised a run, which is an event; and because a ``run`` principal holds
@@ -481,6 +511,19 @@ class DispatchTrigger(ValueEnum):
     person, so "why did it start this one" is answerable from the record alone -- and
     ``agentjobs next --why`` answers the other half, which is why that task rather than
     the one behind it.
+    """
+
+    CHAIN = "chain"
+    """One iteration of an authorised chain, started by the loop driver (task-150).
+
+    Its own value for the reason every other value here has one: what the person
+    authorised is different. ``manual`` is a click on this task now; ``chain`` is a click
+    that bought *up to N* runs against this task, bounded by an iteration cap, a
+    wall-clock ceiling and a frozen set of checks, and the driver spent one of them.
+
+    It is also the value the budget caps read to apply L7 -- the per-day cap counts
+    authorised chains rather than iterations, and the cooldown does not apply between two
+    iterations of one chain. See :mod:`agentjobs.dispatch.budget`.
     """
 
 
@@ -1164,6 +1207,85 @@ class CheckResultData(StrictModel):
     )
 
 
+MAX_CHAIN_ITERATIONS = 20
+"""Ceiling on a chain's iteration cap (design L8, the numbers table).
+
+Five is the default because the realistic shape of a converging chain is *fail, fix, fail
+differently, fix, pass*. Twenty is the ceiling because past it a chain is not converging,
+it is wandering, and no number a person types should turn a loop into a standing
+subscription.
+"""
+
+DEFAULT_CHAIN_ITERATIONS = 5
+"""Iterations a chain gets when nobody says. See :data:`MAX_CHAIN_ITERATIONS`."""
+
+MAX_CHAIN_WALL_CLOCK_SECONDS = 12 * 60 * 60
+"""Ceiling on a chain's wall-clock bound: twelve hours.
+
+Long enough for twenty iterations of a real run, short enough that a chain started after
+dinner has stopped before morning -- which is the property the number was chosen for.
+"""
+
+DEFAULT_CHAIN_WALL_CLOCK_SECONDS = 4 * 60 * 60
+"""Wall-clock a chain gets when nobody says: four hours."""
+
+
+class ChainAuthorizationData(StrictModel):
+    """Payload of a ``chain_authorized`` entry: what a human agreed to (task-150).
+
+    Everything the driver is allowed to know about its own authority is here, and the
+    driver reads it **from the stored task** on every iteration rather than carrying it
+    in memory. That is dispatch design section 2's forgeability rule applied to a loop: a
+    bound held in a process is a bound a restarted process can lose, and one supplied in
+    a request is not evidence of anything.
+    """
+
+    chain_id: str = Field(
+        ..., min_length=1, description="Identifies this chain across its iterations."
+    )
+    max_iterations: int = Field(
+        ...,
+        ge=1,
+        le=MAX_CHAIN_ITERATIONS,
+        description="How many dispatches this authorisation buys, at most.",
+    )
+    wall_clock_seconds: int = Field(
+        ...,
+        ge=1,
+        le=MAX_CHAIN_WALL_CLOCK_SECONDS,
+        description="How long the chain may run from this entry's timestamp.",
+    )
+    check_digest: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Digest over the criteria's `(id, check)` pairs at this moment. Recomputed "
+            "every iteration; a mismatch stops the chain."
+        ),
+    )
+    criteria: List[str] = Field(
+        default_factory=list,
+        description=(
+            "The ids the digest covers, named rather than left implicit: a reader "
+            "comparing two authorisations should not have to recompute a hash to see "
+            "which criteria moved."
+        ),
+    )
+
+
+class ChainRevocationData(StrictModel):
+    """Payload of a ``chain_revoked`` entry: which chain was withdrawn.
+
+    Who withdrew it is the entry's ``actor`` and is deliberately not repeated here. A
+    ``chain_authorized`` entry has the same property and for a sharper reason: the driver
+    puts that entry through ``assert_human_clocked``, which reads ``actor``, so an
+    ``authorized_by`` field beside it would be a second answer to "who authorised this"
+    that nothing enforces. One answer, in the field every other entry uses.
+    """
+
+    chain_id: str = Field(..., min_length=1, description="The chain this withdraws.")
+
+
 class QuestionOption(StrictModel):
     """One answer an agent is offering for a ``question`` entry (task-017).
 
@@ -1186,6 +1308,73 @@ class QuestionOption(StrictModel):
             "because a prefilled answer is one a tired reader submits without reading."
         ),
     )
+    dispatches: bool = Field(
+        default=True,
+        description=(
+            "Whether choosing this hands work back to an agent. False for an answer that "
+            "means *wait*, *stop* or *decline*, which records the choice and starts "
+            "nothing."
+        ),
+    )
+    ball: Optional[Ball] = Field(
+        default=None,
+        description=(
+            "Who holds the task once this option is chosen. Required with "
+            "`dispatches: false` and forbidden otherwise."
+        ),
+    )
+    ball_reason: Optional[BallReason] = Field(
+        default=None,
+        description="Why that holder has it. Travels with `ball`.",
+    )
+
+    @model_validator(mode="after")
+    def _a_non_dispatching_option_names_its_holder(self) -> "QuestionOption":
+        """``dispatches: false`` must say who holds the task, and nothing else may.
+
+        The default answer path hands every answer to ``agent``/``answer``, which is
+        correct when an answer unblocks work and is the defect task-150 section 4
+        records when it does not: the owner chose *decide after phase one* and the task
+        sat at ``agent``/``answer`` with nothing that would ever act on it.
+
+        So an option that starts nothing has to name its own destination. Required
+        rather than defaulted, because there is no one right answer -- *wait* is
+        ``external``/``dependency``, *stop the chain* is ``human``/``decision``, and a
+        default would quietly pick one of them for an author who meant the other. And
+        forbidden on a dispatching option, because the ball there is already decided by
+        the verb; a field that is read in one case and ignored in the other is a field
+        somebody will set and then wonder about.
+        """
+        if self.dispatches:
+            if self.ball is not None or self.ball_reason is not None:
+                raise ValueError(
+                    f"option {self.label!r} names a ball, but it dispatches: an answer "
+                    "that hands work back goes to the holder the answering verb "
+                    "chooses. Set `dispatches: false` if this option is meant to stop."
+                )
+            return self
+        if self.ball is None or self.ball_reason is None:
+            raise ValueError(
+                f"option {self.label!r} says it does not dispatch but names no holder. "
+                "An answer that starts nothing has to say who the task is waiting on, "
+                "or it leaves a ball nothing will act on -- which is the whole failure "
+                "this flag exists to prevent."
+            )
+        if self.ball is Ball.AGENT:
+            raise ValueError(
+                f"option {self.label!r} says it does not dispatch and then hands the "
+                "task to an agent. Nothing would start that agent, so the task would "
+                "read as work in progress with nobody on it."
+            )
+        allowed = BALL_REASONS.get(self.ball, frozenset())
+        if self.ball_reason not in allowed:
+            permitted = ", ".join(sorted(reason.value for reason in allowed))
+            raise ValueError(
+                f"option {self.label!r} names ball {self.ball.value!r} with reason "
+                f"{self.ball_reason.value!r}, which is not one of that holder's: "
+                f"{permitted}. The pairing is the same one a handoff is held to."
+            )
+        return self
 
 
 class QuestionData(StrictModel):

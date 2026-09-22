@@ -97,8 +97,32 @@ def last_dispatch_at(task: Task) -> Optional[datetime]:
     return max(stamps) if stamps else None
 
 
+def chains_since(task: Task, moment: datetime) -> int:
+    """How many chains were authorised against this task at or after ``moment``.
+
+    The unit L7 makes the per-day cap count for a chain iteration. A ``chain_authorized``
+    entry is one human act -- somebody agreed to a bounded loop -- which is the thing the
+    daily cap was always trying to count. Counting the iterations instead makes the cap
+    fire inside the mechanism it is supposed to bound: with a cap of 3, a chain a person
+    authorised for 5 would die at iteration 4, having been refused by a limit designed
+    for a different act.
+    """
+    counted = 0
+    for entry in task.log:
+        if entry.type is not LogEntryType.CHAIN_AUTHORIZED:
+            continue
+        stamp = entry.ts if entry.ts.tzinfo else entry.ts.replace(tzinfo=timezone.utc)
+        if stamp >= moment:
+            counted += 1
+    return counted
+
+
 def check_budget(
-    task: Task, limits: AutoDispatchLimits, *, now: Optional[datetime] = None
+    task: Task,
+    limits: AutoDispatchLimits,
+    *,
+    now: Optional[datetime] = None,
+    trigger: DispatchTrigger = DispatchTrigger.AUTO,
 ) -> Optional[CapRefusal]:
     """The first per-task cap this task has reached, or None when all three have room.
 
@@ -110,8 +134,30 @@ def check_budget(
     in ``dispatch.yaml``. The name is historical and the key is kept deliberately: it is
     machine-local configuration, and renaming it would silently return a tuned machine to
     the defaults, which is the one direction a cap must never move by accident.
+
+    ``trigger`` is read for one thing and one thing only: **L7**, the design's resolution
+    of the conflict between these caps and a bounded loop. On
+    :attr:`~agentjobs.models_v2.DispatchTrigger.CHAIN` two of the three caps change what
+    they count, and the third does not:
+
+    * **Per-task-per-day counts authorised chains** rather than dispatches. Three chains
+      against one task in a day is still exactly the signal the cap was meant to be --
+      something about this task is not working -- and it no longer truncates the
+      mechanism at iteration 4.
+    * **The cooldown does not apply.** It exists to refuse two runs started in the same
+      breath, and iteration *n+1* begins only after iteration *n* has reached a terminal
+      state, which is the condition the cooldown is a proxy for. The driver enforces that
+      directly and against the ledger, which is stronger evidence than a timer.
+    * **The lifetime cap is untouched and still counts dispatches.** It is the number
+      that catches a bug in the loop driver itself, and a backstop redefined to
+      accommodate the thing it guards is not one. A chain that would cross it is refused
+      mid-chain and stops loudly.
+
+    The machine-wide hourly cap is not here at all and is likewise untouched -- see
+    :func:`check_machine_budget` and the note there about a 20-iteration chain.
     """
     moment = now or dispatch_clock.utcnow()
+    in_chain = trigger is DispatchTrigger.CHAIN
 
     lifetime = task.dispatch_count
     if lifetime >= limits.per_task_lifetime:
@@ -122,9 +168,38 @@ def check_budget(
                 f"is {limits.per_task_lifetime}. A task that reaches this has not been "
                 "failing to run -- it has been running and not finishing, which is a "
                 "fact about the task, not about the dispatcher."
+            )
+            + (
+                " This cap counts dispatches even inside a chain, deliberately: it is "
+                "the backstop under the loop driver, and a backstop that made room for "
+                "the thing it guards would not be one."
+                if in_chain
+                else ""
             ),
             parks_task=True,
         )
+
+    if in_chain:
+        chains = chains_since(task, moment - timedelta(days=1))
+        # Strictly greater, not `>=`, and the asymmetry with the line below is real: the
+        # chain being iterated has *already* written its own authorisation, so it is in
+        # this count. With a cap of 3 the running chain reads 1 and the fourth
+        # authorisation reads 4. The dispatch count on the other branch has no such
+        # entry for the dispatch about to happen, so it compares with `>=`.
+        if chains > limits.per_task_per_day:
+            return CapRefusal(
+                limit="per_task_per_day",
+                message=(
+                    f"{chains} chains have been authorised against {task.id} in the last "
+                    f"24 hours, and the daily cap is {limits.per_task_per_day}. Inside a "
+                    "chain this cap counts authorisations rather than iterations (design "
+                    "L7), so what it is reporting is that somebody has restarted this "
+                    "loop too many times -- not that this loop is too long."
+                ),
+                parks_task=True,
+            )
+        # The cooldown is skipped here and the lifetime cap above was not. Both are L7.
+        return None
 
     today = task.dispatches_since(moment - timedelta(days=1))
     if today >= limits.per_task_per_day:
@@ -190,6 +265,18 @@ def check_machine_budget(
     either -- it bounds how many runs are alive at once, not how many are started, and a
     loop that starts and immediately fails a run never holds a slot for long enough to
     be refused by it.
+
+    **A chain iteration is counted here like any other dispatch, and L7 does not touch
+    this cap** (task-150). Checked rather than assumed: at the default 30 per hour, a
+    20-iteration chain fits only if its iterations average more than two minutes apart,
+    which every real one does -- ``limits.run_timeout_seconds`` is 1800s and an iteration
+    waits for its run to reach a terminal state before the next begins, so the floor on
+    an iteration is however long a session takes to start, work and settle. The
+    assumption this rests on is therefore *that* rule, not a number: a chain cannot
+    outrun the hourly cap while iteration n+1 begins only after n has ended. What the cap
+    would catch is a driver that stopped honouring it, which is exactly the bug a
+    machine-wide counter is for. A chain sharing the hour with other work can still be
+    refused mid-chain, and stops loudly when it is.
     """
     moment = now or dispatch_clock.utcnow()
     started = dispatches_since(home, moment - timedelta(hours=1))

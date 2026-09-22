@@ -47,6 +47,8 @@ from .models_v2 import (
     AuthorizationData,
     Ball,
     BallReason,
+    ChainAuthorizationData,
+    ChainRevocationData,
     CheckOutcome,
     CheckResultData,
     DeliverableStatus,
@@ -3218,6 +3220,105 @@ class TaskManager:
                 type=LogEntryType.CHECK_RESULT,
                 body=body,
                 data=payload.model_dump(mode="json"),
+                operation=operation,
+            )
+            return task
+
+        return self._mutate(task_id, apply)
+
+    def record_chain_authorization(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        chain_id: str,
+        max_iterations: int,
+        wall_clock_seconds: int,
+        check_digest: str,
+        criteria: Sequence[str],
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+    ) -> Task:
+        """Record a human's authorisation of a bounded chain of dispatches (task-150).
+
+        The entry this writes is the *whole* of the driver's authority: it reads the
+        bounds and the digest back off the stored task before every iteration and
+        believes nothing it is handed. So this is the only door, and it is a manager verb
+        rather than a payload on ``add_log_entry`` for the reason ``dispatch`` and
+        ``authorization`` are: ``chain_authorized`` is in ``MANAGER_WRITTEN_LOG_TYPES``,
+        so a caller cannot produce one through the generic log route from any principal
+        at all.
+
+        Refusing a second live chain is not this method's job and is deliberately left to
+        :mod:`agentjobs.dispatch.chains`, which can see whether an earlier one was
+        revoked. What is enforced here is the shape -- the ceilings are on the payload
+        model, so a bound past one of them is refused by the schema wherever it came
+        from.
+        """
+        payload = ChainAuthorizationData(
+            chain_id=chain_id,
+            max_iterations=max_iterations,
+            wall_clock_seconds=wall_clock_seconds,
+            check_digest=check_digest,
+            criteria=list(criteria),
+        )
+        operation = self._operation(
+            operation_id,
+            "chain_authorized",
+            actor,
+            {"chain_id": chain_id},
+        )
+
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.CHAIN_AUTHORIZED,
+                body=body,
+                data=payload.model_dump(mode="json", exclude_none=True),
+                operation=operation,
+            )
+            return task
+
+        return self._mutate(task_id, apply)
+
+    def record_chain_revocation(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        chain_id: str,
+        re: Optional[int] = None,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+    ) -> Task:
+        """Withdraw a chain's authorisation, effective before its next iteration.
+
+        ``re`` threads this to the authorisation it withdraws, so the pair reads as one
+        thing in the log. A separate entry rather than a field on the authorisation,
+        because the log is append-only and the authorisation stays true about what was
+        agreed; this says when somebody took it back.
+        """
+        payload = ChainRevocationData(chain_id=chain_id)
+        operation = self._operation(
+            operation_id,
+            "chain_revoked",
+            actor,
+            {"chain_id": chain_id},
+        )
+
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.CHAIN_REVOKED,
+                body=body,
+                re=re,
+                data=payload.model_dump(mode="json", exclude_none=True),
                 operation=operation,
             )
             return task

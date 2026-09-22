@@ -46,7 +46,7 @@ human is asking, this stops being a table and becomes a role system.
 | `history.record` | `PUT /history/finishes/{id}`, `PUT /history/gates/{id}` -- a finish or a gate indexing itself (task-472) | ✓ | ✓ | ✓ |
 | `task.review` | approve, request-changes, answer, redirect, hold, resume, reject | ✓ | ✓ | — |
 | `model.draft` | `POST .../model/draft` -- one drafting call to a model provider (task-175) | ✓ | ✓ | — |
-| `dispatch.start` | task dispatch, playbook run, run cancel, queued-dispatch cancel | ✓ | ✓ | — |
+| `dispatch.start` | task dispatch, playbook run, run cancel, queued-dispatch cancel, acceptance-check run, chain authorize / revoke | ✓ | ✓ | — |
 | `dispatch.relay_authorization` | `POST .../tasks/{id}/authorization` -- record that a person authorised a dispatch, as the agent they told (task-506) | ✓ | ✓ | — |
 | `dispatch.over_ceiling` | the `over_ceiling` field on a task dispatch | ✓ | ✓ | — |
 | `dispatch.admin` | dispatch enable / disable, pull-mode arm / disarm, idle-session settings | ✓ | ✓ | — |
@@ -54,6 +54,22 @@ human is asking, this stops being a table and becomes a role system.
 | `queue.admin` | queue repair / compact | ✓ | ✓ | — |
 | `webhook.admin` | webhook create / delete / test | ✓ | ✓ | — |
 | `run.output` | run and finish output, tail, transcript | ✓ | ✓ | own run |
+
+**A chain is `dispatch.start` spent in advance** (task-150). Authorising a bounded agent
+loop buys up to twenty dispatches against one task with nobody clicking again, which is
+the act `dispatch.start` already names -- so it sits there rather than getting a
+`chain.authorize` of its own, on this table's standing argument that a capability per
+route is a role system with extra steps. `task.review` was the other candidate and is
+wrong in kind: it is for judging work somebody did, and this is a purchase.
+`dispatch.admin` has the strongest claim against, since arming pull mode sits there for
+being "permission for the machine to keep making purchases" -- but a chain is bounded at
+authorisation and an arming is not, so a person naming five iterations against one named
+task has decided how much to spend and on what.
+
+Revoking shares the capability for the reason a kill switch always shares one with its
+switch: everyone who may start it may stop it. Widening only the revoke to runs was
+considered and is worse than it sounds, because a run able to revoke could stop a chain a
+person is relying on and then report that it converged.
 
 **`model.draft` is a purchase, which is why it sits with `dispatch.start` and not with
 `task.create`** (task-175). Filing the drafted task afterwards is an ordinary create and

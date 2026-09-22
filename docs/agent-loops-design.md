@@ -1,7 +1,31 @@
 # Agent loops: making acceptance criteria executable
 
-**Status:** design pass, task-078. Nothing here is implemented. Derived implementation
-tasks are listed in §12.
+**Status:** built. §12's items 1 to 3 shipped as task-147 (the `check` field, the
+evaluator, `agentjobs check` and `POST .../check`), and items 4 to 6 as task-150 (chain
+authorisation in `dispatch/chains.py`, the driver in `dispatch/loop.py`, and the chain
+panel). §12 itself lists the tasks.
+
+**What changed against this document as it was built**, so a reader is not surprised by
+the code:
+
+*   **L1's open disagreement is closed.** `AcceptanceCriterion.verify` no longer
+    describes itself as a machine-checkable hint; `check` is the executable field, as L1
+    decided.
+*   **L7 is implemented as the trigger** `DispatchTrigger.CHAIN`, read by `check_budget`.
+    Inside a chain the per-day cap counts authorisations and the cooldown does not apply;
+    the lifetime cap and the machine-wide hourly cap are untouched, and
+    `check_machine_budget` states what a twenty-iteration chain assumes about the latter.
+*   **The driver revokes a chain it has finished with**, which this document does not
+    mention because it does not mention drivers restarting. An authorisation nobody has
+    withdrawn stays live until its wall-clock expires, so a second driver would read a
+    spent one and start iterating on a task a person is now holding. Stopping is an
+    event; the record has to show the authorisation is spent as well as why.
+*   **A single binary check cannot drive a chain longer than two iterations**, and that
+    is §8's thrash rule working rather than a defect. Three consecutive identical vectors
+    stop the chain, and a lone failing check produces exactly that while an agent makes
+    progress the check cannot see. A loop worth running has criteria that flip one at a
+    time -- which is §10's discriminator stated from the other side, and is what the
+    fixtures in `tests/test_agent_loops.py` say out loud.
 
 **Written when task records were files in the repository.** §4's threat model — a clone
 carrying `tasks/*.yaml` full of commands — is the files-project case. A project served
@@ -99,14 +123,14 @@ decides whether to execute a string from a versioned file is not a boundary at a
 
 **Decision L1. `check` is a new field. `verify` keeps its meaning.**
 
-> **The shipped model currently says the opposite, and this is unresolved.**
-> `AcceptanceCriterion.verify` in `src/agentjobs/models_v2.py` is documented as an
-> "optional machine-checkable hint, e.g. a command to run" — which is the *executable*
-> meaning L1 moves to `check`. Nothing has been built for this design, so nothing is
-> broken by the disagreement today; whoever implements L1 has to change that
-> description in the same change, and regenerate the schema docs. Recorded here rather
-> than fixed pre-emptively: redefining a shipped field ahead of the feature that needs
-> the new definition is how a schema acquires two meanings for one name.
+> **Resolved when L1 shipped.** `AcceptanceCriterion.verify` used to describe itself as
+> an "optional machine-checkable hint, e.g. a command to run" -- the *executable* meaning
+> L1 moves to `check` -- and this paragraph recorded the disagreement rather than fixing
+> it pre-emptively, because redefining a shipped field ahead of the feature that needs
+> the new definition is how a schema acquires two meanings for one name. The feature
+> arrived with task-147 and the description went with it. Kept here because the reasoning
+> is the useful part: a field's documentation and its meaning are allowed to disagree for
+> exactly as long as nothing depends on either.
 
 
 ```yaml
