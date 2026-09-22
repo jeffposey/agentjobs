@@ -23,6 +23,7 @@ from typing import Iterator
 import pytest
 
 from agentjobs.dispatch.pids import (
+    describe_exit,
     is_the_recorded_process,
     process_alive,
     process_created_after,
@@ -157,3 +158,67 @@ def os_pid() -> int:
     import os
 
     return os.getpid()
+
+
+class TestTheVictimsEndIsSaidOutLoud:
+    """The same mechanism read from the victim's end: what the message says (task-513).
+
+    Every test above is about not killing the wrong process. These are about the report
+    that reaches a human when something already did. ``Session launch for task-001
+    exited 1:`` -- with nothing after the colon -- was the whole of what one gate run
+    recorded about a real ``claude`` that never started, and an agent spent a detour
+    proving it was not a code defect.
+    """
+
+    def test_a_really_killed_child_is_described_as_killed_not_as_silent(
+        self, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        """Built from what a real kill leaves behind, never from a hand-made record.
+
+        A constructed ``CompletedProcess`` would prove only that the function reads its
+        own arguments. Killing a real process and describing what the OS actually left
+        is what ties the sentence to the thing it claims to recognise.
+        """
+        receipt = process_identity(stranger.pid)
+        assert _kill_tree(stranger.pid, identity=receipt) is True
+        assert stranger.wait(timeout=60) == 1
+        assert stranger.stdout is not None and stranger.stderr is not None
+        completed = subprocess.CompletedProcess(
+            args=["claude", "--bg"],
+            returncode=stranger.returncode,
+            stdout=stranger.stdout.read().decode(),
+            stderr=stranger.stderr.read().decode(),
+        )
+
+        described = describe_exit(completed)
+        assert "exit 1" in described
+        assert "taskkill" in described, "the reading that saves the detour"
+        assert "task-505" in described, "and where to go and read about it"
+        assert described.count("<empty>") == 2, "both streams named rather than omitted"
+
+    def test_an_ordinary_failure_is_not_blamed_on_a_kill(self) -> None:
+        """The error that would matter most: sending the next reader after a phantom pid.
+
+        A CLI that exits 1 *and says why* is the common case by far, so the kill reading
+        has to stay off it. Only the pair -- exit 1 and nothing on either stream --
+        earns the sentence.
+        """
+        spoke = subprocess.run(
+            [sys.executable, "-c", "import sys; sys.stderr.write('bad flag\n'); sys.exit(1)"],
+            capture_output=True,
+            text=True,
+        )
+        described = describe_exit(spoke)
+        assert "bad flag" in described
+        assert "taskkill" not in described
+
+    def test_a_nonzero_code_that_is_not_one_is_not_blamed_on_a_kill_either(self) -> None:
+        """Exit 9 with two empty streams is a child that chose to say nothing."""
+        quiet = subprocess.run([sys.executable, "-c", "raise SystemExit(9)"], capture_output=True)
+        described = describe_exit(
+            subprocess.CompletedProcess(
+                args=["x"], returncode=quiet.returncode, stdout="", stderr=""
+            )
+        )
+        assert "exit 9" in described
+        assert "taskkill" not in described

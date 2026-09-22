@@ -130,6 +130,7 @@ from agentjobs.models_v2 import (
 )
 from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
 from agentjobs.dispatch.pids import (
+    describe_exit,
     is_the_recorded_process,
     process_identity,
     recorded_process_alive,
@@ -3229,11 +3230,14 @@ class DispatchRunner:
         # have come from its own launcher at all (task-249).
         directory.update_meta(daemon_started=daemon_was_started(output))
         if completed.returncode != 0:
-            directory.update_meta(status="failed", exit_code=completed.returncode)
-            raise DispatchRunError(
-                f"Session launch for {task.id} exited {completed.returncode}: "
-                f"{output.strip()[:500]}"
-            )
+            # `describe_exit` rather than the streams, because the streams were empty in
+            # the case that cost the most: `Session launch for task-001 exited 1:` and
+            # nothing after it (task-513). The reason goes on the run's meta as well as
+            # into the exception, so the run directory answers the question later without
+            # anyone having to still have the traceback.
+            reason = describe_exit(completed)
+            directory.update_meta(status="failed", exit_code=completed.returncode, error=reason)
+            raise DispatchRunError(f"Session launch for {task.id} failed: {reason}")
 
         session_id = self.capture_session_id(completed.stdout or "", reject=short_run_id(run_id))
         if session_id is None:
@@ -3484,10 +3488,10 @@ class DispatchRunner:
             argv += ["--cwd", str(self.project_root)]
         completed = self._run_listing(argv)
         if completed.returncode != 0:
-            raise DispatchRunError(
-                f"Session ledger command failed ({completed.returncode}): "
-                f"{(completed.stderr or '').strip()[:300]}"
-            )
+            # Quoting stderr alone was the same trap one function along: this command is
+            # killed by the same recycled-pid mechanism, and a kill leaves stderr empty,
+            # so the message that reported the failure reported nothing (task-513).
+            raise DispatchRunError(f"Session ledger command failed: {describe_exit(completed)}")
         if not (completed.stdout or "").strip():
             # **An unreadable listing is not an empty one** (task-416). A real empty
             # ledger prints `[]` -- measured on Claude Code 2.1.270 with `--cwd` naming a
