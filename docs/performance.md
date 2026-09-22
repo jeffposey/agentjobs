@@ -558,6 +558,10 @@ With the clock installed the window keeps its production ninety seconds and cost
 | `test_a_session_stuck_on_an_expired_login_is_still_taken_over` | 50.4s | **4.1s** |
 | the whole file, serial | 131.4s | **38.0s** |
 
+`test_finish_durable.py` is the same change and the same shape: its three slowest were
+42.3 / 41.9 / 38.9s and its slowest is now **6.0s**, 27 tests in 98s, with no threshold
+shortened anywhere.
+
 **3. Time-skipping makes a wait free. It does not make a poll free.** Worth knowing before
 reaching for it. Running that file's fourth test at the full production cadence -- a
 ninety-second window polled every two seconds -- is 45 real `poll_session` calls, two
@@ -576,39 +580,48 @@ desktop load and no other gate running:
 |---|---|---|
 | before any change, 17:51 | 5,485 passed, **1 failed** (the auth-recovery flake) | 824.9s |
 | after the one clock, 18:15 | 5,486 passed | 465.4s |
-| after the lock waits and the stand-down, 19:32 | 5,491 passed, 1 failed (fixed below) | 482.5s |
+| after the lock waits and the stand-down, 19:32 | 5,491 passed, 1 failed (a second clock, found and fixed) | 482.5s |
+| after the execution store joined the clock, 21:03 | 5,509 passed | 484.5s |
 
 **Do not read 824.9s to 465.4s as the size of the change.** Some of it is the machine being
 quieter at 18:15 than at 17:51, and this file's own rule is that a wall-clock figure across
 a gap like that is an anecdote. The per-test pairs above were taken back to back and are
 the defensible half; the whole-suite column is here because leaving it out would be worse.
 
-The gate's own figure, green, all ten stages, 2026-09-21 20:29-20:41 on the same machine
-with the owner's ordinary desktop load and no other gate running:
+The gate's own figures, both green across all ten stages, on the same machine with the
+owner's ordinary desktop load and no other gate running. Two runs rather than one, because
+the spread between them *is* the point this section keeps making:
 
-| stage | seconds |
-|---|---|
-| `black` | 2.2 |
-| `ruff` | 0.4 |
-| `mypy` | 2.2 |
-| `api` | 6.8 |
-| `icons` | 1.6 |
-| `oxlint` | 2.0 |
-| **`pytest`** | **475.0** |
-| `vitest` | 38.1 |
-| `build` | 9.0 |
-| `e2e` | 189.0 |
-| **total** | **726.2** |
+| stage | 20:29-20:41 | 22:24-22:38 |
+|---|---|---|
+| `black` | 2.2 | 0.9 |
+| `ruff` | 0.4 | 0.6 |
+| `mypy` | 2.2 | 20.4 |
+| `api` | 6.8 | 5.4 |
+| `icons` | 1.6 | 1.5 |
+| `oxlint` | 2.0 | 0.5 |
+| **`pytest`** | **475.0** | **530.3** |
+| `vitest` | 38.1 | 36.2 |
+| `build` | 9.0 | 7.5 |
+| `e2e` | 189.0 | 180.1 |
+| **total** | **726.2** | **783.6** |
 
-**1146.2s to 475.0s for the pytest stage**, and the same caveat applies to that pair as to
-every other in this section: the before figure was taken on a different evening, and this
-machine's process-creation cost was measured varying by a factor of 260 between identical
-spawns on the day both readings were taken. What is not subject to that caveat is the
-per-test table above, which was measured back to back, and the fact that the stage is again
-the gate is bounded by `pytest` at 475.0s against `e2e`'s 189.0s. That is the reverse of
-where task-268 left it -- 89.1s against 138.8s -- and it is where the next round of this
-work has to look, because nothing in this section touched the thing that actually costs
-the stage its time, which is how many short-lived processes the dispatch tests start.
+Nothing between those two runs made the suite slower -- the second has *more* tests in it
+and its slowest file had just been made three times faster. The 55 seconds are the machine,
+and `mypy`'s 2.2 to 20.4 in the same pair is the same thing said in a stage small enough to
+see it whole.
+
+**1146.2s to 475-530s for the pytest stage**, and the same caveat applies to that pair as
+to every other in this section: the before figure was taken on a different evening, and
+this machine's process-creation cost was measured varying by a factor of 260 between
+identical spawns on the day both readings were taken. What is not subject to that caveat is
+the per-test table above, which was measured back to back.
+
+**The gate is bounded by `pytest` again** -- 475s against `e2e`'s 189s -- which is the
+reverse of where task-268 left it, 89.1s against 138.8s. That is where the next round has
+to look, and this round says where: nothing here touched the thing that actually costs the
+stage its time, which is how many short-lived processes the dispatch tests start. The
+figure to attack is 120 interpreter spawns across three tests, not any number of seconds.
 
 ### What the slowest tests actually are (task-268)
 
