@@ -1865,6 +1865,136 @@ export type DispatchStateView = {
 };
 
 /**
+ * EpicWalkView
+ *
+ * One epic walk that is still open, as the board draws it (task-523).
+ *
+ * A walk is the only thing on this machine that dispatches work with no human act at
+ * the moment of dispatch, and since task-458 it is hosted by the server rather than by
+ * a blocking process -- so its own ``mode: "walk"`` run is normally over before any
+ * board is drawn and there was nothing on the page to explain the children arriving.
+ * This row is that explanation.
+ *
+ * **It holds no slot**, exactly as its run did not. Nothing here is counted against
+ * ``occupied`` or takes a cell from the board; a walk is supervision, and the slots it
+ * fills are filled by the children's own runs, which are already in ``runs``.
+ */
+export type EpicWalkView = {
+    /**
+     * Children Completed
+     *
+     * Children closed with outcome `completed`.
+     */
+    children_completed?: number;
+    /**
+     * Children In Flight
+     *
+     * Children this walk has in the air now -- admitted or flying, and still open. Each one is a run of its own and appears in `runs` on its own terms.
+     */
+    children_in_flight?: number;
+    /**
+     * Children Remaining
+     *
+     * Open children that are not in flight: what is still to come.
+     */
+    children_remaining?: number;
+    /**
+     * Children Total
+     *
+     * Every child of the parent, counted from the task graph rather than from the walk's own rows. The walk only has a row for a child it has already touched, so counting its rows would report a five-child epic that has flown two as having three children.
+     */
+    children_total?: number;
+    /**
+     * Detail
+     *
+     * What the walk last recorded about its stop.
+     */
+    detail?: string;
+    /**
+     * Grounded
+     *
+     * The walk has stopped taking off. **The field this section exists for**: a grounded walk and a quiet one look identical from the outside, and a reader who cannot tell them apart reads a stall as progress.
+     */
+    grounded: boolean;
+    /**
+     * Grounded Reason
+     *
+     * The `WalkStop` that grounded it, or empty while it is still flying.
+     */
+    grounded_reason?: string;
+    /**
+     * Grounded Word
+     *
+     * How that reason reads in a sentence, composed on the server so the board and the CLI say the same words.
+     */
+    grounded_word?: string;
+    /**
+     * In Flight Task Ids
+     *
+     * The children in the air, so a reader can follow them.
+     */
+    in_flight_task_ids?: Array<string>;
+    /**
+     * Parent Task Id
+     *
+     * The epic being walked.
+     */
+    parent_task_id: string;
+    /**
+     * Parent Task Title
+     *
+     * Resolved server-side, empty when the record cannot be read.
+     */
+    parent_task_title?: string;
+    /**
+     * Parent Task Url
+     *
+     * Where that task is, in this app.
+     */
+    parent_task_url?: string;
+    /**
+     * Project Id
+     */
+    project_id: string;
+    /**
+     * Project Name
+     *
+     * Falls back to the id for a project no longer registered.
+     */
+    project_name?: string;
+    /**
+     * Resumes By Itself
+     *
+     * True when the thing it is waiting on clears without anybody deciding it has, so the board may say the walk takes off again on its own. False on a real stop, where the epic moves again only if a person does something.
+     */
+    resumes_by_itself?: boolean;
+    /**
+     * Started At
+     *
+     * When the walk was authorised, UTC. The age of a walk is most of what a reader wants from it: an epic that has been supervising for four hours is a different fact from one that started a minute ago.
+     */
+    started_at?: string;
+    /**
+     * Waiting On Task Id
+     *
+     * The open child this walk is merely *waiting* on, or empty when the grounding is a real stop. Answered against the live records by `epic.waiting_child`, which is the same function the walk itself asks, so the board cannot disagree with the tick about whether this clears.
+     */
+    waiting_on_task_id?: string;
+    /**
+     * Waiting On Task Title
+     */
+    waiting_on_task_title?: string;
+    /**
+     * Waiting On Task Url
+     */
+    waiting_on_task_url?: string;
+    /**
+     * Walk Id
+     */
+    walk_id: string;
+};
+
+/**
  * FeedbackActionRequest
  *
  * Request changes with feedback.
@@ -2931,6 +3061,12 @@ export type LiveRunsView = {
      * Runs
      */
     runs: Array<LiveRunView>;
+    /**
+     * Walks
+     *
+     * Epic walks still open on this machine (task-523), oldest first. Empty on a machine where none is, which is the ordinary case. Filtered by what this caller may see, exactly as `runs` is -- and **not** counted in `occupied`: a walk holds no run slot, and drawing one as though it did would make this surface disagree with the concurrency guard.
+     */
+    walks?: Array<EpicWalkView>;
 };
 
 /**

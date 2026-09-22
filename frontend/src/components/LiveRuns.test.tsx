@@ -2,7 +2,12 @@ import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
-import type { LiveRunView, LiveRunsView, MachineHolderView } from "../api/types";
+import type {
+  EpicWalkView,
+  LiveRunView,
+  LiveRunsView,
+  MachineHolderView,
+} from "../api/types";
 import {
   BUSY_POLL_MS,
   IDLE_POLL_MS,
@@ -68,6 +73,32 @@ function holder(overrides: Partial<MachineHolderView> = {}): MachineHolderView {
   };
 }
 
+function walk(overrides: Partial<EpicWalkView> = {}): EpicWalkView {
+  return {
+    walk_id: "walk_aaaa",
+    project_id: "alpha",
+    project_name: "Alpha Project",
+    parent_task_id: "task-437",
+    parent_task_title: "Teach the epic to land",
+    parent_task_url: "/p/alpha/tasks/task-437",
+    started_at: "2026-09-22T09:00:00Z",
+    children_total: 3,
+    children_completed: 1,
+    children_in_flight: 1,
+    children_remaining: 1,
+    in_flight_task_ids: ["task-440"],
+    grounded: false,
+    grounded_reason: "",
+    grounded_word: "",
+    waiting_on_task_id: "",
+    waiting_on_task_title: "",
+    waiting_on_task_url: "",
+    resumes_by_itself: false,
+    detail: "",
+    ...overrides,
+  };
+}
+
 function body(overrides: Partial<LiveRunsView> = {}): LiveRunsView {
   return {
     occupied: 0,
@@ -91,6 +122,26 @@ describe("the poll interval", () => {
 
   it("polls fast while a merge holds the machine, even with no runs", () => {
     expect(liveRunsPollInterval(body({ holders: [holder()] }))).toBe(BUSY_POLL_MS);
+  });
+
+  it("polls fast while an epic walk is still taking off, with no run of its own", () => {
+    // task-523. A walk starts children with nobody clicking anything, so the board has
+    // to be watching when the slot fills.
+    expect(
+      liveRunsPollInterval(
+        body({ walks: [{ ...walk(), grounded: false }] }),
+      ),
+    ).toBe(BUSY_POLL_MS);
+  });
+
+  it("does not treat a grounded walk as a busy machine", () => {
+    // One waiting on a review can wait for days. Polling every two seconds for it would
+    // pay a busy machine's cost for an idle one.
+    expect(
+      liveRunsPollInterval(
+        body({ walks: [{ ...walk(), grounded: true, resumes_by_itself: true }] }),
+      ),
+    ).toBe(IDLE_POLL_MS);
   });
 
   it("keeps polling when nothing is running, rather than stopping", () => {

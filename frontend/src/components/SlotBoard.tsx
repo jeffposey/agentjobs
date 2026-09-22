@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 
 import type {
   ArmedProjectView,
+  EpicWalkView,
   LiveRunView,
   LiveRunsView,
   MachineHolderView,
@@ -666,6 +667,158 @@ function WaitingRail({
  * work on its own is status, and arguably the most important status on the page. The one
  * thing `statusOnly` withholds is Disarm, which is an action.
  */
+/**
+ * How one walk's progress reads, as the counts a person would act on.
+ *
+ * Exported so the numbers can be asserted as the sentence a reader sees rather than as
+ * three attributes on a container: the failure this section exists to prevent is
+ * somebody misreading the board, and a test that checks an attribute passes over every
+ * way of rendering that number wrongly.
+ *
+ * An unreadable graph says so instead of printing zeroes. A project unregistered while
+ * its walk is still open is exactly the row worth keeping visible, and "0 of 0 children
+ * done" there would read as a finished epic.
+ */
+export function walkCountsSentence(walk: EpicWalkView): string {
+  if (walk.children_total === 0) {
+    return "children could not be read from this project's backlog";
+  }
+  return [
+    `${walk.children_completed} of ${walk.children_total} children done`,
+    `${walk.children_in_flight} in flight`,
+    `${walk.children_remaining} to come`,
+  ].join(" · ");
+}
+
+/**
+ * The badge and the sentence for what a walk is doing, which is one decision.
+ *
+ * **Grounded, waiting and walking are three states and the middle one is the trap.** A
+ * grounded walk has stopped taking off; a waiting one has grounded on something that
+ * clears by itself and resumes with nobody involved (task-467). Rendering the two the
+ * same way makes a reader either chase a walk that needs nothing or ignore one that has
+ * stopped for good, and the board is the only place either mistake gets made.
+ */
+export function walkState(walk: EpicWalkView): { badge: string; sentence: string } {
+  if (!walk.grounded) {
+    return {
+      badge: "walking",
+      sentence: "starting each child as its dependencies close",
+    };
+  }
+  const because = walk.grounded_word || walk.grounded_reason;
+  if (walk.resumes_by_itself) {
+    const on = walk.waiting_on_task_id ? ` on ${walk.waiting_on_task_id}` : "";
+    return {
+      badge: "waiting",
+      sentence: `waiting${on}: ${because}. It takes off again on its own when that clears.`,
+    };
+  }
+  return {
+    badge: "grounded",
+    sentence: `grounded: ${because}. Nothing more takes off until a person acts.`,
+  };
+}
+
+/**
+ * The epics this machine is supervising, under the slots and above the waiting rail.
+ *
+ * **A walk is the one thing here that dispatches with no human act at the moment of
+ * dispatch**, and since task-458 it is hosted by the server rather than by a blocking
+ * process -- so its own run is normally over before this board is drawn and the page
+ * showed only the consequences: a slot filling, a task going agent/work, and nothing
+ * saying why (task-523).
+ *
+ * It holds no slot and is drawn below the grid for that reason, in the same shape as
+ * the waiting and armed rails: the cells above it, their count, and what the free ones
+ * offer are exactly what they would be without it.
+ *
+ * Nothing at all when no walk is open. A header reading "Epic walks (0)" on every calm
+ * day is the page's loudest element saying nothing, which is the argument that keeps
+ * the board itself off an empty project.
+ */
+function WalkRail({ walks }: { walks: EpicWalkView[] }) {
+  if (walks.length === 0) return null;
+  return (
+    <section
+      data-testid="slot-board-walks"
+      data-walks={walks.length}
+      aria-label="Epics being walked"
+      className="mt-3 border-t border-dark-border pt-3"
+    >
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-dark-muted">
+          Epics being walked
+        </h3>
+        <span className="text-xs text-dark-muted">
+          children start themselves from here, and it holds no slot of its own
+        </span>
+      </div>
+      <ol className="space-y-2">
+        {walks.map((walk) => {
+          const state = walkState(walk);
+          return (
+            <li
+              key={walk.walk_id}
+              data-testid="epic-walk"
+              data-walk-id={walk.walk_id}
+              data-grounded={walk.grounded ? "true" : "false"}
+              className="rounded-lg border border-dashed border-violet-800/70 bg-dark-bg p-3"
+            >
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <Link
+                  to={
+                    walk.parent_task_url ||
+                    projectPath(walk.project_id, `/tasks/${walk.parent_task_id}`)
+                  }
+                  data-testid="epic-walk-parent"
+                  className="min-w-0 hover:text-blue-300"
+                >
+                  <span className="font-mono text-xs text-blue-400">{walk.parent_task_id}</span>
+                  <span className="ml-2 text-sm text-dark-text">{walk.parent_task_title}</span>
+                </Link>
+                <span
+                  data-testid="epic-walk-badge"
+                  className={`rounded px-2 py-0.5 text-xs ${
+                    walk.grounded
+                      ? walk.resumes_by_itself
+                        ? "bg-sky-900/40 text-sky-200"
+                        : "bg-orange-900 text-orange-200"
+                      : "bg-violet-900/50 text-violet-200"
+                  }`}
+                >
+                  {state.badge}
+                </span>
+              </div>
+              <p data-testid="epic-walk-counts" className="mt-1 text-xs text-dark-muted">
+                {walkCountsSentence(walk)}
+              </p>
+              <p data-testid="epic-walk-state" className="mt-1 text-xs text-dark-muted">
+                {state.sentence}
+              </p>
+              {walk.waiting_on_task_id && (
+                <Link
+                  to={
+                    walk.waiting_on_task_url ||
+                    projectPath(walk.project_id, `/tasks/${walk.waiting_on_task_id}`)
+                  }
+                  data-testid="epic-walk-waiting-on"
+                  className="mt-1 block min-w-0 hover:text-blue-300"
+                >
+                  <span className="font-mono text-xs text-blue-400">
+                    {walk.waiting_on_task_id}
+                  </span>
+                  <span className="ml-2 text-xs text-dark-text">{walk.waiting_on_task_title}</span>
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 function ArmedRail({
   armed,
   pauses,
@@ -856,12 +1009,14 @@ export function SlotBoard({
   const runways = unexplainedRunways(body);
   const waiting = body.queued ?? [];
   const armed = body.armed ?? [];
+  const walks = body.walks ?? [];
   const pauses = body.paused ?? [];
   if (
     layout.cells.length === 0 &&
     runways.length === 0 &&
     waiting.length === 0 &&
-    armed.length === 0
+    armed.length === 0 &&
+    walks.length === 0
   )
     return null;
 
@@ -984,6 +1139,12 @@ export function SlotBoard({
           {" is the long form."}
         </p>
       )}
+      {/* Directly under the cells, which is where the owner asked for it: a walk is
+          the explanation for children appearing in the slots above, so it reads before
+          the rails of work that has not started yet. It takes nothing from `statusOnly`
+          because it offers no action to withhold -- task-523 is read-only about walks
+          on purpose. */}
+      <WalkRail walks={walks} />
       {/* Above the gate line and the runway strip, and drawn even under an alarm:
           work this machine has already been told to do is status, not a nudge. The one
           thing `statusOnly` withholds is the cancel control, which is an action. */}

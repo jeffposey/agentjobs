@@ -1010,6 +1010,14 @@ class Supervision:
     :meth:`open_walk` settles with :func:`process_created_after`, asked by anything that
     has to know whether a walk is still flying."""
 
+    created_at: str = ""
+    """When this walk was authorised, UTC.
+
+    Read back because a walk that has been open for hours and a walk that opened a
+    moment ago are the same row otherwise, and ``updated_at`` cannot tell them apart:
+    it moves only when the walk *decides* something, so a long quiet wait looks recent
+    and a busy epic looks stale (task-523)."""
+
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Supervision":
         return cls(
@@ -1030,6 +1038,7 @@ class Supervision:
             started=int(row["started"]),
             peak_in_flight=int(row["peak_in_flight"]),
             updated_at=row["updated_at"],
+            created_at=row["created_at"],
         )
 
 

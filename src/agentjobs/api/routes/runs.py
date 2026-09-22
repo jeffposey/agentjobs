@@ -44,7 +44,10 @@ from agentjobs.dispatch.ledger import (
     run_health,
     runway_lock_name,
 )
-from agentjobs.execution.store import QueuedDispatch
+from agentjobs.dispatch import epic
+from agentjobs.dispatch.journal import journal
+from agentjobs.execution.errors import ExecutionStoreError
+from agentjobs.execution.store import QueuedDispatch, Supervision
 from agentjobs.exposure import Visibility, readable_by
 from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
@@ -320,6 +323,104 @@ class ArmedProjectView(BaseModel):
     )
 
 
+class EpicWalkView(BaseModel):
+    """One epic walk that is still open, as the board draws it (task-523).
+
+    A walk is the only thing on this machine that dispatches work with no human act at
+    the moment of dispatch, and since task-458 it is hosted by the server rather than by
+    a blocking process -- so its own ``mode: "walk"`` run is normally over before any
+    board is drawn and there was nothing on the page to explain the children arriving.
+    This row is that explanation.
+
+    **It holds no slot**, exactly as its run did not. Nothing here is counted against
+    ``occupied`` or takes a cell from the board; a walk is supervision, and the slots it
+    fills are filled by the children's own runs, which are already in ``runs``.
+    """
+
+    walk_id: str
+    project_id: str
+    project_name: str = Field(
+        default="", description="Falls back to the id for a project no longer registered."
+    )
+    parent_task_id: str = Field(..., description="The epic being walked.")
+    parent_task_title: str = Field(
+        default="", description="Resolved server-side, empty when the record cannot be read."
+    )
+    parent_task_url: str = Field(default="", description="Where that task is, in this app.")
+    started_at: str = Field(
+        default="",
+        description=(
+            "When the walk was authorised, UTC. The age of a walk is most of what a "
+            "reader wants from it: an epic that has been supervising for four hours is "
+            "a different fact from one that started a minute ago."
+        ),
+    )
+    children_total: int = Field(
+        default=0,
+        description=(
+            "Every child of the parent, counted from the task graph rather than from "
+            "the walk's own rows. The walk only has a row for a child it has already "
+            "touched, so counting its rows would report a five-child epic that has "
+            "flown two as having three children."
+        ),
+    )
+    children_completed: int = Field(
+        default=0, description="Children closed with outcome `completed`."
+    )
+    children_in_flight: int = Field(
+        default=0,
+        description=(
+            "Children this walk has in the air now -- admitted or flying, and still "
+            "open. Each one is a run of its own and appears in `runs` on its own terms."
+        ),
+    )
+    children_remaining: int = Field(
+        default=0, description="Open children that are not in flight: what is still to come."
+    )
+    in_flight_task_ids: List[str] = Field(
+        default_factory=list, description="The children in the air, so a reader can follow them."
+    )
+    grounded: bool = Field(
+        ...,
+        description=(
+            "The walk has stopped taking off. **The field this section exists for**: a "
+            "grounded walk and a quiet one look identical from the outside, and a "
+            "reader who cannot tell them apart reads a stall as progress."
+        ),
+    )
+    grounded_reason: str = Field(
+        default="",
+        description="The `WalkStop` that grounded it, or empty while it is still flying.",
+    )
+    grounded_word: str = Field(
+        default="",
+        description=(
+            "How that reason reads in a sentence, composed on the server so the board "
+            "and the CLI say the same words."
+        ),
+    )
+    waiting_on_task_id: str = Field(
+        default="",
+        description=(
+            "The open child this walk is merely *waiting* on, or empty when the "
+            "grounding is a real stop. Answered against the live records by "
+            "`epic.waiting_child`, which is the same function the walk itself asks, so "
+            "the board cannot disagree with the tick about whether this clears."
+        ),
+    )
+    waiting_on_task_title: str = ""
+    waiting_on_task_url: str = ""
+    resumes_by_itself: bool = Field(
+        default=False,
+        description=(
+            "True when the thing it is waiting on clears without anybody deciding it "
+            "has, so the board may say the walk takes off again on its own. False on a "
+            "real stop, where the epic moves again only if a person does something."
+        ),
+    )
+    detail: str = Field(default="", description="What the walk last recorded about its stop.")
+
+
 class LiveRunsView(BaseModel):
     """Everything both machine-wide surfaces need, in one response.
 
@@ -367,6 +468,16 @@ class LiveRunsView(BaseModel):
             "Projects the pull mode is armed for (task-462), oldest arming first. Empty "
             "on a machine where nobody has armed one. Filtered by what this caller may "
             "see, exactly as `runs` is."
+        ),
+    )
+    walks: List[EpicWalkView] = Field(
+        default_factory=list,
+        description=(
+            "Epic walks still open on this machine (task-523), oldest first. Empty on a "
+            "machine where none is, which is the ordinary case. Filtered by what this "
+            "caller may see, exactly as `runs` is -- and **not** counted in `occupied`: "
+            "a walk holds no run slot, and drawing one as though it did would make this "
+            "surface disagree with the concurrency guard."
         ),
     )
     queue_limit: int = Field(
@@ -690,6 +801,133 @@ def _armed_view(
     )
 
 
+GROUNDING_WORDS: Dict[str, str] = {
+    "child_needs_a_human": "a child needs a person",
+    "child_closed_unresolved": "a child closed unresolved",
+    "child_exhausted_attempts": "a child used both of its attempts",
+    "child_timed_out": "a child never reached a terminal state",
+    "could_not_start_child": "a child could not be started",
+    "already_supervised": "another supervisor holds this epic",
+    "no_eligible_child": "no child is claimable",
+    "all_children_done": "every child is done",
+}
+"""How a ``WalkStop`` reads in a sentence.
+
+Server-side, on the same argument as ``StartPauseView.kind_word``: the board, the CLI
+and any future notification should say the same words about the same state, and a map
+in TypeScript is a second vocabulary that drifts on the first new stop reason.
+"""
+
+
+def _walk_children(project: Optional[Project], parent_task_id: str) -> Optional[List[Any]]:
+    """Every child of one epic, or ``None`` when the graph cannot be read.
+
+    Never raises. This is a status page: a walk whose project has been unregistered, or
+    whose backlog needs a queue repair, is precisely the thing worth showing, and a row
+    with no counts on it is better than a board that 500s over one.
+    """
+    if project is None or not parent_task_id:
+        return None
+    try:
+        return list(manager_for(project).get_subtasks(parent_task_id))
+    except Exception:  # noqa: BLE001 - see the docstring
+        return None
+
+
+def _walk_view(walk: Supervision, projects: Dict[str, Project]) -> EpicWalkView:
+    """Render one open walk for the browser. Never raises, for ``_walk_children``'s reason."""
+    project = projects.get(walk.project_id)
+    children = _walk_children(project, walk.parent_task_id)
+    open_ids = {child.id for child in children if child.is_open} if children else set()
+
+    # In flight is the walk's own rows intersected with the children still open. The
+    # rows alone would keep saying "flying" for the seconds between a child closing and
+    # the next tick landing it, which is the one moment a reader is most likely to be
+    # watching.
+    try:
+        rows = journal(_home()).supervised_children(walk.walk_id)
+    except ExecutionStoreError:  # pragma: no cover - a status page never fails over a count
+        rows = []
+    in_flight = [
+        row.child_task_id
+        for row in rows
+        if row.status in ("admitting", "flying") and row.child_task_id in open_ids
+    ]
+
+    completed = (
+        sum(
+            1
+            for child in children
+            if not child.is_open and getattr(child.outcome, "value", child.outcome) == "completed"
+        )
+        if children
+        else 0
+    )
+
+    grounding = walk.grounding or {}
+    reason = str(grounding.get("stop") or "")
+    waiting = _waiting_child(project, walk, reason, str(grounding.get("child") or ""))
+
+    return EpicWalkView(
+        walk_id=walk.walk_id,
+        project_id=walk.project_id,
+        project_name=project.name if project else walk.project_id,
+        parent_task_id=walk.parent_task_id,
+        parent_task_title=_task_title(project, walk.parent_task_id),
+        parent_task_url=_task_url(walk.project_id, walk.parent_task_id),
+        started_at=walk.created_at,
+        children_total=len(children) if children else 0,
+        children_completed=completed,
+        children_in_flight=len(in_flight),
+        children_remaining=max(0, len(open_ids) - len(in_flight)),
+        in_flight_task_ids=in_flight,
+        grounded=bool(walk.grounding),
+        grounded_reason=reason,
+        grounded_word=GROUNDING_WORDS.get(reason, reason.replace("_", " ")),
+        waiting_on_task_id=waiting.id if waiting else "",
+        waiting_on_task_title=waiting.title if waiting else "",
+        waiting_on_task_url=_task_url(walk.project_id, waiting.id) if waiting else "",
+        resumes_by_itself=waiting is not None,
+        detail=walk.detail or "",
+    )
+
+
+def _waiting_child(
+    project: Optional[Project], walk: Supervision, reason: str, stopped_on: str
+) -> Optional[Any]:
+    """The open child a grounded walk is merely waiting on, or ``None`` on a real stop.
+
+    Asked of :func:`epic.waiting_child` rather than answered from the stop reason, for
+    the reason that function exists: ``no_eligible_child`` covers both "somebody else is
+    working the last child" and "the graph is deadlocked", and only the first of those
+    clears on its own. A board that guessed from the enum would tell a reader a stuck
+    epic was about to resume.
+    """
+    if project is None or not walk.grounding or not reason:
+        return None
+    try:
+        stop = epic.WalkStop(reason)
+    except ValueError:  # pragma: no cover - a stop reason this build does not know
+        return None
+    try:
+        return epic.waiting_child(manager_for(project), walk.parent_task_id, stop, stopped_on)
+    except Exception:  # noqa: BLE001 - a status page never fails over a detail
+        return None
+
+
+def _walk_views(projects: Dict[str, Project], principal: Optional[Principal]) -> List[EpicWalkView]:
+    """Every open walk this caller may see, oldest first."""
+    try:
+        walks = journal(_home()).open_walks()
+    except ExecutionStoreError:  # pragma: no cover - a status page never fails over a section
+        return []
+    return [
+        _walk_view(walk, projects)
+        for walk in walks
+        if _may_see(walk.project_id, projects, principal)
+    ]
+
+
 @router.get("/live", response_model=LiveRunsView)
 async def list_live_runs(
     principal: Optional[Principal] = Depends(get_principal),
@@ -781,6 +1019,7 @@ async def list_live_runs(
             for arming in every_arming
             if _may_see(arming.project_id, projects, principal)
         ],
+        walks=_walk_views(projects, principal),
         queue_limit=dispatch_queue.queue_limit(home),
         paused=_pause_views(entry_pauses.values(), arming_pauses, every_arming),
         generated_at=datetime.now(timezone.utc).isoformat(),

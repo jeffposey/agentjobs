@@ -2513,6 +2513,133 @@
         "title": "DispatchStateView",
         "type": "object"
       },
+      "EpicWalkView": {
+        "description": "One epic walk that is still open, as the board draws it (task-523).\n\nA walk is the only thing on this machine that dispatches work with no human act at\nthe moment of dispatch, and since task-458 it is hosted by the server rather than by\na blocking process -- so its own ``mode: \"walk\"`` run is normally over before any\nboard is drawn and there was nothing on the page to explain the children arriving.\nThis row is that explanation.\n\n**It holds no slot**, exactly as its run did not. Nothing here is counted against\n``occupied`` or takes a cell from the board; a walk is supervision, and the slots it\nfills are filled by the children's own runs, which are already in ``runs``.",
+        "properties": {
+          "children_completed": {
+            "default": 0,
+            "description": "Children closed with outcome `completed`.",
+            "title": "Children Completed",
+            "type": "integer"
+          },
+          "children_in_flight": {
+            "default": 0,
+            "description": "Children this walk has in the air now -- admitted or flying, and still open. Each one is a run of its own and appears in `runs` on its own terms.",
+            "title": "Children In Flight",
+            "type": "integer"
+          },
+          "children_remaining": {
+            "default": 0,
+            "description": "Open children that are not in flight: what is still to come.",
+            "title": "Children Remaining",
+            "type": "integer"
+          },
+          "children_total": {
+            "default": 0,
+            "description": "Every child of the parent, counted from the task graph rather than from the walk's own rows. The walk only has a row for a child it has already touched, so counting its rows would report a five-child epic that has flown two as having three children.",
+            "title": "Children Total",
+            "type": "integer"
+          },
+          "detail": {
+            "default": "",
+            "description": "What the walk last recorded about its stop.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "grounded": {
+            "description": "The walk has stopped taking off. **The field this section exists for**: a grounded walk and a quiet one look identical from the outside, and a reader who cannot tell them apart reads a stall as progress.",
+            "title": "Grounded",
+            "type": "boolean"
+          },
+          "grounded_reason": {
+            "default": "",
+            "description": "The `WalkStop` that grounded it, or empty while it is still flying.",
+            "title": "Grounded Reason",
+            "type": "string"
+          },
+          "grounded_word": {
+            "default": "",
+            "description": "How that reason reads in a sentence, composed on the server so the board and the CLI say the same words.",
+            "title": "Grounded Word",
+            "type": "string"
+          },
+          "in_flight_task_ids": {
+            "description": "The children in the air, so a reader can follow them.",
+            "items": {
+              "type": "string"
+            },
+            "title": "In Flight Task Ids",
+            "type": "array"
+          },
+          "parent_task_id": {
+            "description": "The epic being walked.",
+            "title": "Parent Task Id",
+            "type": "string"
+          },
+          "parent_task_title": {
+            "default": "",
+            "description": "Resolved server-side, empty when the record cannot be read.",
+            "title": "Parent Task Title",
+            "type": "string"
+          },
+          "parent_task_url": {
+            "default": "",
+            "description": "Where that task is, in this app.",
+            "title": "Parent Task Url",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "default": "",
+            "description": "Falls back to the id for a project no longer registered.",
+            "title": "Project Name",
+            "type": "string"
+          },
+          "resumes_by_itself": {
+            "default": false,
+            "description": "True when the thing it is waiting on clears without anybody deciding it has, so the board may say the walk takes off again on its own. False on a real stop, where the epic moves again only if a person does something.",
+            "title": "Resumes By Itself",
+            "type": "boolean"
+          },
+          "started_at": {
+            "default": "",
+            "description": "When the walk was authorised, UTC. The age of a walk is most of what a reader wants from it: an epic that has been supervising for four hours is a different fact from one that started a minute ago.",
+            "title": "Started At",
+            "type": "string"
+          },
+          "waiting_on_task_id": {
+            "default": "",
+            "description": "The open child this walk is merely *waiting* on, or empty when the grounding is a real stop. Answered against the live records by `epic.waiting_child`, which is the same function the walk itself asks, so the board cannot disagree with the tick about whether this clears.",
+            "title": "Waiting On Task Id",
+            "type": "string"
+          },
+          "waiting_on_task_title": {
+            "default": "",
+            "title": "Waiting On Task Title",
+            "type": "string"
+          },
+          "waiting_on_task_url": {
+            "default": "",
+            "title": "Waiting On Task Url",
+            "type": "string"
+          },
+          "walk_id": {
+            "title": "Walk Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "walk_id",
+          "project_id",
+          "parent_task_id",
+          "grounded"
+        ],
+        "title": "EpicWalkView",
+        "type": "object"
+      },
       "FeedbackActionRequest": {
         "description": "Request changes with feedback.",
         "properties": {
@@ -4112,6 +4239,14 @@
               "$ref": "#/components/schemas/LiveRunView"
             },
             "title": "Runs",
+            "type": "array"
+          },
+          "walks": {
+            "description": "Epic walks still open on this machine (task-523), oldest first. Empty on a machine where none is, which is the ordinary case. Filtered by what this caller may see, exactly as `runs` is -- and **not** counted in `occupied`: a walk holds no run slot, and drawing one as though it did would make this surface disagree with the concurrency guard.",
+            "items": {
+              "$ref": "#/components/schemas/EpicWalkView"
+            },
+            "title": "Walks",
             "type": "array"
           }
         },

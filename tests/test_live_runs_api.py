@@ -24,8 +24,10 @@ from fastapi.testclient import TestClient
 
 from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
 from agentjobs.api.main import app
+from agentjobs.dispatch.journal import journal
 from agentjobs.dispatch.ledger import KIND_FINISH, KIND_RUNWAY, locks_root, runway_lock_name
 from agentjobs.manager import TaskManager
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Outcome
 from agentjobs.projects import ProjectRegistry
 from support import task_store
 
@@ -290,3 +292,207 @@ class TestOtherHolders:
         client, home, _, _ = two_projects
         _write_lock(home, "task-001", f"pid=999999 run= kind={KIND_FINISH} finish=fin_abc")
         assert _live(client)["holders"] == []
+
+
+class TestEpicWalks:
+    """Open epic walks, on the one payload the dashboard already polls (task-523).
+
+    A walk is the only thing on this machine that dispatches work with no human act at
+    the moment of dispatch, and since task-458 it is hosted by the server rather than by
+    a blocking process -- so nothing about it reached any surface and its children
+    arrived unexplained. These assert the counts and the grounded state a reader acts
+    on, which is what the section exists to say.
+    """
+
+    def _epic(self, root: Path, *, children: int = 3, completed: int = 0) -> TaskManager:
+        """One parent with ``children`` children, the first ``completed`` of them closed."""
+        manager = TaskManager(task_store(root / "tasks"))
+        manager.create_task(
+            id="task-900",
+            title="Walk the epic",
+            summary="An epic with children.",
+            description="An epic with children, at length.",
+            actor="claude",
+        )
+        for index in range(children):
+            child_id = f"task-9{index + 10}"
+            manager.create_task(
+                id=child_id,
+                title=f"Child {index}",
+                summary=f"Child {index}.",
+                description=f"Child {index}, at length.",
+                actor="claude",
+                lifecycle=Lifecycle.READY,
+                parent="task-900",
+            )
+            if index < completed:
+                manager.close_task(child_id, actor="claude", outcome=Outcome.COMPLETED)
+        return manager
+
+    def _walk(self, home: Path, project_id: str = "alpha", parent: str = "task-900"):
+        walk, _ = journal(home).open_walk(
+            project_id=project_id,
+            parent_task_id=parent,
+            authority_entry=3,
+            authority_actor="Jeff Posey",
+            settings={},
+            host="server",
+        )
+        return walk
+
+    def _fly(self, home: Path, walk, child_id: str) -> None:
+        store = journal(home)
+        store.reserve_child_attempt(
+            walk.walk_id,
+            epoch=walk.epoch,
+            child_task_id=child_id,
+            operation_id=f"op-{child_id}",
+            limit=2,
+            used_on_record=0,
+        )
+        store.record_child(walk.walk_id, epoch=walk.epoch, child_task_id=child_id, status="flying")
+
+    def test_names_the_epic_and_counts_its_children(self, two_projects):
+        """ac-1. The counts come from the task graph, not from the walk's own rows."""
+        client, home, alpha, _ = two_projects
+        self._epic(alpha, children=4, completed=1)
+        walk = self._walk(home)
+        self._fly(home, walk, "task-911")
+
+        [row] = _live(client)["walks"]
+        assert row["parent_task_id"] == "task-900"
+        assert row["parent_task_title"] == "Walk the epic"
+        assert row["parent_task_url"] == "/p/alpha/tasks/task-900"
+        assert row["project_name"] == "Alpha Project"
+        assert row["children_total"] == 4
+        assert row["children_completed"] == 1
+        assert row["children_in_flight"] == 1
+        assert row["children_remaining"] == 2
+        assert row["in_flight_task_ids"] == ["task-911"]
+        assert row["grounded"] is False
+
+    def test_counts_children_the_walk_has_not_touched_yet(self, two_projects):
+        """The walk has a row only for a child it has flown, so its rows are not the total.
+
+        A five-child epic that has flown two would otherwise report three children, and
+        a reader would think the epic was nearly done when it had barely started.
+        """
+        client, home, alpha, _ = two_projects
+        self._epic(alpha, children=5)
+        self._walk(home)
+
+        [row] = _live(client)["walks"]
+        assert row["children_total"] == 5
+        assert row["children_in_flight"] == 0
+        assert row["children_remaining"] == 5
+
+    def test_a_grounded_walk_says_so_and_says_why(self, two_projects):
+        """ac-1. The field the section exists for: a stall must not read as progress."""
+        client, home, alpha, _ = two_projects
+        self._epic(alpha, children=2)
+        walk = self._walk(home)
+        journal(home).update_walk(
+            walk.walk_id,
+            epoch=walk.epoch,
+            grounding={
+                "stop": "child_exhausted_attempts",
+                "detail": "task-910 used both attempts",
+                "child": "task-910",
+            },
+            detail="task-910 used both attempts",
+        )
+
+        [row] = _live(client)["walks"]
+        assert row["grounded"] is True
+        assert row["grounded_reason"] == "child_exhausted_attempts"
+        assert row["grounded_word"] == "a child used both of its attempts"
+        # A real stop: nothing clears it but a person.
+        assert row["resumes_by_itself"] is False
+        assert row["waiting_on_task_id"] == ""
+        assert row["detail"] == "task-910 used both attempts"
+
+    def test_a_walk_waiting_on_a_person_names_the_child_and_says_it_resumes(self, two_projects):
+        """task-467's distinction, on the payload. Both are grounded; only one resumes."""
+        client, home, alpha, _ = two_projects
+        manager = self._epic(alpha, children=2)
+        manager.claim_task("task-910", agent="claude")
+        manager.handoff(
+            "task-910",
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Please review the branch.",
+        )
+        walk = self._walk(home)
+        journal(home).update_walk(
+            walk.walk_id,
+            epoch=walk.epoch,
+            grounding={
+                "stop": "child_needs_a_human",
+                "detail": "task-910 is with a person",
+                "child": "task-910",
+            },
+        )
+
+        [row] = _live(client)["walks"]
+        assert row["grounded"] is True
+        assert row["grounded_word"] == "a child needs a person"
+        assert row["resumes_by_itself"] is True
+        assert row["waiting_on_task_id"] == "task-910"
+        assert row["waiting_on_task_title"] == "Child 0"
+        assert row["waiting_on_task_url"] == "/p/alpha/tasks/task-910"
+
+    def test_a_walk_takes_no_slot(self, two_projects):
+        """ac-2, on the server side of it. A walk is supervision, not a run slot."""
+        client, home, alpha, _ = two_projects
+        self._epic(alpha, children=2)
+        walk = self._walk(home)
+        self._fly(home, walk, "task-910")
+
+        body = _live(client)
+        assert body["walks"]
+        assert body["occupied"] == 0
+        assert body["runs"] == []
+
+    def test_no_open_walk_sends_an_empty_list(self, two_projects):
+        """ac-3's server half: nothing to render means nothing to send."""
+        client, _, _, _ = two_projects
+        assert _live(client)["walks"] == []
+
+    def test_a_finished_walk_is_not_sent(self, two_projects):
+        client, home, alpha, _ = two_projects
+        self._epic(alpha, children=1)
+        walk = self._walk(home)
+        journal(home).update_walk(walk.walk_id, epoch=walk.epoch, state="done")
+
+        assert _live(client)["walks"] == []
+
+    def test_returns_walks_from_every_project_with_their_own_names(self, two_projects):
+        """The reason this rides on the machine-wide payload: the epic walking on the
+        other project is still starting children on this machine's slots."""
+        client, home, alpha, beta = two_projects
+        self._epic(alpha, children=1)
+        self._epic(beta, children=1)
+        self._walk(home, project_id="alpha")
+        self._walk(home, project_id="beta")
+
+        rows = {row["project_id"]: row for row in _live(client)["walks"]}
+        assert set(rows) == {"alpha", "beta"}
+        assert rows["beta"]["project_name"] == "Beta Project"
+        assert rows["beta"]["parent_task_url"] == "/p/beta/tasks/task-900"
+
+    def test_a_walk_whose_backlog_cannot_be_read_still_appears(self, two_projects):
+        """A status page shows the row it cannot fill in rather than dropping it.
+
+        A walk on a parent that is not in the backlog at all -- unregistered, renamed,
+        mid-migration -- is exactly the thing worth seeing, and zero counts beside a
+        named parent are readable where a missing row is not.
+        """
+        client, home, alpha, _ = two_projects
+        self._epic(alpha, children=1)
+        self._walk(home, parent="task-nope")
+
+        [row] = _live(client)["walks"]
+        assert row["parent_task_id"] == "task-nope"
+        assert row["children_total"] == 0
+        assert row["parent_task_title"] == ""
