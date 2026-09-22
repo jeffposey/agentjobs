@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch import journal as journal_adapter
 from agentjobs.dispatch.config import (
     DispatchConfigError,

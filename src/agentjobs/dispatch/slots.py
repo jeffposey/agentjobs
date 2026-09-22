@@ -36,7 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.ledger import RunRecord, live_runs, write_status
 from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.projects import Project, ProjectError, ProjectRegistry

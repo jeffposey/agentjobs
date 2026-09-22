@@ -49,7 +49,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import yaml
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.finish import (
     DUPLICATE_KEY,
     SPAWN_DIRNAME,

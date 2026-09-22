@@ -43,7 +43,7 @@ from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
 import yaml
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.yaml_patch import Delete, Edit, Set, UnpatchableYaml, patch_yaml
 from agentjobs.projects import default_home
 

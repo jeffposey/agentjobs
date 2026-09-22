@@ -1,9 +1,18 @@
-"""The dispatch subsystem's one time source (task-518).
+"""AgentJobs' one time source (task-518).
 
-**Nothing under ``agentjobs.dispatch`` reads the machine's clock directly.** It calls
+**Nothing that decides *when* reads the machine's clock directly.** It calls
 :func:`utcnow`, :func:`monotonic` or :func:`sleep` here, and those read whichever
 :class:`Clock` is installed. Outside a test that is :class:`SystemClock`, which does
 exactly what the calls it replaced did.
+
+**It lives above ``dispatch`` rather than inside it**, although dispatch is where all
+the thresholds are, because the subsystem does not only compare its own stamps. The
+auto-dispatch cooldown asks how long ago *the task record* says this task was
+dispatched -- a moment the manager wrote through :func:`agentjobs.models_v2.utcnow`.
+A clock that only dispatch read would make that subtraction cross two timelines, and
+under a test clock it goes negative: every retry refused, for ever. So the models'
+``utcnow`` reads through here too, and the rule is one clock per process rather than
+one clock per package.
 
 **Why one source rather than an injectable parameter per call.** Most of this subsystem
 already accepted a ``clock=`` argument before this module existed, and the flake that

@@ -29,6 +29,7 @@ from pydantic import (
     model_validator,
 )
 
+from . import clock as _clock
 from .schema_tolerance import is_tolerant, record_unknown_enum_value, record_unknown_fields
 
 SCHEMA_VERSION = 2
@@ -2004,8 +2005,15 @@ def load_task(data: Dict[str, Any], *, source: str = "task data") -> Task:
 
 
 def utcnow() -> datetime:
-    """Timezone-aware current time, the only clock these models should use."""
-    return datetime.now(tz=timezone.utc)
+    """Timezone-aware current time, from the process's one clock.
+
+    Still the only clock these models should use; what changed in task-518 is that it is
+    also the one the dispatch subsystem reads. They have to be the same, because dispatch
+    subtracts one from the other: the auto-dispatch cooldown compares "now" against the
+    moment a dispatch log entry here was stamped, and two clocks there is a subtraction
+    that can come out negative -- which refuses every retry, silently, for ever.
+    """
+    return _clock.utcnow()
 
 
 TaskListAdapter: TypeAdapter[List[Task]] = TypeAdapter(List[Task])

@@ -44,7 +44,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 

@@ -481,6 +481,108 @@ Coverage is off by default and available with `--coverage`. It cost between 60 a
 seconds depending on what else the machine was doing, and wrote an HTML report that
 nothing reads before a commit.
 
+### The suite barely sleeps, and knowing that changed the fix (task-518)
+
+Task-518 was filed against a `--durations=15` list totalling **477s across fifteen tests**
+out of 5,537, on a pytest stage of **1146.2s**, and it read that list as "the suite sleeps
+through a third of the gate". It does not. The measurement that settles it is worth
+keeping, because it is the one figure in this file that means the same thing on a loaded
+machine and a quiet one.
+
+**Every `time.sleep` in the suite, totalled.** A pytest plugin wrapped `time.sleep` in
+every worker, recorded the seconds and the call site, and wrote one JSON file per process
+for aggregation. Whole suite, `-n auto`, 2026-09-21, 5,485 tests passing:
+
+```
+TOTAL SLEPT 113.6s across 63 call sites
+    35.1s x3511   test_approval_standdown.py <- finish.py <- ledger.py:597   (the run-lock wait)
+    15.8s x6      compat.py   <- client.py:1071                              (the retry budget)
+    15.8s x6      remote_manager.py <- client.py:1071                        (the retry budget)
+     9.0s x180    a child process's own startup wait
+     8.8s x882    test_durable_replay.py <- finish.py <- ledger.py:597       (the run-lock wait)
+```
+
+**113.6 seconds, against a wall clock of 824.9s and thousands of seconds of worker time.**
+Two call sites -- one lock wait and one client retry budget -- are 60% of it. There is no
+third of a gate spent sleeping anywhere in this suite, and a plan to remove sleeping would
+have had 113.6s to find.
+
+**Where the time actually goes is process creation**, and the top of the durations list is
+made of tests that spawn a lot of short-lived interpreters. `TestTask224`'s three tests
+spawn **120 between them** -- one `<runner> agents --json` and one `<runner> logs` per
+poll, plus twenty auth probes -- which is the production polling contract rather than a
+test artefact.
+
+**And process creation on this machine is not a stable quantity.** The same three tests,
+same commit, same interpreter, three times in twenty minutes:
+
+| run | seconds |
+|---|---|
+| inside a 150-test serial run | 172s |
+| alone, class only | 254s |
+| alone, class only, minutes later | **35s** |
+
+Per-spawn cost for identical argv ranged from **0.064s to 16.7s**. The machine was not
+idle -- 97 python/node/claude/git processes and 64% CPU while this was measured, none of
+them a gate. **So a pytest total is only comparable with another taken under the same
+contention**, which this machine does not offer on demand, and the 477s the task was filed
+against is a reading through that noise. The sleep total is the half that reproduces.
+
+#### What that changed, and the before/after pair
+
+The fix followed the measurement rather than the spec. Two things were worth doing and a
+third was not:
+
+**1. The client's retry budget, where a test was proving a service was absent.** One
+`TaskClient` call against a port nothing listens on costs **29.8s on this machine**: seven
+attempts, each a refused connection Windows takes **2.05s** to return here, plus the 15.75s
+of `RETRY_BACKOFF_SECONDS`. That patience is for riding through a restart, and a test whose
+subject is an absent service has nothing to ride through. Measured before and after, same
+machine, same evening:
+
+| test | before | after |
+|---|---|---|
+| `test_cli.py::test_show_task_not_found` | 30.5s | **2.4s** |
+| `test_mcp_server.py::...::test_startup_against_a_missing_service_fails_on_stderr` | 32.3s | **4.5s** |
+| `test_mcp_server.py::...::test_unreachable_service_says_so_and_does_not_start_one` | 23.1s | **1.2s** |
+
+**2. The stand-down window, which was a real wait and is now a real threshold.**
+`test_approval_standdown.py` used to set `STAND_DOWN_CONFIRM_SECONDS` and
+`STAND_DOWN_POLL_SECONDS` to zero, which is a test of a window that closes immediately.
+With the clock installed the window keeps its production ninety seconds and costs nothing:
+
+| | before | after |
+|---|---|---|
+| `test_a_busy_session_stands_down_and_the_approval_merges` | 51.4s | **3.9s** |
+| `test_an_idle_session_not_yet_polled_is_settled_rather_than_waited_for` | 44.6s | **4.8s** |
+| `test_a_session_stuck_on_an_expired_login_is_still_taken_over` | 50.4s | **4.1s** |
+| the whole file, serial | 131.4s | **38.0s** |
+
+**3. Time-skipping makes a wait free. It does not make a poll free.** Worth knowing before
+reaching for it. Running that file's fourth test at the full production cadence -- a
+ninety-second window polled every two seconds -- is 45 real `poll_session` calls, two
+subprocesses each, and it went from about 20s to **135s under a contended gate**, making it
+the slowest test in the suite. The window is the threshold under test and keeps its value;
+the cadence is coarsened to 30s in that one test, which is three polls and proves the same
+thing. `scripts/threshold_probe.py` checks that claim by removing the window and watching
+the test stop returning.
+
+#### Whole-suite figures, with their contention stated
+
+All `-n auto` in one worktree on 2026-09-21 evening, on a machine with the owner's ordinary
+desktop load and no other gate running:
+
+| when | result | wall |
+|---|---|---|
+| before any change, 17:51 | 5,485 passed, **1 failed** (the auth-recovery flake) | 824.9s |
+| after the one clock, 18:15 | 5,486 passed | 465.4s |
+| after the lock waits and the stand-down, 19:32 | 5,491 passed, 1 failed (fixed below) | 482.5s |
+
+**Do not read 824.9s to 465.4s as the size of the change.** Some of it is the machine being
+quieter at 18:15 than at 17:51, and this file's own rule is that a wall-clock figure across
+a gap like that is an anecdote. The per-test pairs above were taken back to back and are
+the defensible half; the whole-suite column is here because leaving it out would be worse.
+
 ### What the slowest tests actually are (task-268)
 
 Every proposal about this suite up to now has been arithmetic over its total — task-268's

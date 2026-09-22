@@ -38,6 +38,7 @@ import re
 import shutil
 import signal
 import subprocess
+import time as _time
 import threading
 import time
 import tomllib
@@ -60,7 +61,7 @@ from typing import (
 )
 
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.address import resolve_api_base
 from agentjobs.dispatch.atomic_yaml import (
     merge_yaml_atomically,
@@ -1664,6 +1665,16 @@ class RunHandle:
         if self.lock is not None:
             self.lock.release()  # type: ignore[attr-defined]
             self.lock = None
+
+
+_SPAWN_RETRY_SECONDS = 0.25
+"""How long to wait before trying a refused spawn again.
+
+Real seconds, deliberately: what is being waited out is the machine finding room for a
+process, which is not a threshold this product decides and so is not `agentjobs.clock`'s
+to skip. Short, because the thing it rides through is a momentary shortage -- if a quarter
+of a second is not enough, a longer wait is not the answer either.
+"""
 
 
 class DispatchRunner:
@@ -3471,19 +3482,7 @@ class DispatchRunner:
             argv.append("--all")
         if scoped:
             argv += ["--cwd", str(self.project_root)]
-        try:
-            completed = subprocess.run(
-                argv,
-                cwd=str(self.project_root),
-                env=self._environment(),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=60,
-            )
-        except (OSError, subprocess.SubprocessError) as exc:
-            raise DispatchRunError(f"Could not read the session ledger: {exc}") from exc
+        completed = self._run_listing(argv)
         if completed.returncode != 0:
             raise DispatchRunError(
                 f"Session ledger command failed ({completed.returncode}): "
@@ -3506,6 +3505,59 @@ class DispatchRunner:
         if isinstance(loaded, dict):
             loaded = loaded.get("agents") or loaded.get("sessions") or []
         return [row for row in loaded if isinstance(row, dict)]
+
+    #: Windows' ``STATUS_DLL_INIT_FAILED``. A process that reached none of its own code:
+    #: the loader could not initialise it, which on this machine happens under enough
+    #: process churn and has nothing to do with the program being run.
+    SPAWN_FAILED_EXIT = 0xC0000142
+
+    def _run_listing(self, argv: List[str]) -> "subprocess.CompletedProcess[str]":
+        """Run the runner's listing command, retrying once if the *machine* refused.
+
+        **"The runner said no" and "the machine could not start the runner" are different
+        facts, and only the first is evidence about a session** (task-518). This used to
+        report both as "could not read the session ledger", and the consequence is not
+        cosmetic: `registration._live_row` turns that into a refusal saying the claim could
+        not be checked, and the poller treats a listing it cannot read as a reason to judge
+        nothing. A tick that concluded that because `CreateProcess` momentarily failed is a
+        false negative about somebody's live run.
+
+        So a spawn that failed for want of machine resources is tried once more, after a
+        real pause -- real because what is being waited for is the machine, not a
+        threshold, and `agentjobs.clock` is for the second of those. Once, not until it
+        works: a machine that cannot start two processes a second apart has a problem this
+        should surface rather than paper over.
+        """
+        attempts = 0
+        while True:
+            attempts += 1
+            try:
+                completed = subprocess.run(
+                    argv,
+                    cwd=str(self.project_root),
+                    env=self._environment(),
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=60,
+                )
+            except subprocess.TimeoutExpired as exc:
+                # A command that ran and would not finish. Nothing to retry: it is the
+                # runner being slow or wedged, which is a fact about the runner.
+                raise DispatchRunError(f"Could not read the session ledger: {exc}") from exc
+            except (OSError, subprocess.SubprocessError) as exc:
+                if attempts > 1:
+                    raise DispatchRunError(
+                        f"Could not start {self.display_command()} to read the session "
+                        f"ledger, twice: {exc}"
+                    ) from exc
+                _time.sleep(_SPAWN_RETRY_SECONDS)
+                continue
+            if completed.returncode == self.SPAWN_FAILED_EXIT and attempts == 1:
+                _time.sleep(_SPAWN_RETRY_SECONDS)
+                continue
+            return completed
 
     def _ledger_row(self, session_id: str) -> Optional[Dict[str, object]]:
         """The ledger row for one session, or None when it is gone."""

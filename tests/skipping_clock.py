@@ -8,7 +8,7 @@ next deadline whenever every workflow is blocked on a timer and nothing else is
 runnable**. A thirty-day wait finishes in milliseconds, and it does so because the
 waiting is a fact the runtime knows about -- not because a test patched something.
 
-Here, the runtime is :mod:`agentjobs.dispatch.clock`. Everything in the dispatch
+Here, the runtime is :mod:`agentjobs.clock`. Everything in the dispatch
 subsystem that decides *when* reads through it, so installing one of these is enough:
 
     with skipping_clock() as fake:
@@ -43,7 +43,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterator, List, Optional
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 
 #: Where a skipping clock starts unless a test says otherwise: two hours ahead of the
 #: wall clock, so anything that did stamp real time -- a task log entry written by the
@@ -63,7 +63,7 @@ class ClockDeadlock(AssertionError):
 
 
 class SkippingClock:
-    """A :class:`~agentjobs.dispatch.clock.Clock` that moves when nothing else can."""
+    """A :class:`~agentjobs.clock.Clock` that moves when nothing else can."""
 
     def __init__(self, start: Optional[datetime] = None) -> None:
         self.origin = (

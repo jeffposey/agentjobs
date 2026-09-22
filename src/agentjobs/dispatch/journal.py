@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Mapping, Optional, Protocol, Sequence, Tuple
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.execution.coordinator import release_ended_attempts
 from agentjobs.execution.errors import ExecutionStoreError, OwnershipConflict
 from agentjobs.execution.factory import execution_store_for

@@ -40,7 +40,7 @@ import pytest
 import yaml
 
 from agentjobs.dispatch import auth_recovery
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
 from agentjobs.dispatch.controller import Controller
 from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
@@ -170,7 +170,7 @@ class FakeClock:
 
     The name and the four members are what the scenarios below were written against;
     underneath is :class:`skipping_clock.SkippingClock`, installed over
-    :mod:`agentjobs.dispatch.clock` for the fixture's whole life. The difference is which
+    :mod:`agentjobs.clock` for the fixture's whole life. The difference is which
     call sites it reaches. This used to be a clock that had to be *handed* to every
     object, so a production call site reading the wall clock directly -- and there were
     forty-three of those -- was simply not on this timeline. That is a second clock by
@@ -317,7 +317,7 @@ class World:
         monkeypatch.delenv("AGENTJOBS_RUN_ID", raising=False)
         # Nothing is monkeypatched to make a runner read this clock. Every runner the code
         # under test builds -- the dispatcher's, the poller's, the controller's, auth
-        # recovery's -- reads `dispatch.clock`, and so does every call site that used to
+        # recovery's -- reads `agentjobs.clock`, and so does every call site that used to
         # read the wall clock behind their backs (task-518).
         #
         # The harness drives the controller and the recovery pass itself, so a poll here
@@ -1032,7 +1032,7 @@ class Frozen:
     def sleep(self, seconds):
         pass
 
-import agentjobs.dispatch.clock as clock_module
+import agentjobs.clock as clock_module
 clock_module.INSTALLED = Frozen()
 clock = clock_module.utcnow
 registry = ProjectRegistry(home=home)

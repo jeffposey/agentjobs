@@ -49,7 +49,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.actors import load_actors
 from agentjobs.dispatch.config import RunnerDriver, assert_dispatch_permitted
 from agentjobs.dispatch.guards import (

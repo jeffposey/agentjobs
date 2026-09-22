@@ -45,7 +45,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.actors import Actor
 from agentjobs.dispatch.budget import DISPATCHER_ACTOR
 from agentjobs.dispatch.config import (

@@ -72,7 +72,7 @@ from typing import (
 )
 
 from agentjobs.dispatch import auth, peers
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.auth_probe import (
     ProbeClass,
     ProbeRequest,

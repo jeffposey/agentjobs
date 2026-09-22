@@ -39,7 +39,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 

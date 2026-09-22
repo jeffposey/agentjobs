@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.address import probe_api_base
 from agentjobs.dispatch.budget import DISPATCHER_ACTOR, check_budget, check_machine_budget
 from agentjobs.dispatch.config import (

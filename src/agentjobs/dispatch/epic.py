@@ -101,7 +101,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.actors import Actor
 from agentjobs.dispatch.config import DispatchError, Posture, PostureSource, SelectionSource
 from agentjobs.queue import order_key

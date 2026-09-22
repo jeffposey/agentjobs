@@ -33,7 +33,7 @@ import pytest
 import yaml
 
 from agentjobs.dispatch import auth_recovery
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV, read_limit_stall
 from agentjobs.dispatch.auth_probe import (
     PROBE_TOKEN,

@@ -38,7 +38,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.config import AutoDispatchLimits, DispatchLimits
 from agentjobs.dispatch.ledger import RunRecord, list_runs
 from agentjobs.dispatch.record_commit import commit_task_record

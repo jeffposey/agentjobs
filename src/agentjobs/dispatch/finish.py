@@ -76,7 +76,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-from agentjobs.dispatch import clock as dispatch_clock
+from agentjobs import clock as dispatch_clock
 from agentjobs.actors import FINISHER
 from agentjobs.dispatch.approval import consuming_finish
 from agentjobs.dispatch.atomic_yaml import write_yaml_atomically
@@ -2240,16 +2240,16 @@ class Runway:
         ``runway_timeout_seconds``, an hour by default, spent on work that ceased to
         exist in the first minute of it.
         """
-        began = time.monotonic()
+        began = dispatch_clock.monotonic()
         announced_to: Optional[LockHolder] = None
-        checked_at = time.monotonic()
+        checked_at = dispatch_clock.monotonic()
 
         def still_needed() -> None:
             """Raise :class:`Declined` when what this finish is queued for is over."""
             nonlocal checked_at
             if premises is None:
                 return
-            now = time.monotonic()
+            now = dispatch_clock.monotonic()
             if now - checked_at < PREMISE_POLL_SECONDS:
                 return
             checked_at = now
@@ -2308,7 +2308,7 @@ class Runway:
             )
         except RunLockTimeout as exc:
             raise Escalate("runway", "runway_busy", str(exc)) from exc
-        self.waited_seconds = time.monotonic() - began
+        self.waited_seconds = dispatch_clock.monotonic() - began
         held = "taken immediately" if self.waited_seconds < 1.0 else "taken after queuing"
         return StepResult("runway", True, held, self.waited_seconds)
 
