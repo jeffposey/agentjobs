@@ -3861,7 +3861,6 @@ def show(task_id: str) -> None:
     typer.echo(json.dumps(task.model_dump(mode="json", by_alias=True), indent=2))
 
 
-
 chain_app = typer.Typer(
     name="chain",
     help="Authorise, watch and revoke a bounded chain of dispatches against one task.",
@@ -3982,16 +3981,16 @@ def chain_revoke(
     who = _resolve_actor(project.load_config(), actor)
     before = live_chain(task)
     try:
-        revoke_chain(
-            manager=manager, task=task, actor=who, chain_id=chain_id, note=note
-        )
+        revoke_chain(manager=manager, task=task, actor=who, chain_id=chain_id, note=note)
     except ChainRefused as exc:
         typer.secho(f"Refused ({exc.reason}): {exc}", fg=typer.colors.YELLOW)
         raise typer.Exit(code=1) from exc
     if before is None:
         typer.echo(f"Nothing to stop: {task_id} has no live chain.")
         return
-    typer.secho(f"Revoked `{before.chain_id}`. No further iteration will start.", fg=typer.colors.GREEN)
+    typer.secho(
+        f"Revoked `{before.chain_id}`. No further iteration will start.", fg=typer.colors.GREEN
+    )
 
 
 @chain_app.command("show")
@@ -4019,11 +4018,7 @@ def chain_show(
         typer.echo(f"{task_id} has never had a chain authorised against it.")
         return
     for chain in chains:
-        state = (
-            "revoked"
-            if chain.revoked
-            else ("expired" if chain.expired() else "live")
-        )
+        state = "revoked" if chain.revoked else ("expired" if chain.expired() else "live")
         digest = "digest matches" if chain.matches(task) else "CHECKS HAVE CHANGED"
         typer.secho(f"\n{chain.chain_id}  ({state}, {digest})", bold=True)
         typer.echo(f"  authorised by {chain.entry.actor} at {chain.authorized_at.isoformat()}")

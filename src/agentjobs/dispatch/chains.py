@@ -284,9 +284,7 @@ def chain_history(task: Task) -> List[ChainAuthorization]:
         if data is None:
             continue
         found.append(
-            ChainAuthorization(
-                entry=entry, data=data, revoked_by_entry=revoked.get(data.chain_id)
-            )
+            ChainAuthorization(entry=entry, data=data, revoked_by_entry=revoked.get(data.chain_id))
         )
     return found
 

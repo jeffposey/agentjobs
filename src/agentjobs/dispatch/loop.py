@@ -354,9 +354,7 @@ class _Driver:
                 self.iterations.append(
                     IterationRecord(iteration=iteration, run_id=run_id, vector=(), detail=settled)
                 )
-                return self._stop(
-                    self._reread(task), ChainStop.RUN_DID_NOT_SETTLE, settled
-                )
+                return self._stop(self._reread(task), ChainStop.RUN_DID_NOT_SETTLE, settled)
 
             task = self._reread(task)
             evaluated = self._evaluate(task, iteration, run_id)
@@ -379,9 +377,7 @@ class _Driver:
                 ),
             )
             self.iterations.append(
-                IterationRecord(
-                    iteration=iteration, run_id=run_id, vector=vector, report=report
-                )
+                IterationRecord(iteration=iteration, run_id=run_id, vector=vector, report=report)
             )
             previous = self.vectors[-1] if self.vectors else ()
             self.vectors.append(vector)
@@ -542,9 +538,7 @@ class _Driver:
             )
         except DispatchRefused as exc:
             self.iterations.append(
-                IterationRecord(
-                    iteration=iteration, run_id=None, vector=(), detail=str(exc)
-                )
+                IterationRecord(iteration=iteration, run_id=None, vector=(), detail=str(exc))
             )
             return (
                 ChainStop.DISPATCH_REFUSED,
@@ -555,9 +549,7 @@ class _Driver:
             )
         except DispatchError as exc:
             self.iterations.append(
-                IterationRecord(
-                    iteration=iteration, run_id=None, vector=(), detail=str(exc)
-                )
+                IterationRecord(iteration=iteration, run_id=None, vector=(), detail=str(exc))
             )
             return (
                 ChainStop.DISPATCH_REFUSED,
@@ -615,10 +607,7 @@ class _Driver:
         except DispatchError as exc:
             return (
                 ChainStop.EVALUATION_FAILED,
-                (
-                    f"The checks could not be evaluated after iteration {iteration}: "
-                    f"{exc}"
-                ),
+                (f"The checks could not be evaluated after iteration {iteration}: " f"{exc}"),
             )
 
     def _ask_for_another_turn(self, task: Task, iteration: int, report: CheckReport) -> Task:
@@ -674,7 +663,10 @@ class _Driver:
         fresh = self.manager.get_task(task.id) or task
         vector = self.iterations[-1].vector if self.iterations else ()
         settled = settled_criteria(
-            fresh, self.iterations[-1].report.results if self.iterations and self.iterations[-1].report else []
+            fresh,
+            self.iterations[-1].report.results
+            if self.iterations and self.iterations[-1].report
+            else [],
         )
         untouched = unchecked_criteria(fresh)
 

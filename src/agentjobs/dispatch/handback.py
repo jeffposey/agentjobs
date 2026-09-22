@@ -626,8 +626,7 @@ def record_handback(
             ball=Ball.EXTERNAL,
             ball_reason=BallReason.DEPENDENCY,
             ball_prompt=_blocked_prompt(outcome),
-            body=outcome.detail
-            or f"The handback was not delivered: `{outcome.reason}`.",
+            body=outcome.detail or f"The handback was not delivered: `{outcome.reason}`.",
         )
         return
     manager.add_log_entry(

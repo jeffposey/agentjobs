@@ -86,9 +86,7 @@ def seed(manager) -> None:
             for criterion in criteria
         ]
         if prose:
-            acceptance.append(
-                {"id": "sc-prose", "text": "It reads well", "verify": "Look at it."}
-            )
+            acceptance.append({"id": "sc-prose", "text": "It reads well", "verify": "Look at it."})
         manager.create_task(
             id=task_id,
             title=title,
@@ -127,10 +125,7 @@ def seed(manager) -> None:
             ),
         )
         for iteration, statuses in enumerate(vectors):
-            results = [
-                CheckOutcome.model_validate(item)
-                for item in _outcomes(statuses, criteria)
-            ]
+            results = [CheckOutcome.model_validate(item) for item in _outcomes(statuses, criteria)]
             passed = sum(1 for status in statuses if status == "met")
             manager.record_check_result(
                 task_id,
@@ -206,9 +201,7 @@ def write_dispatch_config(home: Path, root: Path, project_id: str) -> None:
     gate that shuts the moment somebody presses a button is not one to review behind.
     """
     fake = root / "fake-agent.py"
-    fake.write_text(
-        "import sys\nprint('sandbox agent started:', sys.argv[1:])\n", encoding="utf-8"
-    )
+    fake.write_text("import sys\nprint('sandbox agent started:', sys.argv[1:])\n", encoding="utf-8")
     config = {
         "version": 1,
         "enabled": True,
@@ -235,9 +228,7 @@ def serve(port: int) -> None:
 
     project_root = build(root, project_id=project_id)
     write_dispatch_config(home, root, project_id)
-    ProjectRegistry(home).add(
-        project_root, project_id=project_id, name="Sandbox: agent loops"
-    )
+    ProjectRegistry(home).add(project_root, project_id=project_id, name="Sandbox: agent loops")
 
     import uvicorn
 

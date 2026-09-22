@@ -1104,9 +1104,7 @@ def _chain_read(task: Task, chain: ChainAuthorization) -> ChainRead:
             iteration=int(entry.data.get("iteration") or 0),
             entry_id=entry.id,
             ts=entry.ts,
-            results=[
-                CheckOutcome.model_validate(item) for item in entry.data.get("results") or []
-            ],
+            results=[CheckOutcome.model_validate(item) for item in entry.data.get("results") or []],
             unchecked=[str(item) for item in entry.data.get("unchecked") or []],
         )
         for entry in task.log
@@ -1133,9 +1131,7 @@ def _chain_read(task: Task, chain: ChainAuthorization) -> ChainRead:
     )
 
 
-def _chain_actor(
-    request: Request, project: Project, claimed: Optional[str], task_id: str
-) -> str:
+def _chain_actor(request: Request, project: Project, claimed: Optional[str], task_id: str) -> str:
     """The human a chain authorisation or revocation is attributed to.
 
     Three checks, and they are the dispatch endpoint's three, reached the same way rather

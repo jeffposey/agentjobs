@@ -33,7 +33,7 @@ from pydantic import ValidationError
 
 from agentjobs.api.authorization import ROUTE_CAPABILITIES
 from agentjobs.api.main import app
-from agentjobs.capabilities import Capability, GRANTS
+from agentjobs.capabilities import GRANTS
 from agentjobs.dispatch.budget import chains_since, check_budget
 from agentjobs.dispatch.chains import (
     AlreadyPassingError,
@@ -64,6 +64,7 @@ from agentjobs.models_v2 import (
     DispatchTrigger,
     Lifecycle,
     LogEntryType,
+    QuestionDraft,
     QuestionOption,
     Task,
 )
@@ -209,9 +210,7 @@ def write_dispatch_config(
     }
     if limits is not None:
         config["limits"] = limits
-    (home / "dispatch.yaml").write_text(
-        yaml.safe_dump(config, sort_keys=False), encoding="utf-8"
-    )
+    (home / "dispatch.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
 
 @pytest.fixture(autouse=True)
@@ -261,9 +260,7 @@ def a_task(
                 )
             )
     if extra_prose:
-        criteria.append(
-            AcceptanceCriterion(id="sc-prose", text="It reads well", verify="Look.")
-        )
+        criteria.append(AcceptanceCriterion(id="sc-prose", text="It reads well", verify="Look."))
     task = manager.create_task(
         title="Converge the counter",
         category="general",
@@ -317,8 +314,6 @@ def vectors_on(manager: TaskManager, task_id: str, chain_id: str):
     return iteration_results(task, chain_id)
 
 
-
-
 @pytest.fixture
 def served(tmp_path, home: Path, project: Project, runner_script: Path, monkeypatch):
     """A served project on a machine configured to permit it."""
@@ -363,6 +358,7 @@ def a_run_credential(home: Path, task_id: str) -> str:
     token = mint_run_credential(directory.path, "run_c4a1f001")
     assert token, "the credential must actually mint, or nothing below is tested"
     return token
+
 
 # ---------------------------------------------------------------------------
 # sc-4: the digest
@@ -449,9 +445,7 @@ class TestAuthorization:
 
         outcome = authorize(manager, project, task, home, iterations=4, wall_clock=3600)
 
-        entries = [
-            item for item in outcome.task.log if item.type is LogEntryType.CHAIN_AUTHORIZED
-        ]
+        entries = [item for item in outcome.task.log if item.type is LogEntryType.CHAIN_AUTHORIZED]
         assert len(entries) == 1
         assert entries[0].actor == HUMAN
         assert entries[0].data["check_digest"] == check_digest(task)
@@ -602,14 +596,13 @@ class TestRevocation:
         twice = revoke_chain(manager=manager, task=once, actor=HUMAN)
 
         revocations = [
-            item for item in (manager.get_task(twice.id) or twice).log
+            item
+            for item in (manager.get_task(twice.id) or twice).log
             if item.type is LogEntryType.CHAIN_REVOKED
         ]
         assert len(revocations) == 1
 
-    def test_revoking_nothing_says_so(
-        self, manager: TaskManager, check_script: Path
-    ) -> None:
+    def test_revoking_nothing_says_so(self, manager: TaskManager, check_script: Path) -> None:
         task = a_task(manager, check_script)
 
         with pytest.raises(UnknownChainError):
@@ -1043,7 +1036,9 @@ class TestTheVector:
         from agentjobs.models_v2 import CheckOutcome
 
         first = [
-            CheckOutcome(id="sc-1", status=AcceptanceStatus.FAILED, exit_code=1, duration_seconds=1.0),
+            CheckOutcome(
+                id="sc-1", status=AcceptanceStatus.FAILED, exit_code=1, duration_seconds=1.0
+            ),
             CheckOutcome(id="sc-2", status=AcceptanceStatus.MET, exit_code=0, duration_seconds=2.0),
         ]
         second = [
@@ -1245,9 +1240,7 @@ class TestAnswersThatStartNothing:
 
     def test_a_dispatching_option_may_not_name_one(self) -> None:
         with pytest.raises(ValidationError):
-            QuestionOption(
-                label="Go", ball=Ball.HUMAN, ball_reason=BallReason.DECISION
-            )
+            QuestionOption(label="Go", ball=Ball.HUMAN, ball_reason=BallReason.DECISION)
 
     def test_answering_with_it_starts_nothing(self, served) -> None:
         """The whole of sc-12, over the endpoint a person's browser actually posts to."""
@@ -1268,20 +1261,22 @@ class TestAnswersThatStartNothing:
             ball_reason=BallReason.DECISION,
             ball_prompt="Build bounded agent loops?",
             questions=[
-                {
-                    "body": "Build bounded agent loops?",
-                    "options": [
-                        {
-                            "label": "Decide after phase one",
-                            "description": "Leave it parked.",
-                            "recommended": True,
-                            "dispatches": False,
-                            "ball": "external",
-                            "ball_reason": "dependency",
-                        },
-                        {"label": "Yes, build it"},
-                    ],
-                }
+                QuestionDraft.model_validate(
+                    {
+                        "body": "Build bounded agent loops?",
+                        "options": [
+                            {
+                                "label": "Decide after phase one",
+                                "description": "Leave it parked.",
+                                "recommended": True,
+                                "dispatches": False,
+                                "ball": "external",
+                                "ball_reason": "dependency",
+                            },
+                            {"label": "Yes, build it"},
+                        ],
+                    }
+                )
             ],
         )
         asked = manager.get_task(task.id)
@@ -1326,18 +1321,20 @@ class TestAnswersThatStartNothing:
             ball_reason=BallReason.DECISION,
             ball_prompt="Build bounded agent loops?",
             questions=[
-                {
-                    "body": "Build bounded agent loops?",
-                    "options": [
-                        {
-                            "label": "Decide after phase one",
-                            "dispatches": False,
-                            "ball": "external",
-                            "ball_reason": "dependency",
-                        },
-                        {"label": "Yes, build it"},
-                    ],
-                }
+                QuestionDraft.model_validate(
+                    {
+                        "body": "Build bounded agent loops?",
+                        "options": [
+                            {
+                                "label": "Decide after phase one",
+                                "dispatches": False,
+                                "ball": "external",
+                                "ball_reason": "dependency",
+                            },
+                            {"label": "Yes, build it"},
+                        ],
+                    }
+                )
             ],
         )
         asked = manager.get_task(task.id)
@@ -1379,17 +1376,19 @@ class TestAnswersThatStartNothing:
             ball_reason=BallReason.DECISION,
             ball_prompt="Build bounded agent loops?",
             questions=[
-                {
-                    "body": "Build bounded agent loops?",
-                    "options": [
-                        {
-                            "label": "Decide after phase one",
-                            "dispatches": False,
-                            "ball": "external",
-                            "ball_reason": "dependency",
-                        }
-                    ],
-                }
+                QuestionDraft.model_validate(
+                    {
+                        "body": "Build bounded agent loops?",
+                        "options": [
+                            {
+                                "label": "Decide after phase one",
+                                "dispatches": False,
+                                "ball": "external",
+                                "ball_reason": "dependency",
+                            }
+                        ],
+                    }
+                )
             ],
         )
         asked = manager.get_task(task.id)
@@ -1462,9 +1461,7 @@ class TestAnswersThatStartNothing:
 
         assert check_record(asked, verb="handoff", unmet_needs=()) == []
 
-    def test_it_is_silent_when_the_ball_goes_to_the_dependency(
-        self, manager: TaskManager
-    ) -> None:
+    def test_it_is_silent_when_the_ball_goes_to_the_dependency(self, manager: TaskManager) -> None:
         """``external``/``dependency`` is the right answer, so it draws no comment."""
         blocker = manager.create_task(
             title="Phase one",
