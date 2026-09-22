@@ -313,6 +313,9 @@ the second switch and can never define what runs. See
 | `POST` | `/api/dispatch/disarm` | Stop it starting anything more. Kills nothing |
 | `POST` | `/api/tasks/{task_id}/dispatch` | Start an agent on this task |
 | `POST` | `/api/tasks/{task_id}/check` | Run this task's executable acceptance checks and answer with what each one did |
+| `GET` | `/api/tasks/{task_id}/chains` | Every bounded agent loop this task has had, each with its iteration history |
+| `POST` | `/api/tasks/{task_id}/chain` | Authorise a bounded chain of dispatches against this task's checks. Needs `dispatch.start` |
+| `POST` | `/api/tasks/{task_id}/chain/revoke` | Stop a chain before its next iteration. An empty body stops whatever is live |
 | `GET` | `/api/dispatch/runs` | Runs, live and historical, from the ledger |
 | `POST` | `/api/dispatch/runs/{run_id}/cancel` | Cancel one live run |
 | `GET` | `/api/dispatch/runs/{run_id}/output` | The run's captured transcript |
@@ -330,6 +333,34 @@ project not enabled for dispatch is refused under the gate's own code, and it ne
 `dispatch.start` -- which no run holds, so a dispatched agent cannot call it. That is not
 a formality. Every run holds `task.edit` against every task, so a run that could call
 this could write a `check` onto a task and then have this machine run it.
+
+**A chain is that same act, bought in advance** (task-150). `POST .../chain` records a
+human's authorisation of up to N dispatches against one task, bounded by an iteration cap
+(default 5, ceiling 20), a wall-clock bound (default 4h, ceiling 12h) and a digest over
+the criteria's `(id, check)` pairs as they stand at that moment. The driver re-reads it
+from the stored task before every iteration and recomputes the digest, so a check edited
+mid-chain stops the chain rather than moving the finish line.
+
+**Nothing about a chain may be sent in the request.** There is no field for the digest,
+the chain id or the covered criteria: they are computed here from the record, which is
+dispatch design section 2's forgeability rule applied to a loop. What the body carries is
+the two bounds and the `user` authorising them, validated as a configured human exactly
+as a dispatch's is.
+
+Four refusals, each under its own code: `no_checks` (nothing is machine-decidable, so the
+loop has no termination condition it does not control), `already_passing` (there is
+nothing to converge on), `chain_already_live`, and `bound_exceeds_ceiling`. Authorising
+runs the checks once and records the result as iteration 0, which is the baseline the
+regression guard compares against.
+
+`POST .../chain/revoke` takes an empty body and stops whatever is live -- section 9 asks
+for a kill switch as blunt as `agentjobs dispatch stop`, and one needing a chain id
+copied off a log entry would not be one. It stops no run that is already executing;
+cancelling one of those is `POST .../dispatch/runs/{id}/cancel`.
+`~/.agentjobs/DISPATCH_DISABLED` stops every chain on the machine at once, because the
+sentinel is one of the four gates the driver re-walks before every iteration.
+`GET .../chains` is the read behind the task page's panel and executes nothing.
+`agentjobs chain authorize | run | revoke | show` are the same four from a terminal.
 
 It answers with a `results` vector -- one entry per criterion that has a `check`, each
 with `status` (`met` or `failed`), `exit_code`, `duration_seconds`, an optional `cause`
