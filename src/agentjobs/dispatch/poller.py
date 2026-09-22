@@ -18,11 +18,11 @@ that spawned it, and needs nothing from here.
 from __future__ import annotations
 
 import asyncio
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.config import (
     DispatchError,
     assert_dispatch_permitted,
@@ -228,7 +228,7 @@ def _retract_resolved_asks(
     from agentjobs.retraction import retract
 
     global _last_retraction_sweep
-    now = time.monotonic()
+    now = dispatch_clock.monotonic()
     if _last_retraction_sweep and now - _last_retraction_sweep < RETRACTION_SWEEP_SECONDS:
         return []
     _last_retraction_sweep = now

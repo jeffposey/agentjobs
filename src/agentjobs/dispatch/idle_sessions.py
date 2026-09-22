@@ -44,6 +44,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from agentjobs import clock as dispatch_clock
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -812,7 +813,7 @@ class IdleSessionBook:
         event = IdleSessionEvent(
             event_id=f"ise_{uuid.uuid4().hex[:12]}",
             kind=kind,
-            at=at or datetime.now(timezone.utc).isoformat(),
+            at=at or dispatch_clock.utcnow().isoformat(),
             session_id=session_id,
             outcome=outcome,
             detail=dict(detail),
@@ -1034,7 +1035,7 @@ def tick(home: Path, *, deps: Optional[SweepDeps] = None, force: bool = False) -
     from agentjobs.dispatch.config import load_dispatch_config
 
     key = str(home)
-    now = time.monotonic()
+    now = dispatch_clock.monotonic()
     if not force and now - _last_sweep.get(key, -SWEEP_INTERVAL_SECONDS) < SWEEP_INTERVAL_SECONDS:
         return []
     _last_sweep[key] = now

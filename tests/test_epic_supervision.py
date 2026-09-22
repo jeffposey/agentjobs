@@ -427,7 +427,11 @@ def test_two_attempts_per_child_hold_across_a_restart(walk: Epic) -> None:
         return statuses.get(run_id, "running")
 
     def kill_current(tick: int) -> None:
-        time.sleep(1.1)  # the per-task cooldown binds a child retry, as it should
+        # The per-task cooldown binds a child retry, as it should. Moved on the
+        # harness clock rather than slept through: the dispatch subsystem reads that
+        # clock since task-518, so a real second no longer reaches the cooldown --
+        # and a real 1.1 was only ever a guess that it was enough for 1.0.
+        walk.machine.clock.advance(1.1)
         for attempt in journal(walk.machine.home).live_attempts():
             statuses[attempt.run_id] = "failed"
             journal(walk.machine.home).conclude(

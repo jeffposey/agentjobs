@@ -36,13 +36,13 @@ from __future__ import annotations
 import re
 import shutil
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
 import yaml
 
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.yaml_patch import Delete, Edit, Set, UnpatchableYaml, patch_yaml
 from agentjobs.projects import default_home
 
@@ -2367,7 +2367,7 @@ def _write_config_edits(
     try:
         rendered = patch_yaml(text, edits, expected)
     except UnpatchableYaml:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        stamp = dispatch_clock.utcnow().strftime("%Y%m%dT%H%M%S%fZ")
         path.with_name(f"{path.name}.bak-{stamp}").write_bytes(text.encode("utf-8"))
         rendered = yaml.safe_dump(dict(expected), sort_keys=False, allow_unicode=False)
         if "\r\n" in text:

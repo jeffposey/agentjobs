@@ -38,12 +38,12 @@ or a run with no journal record to write the transfer on.
 from __future__ import annotations
 
 import os
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
 from agentjobs.actors import FINISHER
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.approval import ApprovalReceipt
 from agentjobs.dispatch.config import DispatchError, assert_dispatch_permitted
 from agentjobs.dispatch.ledger import LedgerError, find_run, read_task_lock_holder, write_status
@@ -85,8 +85,8 @@ def stand_down_for_finish(
     home: Path,
     confirm_seconds: Optional[float] = None,
     poll_seconds: Optional[float] = None,
-    sleep: Callable[[float], None] = time.sleep,
-    monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = dispatch_clock.sleep,
+    monotonic: Callable[[], float] = dispatch_clock.monotonic,
 ) -> StandDown:
     """Transfer ``task_id`` from the session holding its lock to this finish, or say why not.
 

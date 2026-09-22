@@ -49,6 +49,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import yaml
 
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.finish import (
     DUPLICATE_KEY,
     SPAWN_DIRNAME,
@@ -398,7 +399,7 @@ def _elapsed(started: Any, finished: Any) -> Optional[float]:
     began = _moment(started)
     if began is None:
         return None
-    ended = _moment(finished) or datetime.now(timezone.utc)
+    ended = _moment(finished) or dispatch_clock.utcnow()
     return max(0.0, round((ended - began).total_seconds(), 1))
 
 

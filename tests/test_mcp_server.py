@@ -21,6 +21,7 @@ from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
 
 from agentjobs.__version__ import __version__
+from agentjobs import client as client_module
 from agentjobs.client import TaskClient
 from agentjobs.mcp import compat, config, errors, instructions, results, server, tools
 from agentjobs.models_v2 import SCHEMA_VERSION
@@ -182,7 +183,11 @@ class TestStartupProbe:
     def test_unreachable_service_says_so_and_does_not_start_one(self):
         # Port 1 is reserved and never listening; a connection error here is the
         # transport failure the probe has to translate, not a mocked stand-in.
-        client = TaskClient("http://127.0.0.1:1", timeout=1.0)
+        # `backoff=()` is one attempt and no pause. The patience this gives up is for
+        # riding through a restart, and there is no server here to restart: the default
+        # budget would be seven refused connections and 15.75s of sleeping to learn what
+        # the first one already said (task-518).
+        client = TaskClient("http://127.0.0.1:1", timeout=1.0, backoff=())
         with pytest.raises(compat.StartupError) as caught:
             compat.probe_service(client, client_version=__version__, client_schema=SCHEMA_VERSION)
         client.close()
@@ -564,6 +569,10 @@ class TestPackagedCommand:
         env = dict(os.environ)
         env[config.BASE_URL_ENV] = "http://127.0.0.1:1"
         env[config.TIMEOUT_ENV] = "2"
+        # The server under test is a subprocess, so there is no constant to monkeypatch:
+        # the retry budget has to cross the process boundary, which is what this variable
+        # is for. Empty means one attempt (task-518).
+        env[client_module.RETRY_BACKOFF_ENV] = ""
 
         completed = subprocess.run(
             [sys.executable, "-m", "agentjobs.cli", "mcp"],

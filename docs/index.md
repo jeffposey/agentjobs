@@ -58,6 +58,9 @@ history; new records and integrations must use v2.
 - [Performance](performance.md) — how to measure the API, the CLI, the browser, the
   repository gate and dispatched agent time, what a claim of "faster" has to state, and
   the measurement history behind the gate's quoted costs.
+- [The flake register](flake-register.md) — every test seen to fail for a reason other
+  than the code being wrong, with its cause, a reproduction somebody else can run, and
+  what was done. Add to it when you see one, not when you fix one.
 - [Codex dispatch rollout](codex-dispatch.md) — batch runners, the MCP requirement, and
   the rollout sequence.
 
@@ -82,6 +85,7 @@ is how this project has lost the most time, so the status word comes first.
 | [Understand schema v2](schema/understanding.md) | The schema explained rather than tabulated |
 | [Schema migration](migration-guide.md) | v1 to v2, and the all-or-nothing rule |
 | [Performance](performance.md) | The measurement tools and their contract |
+| [The flake register](flake-register.md) | Every known flake, its cause, its reproduction and its status (task-518) |
 | [SQLite storage](storage-sqlite.md) | The store, its invariants and its upgrade path, what a record still is once it is a row, and the import, backup and export an operator runs. |
 | [The Tasks surface](tasks-shell.md) | The two-region list-and-record shell, the device-class rule that decides its default, and what the geometry forces (task-235, task-237). Supersedes the epic's log entries. |
 | [Codex dispatch rollout](codex-dispatch.md) | The Codex runner setup |

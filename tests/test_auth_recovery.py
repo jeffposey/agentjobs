@@ -33,6 +33,7 @@ import pytest
 import yaml
 
 from agentjobs.dispatch import auth_recovery
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV, read_limit_stall
 from agentjobs.dispatch.auth_probe import (
     PROBE_TOKEN,
@@ -56,6 +57,9 @@ from agentjobs.dispatch.ledger import find_run
 from agentjobs.dispatch.poller import poll_live_sessions
 from agentjobs.dispatch.runner import DispatchRunner, RunDirectory, SessionPhase, runs_root
 from agentjobs.manager import TaskManager
+from skipping_clock import SkippingClock, install
+from time import sleep as real_sleep
+
 from agentjobs.models_v2 import (
     Ball,
     BallReason,
@@ -509,7 +513,23 @@ print("backgrounded · b55b35ad · aj-task")
 
 
 class Machine:
-    def __init__(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def __init__(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        clock: Optional[SkippingClock] = None,
+    ) -> None:
+        # One origin for the whole machine: every simulated moment this harness writes --
+        # a tick, a transcript line, a planned reply -- is an offset from it, and so is
+        # every moment the production code reads. Before task-518 each of those called
+        # `datetime.now()` separately, so the timeline the test thought it was driving
+        # drifted from the one the code read by however long the machine took to get
+        # between two lines of the test. See `advance_to`.
+        self.clock = (
+            clock if clock is not None else install(monkeypatch, datetime.now(timezone.utc))
+        )
+        self._reached = 0.0
         self.tmp = tmp_path
         self.home = tmp_path / "home"
         self.root = tmp_path / "project"
@@ -539,7 +559,7 @@ class Machine:
         monkeypatch.setenv(CLAUDE_HOME_ENV, str(self.claude))
         ProjectRegistry(home=self.home).add(self.root, project_id="sandbox")
         self.manager = TaskManager(task_store(self.root / "tasks", project_id="sandbox"))
-        self.base = datetime.now(timezone.utc)
+        self.base = self.clock.origin
         # The poller's own recovery pass runs on the wall clock; these tests drive the
         # recovery tick themselves on a fake clock, so the poll only detects and parks.
         monkeypatch.setattr("agentjobs.dispatch.poller._recover_parked", lambda *a: [])
@@ -642,13 +662,13 @@ class Machine:
         return write_transcript(self.claude, lines, session=full)
 
     def die_on_login(self, *, offset: float = 1.0, full: str = FULL) -> datetime:
-        at = datetime.now(timezone.utc) + timedelta(seconds=offset)
+        at = self.clock.at(offset)
         self.transcript([auth_failure_line(at=at, session=full, text=LOGIN_EXPIRED)], full=full)
         return at
 
     def reply_on_wake(self, *, full: str = FULL, offset_seconds: float = 30.0) -> None:
         path = self.claude / "projects" / "C--projects-x" / f"{full}.jsonl"
-        at = datetime.now(timezone.utc) + timedelta(seconds=offset_seconds)
+        at = self.clock.at(offset_seconds)
         (self.cli.parent / "reply_on_wake.json").write_text(
             json.dumps(
                 {
@@ -681,12 +701,32 @@ class Machine:
     def poll(self) -> Dict[str, Any]:
         return {result.run_id: result for result in poll_live_sessions(self.home)}
 
+    def advance_to(self, seconds: float) -> None:
+        """Carry the clock to ``seconds`` past the origin, by waiting the way the poller does.
+
+        Deliberately not ``clock.advance(seconds)``. The poller reaches its next tick by
+        sleeping, so this sleeps, through the subsystem's one time source; the skipping
+        clock then moves *itself* because every registered waiter is blocked and nothing
+        can run until it does. A test that called an ``advance`` method would be stating
+        the schedule, which is the thing task-518 is removing -- it can only skip the
+        moments its author predicted.
+
+        The step is expressed relative to the last one, because a wait is what the poller
+        actually does between two ticks; the clock's own reading of where it has got to is
+        a consequence rather than something the harness sets.
+        """
+        remaining = seconds - self._reached
+        assert remaining >= 0, f"a harness clock never runs backwards ({seconds})"
+        self._reached = seconds
+        if remaining > 0:
+            dispatch_clock.sleep(remaining)
+
     def tick(self, seconds: float, **kwargs: Any) -> List[str]:
-        moment = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+        """One recovery pass, ``seconds`` after the origin, on the installed clock."""
+        self.advance_to(seconds)
         return auth_recovery.tick(
             self.home,
             managers={"sandbox": self.manager},
-            clock=lambda: moment,
             **kwargs,
         )
 
@@ -752,6 +792,47 @@ class TestSelfHealingNeedsNobody:
 
         # A later poll of the recovered session is an ordinary poll again.
         assert machine.poll()[run_id].phase is SessionPhase.RUNNING
+
+    def test_the_recovery_survives_wall_clock_passing_mid_scenario(self, machine: Machine) -> None:
+        """The flake this file produced three times on 2026-09-21, made impossible (task-518).
+
+        The scenario above is the one that failed, and the margin it used to have was four
+        seconds of **wall clock** between two of its own lines. `reply_on_wake` stamped the
+        session's reply from one `datetime.now()`, the resume was stamped from another, and
+        recovery needs the reply to be the later of the two; the calls in between spawn
+        subprocesses, whose cost on this machine was measured ranging from 0.064s to 16.7s
+        for identical argv. So the test passed alone and failed inside a full run, which is
+        exactly what was observed -- green in isolation, red twice in one finish's gate.
+
+        This is the same scenario with **six real seconds** burned at the point the margin
+        used to be. It costs the suite those six seconds and it is worth them: it is the
+        only assertion here that would have caught the defect, because every other one in
+        this file passes on the broken code whenever the machine happens to be quiet.
+        """
+        run_id, task_id = machine.start()
+        machine.die_on_login()
+        machine.go_idle()
+        machine.plan_probes([_auth_failure(), _auth_failure(), _success()])
+        machine.reply_on_wake(offset_seconds=124)
+
+        assert machine.poll()[run_id].phase is SessionPhase.AUTH_STALLED
+
+        # The margin, spent. Under one clock this buys the scenario nothing and costs it
+        # nothing; under two it is half again what it took to break the old harness.
+        real_sleep(6.0)
+
+        machine.tick(0)
+        machine.tick(61)
+        machine.tick(122)
+        assert len(machine.lines("nudges.log")) == 1, "the resume was still sent"
+
+        machine.tick(130)
+        waiter = machine.book().waiters(machine.meta(run_id)["auth_incident"])[0]
+        assert waiter.status == auth_recovery.RECOVERED, (
+            "the reply is later than the resume by construction now, not by luck: "
+            "both are offsets from one origin"
+        )
+        assert machine.human_handoffs(task_id) == [], "zero human actions"
 
     def test_the_stop_before_resume_is_not_mistaken_for_the_session_going_away(
         self, machine: Machine, monkeypatch: pytest.MonkeyPatch
@@ -880,7 +961,7 @@ class TestADeadStore:
         machine.start()
         book = machine.book()
         profile = Profile("claude", ("claude",), "claude-opus-5", str(machine.claude))
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         joined = book.join(
             kind="auth",
             profile=profile,
@@ -1003,7 +1084,7 @@ class TestALostAcknowledgement:
         class Dies:
             def nudge(self, session_id: str, message: str) -> NudgeReceipt:
                 if deliver:
-                    at = datetime.now(timezone.utc) + timedelta(seconds=5)
+                    at = machine.clock.at(5)
                     path = machine.claude / "projects" / "C--projects-x" / f"{FULL}.jsonl"
                     with path.open("a", encoding="utf-8") as handle:
                         handle.write(
@@ -1051,7 +1132,7 @@ class TestALostAcknowledgement:
         path = machine.claude / "projects" / "C--projects-x" / f"{FULL}.jsonl"
         with path.open("a", encoding="utf-8") as handle:
             reply = real_reply_line(
-                at=datetime.now(timezone.utc) + timedelta(seconds=30), session=FULL
+                at=machine.clock.at(auth_recovery.NUDGE_LEASE_SECONDS + 30), session=FULL
             )
             handle.write(json.dumps(reply) + "\n")
         machine.tick(auth_recovery.NUDGE_LEASE_SECONDS + 40, probe=ready)
@@ -1161,7 +1242,7 @@ class TestUsageLimits:
         self, machine: Machine
     ) -> None:
         run_id, task_id = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         resets = (now + timedelta(hours=2)).replace(microsecond=0)
         machine.transcript([self._limit_line(at=now + timedelta(seconds=1), resets=resets)])
         machine.go_idle()
@@ -1206,7 +1287,7 @@ class TestUsageLimits:
 
     def test_a_probe_still_refused_waits_for_its_own_reported_reset(self, machine: Machine) -> None:
         run_id, _ = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         resets = now + timedelta(minutes=10)
         machine.transcript([self._limit_line(at=now + timedelta(seconds=1), resets=resets)])
         machine.go_idle()
@@ -1258,7 +1339,7 @@ class TestTheParkSaysWhatItIs:
 
     def test_a_usage_limit_park_names_the_reset_time(self, machine: Machine) -> None:
         run_id, task_id = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         resets = (now + timedelta(hours=2)).replace(second=0, microsecond=0)
         machine.transcript([self._limit_line(at=now + timedelta(seconds=1), resets=resets)])
         machine.go_idle()
@@ -1276,7 +1357,7 @@ class TestTheParkSaysWhatItIs:
     def test_an_unreported_reset_still_reads_as_a_wait(self, machine: Machine) -> None:
         """A refusal with no reset time is no less self-clearing -- recovery still probes."""
         run_id, task_id = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         line = auth_failure_line(
             at=now + timedelta(seconds=1),
             session=FULL,
@@ -1295,7 +1376,7 @@ class TestTheParkSaysWhatItIs:
     def test_a_spend_limit_still_reads_as_needing_a_person(self, machine: Machine) -> None:
         """Only the account owner can raise a spend limit, so it must not read as a wait."""
         run_id, task_id = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         machine.transcript([self._spend_line(at=now + timedelta(seconds=1))])
         machine.go_idle()
         assert machine.poll()[run_id].phase is SessionPhase.AUTH_STALLED
@@ -1308,7 +1389,7 @@ class TestTheParkSaysWhatItIs:
     def test_a_quota_escalation_reads_as_needing_a_person(self, machine: Machine) -> None:
         """Refused again for the same window: recovery gives up, and the label says so."""
         run_id, task_id = machine.start()
-        now = datetime.now(timezone.utc)
+        now = machine.clock.origin
         resets = (now + timedelta(hours=2)).replace(microsecond=0)
         machine.transcript([self._limit_line(at=now + timedelta(seconds=1), resets=resets)])
         machine.go_idle()

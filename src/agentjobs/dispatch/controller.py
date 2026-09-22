@@ -38,6 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch import journal as journal_adapter
 from agentjobs.dispatch.config import (
     DispatchConfigError,
@@ -203,7 +204,7 @@ class Controller:
         self.home = Path(home)
         self.registry = registry or ProjectRegistry(home=self.home)
         self.managers = dict(managers or {})
-        self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.clock = clock or (lambda: dispatch_clock.utcnow())
         self.alive = alive
         self.identity = identity
         self.reused = reused

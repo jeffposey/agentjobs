@@ -76,6 +76,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from agentjobs import clock as dispatch_clock
 from agentjobs.actors import FINISHER
 from agentjobs.dispatch.approval import consuming_finish
 from agentjobs.dispatch.atomic_yaml import write_yaml_atomically
@@ -767,7 +768,7 @@ def write_spawn_marker(home: Path, task_id: str, *, project_id: str, approver: s
         "task_id": task_id,
         "project_id": project_id,
         "approver": approver,
-        "started_at": datetime.now(timezone.utc).isoformat(),
+        "started_at": dispatch_clock.utcnow().isoformat(),
     }
     try:
         path = spawn_marker_path(home, task_id)
@@ -823,7 +824,7 @@ class FinishDirectory:
             task_id=task_id,
             project_id=project_id,
             outcome="running",
-            started_at=datetime.now(timezone.utc).isoformat(),
+            started_at=dispatch_clock.utcnow().isoformat(),
             pid=os.getpid(),
             **{key: value for key, value in fields.items() if value},
         )
@@ -861,7 +862,7 @@ class FinishDirectory:
     def record(self, kind: str, **fields: Any) -> None:
         record_phase(self.path, kind, finish_id=self.finish_id, **fields)
         if kind == "finish_step" and self.history is not None:
-            self.history.step_recorded(datetime.now(timezone.utc), **fields)
+            self.history.step_recorded(dispatch_clock.utcnow(), **fields)
 
 
 # ----- the steps --------------------------------------------------------------
@@ -2160,7 +2161,7 @@ def mark_branch_merged(manager: TaskManagerLike, task_id: str, branch: str) -> N
         item = entry.model_dump(mode="json")
         if entry.name == branch:
             item["status"] = BranchStatus.MERGED.value
-            item["merged_at"] = datetime.now(timezone.utc).isoformat()
+            item["merged_at"] = dispatch_clock.utcnow().isoformat()
         branches.append(item)
     manager.update_task(task_id, actor=FINISHER, branches=branches)
 
@@ -2239,16 +2240,16 @@ class Runway:
         ``runway_timeout_seconds``, an hour by default, spent on work that ceased to
         exist in the first minute of it.
         """
-        began = time.monotonic()
+        began = dispatch_clock.monotonic()
         announced_to: Optional[LockHolder] = None
-        checked_at = time.monotonic()
+        checked_at = dispatch_clock.monotonic()
 
         def still_needed() -> None:
             """Raise :class:`Declined` when what this finish is queued for is over."""
             nonlocal checked_at
             if premises is None:
                 return
-            now = time.monotonic()
+            now = dispatch_clock.monotonic()
             if now - checked_at < PREMISE_POLL_SECONDS:
                 return
             checked_at = now
@@ -2307,7 +2308,7 @@ class Runway:
             )
         except RunLockTimeout as exc:
             raise Escalate("runway", "runway_busy", str(exc)) from exc
-        self.waited_seconds = time.monotonic() - began
+        self.waited_seconds = dispatch_clock.monotonic() - began
         held = "taken immediately" if self.waited_seconds < 1.0 else "taken after queuing"
         return StepResult("runway", True, held, self.waited_seconds)
 
@@ -2659,7 +2660,7 @@ def _resume_cleanup(
             outcome=FINISHED,
             reason="cleanup_resumed",
             merge_commit=evidence.commit,
-            finished_at=datetime.now(timezone.utc).isoformat(),
+            finished_at=dispatch_clock.utcnow().isoformat(),
         )
         return FinishResult(
             task_id=task.id,
@@ -2681,7 +2682,7 @@ def _resume_cleanup(
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return dispatch_clock.utcnow()
 
 
 def find_finisher_merge(
@@ -3301,7 +3302,7 @@ def finish_task(
         )
         directory.write_meta(
             outcome=FINISHED,
-            finished_at=datetime.now(timezone.utc).isoformat(),
+            finished_at=dispatch_clock.utcnow().isoformat(),
             seconds=round(time.monotonic() - started, 2),
             merge_commit=result.merge_commit,
         )
@@ -3312,7 +3313,7 @@ def finish_task(
         directory.write_meta(
             outcome=DECLINED,
             reason=exc.reason,
-            finished_at=datetime.now(timezone.utc).isoformat(),
+            finished_at=dispatch_clock.utcnow().isoformat(),
             seconds=round(time.monotonic() - started, 2),
         )
         return FinishResult(
@@ -3333,7 +3334,7 @@ def finish_task(
             stopped_at=exc.step,
             merged=merge_commit is not None,
             merge_commit=merge_commit,
-            finished_at=datetime.now(timezone.utc).isoformat(),
+            finished_at=dispatch_clock.utcnow().isoformat(),
             seconds=round(time.monotonic() - started, 2),
         )
         record_withdrawal(manager, task_id, exc, steps, merge_commit, project.id)
@@ -3361,7 +3362,7 @@ def finish_task(
             stopped_at=exc.step,
             merged=merge_commit is not None,
             merge_commit=merge_commit,
-            finished_at=datetime.now(timezone.utc).isoformat(),
+            finished_at=dispatch_clock.utcnow().isoformat(),
             seconds=round(time.monotonic() - started, 2),
         )
         escalate_on_record(manager, task_id, exc, steps, merge_commit, root=project.root)
@@ -3597,7 +3598,7 @@ def _decline_as_duplicate(
     ending: Dict[str, Any] = {
         "outcome": DECLINED,
         "reason": reason,
-        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "finished_at": dispatch_clock.utcnow().isoformat(),
         "seconds": 0.0,
         DUPLICATE_KEY: other or reason,
     }

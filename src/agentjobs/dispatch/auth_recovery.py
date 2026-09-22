@@ -54,7 +54,6 @@ import hashlib
 import json
 import re
 import subprocess
-import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -73,6 +72,7 @@ from typing import (
 )
 
 from agentjobs.dispatch import auth, peers
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.auth_probe import (
     ProbeClass,
     ProbeRequest,
@@ -174,7 +174,16 @@ def _parse(raw: object) -> Optional[datetime]:
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    """Now, from the subsystem's one time source -- never from the machine directly.
+
+    Every ``clock=`` default in this module resolves here, and so does every
+    ``_parse(row[...]) or utcnow()`` fallback. That is the point: before task-518 the
+    parameters read an injected clock and the fallbacks read the wall clock, so a test
+    driving simulated time had two timelines. They agreed on an idle machine and drifted
+    on a busy one, which is how this file produced a flake that blocked task-147's merge
+    three times in one day.
+    """
+    return dispatch_clock.utcnow()
 
 
 # ----- what a stall is, and whose -------------------------------------------------
@@ -1733,8 +1742,8 @@ class ClaudeSessionNudger:
         quiesce_seconds: float = 30.0,
         poll_seconds: float = 1.0,
         run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
-        sleep: Callable[[float], None] = time.sleep,
-        monotonic: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = dispatch_clock.sleep,
+        monotonic: Callable[[], float] = dispatch_clock.monotonic,
     ) -> None:
         self.prefix = list(prefix)
         self.cwd = Path(cwd)

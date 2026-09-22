@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List
 
@@ -64,6 +65,7 @@ from test_dispatch_finish import (  # noqa: F401 - `world` is a fixture
     settings,
 )
 import test_dispatch_finish
+from skipping_clock import install
 import test_dispatch_handback
 
 APPROVER = "Jeff Posey"
@@ -71,7 +73,15 @@ APPROVER = "Jeff Posey"
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, Any]:
-    """``test_dispatch_finish``'s real clone, branch, worktree and task, reused unchanged."""
+    """``test_dispatch_finish``'s real clone, branch, worktree and task, reused unchanged.
+
+    With one addition: the dispatch subsystem's clock is this test's (task-518). Every
+    wait below is then a threshold at its production value rather than a constant a test
+    set to zero to be able to afford it -- which is the difference between covering the
+    rule and covering the number the test chose. The git, gate and session work stays as
+    real and as slow as it was; only the waiting is free.
+    """
+    install(monkeypatch, datetime.now(timezone.utc))
     built: Dict[str, Any] = test_dispatch_finish.world.__pytest_wrapped__.obj(  # type: ignore[attr-defined]
         tmp_path, monkeypatch
     )
@@ -287,8 +297,21 @@ class TestApprovingWhileTheSessionIsStillAttached:
         monkeypatch.setattr(
             "agentjobs.dispatch.runner.DispatchRunner.stop_session", lambda self, session_id: False
         )
-        monkeypatch.setattr("agentjobs.dispatch.standdown.STAND_DOWN_CONFIRM_SECONDS", 0.0)
-        monkeypatch.setattr("agentjobs.dispatch.standdown.STAND_DOWN_POLL_SECONDS", 0.0)
+        # The threshold under test keeps its production value: the finisher really does
+        # give a stopped session ninety seconds to be observed stopped, and this test
+        # really does wait the whole window out. Both numbers used to be set to zero
+        # here, which made it a test of a window that closes immediately.
+        #
+        # The *cadence* is coarsened, and the reason is worth knowing before anyone
+        # reaches for time-skipping elsewhere: **it makes a wait free, and it does not
+        # make a poll free.** Each turn of this loop is a real `poll_session`, two
+        # subprocesses against the session ledger and its transcript, and ninety seconds
+        # at the production two-second cadence is forty-five of them -- 135s under a
+        # contended gate, which made this the slowest test in the suite. Three polls
+        # prove the same thing the window is here to prove: it closes, nothing merges,
+        # and the run keeps its lock. `scripts/threshold_probe.py` checks that claim by
+        # removing the window and watching this test go red.
+        monkeypatch.setattr("agentjobs.dispatch.standdown.STAND_DOWN_POLL_SECONDS", 30.0)
 
         result = finish(world)
 

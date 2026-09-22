@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Optional
 import pytest
 import yaml
 
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.controller import CAPABILITIES, Controller, capabilities_for
 from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
 from agentjobs.dispatch.journal import journal
@@ -41,6 +42,7 @@ from agentjobs.execution.store import CONTROLLED_BY_CONTROLLER
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, Lifecycle, LogEntryType
 from agentjobs.projects import ProjectRegistry
+from skipping_clock import install
 from support import task_store
 
 TESTS = Path(__file__).resolve().parent
@@ -104,14 +106,30 @@ while not release.exists() and time.monotonic() < deadline:
 
 CRASHING_DISPATCH = r"""
 import os, pathlib, sys
+from datetime import datetime, timedelta
 sys.path.insert(0, sys.argv[5])
 from support import task_store
 from agentjobs.manager import TaskManager
 from agentjobs.projects import ProjectRegistry
 from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
 import agentjobs.dispatch.runner as runner_module
+import agentjobs.clock as clock_module
 
 home, task_id, point, caused_by = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], int(sys.argv[4])
+zero, offset = datetime.fromisoformat(sys.argv[6]), float(sys.argv[7])
+
+class Frozen:
+    # A separate process, so it inherits nothing of the harness's clock but these two
+    # numbers. It has to read the same one: this child writes a run record the parent then
+    # reads "how long ago" from, and two clocks there is the bug task-518 removes.
+    def now(self):
+        return zero + timedelta(seconds=offset)
+    def monotonic(self):
+        return offset
+    def sleep(self, seconds):
+        pass
+
+clock_module.INSTALLED = Frozen()
 project = ProjectRegistry(home=home).get("sandbox")
 manager = TaskManager(task_store(project.root / "tasks", project_id="sandbox"))
 
@@ -149,17 +167,27 @@ print(handle.run_id)
 
 
 class Clock:
-    """Real time plus an offset the test moves: dispatch reads the real clock, and the
-    controller's view of "how long ago" has to agree with it until a test says otherwise."""
+    """This harness's face on the subsystem's one clock (task-518).
 
-    def __init__(self) -> None:
-        self.offset = timedelta()
+    It used to be real time plus an offset, and its own docstring said why: "dispatch
+    reads the real clock, and the controller's view of how long ago has to agree with it
+    until a test says otherwise". Those were two clocks, and every reading of the second
+    one carried however long the machine had taken to get there. Now there is one, and
+    ``advance`` is a wait the production code's own sleep would have made.
+
+    Anchored on the wall clock rather than ahead of it, because task records here are
+    stamped by the manager, which is not part of the dispatch subsystem and still reads
+    real time. What matters is that there is exactly one origin, not where it is.
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.skipping = install(monkeypatch, datetime.now(timezone.utc))
 
     def __call__(self) -> datetime:
-        return datetime.now(timezone.utc) + self.offset
+        return self.skipping.now()
 
     def advance(self, seconds: float) -> None:
-        self.offset += timedelta(seconds=seconds)
+        dispatch_clock.sleep(seconds)
 
 
 def environment(home: Path) -> Dict[str, str]:
@@ -197,7 +225,7 @@ class Machine:
         monkeypatch.delenv("AGENTJOBS_RUN_ID", raising=False)
         ProjectRegistry(home=self.home).add(self.root, project_id="sandbox")
         self.manager = TaskManager(task_store(self.root / "tasks", project_id="sandbox"))
-        self.clock = Clock()
+        self.clock = Clock(monkeypatch)
         self.configure()
 
     def configure(self, *, mode: str = "session", controller: str = "active", **extra: Any) -> None:
@@ -275,6 +303,8 @@ class Machine:
                 point,
                 str(self.authorised_by),
                 str(TESTS),
+                self.clock.skipping.origin.isoformat(),
+                str(self.clock.skipping.elapsed),
             ],
             capture_output=True,
             text=True,
@@ -287,7 +317,6 @@ class Machine:
         return Controller(
             self.home,
             managers={"sandbox": self.manager},
-            clock=self.clock,
             api_base="http://127.0.0.1:9",
         )
 

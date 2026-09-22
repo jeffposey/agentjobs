@@ -37,6 +37,7 @@ from agentjobs.dispatch.finish import (
 from agentjobs.dispatch.finish_receipts import APPLIED, FinishReceipts
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle
 import test_dispatch_finish
+from skipping_clock import install
 from test_dispatch_finish import (
     _interpreter,
     add_served_change,
@@ -50,7 +51,15 @@ from test_dispatch_finish import (
 
 @pytest.fixture
 def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, Any]:
-    """``test_dispatch_finish``'s real clone, branch, worktree and task, reused unchanged."""
+    """``test_dispatch_finish``'s real clone, branch, worktree and task, reused unchanged.
+
+    With one addition, the same as `test_approval_standdown`'s: the process's clock is this
+    test's (task-518). Every deadline these scenarios cross -- the run lock's, the merge
+    runway's, the reconcile window -- is then the production number rather than a wait the
+    suite could not afford. The git, gate and subprocess work stays as real and as slow as
+    it was; a clock skips a wait and cannot skip a process.
+    """
+    install(monkeypatch)
     built: Dict[str, Any] = test_dispatch_finish.world.__pytest_wrapped__.obj(  # type: ignore[attr-defined]
         tmp_path, monkeypatch
     )

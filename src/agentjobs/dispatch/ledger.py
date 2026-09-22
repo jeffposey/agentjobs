@@ -31,7 +31,6 @@ import hashlib
 import os
 import re
 import subprocess
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,6 +38,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import yaml
 
+from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.config import sentinel_path
 from agentjobs.dispatch.record_commit import commit_task_record
 from agentjobs.dispatch.credentials import revoke_run_credential
@@ -276,7 +276,7 @@ class LockHolder:
         if started.tzinfo is None:
             started = started.replace(tzinfo=timezone.utc)
         clock = started.astimezone().strftime("%H:%M:%S")
-        elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+        elapsed = (dispatch_clock.utcnow() - started).total_seconds()
         return f" started at {clock}, {_elapsed_phrase(elapsed)} ago"
 
 
@@ -535,8 +535,8 @@ def acquire_run_lock(
     locks_root(home).mkdir(parents=True, exist_ok=True)
     path = run_lock_path(home, task_id, project_id=project_id)
     legacy = legacy_run_lock_path(home, task_id) if project_id is not None else None
-    deadline = time.monotonic() + timeout
-    started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    deadline = dispatch_clock.monotonic() + timeout
+    started_at = dispatch_clock.utcnow().isoformat(timespec="seconds")
     reclaimed = False
     while True:
         try:
@@ -568,9 +568,9 @@ def acquire_run_lock(
             # name. Its lock is honoured, so an upgrade under a live run cannot put a
             # second run beside it; ours is given back and this counts as contention.
             acquired.release()
-            if time.monotonic() >= deadline:
+            if dispatch_clock.monotonic() >= deadline:
                 raise RunLockTimeout(_lock_refusal(home, task_id, legacy or path, blocker))
-            time.sleep(LOCK_POLL_SECONDS)
+            dispatch_clock.sleep(LOCK_POLL_SECONDS)
             continue
 
         holder = read_lock_holder(path)
@@ -592,9 +592,9 @@ def acquire_run_lock(
                 ).release()
                 continue
 
-        if time.monotonic() >= deadline:
+        if dispatch_clock.monotonic() >= deadline:
             raise RunLockTimeout(_lock_refusal(home, task_id, path, holder))
-        time.sleep(LOCK_POLL_SECONDS)
+        dispatch_clock.sleep(LOCK_POLL_SECONDS)
 
 
 # ----- the repo-scoped finish runway (task-223) --------------------------------
@@ -684,7 +684,7 @@ def acquire_runway_lock(
     Waiting out the timeout to be told the branch was merged and the worktree removed is
     the worst available outcome, and it costs the *next* finish in line its place.
     """
-    deadline = time.monotonic() + timeout
+    deadline = dispatch_clock.monotonic() + timeout
     announced = False
     while True:
         try:
@@ -711,7 +711,7 @@ def acquire_runway_lock(
         if on_poll is not None:
             on_poll()
 
-        if time.monotonic() >= deadline:
+        if dispatch_clock.monotonic() >= deadline:
             holder = read_lock_holder(locks_root(home) / f"{runway_lock_name(root)}.lock")
             described = holder.describe() if holder is not None else "an unreadable lock"
             raise RunLockTimeout(
@@ -721,7 +721,7 @@ def acquire_runway_lock(
                 "of it means the holder is not progressing. Look at what is merging "
                 "there; restarting AgentJobs clears a runway whose holder has ended."
             )
-        time.sleep(poll)
+        dispatch_clock.sleep(poll)
 
 
 def _lock_refusal(home: Path, task_id: str, path: Path, holder: Optional[LockHolder]) -> str:
@@ -1070,7 +1070,7 @@ class RunRecord:
         if self.started_at is None:
             return None
         if self.is_live:
-            moment = now or datetime.now(timezone.utc)
+            moment = now or dispatch_clock.utcnow()
             return (moment - self.started_at).total_seconds()
         if self.finished_at is None:
             return None
@@ -1228,7 +1228,7 @@ def conclude_interactive(
         record,
         status="finished",
         outcome=outcome.value,
-        finished_at=datetime.now(timezone.utc).isoformat(),
+        finished_at=dispatch_clock.utcnow().isoformat(),
         ended=detail,
     )
     release_stale_locks(home)
@@ -1264,7 +1264,7 @@ def _transcript_age_seconds(record: RunRecord) -> Optional[float]:
         modified = path.stat().st_mtime
     except OSError:
         return None
-    return max(0.0, datetime.now(timezone.utc).timestamp() - modified)
+    return max(0.0, dispatch_clock.utcnow().timestamp() - modified)
 
 
 def run_health(record: RunRecord) -> str:
@@ -1683,7 +1683,7 @@ class DispatchLedger:
         sentinel = sentinel_path(self.home)
         sentinel.parent.mkdir(parents=True, exist_ok=True)
         sentinel.write_text(
-            f"written by 'agentjobs dispatch stop' at {datetime.now(timezone.utc).isoformat()}\n",
+            f"written by 'agentjobs dispatch stop' at {dispatch_clock.utcnow().isoformat()}\n",
             encoding="utf-8",
         )
         results = []
@@ -2129,7 +2129,7 @@ class DispatchLedger:
         """
         from agentjobs.dispatch import journal  # local: journal imports runner
 
-        finished = datetime.now(timezone.utc)
+        finished = dispatch_clock.utcnow()
         manager = self.manager_for(record)
         task = manager.get_task(record.task_id) if manager is not None and record.task_id else None
         # From the instant this conclusion is made, not from the record in hand: that

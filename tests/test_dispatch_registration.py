@@ -531,3 +531,117 @@ class TestTheCommand:
         assert result.exit_code == 1
         assert "Refused (session_unknown)" in result.output
         assert list_runs(bench["home"]) == []
+
+
+class TestAMachineThatCouldNotStartTheRunner:
+    """The runner saying no, and the machine failing to start it, are different facts.
+
+    Only the first is evidence about a session, and until task-518 both arrived as
+    "could not read the session ledger". The consequence reached a person: under load,
+    `TestRefusals::test_a_session_the_ledger_does_not_hold_is_refused` got the
+    could-not-read refusal instead of the one that names the session that *is* live, so
+    the answer it is supposed to give was not actionable. Behind it, a poll tick that
+    concluded nothing because `CreateProcess` momentarily failed is a false negative
+    about somebody's live run.
+
+    Windows really does refuse to start processes under enough churn -- `0xC0000142`,
+    `STATUS_DLL_INIT_FAILED`, the loader giving up before the program runs -- and this
+    machine produced it in ordinary shell output on the day task-518 was worked.
+    """
+
+    def _runner(self, bench):
+        from agentjobs.dispatch.config import assert_dispatch_permitted
+        from agentjobs.dispatch.runner import DispatchRunner
+
+        return DispatchRunner(
+            manager=bench["manager"],
+            resolution=assert_dispatch_permitted("sandbox", bench["home"]),
+            project_root=bench["project"].root,
+            home=bench["home"],
+        )
+
+    def test_a_refused_spawn_is_tried_once_more_and_then_answers(self, bench, monkeypatch):
+        import subprocess as subprocess_module
+
+        from agentjobs.dispatch import runner as runner_module
+
+        runner = self._runner(bench)
+        real = subprocess_module.run
+        calls: list[int] = []
+
+        def refuse_once(argv, *args, **kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                raise OSError(8, "Not enough memory resources are available")
+            return real(argv, *args, **kwargs)
+
+        monkeypatch.setattr(runner_module.subprocess, "run", refuse_once)
+        monkeypatch.setattr(runner_module, "_SPAWN_RETRY_SECONDS", 0.0)
+
+        rows = runner.ledger(scoped=False)
+
+        assert len(calls) == 2, "the first refusal was not evidence about any session"
+        assert [row.get("id") for row in rows] == [SESSION]
+
+    def test_the_windows_loader_giving_up_counts_as_a_refused_spawn(self, bench, monkeypatch):
+        import subprocess as subprocess_module
+
+        from agentjobs.dispatch import runner as runner_module
+
+        runner = self._runner(bench)
+        real = subprocess_module.run
+        calls: list[int] = []
+
+        def loader_fails_once(argv, *args, **kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                return subprocess_module.CompletedProcess(
+                    argv, runner_module.DispatchRunner.SPAWN_FAILED_EXIT, "", ""
+                )
+            return real(argv, *args, **kwargs)
+
+        monkeypatch.setattr(runner_module.subprocess, "run", loader_fails_once)
+        monkeypatch.setattr(runner_module, "_SPAWN_RETRY_SECONDS", 0.0)
+
+        assert [row.get("id") for row in runner.ledger(scoped=False)] == [SESSION]
+        assert len(calls) == 2
+
+    def test_twice_refused_says_it_could_not_start_the_runner(self, bench, monkeypatch):
+        from agentjobs.dispatch.runner import DispatchRunError
+        from agentjobs.dispatch import runner as runner_module
+
+        runner = self._runner(bench)
+
+        def always_refuse(argv, *args, **kwargs):
+            raise OSError(8, "Not enough memory resources are available")
+
+        monkeypatch.setattr(runner_module.subprocess, "run", always_refuse)
+        monkeypatch.setattr(runner_module, "_SPAWN_RETRY_SECONDS", 0.0)
+
+        with pytest.raises(DispatchRunError) as caught:
+            runner.ledger(scoped=False)
+        # Once, not until it works: a machine that cannot start two processes a quarter of
+        # a second apart has a problem that should be surfaced rather than papered over.
+        assert "twice" in str(caught.value)
+        assert "could not start" in str(caught.value).lower()
+
+    def test_a_runner_that_ran_and_failed_is_not_retried(self, bench, monkeypatch):
+        """A non-zero exit that is not the loader's is the runner's own answer."""
+        import subprocess as subprocess_module
+
+        from agentjobs.dispatch.runner import DispatchRunError
+        from agentjobs.dispatch import runner as runner_module
+
+        runner = self._runner(bench)
+        calls: list[int] = []
+
+        def answered_badly(argv, *args, **kwargs):
+            calls.append(1)
+            return subprocess_module.CompletedProcess(argv, 2, "", "no such command")
+
+        monkeypatch.setattr(runner_module.subprocess, "run", answered_badly)
+        monkeypatch.setattr(runner_module, "_SPAWN_RETRY_SECONDS", 0.0)
+
+        with pytest.raises(DispatchRunError, match="Session ledger command failed"):
+            runner.ledger(scoped=False)
+        assert calls == [1]

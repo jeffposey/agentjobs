@@ -45,6 +45,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
+from agentjobs import clock as dispatch_clock
 from agentjobs.actors import Actor
 from agentjobs.dispatch.budget import DISPATCHER_ACTOR
 from agentjobs.dispatch.config import (
@@ -490,7 +491,7 @@ def pull_due(
     anything else -- how long a project has been armed, how much of its bound is left --
     would be a scheduler, and the backlog's own order is already the decision.
     """
-    clock = now or (lambda: datetime.now(timezone.utc))
+    clock = now or (lambda: dispatch_clock.utcnow())
     decisions: List[PullDecision] = []
     try:
         store = journal(home)
