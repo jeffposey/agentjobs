@@ -544,6 +544,26 @@ The `webServer` start timeout went from 30s to 90s in the same change. Four inte
 importing the application at once, on a machine that may be running three gates, is not
 the thing 30 seconds was comfortable for.
 
+#### No whole-gate figure is quoted for this change, and that is deliberate
+
+The arms above are `npx playwright test` measured directly, six uncontended runs. **A
+whole-gate re-cut was attempted on 2026-09-22 and thrown away**, because the machine would
+not hold still: the attempt's `pytest` stage took 1522.8s against the 79.3 / 89.1s in the
+table above, having asked for `-n auto` — 32 workers — because `gate_slots` correctly saw
+one gate *at the moment pytest started*. Three more gates began during the twenty-five
+minutes that followed, one at 10:38, one at 10:53 and one at 11:02, and a
+stall-detection timing assertion in `test_dispatch_registration.py` failed under the
+starvation. That is the documented limitation of counting slots once
+([why the count is taken when pytest starts](#how-the-gate-degrades-under-contention)),
+not a new defect, and the failing test is untouched by this change and passes three times
+in isolation on the same branch.
+
+The lesson is the one this file keeps relearning: **a stage figure is only comparable to
+another stage figure measured the same way on a machine in the same state.** The e2e arms
+are quotable because both were taken uncontended, back to back, on one tree. Nothing about
+the whole gate was, so nothing about the whole gate is claimed here. Re-cut the full table
+on a quiet machine before quoting a new total.
+
 **Interaction with `--concurrent`, unmeasured.** That flag already runs `pytest` beside
 `e2e`; with four browsers and four servers under `e2e` the two are contending for more
 than they were, and every figure in
