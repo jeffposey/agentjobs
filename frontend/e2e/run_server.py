@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
+import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Optional
 
 import uvicorn
 import yaml
@@ -17,6 +20,57 @@ from agentjobs.project_setup import build_project_config
 
 PORT_ENV = "AGENTJOBS_E2E_PORT"
 CHECKOUT = Path(__file__).resolve().parents[2]
+DIST_PREFIX = "agentjobs-e2e-dist-"
+"""Names the per-server copy of the built frontend. See :func:`private_bundle`."""
+
+
+def private_bundle_dir(port: int) -> Path:
+    """Where the server on ``port`` keeps its own copy of the built frontend.
+
+    Derived from the port rather than from the server's temporary project directory,
+    because ``capture-draft.spec.ts`` has to *write* to this directory and can only
+    work out where it is from something it already knows. The port is the one thing
+    the two halves have always agreed on.
+    """
+    return Path(tempfile.gettempdir()) / f"{DIST_PREFIX}{port}"
+
+
+def private_bundle(port: int) -> Optional[Path]:
+    """Give this server its own copy of ``frontend_dist``, and serve that instead.
+
+    **Two specs rewrite the bundle while they run.** ``capture-draft.spec.ts`` appends
+    to ``sw.js`` and replaces ``build-info.json`` to make a running tab believe the app
+    has been rebuilt under it, then puts both back. That is the only honest way to test
+    a reload prompt whose whole subject is a bundle changing on disk.
+
+    Served straight out of the checkout, as it was until task-369, that write is visible
+    to **every** server -- and once the suite runs on several workers, three other
+    browsers are on pages whose service workers read exactly that file and reload when
+    its id moves. The neighbour does not fail for its own reason; it fails somewhere in
+    the middle of an unrelated interaction, which is the least diagnosable shape a flake
+    has.
+
+    So each server copies the bundle and serves the copy, and the spec writes to the
+    copy belonging to its own worker. 700 KB and nine files at the time of writing, so
+    the copy costs nothing worth measuring.
+
+    Returns the directory, or ``None`` when this checkout has no bundle at all -- a
+    clone that has never run ``npm run build``, where the app already answers ``/app/``
+    with the sentence that says so, and where the copy would only hide it.
+    """
+    from agentjobs.api import spa
+
+    source = spa.default_frontend_dist()
+    if not source.is_dir():
+        return None
+    target = private_bundle_dir(port)
+    shutil.rmtree(target, ignore_errors=True)
+    shutil.copytree(source, target)
+    # Every read in `spa` goes through this function rather than through a value
+    # captured at import, so replacing it reaches the mount and the per-request
+    # `bundle_id` read alike.
+    spa.default_frontend_dist = lambda: target
+    return target
 
 
 def resolve_port() -> int:
@@ -192,12 +246,19 @@ def main() -> None:
         )
         write_dispatch_config(root / ".agentjobs-home")
         write_model_config(root / ".agentjobs-home", start_stub_provider())
-        uvicorn.run(
-            "agentjobs.api.main:app",
-            host="127.0.0.1",
-            port=port,
-            log_level="warning",
-        )
+        bundle = private_bundle(port)
+        # Named so a spec that cannot find the directory, and a reader of a red run,
+        # both learn where this server's bundle actually is.
+        print(f"[e2e] bundle for {port}: {bundle or 'none built in this checkout'}", flush=True)
+        try:
+            uvicorn.run(
+                "agentjobs.api.main:app",
+                host="127.0.0.1",
+                port=port,
+                log_level="warning",
+            )
+        finally:
+            shutil.rmtree(private_bundle_dir(port), ignore_errors=True)
 
 
 if __name__ == "__main__":

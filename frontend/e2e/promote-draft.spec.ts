@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
 /**
  * The loop the dashboard already promises: a human writes a draft, the dashboard's
@@ -22,6 +22,13 @@ async function createTask(page: Page, title: string, lifecycle: "Draft" | "Ready
   await expect(page).toHaveURL(/\/tasks\?status=all$/);
 }
 
+/** The Dashboard's "Active tasks" card, found by the heading a reader sees on it. */
+function activeTasks(page: Page) {
+  return page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: /^Active tasks/ }) });
+}
+
 /**
  * Open a task's detail page the way a user does: by clicking it in the task list.
  *
@@ -42,9 +49,8 @@ test("walks the whole drafts loop: create, find through the dashboard, promote",
   await createTask(page, "Draft to promote", "Draft");
 
   // Find it the way the dashboard invites. Not the drafts *panel*: since task-337 that
-  // renders only when there is nothing claimable to offer instead, and this directory
-  // shares one project across every spec -- so whether it is on screen depends on what
-  // ran before.
+  // renders only when there is nothing claimable to offer instead, so whether it is on
+  // screen depends on what ran before this on the same worker.
   //
   // The unconditional route used to be the "+N in backlog" link under the statistics
   // card. task-294 took that card off the Dashboard, and this is the route that
@@ -52,8 +58,13 @@ test("walks the whole drafts loop: create, find through the dashboard, promote",
   // the same reason, and then the Tasks surface's own Status filter. Three clicks rather
   // than one since task-356 put that filter behind a button, and every step of it is a
   // control a person can see.
+  //
+  // Scoped to that section, because the drafts panel's own link also begins "View all"
+  // and the two are ambiguous whenever both are on screen. Until task-369 that was rare
+  // enough to look like it could not happen: every spec shared one project, and by the
+  // time this one ran there was always something claimable in it.
   await page.goto("/app/");
-  await page.getByRole("link", { name: /^View all/ }).click();
+  await activeTasks(page).getByRole("link", { name: /^View all/ }).click();
   await expect(page).toHaveURL(/\/tasks$/);
   await page.getByRole("button", { name: /^Filters/ }).click();
   await page.getByLabel("Status").selectOption("draft");

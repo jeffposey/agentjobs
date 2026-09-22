@@ -1,8 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
 /**
  * The capture form across a page that goes away (task-512).
@@ -83,16 +82,6 @@ async function draftOnDisk(page: Page): Promise<string | null> {
   );
 }
 
-/** The packaged build this checkout's server is serving. */
-const DIST = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "src",
-  "agentjobs",
-  "frontend_dist",
-);
-
 /** Wait until a service worker is actually driving this tab. */
 async function waitForControl(page: Page) {
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, {
@@ -117,9 +106,9 @@ async function waitForControl(page: Page) {
  * test that leaves the tree different from how it found it is a test that fails
  * somewhere else.
  */
-async function rebuildFrontend(page: Page, revision: string) {
-  const swPath = resolve(DIST, "sw.js");
-  const infoPath = resolve(DIST, "build-info.json");
+async function rebuildFrontend(page: Page, revision: string, dist: string) {
+  const swPath = resolve(dist, "sw.js");
+  const infoPath = resolve(dist, "build-info.json");
   const sw = await readFile(swPath, "utf8");
   const info = await readFile(infoPath, "utf8");
   await writeFile(swPath, `${sw}\n// rebuilt for ${revision}\n`, "utf8");
@@ -231,7 +220,7 @@ test("collecting a finding clears its draft, so a reload shows the tray and an e
   expect(tasks.filter((task) => task.title === "Collected before the reload")).toHaveLength(1);
 });
 
-test("a rebuild still reloads a tab where nobody is typing", async ({ page }) => {
+test("a rebuild still reloads a tab where nobody is typing", async ({ page, bundleDir }) => {
   // The unchanged half of the behaviour, and the reason the guard is a guard rather
   // than a switch: a stale bundle talking to a new server is a real problem, and an
   // idle tab is exactly where reloading it costs nothing.
@@ -239,7 +228,7 @@ test("a rebuild still reloads a tab where nobody is typing", async ({ page }) =>
   await waitForControl(page);
   await markPage(page);
 
-  const restore = await rebuildFrontend(page, "idletab00000");
+  const restore = await rebuildFrontend(page, "idletab00000", bundleDir);
   try {
     await page.waitForFunction(
       () => (window as unknown as { __survived?: string }).__survived === undefined,
@@ -255,6 +244,7 @@ test("a rebuild still reloads a tab where nobody is typing", async ({ page }) =>
 
 test("a rebuild does not take a tab that is holding unsent text; the banner offers it", async ({
   page,
+  bundleDir,
 }) => {
   await page.goto("/app/p/_local");
   await waitForControl(page);
@@ -266,7 +256,7 @@ test("a rebuild does not take a tab that is holding unsent text; the banner offe
     .fill("Half a thought, and nobody has pressed anything yet.");
   await markPage(page);
 
-  const restore = await rebuildFrontend(page, "typingtab000");
+  const restore = await rebuildFrontend(page, "typingtab000", bundleDir);
   try {
     // The new worker genuinely takes control -- this is not a test of a rebuild that
     // did not happen -- and the page stays exactly where it was.

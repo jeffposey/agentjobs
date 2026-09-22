@@ -404,6 +404,7 @@ the whole point of printing it.
 | 8 | `vitest` | the jsdom component tests | 5.2s | 28.4 / 7.2s |
 | 9 | `build` | `tsc --noEmit` and the production bundle | 3.7s | 4.5 / 4.3s |
 | 10 | `e2e` | the Playwright suite against a live server | 25.0s | 135.3 / 138.8s |
+| | | *the same stage on 2026-09-22, one worker then four* | | *307s then 107s* |
 | | | | **95.8s** | **254.3 / 245.8s** |
 
 A `roadmap` stage sat between `icons` and `oxlint` from 2026-09-11 to 2026-09-13. It
@@ -411,17 +412,25 @@ checked the roadmap files against the task store rather than the tree, so a task
 anywhere turned every branch red; task-413 took out the listing half and task-427 the
 page half. The roadmap playbook runs that audit now.
 
-**The gate is now bounded by `e2e`, not by `pytest`** — 138.8s against 89.1s — and every
-argument in this file that assumes otherwise was written before that was true. The
-task-268 spec's critical-path arithmetic, "max(pytest 52s, api+build+e2e 33s) ≈ 52s", now
-reads max(89s, 146s) ≈ 146s, which is where the concurrent runner below actually lands.
+**On 2026-09-06 the gate was bounded by `e2e`, not by `pytest`** — 138.8s against 89.1s —
+and every argument in this file written before that assumed otherwise. The task-268 spec's
+critical-path arithmetic, "max(pytest 52s, api+build+e2e 33s) ≈ 52s", read
+max(89s, 146s) ≈ 146s, which is where the concurrent runner below lands.
+
+**Task-369 took that back**, from a median 307s to 107s on 2026-09-22 — by which date the
+one-worker stage had reached 307s on its own, not the 138.8s in the column above. The
+stage moved twice in a fortnight and in opposite directions, so read
+[the Playwright suite runs on four workers](#the-playwright-suite-runs-on-four-workers-task-369-2026-09-22)
+before quoting either number.
 
 Four of the moves have named causes. `api` and `icons` fell because task-268 stopped
 routing their Python halves through `npm run` and a nested `poetry run` — measured on
 this machine, three interleaved reps against `main`'s own `check.py` in one worktree, the
 pair together went 6.5 / 6.4 / 7.0s to 3.6 / 3.6 / 4.3s. `pytest` and `e2e` rose because
 the suites did: 2538 tests to 4152, and the Playwright suite to 107 tests on one worker.
-Neither per-test cost moved.
+Neither per-test cost had moved *by that date*. The Playwright one moved afterwards, from
+1.30s to 1.78s over the next fortnight, which task-369 measured and this file had no
+reason to go looking for.
 
 `vitest`'s 28.4s in the first run and 7.2s in the second is Vite's dependency
 pre-bundling, paid once per worktree. It is the reason two runs are quoted rather than one.
@@ -435,6 +444,112 @@ first-touch I/O over 62 MB of small files, not analysis: `mypy -v` reports 1288 
 metadata entries fresh in the copied-cache run. The one entry it never finds is
 `tests/test_mcp_server.py`, and one stale module in that graph makes mypy deserialise 798
 SCCs it would otherwise skip.
+
+### The Playwright suite runs on four workers (task-369, 2026-09-22)
+
+**First, what the re-measurement found, because it is a bigger number than the fix.**
+Task-268 measured `e2e` at 135.3 / 138.8s over **107 tests** on 2026-09-06. Fifteen days
+later, same machine, same one worker, same uncontended conditions: **318 / 307 / 305s over
+172 tests.** Both halves moved. The suite grew 61%, and the cost of a test grew with it —
+1.30s each in September's measurement against 1.78s now — so "the suite grew" is only half
+the account, and the sentence in the stage table above saying neither per-test cost moved
+was true when it was written and is not true now.
+
+Where the extra half-second is, as far as one breakdown shows: **two files hold 29% of the
+suite's measured test time** — `dashboard-one-screen.spec.ts` at 40.7s and
+`attention-badge.spec.ts` at 36.3s, out of 263.6s. The second is slow by construction: its
+largest test sets a 120-second budget because it has to sit through two revision polls 15
+seconds apart, which is the only way to prove a badge refreshes without a reload. Tests
+that *wait* cost what they wait for, and the suite has been acquiring them.
+
+#### Before and after
+
+Three runs of each arm, uncontended, in `worktrees/agentjobs-369`, on the same commit
+apart from the change itself. Wall clock is `npx playwright test` end to end; the summed
+column is what the tests themselves measured, which is the work the arms share.
+
+| Arm | Run 1 | Run 2 | Run 3 | Median | Summed test time |
+|---|---|---|---|---|---|
+| `workers: 1` (before) | 318s | 307s | 305s | **307s** | 282 / 267 / 264s |
+| `workers: 4` (after) | 103s | 107s | 108s | **107s** | 245 / 271 / 265s |
+
+**2.9×, and 200s off the gate's critical path.** All 172 tests ran in all six runs; the
+summed test time is unchanged between the arms, which is the check that the saving is
+scheduling and not tests quietly not running.
+
+#### Why four, and where the floor is
+
+The suite parallelises **by file** — `fullyParallel: false` stays, because several specs
+build fixtures in a `beforeAll` and read them across the tests below, and a few assert on
+an ordering the tests above them established. So the longest file is a floor no worker
+count can go under: 40.7s, `dashboard-one-screen.spec.ts`. Against 264s of total test time
+that gives `264/4 = 66s` at four workers and `44s` at six, after which the floor binds and
+nothing is left to win. Four is chosen there rather than six for two reasons that are not
+about the arithmetic: this machine routinely runs three gates at once, and the port block
+(`frontend/e2e/ports.ts`) divides the gate's historic 20000–29999 into 2500 blocks at a
+width of four — the same range, so a concurrent `scripts/bench.py` still cannot collide
+with a gate, at the cost of taking two checkouts' collision odds from 1 in 10000 to 1 in
+2500.
+
+#### One server per worker, and what that had to isolate
+
+Every spec shared one server and one temporary project, and the deferral in task-268
+named three hazards. The answer to all three is the same: **each worker starts its own
+`run_server.py`**, which already builds a throwaway project and a throwaway
+`AGENTJOBS_HOME` per process. A second server is therefore a second database, a second
+queue, a second dispatch configuration and a second run ledger, so `dispatch.spec.ts` and
+`live-runs.spec.ts` — the two the deferral expected to have to quarantine — run in
+parallel with everything else. **Nothing is quarantined.** The alternative considered and
+rejected was one server serving a project per worker: it would have meant threading a
+project id through roughly 170 hard-coded `_local` references and would still have left
+those two specs sharing one machine.
+
+The per-file audit that decides what needs isolating is in
+[`frontend/e2e/README.md`](https://github.com/jeffposey/agentjobs/blob/main/frontend/e2e/README.md),
+and `frontend/src/test/e2eInventory.test.ts` fails when it stops describing the directory.
+
+**Three things the audit did not predict and running it did**, all of them latent defects
+the shared project had been hiding rather than regressions:
+
+- **The built bundle is shared too.** `capture-draft.spec.ts` rewrites `sw.js` and
+  `build-info.json` to make a tab believe the app was rebuilt under it. Out of the
+  checkout, that write reaches every worker's service worker, and three other browsers
+  reload mid-interaction — a neighbour failing for a reason with no trace of itself in it.
+  `run_server.py` now copies the bundle per server; it is 700 KB and nine files.
+- **A spec was relying on the corpus its neighbours left.** `tasks-shell.spec.ts` skipped
+  its own central assertion when the task list was shorter than one screen, which on a
+  shared project it never was. Isolation made it short, and the test stopped running
+  without failing — the failure mode a conditional skip always has. It now files the rows
+  it needs and asserts the condition instead of skipping on it.
+- **A locator was ambiguous and had never met the state that showed it.**
+  `promote-draft.spec.ts` clicked `/^View all/` on the Dashboard; the drafts panel's link
+  starts the same way and renders only when nothing is claimable, which on a shared
+  project was never true by the time that spec ran.
+
+#### What it costs: the browser death gets more chances
+
+The failure [task-404](#a-browser-that-was-gone-before-its-test-started-task-404)
+describes — a Chromium terminated between two tests, seen as `browser.newContext: Target
+page, context or browser has been closed` with no source location — **appeared in four of
+six parallel runs and none of three serial ones.** Small samples, and task-404's own
+corpus is a per-run rate measured with one browser, so this does not establish that four
+browsers make it four times as likely. It is the obvious hypothesis, and the practical
+point stands either way: the gate's narrow retry is now load-bearing where before it was
+insurance. It retries once, and only when *every* failure on the run is that shape, so a
+run that draws two deaths in two passes is still red. Nothing here changes that rule;
+raising the retry would hide the browser deaths an application could cause, which is the
+whole reason the rule is narrow.
+
+The `webServer` start timeout went from 30s to 90s in the same change. Four interpreters
+importing the application at once, on a machine that may be running three gates, is not
+the thing 30 seconds was comfortable for.
+
+**Interaction with `--concurrent`, unmeasured.** That flag already runs `pytest` beside
+`e2e`; with four browsers and four servers under `e2e` the two are contending for more
+than they were, and every figure in
+[Running the stages concurrently](#running-the-stages-concurrently-task-268-2026-09-06)
+predates this change. The flag is off by default and writes no receipt, so nothing that
+gates a branch depends on those numbers — but they should be re-cut before it is promoted.
 
 ### The three figures, and which to quote
 

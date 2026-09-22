@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 /**
  * The machine-wide live-run surfaces, against a real run (task-328).
@@ -18,7 +18,7 @@ const project = "/app/p/_local";
 /** Below `NAV_INLINE_MIN_PX` the destinations are behind the burger. */
 const NAV_INLINE_MIN_PX = 822;
 
-async function openRunsTab(page: import("@playwright/test").Page) {
+async function openRunsTab(page: import("./fixtures").Page) {
   if ((page.viewportSize()?.width ?? 0) < NAV_INLINE_MIN_PX) {
     await page.getByRole("button", { name: "Navigation" }).click();
   }
@@ -26,7 +26,7 @@ async function openRunsTab(page: import("@playwright/test").Page) {
   await expect(page).toHaveURL(new RegExp(`${project}/runs$`));
 }
 
-const badge = (page: import("@playwright/test").Page) =>
+const badge = (page: import("./fixtures").Page) =>
   page.getByTestId("live-run-count").first();
 
 test("an idle machine says so, in the badge and on both surfaces", async ({ page }) => {

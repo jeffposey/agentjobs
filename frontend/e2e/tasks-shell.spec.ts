@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 /**
  * task-237: the Tasks surface is two regions that scroll independently, and the page
@@ -100,6 +100,52 @@ async function rowInPort(page: Page) {
   return taskId as string;
 }
 
+/**
+ * Enough open tasks that the list overflows its own region, filed by this spec.
+ *
+ * It used to rely on the corpus every other spec had left in the shared project, and
+ * skipped itself when that happened to be short. Task-369 gave each worker its own
+ * project, the corpus stopped being reliably long, and the test quietly stopped running
+ * -- which is the failure mode a conditional skip always has and the reason this one is
+ * no longer reachable in the ordinary case.
+ *
+ * Closed again by `afterAll`, for the reason `longTask` is closed immediately: the files
+ * that follow this one on the same worker should not inherit a backlog from it.
+ */
+const CROWD = 24;
+let crowdIds: string[] = [];
+
+async function crowd(request: APIRequestContext) {
+  if (crowdIds.length) return crowdIds;
+  for (let index = 0; index < CROWD; index += 1) {
+    const created = await request.post("/api/tasks", {
+      data: {
+        title: `A row to scroll past, number ${index + 1}`,
+        summary: "Exists so the list is taller than the region it is read in.",
+        description: "One of a crowd; this spec files its own.",
+        lifecycle: "ready",
+        category: "ux",
+        actor: "E2E Human",
+      },
+    });
+    expect(created.ok()).toBeTruthy();
+    crowdIds.push((await created.json()).id as string);
+  }
+  return crowdIds;
+}
+
+test.afterAll(async ({ playwright, serverURL }) => {
+  if (!crowdIds.length) return;
+  const api = await playwright.request.newContext({ baseURL: serverURL });
+  for (const id of crowdIds) {
+    await api.post(`/api/tasks/${id}/close`, {
+      data: { actor: "E2E Human", outcome: "cancelled", body: "Scroll fixture; nothing to do." },
+    });
+  }
+  await api.dispose();
+  crowdIds = [];
+});
+
 test("the list and the record sit side by side, and the page itself does not scroll", async ({
   page,
   request,
@@ -158,15 +204,19 @@ test("selecting another task changes the record and leaves the list scrolled whe
   request,
 }) => {
   await longTask(request);
+  await crowd(request);
   await page.setViewportSize(LANDSCAPE);
   await page.goto("/app/p/_local/tasks");
   await expect(page.getByRole("region", { name: "Tasks" })).toBeVisible();
 
-  const room = (await region(page, "list"))!.room;
-  // A list shorter than its region has nothing to lose, so there would be nothing to
-  // assert. The shared corpus is normally far longer than one screen; skip rather than
-  // pass silently if it is not.
-  test.skip(room < 100, "this project's list fits its region, so there is no scroll to keep");
+  // Asserted rather than skipped on. A list shorter than its region has nothing to lose,
+  // so there would be nothing to test -- and this spec now files the rows that make it
+  // long, so a short one means the fixture failed and not that today's corpus is small.
+  await expect
+    .poll(async () => (await region(page, "list"))!.room, {
+      message: "the list is taller than its region, so there is a scroll to keep",
+    })
+    .toBeGreaterThanOrEqual(100);
 
   await page.evaluate(() => {
     const list = document.querySelector('[data-region="list"]')!;

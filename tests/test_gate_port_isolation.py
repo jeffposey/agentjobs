@@ -21,6 +21,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 
+from agentjobs.api import spa as _spa  # noqa: E402
+
+_ORIGINAL_DIST = _spa.default_frontend_dist
+"""Held so a test that repoints the bundle can put the real one back."""
+
 
 def load_script(name: str) -> types.ModuleType:
     """Load a repository script by path, without making ``scripts/`` a package.
@@ -78,22 +83,48 @@ class TestBenchPortIsDerived:
 
 
 def _gate_port_bounds() -> tuple[int, int]:
-    """Read the gate's port range straight out of the Playwright config."""
-    source = (FRONTEND / "playwright.config.ts").read_text(encoding="utf-8")
-    base = int(source.split("PORT_BASE = ", 1)[1].split(";", 1)[0])
-    span = int(source.split("PORT_SPAN = ", 1)[1].split(";", 1)[0])
+    """Read the gate's port range straight out of the Playwright port module.
+
+    Task-369 gave each Playwright worker its own server, so the gate wants a *block* of
+    ports rather than one. The block is carved out of the same 20000-29999 the gate has
+    always owned -- that is the property the bench-collision test below depends on, and
+    the reason the span is divided rather than extended.
+    """
+    source = (FRONTEND / "e2e" / "ports.ts").read_text(encoding="utf-8")
+    base = int(source.split("PORT_BASE = ", 1)[1].split(";", 1)[0].replace("_", ""))
+    span = int(source.split("PORT_SPAN = ", 1)[1].split(";", 1)[0].replace("_", ""))
     return base, base + span
 
 
 class TestNoGatePortIsHardcoded:
     """Neither half of the Playwright pair carries a literal port."""
 
-    def test_the_playwright_config_derives_its_port(self) -> None:
-        source = (FRONTEND / "playwright.config.ts").read_text(encoding="utf-8")
+    def test_the_playwright_ports_are_derived(self) -> None:
+        source = (FRONTEND / "e2e" / "ports.ts").read_text(encoding="utf-8")
         assert "18940" not in source
         assert "checkoutRoot()" in source
-        # The webServer must be handed the same number the baseURL watches.
-        assert "AGENTJOBS_E2E_PORT" in source
+
+    def test_the_config_passes_a_port_to_every_server_it_starts(self) -> None:
+        """One server per worker, each told which port it owns and none guessing."""
+        source = (FRONTEND / "playwright.config.ts").read_text(encoding="utf-8")
+        assert "18940" not in source
+        # The webServer must be handed the same number its baseURL watches.
+        assert "AGENTJOBS_E2E_PORT" not in source, "the name belongs to e2e/ports.ts"
+        assert "PORT_ENV" in source
+        assert "ports.map(" in source
+
+    def test_every_worker_gets_a_port_inside_the_block(self) -> None:
+        """A worker outside the gate's range could land on the benchmark's."""
+        source = (FRONTEND / "e2e" / "ports.ts").read_text(encoding="utf-8")
+        max_workers = int(source.split("MAX_WORKERS = ", 1)[1].split(";", 1)[0])
+        base, top = _gate_port_bounds()
+        span = top - base
+        # Blocks of `MAX_WORKERS` consecutive ports must tile the span exactly: a
+        # remainder would put the highest block's last worker past the top of the range
+        # and into whatever owns the ports above it.
+        assert span % max_workers == 0
+        highest_first = base + span - max_workers
+        assert highest_first + max_workers - 1 == top - 1
 
     def test_the_config_still_refuses_to_reuse_a_server(self) -> None:
         """Attaching to another checkout's server would be worse than failing."""
@@ -142,7 +173,7 @@ def _load_run_server() -> types.ModuleType:
 def test_the_checkout_is_named_when_a_port_is_claimed() -> None:
     """A bind failure has to be diagnosable without reading the config (ac-3)."""
     config = (FRONTEND / "playwright.config.ts").read_text(encoding="utf-8")
-    assert "console.log" in config and "checkout ${root}" in config
+    assert "console.log" in config and "checkout ${checkoutRoot()}" in config
 
     server = (FRONTEND / "e2e" / "run_server.py").read_text(encoding="utf-8")
     assert "serving {CHECKOUT}" in server
@@ -160,3 +191,62 @@ def test_bench_default_port_follows_this_checkout() -> None:
 def test_environment_is_not_leaked_between_tests() -> None:
     """Sanity: the override variables are absent in a normal run."""
     assert os.environ.get(bench.BENCH_PORT_ENV) in (None, "")
+
+
+class TestEachServerServesItsOwnBundle:
+    """Task-369: a spec that rewrites the bundle must not rewrite a neighbour's.
+
+    ``capture-draft.spec.ts`` edits ``sw.js`` and ``build-info.json`` to make a running
+    tab believe the app was rebuilt under it. Served out of the checkout, that write
+    reaches every worker's service worker at once, and three other browsers reload in
+    the middle of whatever they were doing. Each server therefore copies the bundle.
+    """
+
+    def test_two_servers_choose_two_directories(self) -> None:
+        server = _load_run_server()
+        assert server.private_bundle_dir(23624) != server.private_bundle_dir(23625)
+
+    def test_the_directory_is_derived_from_the_port_alone(self) -> None:
+        """The spec computes the same path in TypeScript, from its own worker's URL."""
+        server = _load_run_server()
+        assert server.private_bundle_dir(23624).name == f"{server.DIST_PREFIX}23624"
+
+    def test_the_fixture_and_the_spec_agree_on_the_name(self) -> None:
+        source = (FRONTEND / "e2e" / "fixtures.ts").read_text(encoding="utf-8")
+        server = _load_run_server()
+        assert f"{server.DIST_PREFIX}${{port}}" in source
+
+    def test_a_copy_is_made_and_served(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from agentjobs.api import spa
+
+        source = tmp_path / "frontend_dist"
+        (source / "assets").mkdir(parents=True)
+        (source / "build-info.json").write_text('{"bundle_id": "original"}', encoding="utf-8")
+        monkeypatch.setattr(spa, "default_frontend_dist", lambda: source)
+
+        server = _load_run_server()
+        monkeypatch.setattr(server, "private_bundle_dir", lambda port: tmp_path / f"copy-{port}")
+        try:
+            target = server.private_bundle(23624)
+            assert target is not None
+            assert target != source
+            assert (target / "build-info.json").is_file()
+            # What the app reads is the copy, so a write to the copy is what it sees --
+            # and a write to the checkout's own bundle is what it no longer sees.
+            assert spa.default_frontend_dist() == target
+            (target / "build-info.json").write_text('{"bundle_id": "rebuilt"}', encoding="utf-8")
+            assert spa.bundle_id() == "rebuilt"
+        finally:
+            spa.default_frontend_dist = _ORIGINAL_DIST
+
+    def test_a_checkout_with_no_bundle_is_left_alone(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A clone that never ran `npm run build` already says so; a copy would hide it."""
+        from agentjobs.api import spa
+
+        monkeypatch.setattr(spa, "default_frontend_dist", lambda: tmp_path / "absent")
+        server = _load_run_server()
+        assert server.private_bundle(23624) is None

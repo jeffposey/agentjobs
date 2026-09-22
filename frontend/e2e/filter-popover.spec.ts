@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 /**
  * task-356: the filter controls behind a button rather than permanently on screen.
@@ -102,8 +102,8 @@ test.describe("the filter controls behind a button", () => {
   let fixtures: Awaited<ReturnType<typeof seed>>;
   let api: APIRequestContext;
 
-  test.beforeAll(async ({ playwright, baseURL }) => {
-    api = await playwright.request.newContext({ baseURL });
+  test.beforeAll(async ({ playwright, serverURL }) => {
+    api = await playwright.request.newContext({ baseURL: serverURL });
     fixtures = await seed(api);
   });
 
