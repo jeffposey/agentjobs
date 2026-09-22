@@ -27,6 +27,7 @@ import {
   getQueueApiProjectsProjectIdQueueGetOptions,
   getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetOptions,
   approveTaskApiProjectsProjectIdTasksTaskIdApprovePostMutation,
+  checkTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostMutation,
   createTaskApiProjectsProjectIdTasksPostMutation,
   dispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostMutation,
   listBrokenTasksApiProjectsProjectIdTasksBrokenGetOptions,
@@ -847,6 +848,11 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   const promote = useMutation(promoteTaskApiProjectsProjectIdTasksTaskIdPromotePostMutation());
   const addNote = useMutation(appendLogEntryApiProjectsProjectIdTasksTaskIdLogPostMutation());
   const update = useMutation(updateTaskApiProjectsProjectIdTasksTaskIdPatchMutation());
+  const runChecks = useMutation(checkTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostMutation());
+  // Held here rather than read off `runChecks.error` for the same reason the promote
+  // banner is: a refusal from a dispatch gate survives the refetch that follows, and
+  // the reader has to still be able to see why nothing ran.
+  const [checksError, setChecksError] = useState<DispatchRefusal | null>(null);
   const [fieldsError, setFieldsError] = useState<string | null>(null);
   // The tag and category vocabulary the edit form completes against, fetched only once
   // somebody opens that form. It is the whole task list, which is the heaviest read
@@ -922,6 +928,35 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
         await refresh();
       }}
       onReject={async (reason) => { if (!user) return; await reject.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, reason } }); await navigate(`/p/${encodeURIComponent(projectId)}/tasks`, { replace: true }); }}
+      checksBusy={runChecks.isPending}
+      checksRefusal={checksError}
+      onRunChecks={async () => {
+        setChecksError(null);
+        try {
+          // No body, and there never is one: the checks that run are the argv lists
+          // the record already carries. A browser naming a command for this machine to
+          // execute is the act task-147 put behind the dispatch gate, and the request
+          // shape is where that is made impossible rather than merely discouraged.
+          await runChecks.mutateAsync({ path: { project_id: projectId, task_id: taskId } });
+        } catch (error) {
+          const refusal = readRefusal(error);
+          // Carried through as the gate's own answer, reason code and all. Which gate
+          // refused -- dispatch off, this project not enabled, no checks on the task --
+          // is the only useful thing about one of these, and it is what decides how the
+          // panel renders it.
+          setChecksError(
+            refusal
+              ? { reason: refusal.code, message: refusal.message, suggestedAction: refusal.suggestedAction }
+              : {
+                  reason: "unreachable",
+                  message: "The checks could not be run. Reload the page and try again.",
+                },
+          );
+        }
+        // Either way: a pass that ran wrote statuses and an entry, and a pass that was
+        // refused may still have been refused because the record moved under the page.
+        await refresh();
+      }}
       fieldsBusy={update.isPending}
       fieldsError={fieldsError}
       fieldsVocabulary={vocabulary}

@@ -198,8 +198,15 @@ export function runStateLabel(run: DispatchRunView): string {
  * describes their action. Announcing the first as an alert makes a screen reader
  * interrupt on every task page, and makes `getByRole("alert")` on any other page
  * ambiguous -- which is how this was found.
+ *
+ * Exported since task-152, because the Run checks button meets the *same gate*: running
+ * a check starts a process of the record's choosing, so `POST .../check` goes through
+ * `assert_dispatch_permitted` and comes back under these same reason codes. The server
+ * renders those refusals once for exactly this reason -- `dispatch_refusal_error` is
+ * shared between the dispatch route and the check route -- and two renderings on this
+ * side would be the same mistake, one screen lower.
  */
-function RefusalNote({
+export function RefusalNote({
   refusal,
   answered = true,
   children,

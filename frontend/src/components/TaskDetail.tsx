@@ -11,6 +11,7 @@ import type {
 // itself, not just the detail envelope around it. See api/types.ts for why it is aliased.
 import type { TaskFinishView, TaskRead } from "../api/types";
 import { toUploads, type PendingAttachment } from "../report/attachments";
+import { AcceptanceSection } from "./AcceptanceChecks";
 import { AttachmentPicker } from "./AttachmentPicker";
 import {
   QuestionForm,
@@ -21,7 +22,7 @@ import {
 } from "./QuestionForm";
 import { DependencyGraph } from "./DependencyGraph";
 import { DependencyState } from "./DependencyState";
-import { DispatchPanel, type DispatchPanelProps } from "./DispatchPanel";
+import { DispatchPanel, type DispatchPanelProps, type DispatchRefusal } from "./DispatchPanel";
 import { FinishPanel } from "./FinishPanel";
 import { identityHeadline } from "./identityProblem";
 import { linkSegments } from "./linkify";
@@ -885,6 +886,17 @@ export type TaskDetailProps = {
   // Null is the ordinary value and means no finish has ever run for this task, which is
   // true of almost every one. The panel renders nothing for it.
   finish?: TaskFinishView | null;
+  // Running the acceptance checks is its own act with its own failure, for the same
+  // reason the note composer's is: a refusal has to say so on a task whose review
+  // actions are not rendered at all. Absent, the acceptance list renders its results
+  // and offers no button -- which is what a read-only surface should do with a control
+  // that starts processes on this machine.
+  onRunChecks?: () => void | Promise<void>;
+  checksBusy?: boolean;
+  // The gate's own answer, passed through rather than paraphrased. Which gate refused
+  // is the only useful thing about one of these, and only the server knows it -- so it
+  // arrives as the refusal and is rendered by the component the Dispatch panel uses.
+  checksRefusal?: DispatchRefusal | null;
 };
 
 export function TaskDetail(props: TaskDetailProps) {
@@ -1030,7 +1042,15 @@ export function TaskDetail(props: TaskDetailProps) {
         {task.spec.constraints && <div><h2 className="mb-2 text-lg font-semibold">Constraints</h2><SpecText>{task.spec.constraints}</SpecText></div>}
         {task.spec.out_of_scope && <div><h2 className="mb-2 text-lg font-semibold">Out of scope</h2><SpecText muted>{task.spec.out_of_scope}</SpecText></div>}
         {(task.spec.context?.length ?? 0) > 0 && <div><h2 className="mb-2 text-lg font-semibold">Read this first</h2><ul className="space-y-2">{task.spec.context?.map((pointer) => <li className="text-sm" key={pointer.path}><code className="break-all text-blue-300">{pointer.path}</code><span className="text-dark-muted"> — {pointer.why}</span></li>)}</ul></div>}
-        {(task.acceptance?.length ?? 0) > 0 && <div><h2 className="mb-2 text-lg font-semibold">Acceptance</h2><ul className="space-y-2">{task.acceptance?.map((criterion) => <li className="rounded-lg border border-dark-border bg-dark-bg p-3 text-sm" key={criterion.id}><span className="mr-2 uppercase text-dark-muted">{criterion.status ?? "pending"}</span>{criterion.text}{criterion.verify && <code className="mt-1 block text-xs text-dark-muted">{criterion.verify}</code>}</li>)}</ul></div>}
+        {(task.acceptance?.length ?? 0) > 0 && (
+          <AcceptanceSection
+            acceptance={task.acceptance ?? []}
+            log={task.log ?? []}
+            onRunChecks={props.onRunChecks}
+            running={props.checksBusy}
+            refusal={props.checksRefusal}
+          />
+        )}
       </section>
 
       {(task.deliverables?.length ?? 0) > 0 && <section className="rounded-lg border border-dark-border bg-dark-surface" aria-label="Deliverables"><h2 className="border-b border-dark-border p-4 text-lg font-semibold">Deliverables</h2><div className="divide-y divide-dark-border">{task.deliverables?.map((item) => <div className="p-4" key={item.path}><code className="break-all text-sm">{item.path}</code><span className="ml-2 text-xs uppercase text-dark-muted">{item.status ?? "pending"}</span>{item.note && <p className="mt-1 text-sm text-dark-muted">{item.note}</p>}</div>)}</div></section>}
