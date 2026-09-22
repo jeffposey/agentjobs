@@ -172,6 +172,14 @@ class MutationResult(BaseModel):
     queue_warnings: List[QueueMoveWarning] = Field(default_factory=list)
     #: The placement that puts the task back, offered only alongside a warning.
     queue_undo: Optional[Dict[str, Any]] = None
+    #: The task's unmet `needs`, as the service computed them (task-150).
+    #:
+    #: Lifted off the returned `TaskRead`, which has carried it since task-332, rather
+    #: than added to the envelope: it is already on the wire, and the stored `Task` this
+    #: result parses into deliberately does not hold it -- whether a dependency is open
+    #: is a fact about *other* tasks and has no business being a field on this one. The
+    #: record check needs it to say that a handoff cannot lead to work.
+    unmet_needs: List[str] = Field(default_factory=list)
 
 
 class TaskClientError(RuntimeError):
@@ -933,6 +941,7 @@ class TaskClient:
                 QueueMoveWarning.model_validate(item) for item in (data.get("queue_warnings") or [])
             ],
             queue_undo=data.get("queue_undo"),
+            unmet_needs=[str(item) for item in (data["task"].get("unmet_needs") or [])],
         )
 
     def _parse_task(self, data: Dict[str, Any]) -> Task:

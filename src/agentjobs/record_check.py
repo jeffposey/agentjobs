@@ -49,6 +49,7 @@ __all__ = [
     "STANDING_INVITATION",
     "STANDING_INVITATION_PHRASES",
     "SUMMARY_WORD_CEILING",
+    "BLOCKED_HANDOFF",
     "UNNAMED_REVIEW_LINK",
     "WARNING_KINDS",
     "unnamed_review_links",
@@ -77,6 +78,10 @@ QUOTED_REMARK = "quoted_remark"
 
 #: A handoff put a standing invitation on a person rather than an ask (task-467).
 STANDING_INVITATION = "standing_invitation"
+
+#: A handoff asked a person for something on a task that cannot be worked yet, because a
+#: `needs` dependency is still open (task-150).
+BLOCKED_HANDOFF = "blocked_handoff"
 
 #: Every kind this module can produce. The closed set a caller may branch on.
 WARNING_KINDS: Tuple[str, ...] = (
@@ -203,7 +208,12 @@ def summary_words(summary: str) -> int:
     return len(summary.split())
 
 
-def check_record(task: Task, *, verb: Optional[str] = None) -> List[RecordWarning]:
+def check_record(
+    task: Task,
+    *,
+    verb: Optional[str] = None,
+    unmet_needs: Sequence[str] = (),
+) -> List[RecordWarning]:
     """What is wrong with this record that the write named by ``verb`` could have caused.
 
     ``verb`` is one of the manager's operation kinds -- ``create``, ``update_content``,
@@ -212,6 +222,12 @@ def check_record(task: Task, *, verb: Optional[str] = None) -> List[RecordWarnin
 
     ``verb=None`` evaluates every condition, for the corpus view. Do not use that form
     on a write path: it is how the check becomes the lint backlog it exists instead of.
+
+    ``unmet_needs`` is the one input this module takes that is not a property of the
+    record it is handed (task-150). Whether a dependency is *open* is a fact about other
+    tasks, so the caller -- which has the corpus, or the server's answer about it --
+    supplies it. Left empty, the condition it feeds simply does not fire, which keeps the
+    default behaviour of every existing caller exactly as it was.
     """
     warnings: List[RecordWarning] = []
     if verb is None or verb in SPEC_WRITING_VERBS:
@@ -221,6 +237,7 @@ def check_record(task: Task, *, verb: Optional[str] = None) -> List[RecordWarnin
     if verb is None or verb in PROMPT_WRITING_VERBS:
         warnings.extend(_check_review_links(task))
         warnings.extend(_check_standing_invitation(task))
+        warnings.extend(_check_blocked_handoff(task, unmet_needs))
     warnings.extend(_check_quotations(task, verb))
     return warnings
 
@@ -379,6 +396,44 @@ def _check_standing_invitation(task: Task) -> List[RecordWarning]:
             "genuinely needed now, say what and by when. If it is a standing offer, put "
             "it in the spec or a note and move the ball to agent/hold, which is where "
             "work that is nobody's next act belongs.",
+        )
+    ]
+
+
+def _check_blocked_handoff(task: Task, unmet_needs: Sequence[str]) -> List[RecordWarning]:
+    """A person asked for something on a task that cannot be worked until others close.
+
+    **The mistake at its source** (task-150 section 4). An agent handed a blocked task to
+    the owner as ``human``/``decision`` with three options. Answering it was the right
+    thing for the owner to do and it could not lead to work: the task needed another to
+    close first, so the answer moved the ball to an agent, the dispatcher tried to start
+    one, and the record was left saying work was in progress on a task nothing could
+    claim. The system's half of that is fixed elsewhere; this is the half that reaches
+    the author while they can still write ``external``/``dependency`` instead.
+
+    Only a ball going to a **human**, and only when a dependency is genuinely open.
+    Handing a blocked task to ``external``/``dependency`` is the correct move and says
+    nothing; handing it to an agent is refused by the claim itself rather than warned
+    about here.
+
+    Not a refusal, deliberately, and for this module's standing reason: a person sometimes
+    *does* need to decide something about a blocked task -- whether to drop the dependency
+    is the obvious case -- and a rule that blocked the one honest ask would be worse than
+    a row that should not be there.
+    """
+    if task.ball is not Ball.HUMAN or not unmet_needs:
+        return []
+    named = ", ".join(unmet_needs)
+    return [
+        RecordWarning(
+            BLOCKED_HANDOFF,
+            f"This task is waiting on {named}, and the ball just went to a person. "
+            "Whatever they answer, nothing can work this task until those close -- and "
+            "an answer moves the ball to an agent that will then be refused, leaving a "
+            "task that reads as work in progress with nobody on it. If the ask is really "
+            "about the dependency, say so and use external/dependency, which is where "
+            "work waiting on other work belongs. If a person genuinely has to decide "
+            "something now, this is fine and worth the row.",
         )
     ]
 

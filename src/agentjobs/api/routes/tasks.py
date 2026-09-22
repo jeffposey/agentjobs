@@ -29,6 +29,8 @@ from agentjobs.manager import AnswerError, TaskManager, TaskNotFoundError
 from agentjobs.store_factory import TaskStoreBackend
 from agentjobs.models_v2 import (
     AnswerDraft,
+    QuestionData,
+    QuestionOption,
     Ball,
     BallReason,
     DependencyType,
@@ -953,6 +955,7 @@ def _send_back(
     body: str,
     answers: Optional[Sequence[AnswerDraft]] = None,
     dispatchable: bool = True,
+    ball: Ball = Ball.AGENT,
 ) -> HumanActionResponse:
     """The shared body of every send-it-back-to-the-agent route.
 
@@ -968,13 +971,18 @@ def _send_back(
 
     ``answers`` is supplied only by /answer, and rides into the same ``handoff`` call so
     that the ball moving and the questions being answered are one write (task-017).
+
+    ``ball`` defaults to the agent, which is what "send it back" means and what all four
+    verbs did before task-150. The exception is an answer whose every chosen option says
+    it does not dispatch: that goes to the holder the option named, with ``dispatchable``
+    off, because there is no agent for it to reach.
     """
     attachments = decoded_attachments(payload.attachments)
     try:
         task = manager.handoff(
             task_id,
             actor=user,
-            ball=Ball.AGENT,
+            ball=ball,
             ball_reason=ball_reason,
             ball_prompt=prompt,
             body=body,
@@ -1057,6 +1065,23 @@ async def answer_task(
         for item in payload.answers
     ]
     prompt = _answer_prompt(manager, task_id, payload.feedback, drafts)
+    holder = _non_dispatching_holder(manager, task_id, payload.feedback, drafts)
+    if holder is not None:
+        ball, ball_reason = holder
+        return _send_back(
+            task_id=task_id,
+            request=request,
+            payload=payload,
+            manager=manager,
+            project=project,
+            user=user,
+            ball=ball,
+            ball_reason=ball_reason,
+            prompt=prompt,
+            body=f"Answered by {user}:" + NL2 + prompt,
+            answers=drafts,
+            dispatchable=False,
+        )
     return _send_back(
         task_id=task_id,
         request=request,
@@ -1069,6 +1094,78 @@ async def answer_task(
         body=f"Answered by {user}:" + NL2 + prompt,
         answers=drafts,
     )
+
+
+def _non_dispatching_holder(
+    manager: TaskManager,
+    task_id: str,
+    feedback: Optional[str],
+    drafts: Sequence[AnswerDraft],
+) -> Optional[tuple[Ball, BallReason]]:
+    """Where an answer that starts nothing puts the ball, or ``None`` for the usual path.
+
+    **The case this exists for** (task-150 section 4). An agent asked the owner a question
+    while the task was blocked, offering *decide after phase one* as the recommended
+    option. The answer moved the ball to ``agent``/``answer``; the dispatcher tried to
+    claim the task a second later and was refused only by an unmet dependency. An answer
+    meaning *wait* had been turned into an attempt to start work, and then into a ball
+    nothing would ever act on.
+
+    So an option may say ``dispatches: false`` and name the holder it means instead. The
+    rule for honouring it is deliberately conservative, and both halves are load-bearing:
+
+    * **Every selected option, across every question answered, must be non-dispatching.**
+      A multi-select answer that picks *wait* and *also try X* has said there is something
+      to do, and the something wins. Reading it the other way would silently drop work a
+      person asked for, which is a worse failure than an extra dispatch attempt.
+    * **Free text means the ordinary path.** Anything typed may be an instruction, and
+      nothing here can tell. Today's behaviour is what an untyped answer keeps, and a
+      person who wanted to say *wait, and here is why* still gets the option's holder by
+      leaving the prose in the option's description rather than the box -- while one who
+      wrote a paragraph gets an agent, which is what they would have got before this
+      existed.
+
+    An answer with no options at all -- prose only -- is therefore untouched, which is
+    every answer written before this feature.
+    """
+    if (feedback or "").strip():
+        return None
+    chosen = [draft for draft in drafts if draft.selected]
+    if not chosen:
+        return None
+    task = manager.get_task(task_id)
+    if task is None:
+        return None
+    offered: Dict[int, Dict[str, QuestionOption]] = {}
+    for entry in task.log:
+        if entry.type is not LogEntryType.QUESTION:
+            continue
+        payload = {key: value for key, value in entry.data.items() if key != "operation"}
+        try:
+            question = QuestionData.model_validate(payload)
+        except Exception:  # noqa: BLE001 - a question nothing can parse offers no options
+            continue
+        offered[entry.id] = {option.label: option for option in question.options}
+
+    holders: List[tuple[Ball, BallReason]] = []
+    for draft in chosen:
+        options = offered.get(draft.re, {})
+        for label in draft.selected:
+            option = options.get(label)
+            if option is None or option.dispatches:
+                return None
+            if option.ball is None or option.ball_reason is None:  # pragma: no cover
+                # The model refuses this pairing, so reaching it means a row arrived
+                # some other way. The ordinary path is the safe reading.
+                return None
+            holders.append((option.ball, option.ball_reason))
+    if not holders:
+        return None
+    # The first, when several non-dispatching options name different holders. They are
+    # all "this does not start work", so any of them keeps the invariant that matters;
+    # taking the first keeps the answer to "which one" readable rather than inventing a
+    # precedence order nobody asked for.
+    return holders[0]
 
 
 @router.post("/{task_id}/redirect", response_model=HumanActionResponse)

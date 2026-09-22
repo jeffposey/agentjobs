@@ -27,6 +27,13 @@ from starlette.concurrency import run_in_threadpool
 from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.capabilities import Capability
 from agentjobs.dispatch.address import api_base_from_server
+from agentjobs.dispatch.chains import (
+    ChainAuthorization,
+    ChainRefused,
+    authorize_chain,
+    chain_history,
+    revoke_chain,
+)
 from agentjobs.dispatch.checks import NoChecksError, evaluate_task
 from agentjobs.dispatch.config import DispatchError, Posture
 from agentjobs.dispatch import queue as dispatch_queue
@@ -36,7 +43,7 @@ from agentjobs.execution.store import QueuedDispatch
 from agentjobs.dispatch.interactive import settle_for_task, start_interactive_run
 from agentjobs.dispatch.runner import DispatchRunError
 from agentjobs.manager import MoveOutcome, TaskManager, TaskNotFoundError
-from agentjobs.models_v2 import Task
+from agentjobs.models_v2 import CheckOutcome, LogEntryType, Task
 from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project, default_home
 from agentjobs.session_identity import SessionIdentity
@@ -45,6 +52,11 @@ from agentjobs.sqlstore import TaskLockTimeout
 from ..authorization import assert_actor_agrees, assert_holds
 from ..dependencies import get_task_manager, project_config, request_project, storage_for
 from ..models import (
+    ChainAuthorizeRequest,
+    ChainIteration,
+    ChainList,
+    ChainRead,
+    ChainRevokeRequest,
     CheckRunResult,
     ClaimRequest,
     CloseRequest,
@@ -1072,6 +1084,249 @@ async def check_task_acceptance(
         unchecked=report.unchecked,
         ok=report.ok,
         entry_id=updated.log[-1].id,
+    )
+
+
+# ----- bounded agent loops (task-150) ----------------------------------------
+
+
+def _chain_read(task: Task, chain: ChainAuthorization) -> ChainRead:
+    """One chain, assembled from the entries that are the only record of it.
+
+    Derived on every read rather than stored anywhere. A second copy of a chain's history
+    could disagree with the entries it was derived from, and the entries are what a
+    person auditing a loop next week will actually read.
+    """
+    matches = chain.matches(task)
+    expired = chain.expired()
+    iterations = [
+        ChainIteration(
+            iteration=int(entry.data.get("iteration") or 0),
+            entry_id=entry.id,
+            ts=entry.ts,
+            results=[
+                CheckOutcome.model_validate(item) for item in entry.data.get("results") or []
+            ],
+            unchecked=[str(item) for item in entry.data.get("unchecked") or []],
+        )
+        for entry in task.log
+        if entry.type is LogEntryType.CHECK_RESULT
+        and str(entry.data.get("chain_id") or "") == chain.chain_id
+    ]
+    return ChainRead(
+        chain_id=chain.chain_id,
+        task_id=task.id,
+        entry_id=chain.entry.id,
+        authorized_by=chain.entry.actor,
+        authorized_at=chain.authorized_at,
+        max_iterations=chain.data.max_iterations,
+        wall_clock_seconds=chain.data.wall_clock_seconds,
+        deadline=chain.deadline,
+        check_digest=chain.data.check_digest,
+        criteria=list(chain.data.criteria),
+        revoked=chain.revoked,
+        revoked_at=chain.revoked_by_entry.ts if chain.revoked_by_entry else None,
+        expired=expired,
+        digest_matches=matches,
+        live=not chain.revoked and not expired and matches,
+        iterations=iterations,
+    )
+
+
+def _chain_actor(
+    request: Request, project: Project, claimed: Optional[str], task_id: str
+) -> str:
+    """The human a chain authorisation or revocation is attributed to.
+
+    Three checks, and they are the dispatch endpoint's three, reached the same way rather
+    than reimplemented: the id must be one this project configures
+    (``validate_actor``), the caller must actually be that principal
+    (``assert_actor_agrees``), and the id must be a person rather than an agent
+    (``assert_authorizer_is_human``). A chain is a standing authorisation to start runs,
+    so all three matter, and the third is the one that would otherwise let an agent id
+    sign for a loop.
+
+    **The project's ``default_user`` is not substituted for an omitted ``user``**, unlike
+    the check route, and the difference is the same one the dispatch endpoint draws: a
+    pass over the checks needs somebody to attribute an entry to, while an authorisation
+    needs somebody to have *made* it. A config value standing in for a person would
+    produce a row that reads as an authorisation and is really a default.
+    """
+    named = (claimed or "").strip()
+    if not named:
+        raise _error(
+            status.HTTP_400_BAD_REQUEST,
+            "no_authorizer",
+            "A chain has to be authorised by a named person: this entry is the whole of "
+            "the driver's authority to start runs, and a server-side default would look "
+            "like somebody's decision without being one. Send `user`.",
+            task_id=task_id,
+            field_errors=[ErrorDetail(path="user", message="Name the person authorising this.")],
+        )
+    actor = acting_actor(request, project, named)
+    try:
+        assert_authorizer_is_human(project_config(project), actor)
+    except DispatchError as exc:
+        raise dispatch_refusal_error(exc, task_id) from exc
+    return actor
+
+
+@router.get("/{task_id}/chains", response_model=ChainList)
+async def read_task_chains(
+    task_id: str,
+    manager: TaskManager = Depends(get_task_manager),
+) -> ChainList:
+    """Every chain this task has had, oldest first, each with its iteration history.
+
+    A read, and deliberately absent from ``ROUTE_CAPABILITIES``: it executes nothing and
+    answers with what the log already holds. What a caller may *do* with a chain is gated
+    at the two verbs below.
+    """
+    task = manager.get_task(task_id)
+    if task is None:
+        raise _error(
+            status.HTTP_404_NOT_FOUND,
+            "task_not_found",
+            f"Task '{task_id}' not found.",
+            task_id=task_id,
+        )
+    return ChainList(
+        task_id=task_id, chains=[_chain_read(task, item) for item in chain_history(task)]
+    )
+
+
+@router.post("/{task_id}/chain", response_model=ChainRead, status_code=status.HTTP_201_CREATED)
+async def authorize_task_chain(
+    task_id: str,
+    request: Request,
+    payload: ChainAuthorizeRequest,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> ChainRead:
+    """Authorise a bounded chain of dispatches against this task's checks (task-150).
+
+    **Classified under ``dispatch.start``, which no run holds**, and the alternative was
+    argued rather than assumed. A capability of its own -- ``CHAIN_AUTHORIZE`` -- would
+    draw exactly the same line for exactly the same principals, and this module's
+    coarseness is deliberate: *a capability per route would be a role system with extra
+    steps*. What a chain authorisation buys is up to twenty dispatches against one task
+    with nobody clicking again, which is the act ``dispatch.start`` already names, bought
+    in advance. ``task.review`` was the other candidate and is wrong for the opposite
+    reason: this is not a judgement about work somebody did, it is a purchase.
+
+    The digest, the chain id and the covered criteria are computed here from the **stored
+    task**. There is no request field for any of them, so there is nothing a caller could
+    supply that would move the definition of done the chain converges on.
+
+    ``user`` is validated the way a dispatch's is: the id must be one this project
+    configures with ``kind: human``. An agent may not authorise a chain any more than it
+    may authorise a dispatch, and this is the same refusal reached through the same
+    function.
+    """
+    task = manager.get_task(task_id)
+    if task is None:
+        raise _error(
+            status.HTTP_404_NOT_FOUND,
+            "task_not_found",
+            f"Task '{task_id}' not found.",
+            task_id=task_id,
+        )
+    actor = _chain_actor(request, project, payload.user, task_id)
+    try:
+        # Off the event loop, for the reason the check route is: authorising evaluates the
+        # whole check set to decide whether there is anything to converge on, and that may
+        # run for its entire 900-second budget.
+        outcome = await run_in_threadpool(
+            _authorize,
+            manager,
+            project,
+            task,
+            actor,
+            payload.max_iterations,
+            payload.wall_clock_seconds,
+            payload.note,
+        )
+    except ChainRefused as exc:
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            getattr(exc, "reason", "chain_refused"),
+            str(exc),
+            task_id=task_id,
+        ) from exc
+    except DispatchError as exc:
+        raise dispatch_refusal_error(exc, task_id) from exc
+    return _chain_read(outcome.task, outcome.chain)
+
+
+def _authorize(
+    manager: TaskManager,
+    project: Project,
+    task: Task,
+    actor: str,
+    max_iterations: int,
+    wall_clock_seconds: int,
+    note: Optional[str],
+) -> Any:
+    """``authorize_chain``'s positional form, so the threadpool call stays readable."""
+    return authorize_chain(
+        manager=manager,
+        project=project,
+        task=task,
+        actor=actor,
+        max_iterations=max_iterations,
+        wall_clock_seconds=wall_clock_seconds,
+        note=note,
+    )
+
+
+@router.post("/{task_id}/chain/revoke", response_model=ChainList)
+async def revoke_task_chain(
+    task_id: str,
+    request: Request,
+    payload: ChainRevokeRequest,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> ChainList:
+    """Stop a chain before its next iteration. One click, no arguments required.
+
+    Shares ``dispatch.start`` with the route above for the reason a kill switch always
+    shares a capability with its switch: everyone who may start it may stop it. The
+    asymmetric alternative -- anyone may stop, only some may start -- reads well and is
+    wrong here, because the principal it would newly admit is a dispatched run, and a run
+    able to revoke could stop a chain a person is relying on and then report that it
+    converged.
+
+    **This does not stop a run that is already executing.** An iteration is a dispatch and
+    a dispatch is somebody's session; ``POST .../dispatch/runs/{id}/cancel`` ends one of
+    those. What this guarantees is that no further iteration begins.
+    """
+    task = manager.get_task(task_id)
+    if task is None:
+        raise _error(
+            status.HTTP_404_NOT_FOUND,
+            "task_not_found",
+            f"Task '{task_id}' not found.",
+            task_id=task_id,
+        )
+    actor = _chain_actor(request, project, payload.user, task_id)
+    try:
+        updated = revoke_chain(
+            manager=manager,
+            task=task,
+            actor=actor,
+            chain_id=payload.chain_id,
+            note=payload.note,
+        )
+    except ChainRefused as exc:
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            getattr(exc, "reason", "chain_refused"),
+            str(exc),
+            task_id=task_id,
+        ) from exc
+    return ChainList(
+        task_id=task_id,
+        chains=[_chain_read(updated, item) for item in chain_history(updated)],
     )
 
 

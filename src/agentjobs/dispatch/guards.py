@@ -376,6 +376,29 @@ class ClaimLostError(DispatchRefused):
     reason = "claim_lost"
 
 
+class BlockedByDependenciesError(DispatchRefused):
+    """The task cannot be claimed because a `needs` dependency is still open.
+
+    Split out of ``ClaimLostError`` by task-150. The two were reported under one code and
+    they are opposite facts about the world: a lost claim means somebody else is on it,
+    and this means *nobody* can be, and nobody will be until other work closes. A caller
+    that cannot tell them apart cannot put the ball anywhere sensible, which is exactly
+    what happened on task-150 itself -- an answer was turned into a dispatch attempt, the
+    attempt was refused as ``claim_lost``, and the task was left reading ``agent``/
+    ``answer`` with nothing in the world that would ever act on it.
+
+    ``open_tasks`` carries the ids, so whoever handles this can name them rather than
+    parsing them back out of a sentence.
+    """
+
+    reason = "unmet_dependencies"
+
+    def __init__(self, message: str, *, open_tasks: Sequence[str] = ()) -> None:
+        super().__init__(message)
+        #: The unmet `needs` dependencies, as `_unmet_needs` describes them.
+        self.open_tasks: List[str] = list(open_tasks)
+
+
 class OwnerMismatchError(DispatchRefused):
     """The task is owned by an actor other than the runner's agent."""
 
@@ -1485,7 +1508,9 @@ def dispatch_task(
     # by definition, so the cooldown would fire on it and report a timer where the real
     # answer is "that run has not finished"; and a cap refusal writes to the task record,
     # which is not a thing to do to a task whose only problem is that the machine is busy.
-    refusal: Optional[CapRefusal] = check_budget(task, resolution.limits.auto, now=now)
+    refusal: Optional[CapRefusal] = check_budget(
+        task, resolution.limits.auto, now=now, trigger=request.trigger
+    )
     if refusal is None:
         refusal = check_machine_budget(machine_home, resolution.limits, now=now)
     if refusal is not None:
@@ -1845,6 +1870,23 @@ def _write_authorizing_entry(
     return stored, stored.log[-1]
 
 
+def unmet_needs_of(manager: TaskManagerLike, task_id: str) -> List[str]:
+    """This task's unmet ``needs`` dependencies, as the manager describes them.
+
+    Returns an empty list when there are none, when the task is gone, or when the facts
+    cannot be computed. **An empty answer therefore means "not known to be blocked"
+    rather than "known not to be blocked"**, which is the right direction for the one
+    caller: a dispatch that failed for some other reason is reported under that other
+    reason, and nothing here invents a dependency nobody can see.
+    """
+    try:
+        facts = manager.dependency_facts()
+    except Exception:  # noqa: BLE001 - a corpus that will not load is not a dependency
+        return []
+    fact = facts.get(task_id)
+    return list(fact.unmet_needs) if fact is not None else []
+
+
 def _claim_or_verify(manager: TaskManagerLike, task: Task, agent: str) -> Task:
     """Claim a ready task, or check that an active one is already ours.
 
@@ -1857,6 +1899,19 @@ def _claim_or_verify(manager: TaskManagerLike, task: Task, agent: str) -> Task:
         try:
             return manager.claim_task(task.id, agent=agent)
         except ValueError as exc:
+            # Asked of the manager rather than matched out of the message. The refusal
+            # sentence is prose and prose drifts; ``dependency_facts`` is the same
+            # computation the claim just did, and it hands back the ids rather than a
+            # phrase somebody has to parse. Only reached on a failed claim, so the corpus
+            # read it costs is paid on a path that is already not starting a run.
+            unmet = unmet_needs_of(manager, task.id)
+            if unmet:
+                raise BlockedByDependenciesError(
+                    f"Could not claim {task.id}, so nothing was started: it is waiting on "
+                    f"{', '.join(unmet)}. Nothing will start this task until those close, "
+                    "so the ball belongs with the dependency and not with an agent.",
+                    open_tasks=unmet,
+                ) from exc
             raise ClaimLostError(
                 f"Could not claim {task.id}, so nothing was started: {exc}"
             ) from exc
