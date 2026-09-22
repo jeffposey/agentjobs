@@ -13,6 +13,7 @@ from agentjobs.models_v2 import (
     Ball,
     BallReason,
     Branch,
+    CheckOutcome,
     ContextPointer,
     Deliverable,
     Dependency,
@@ -1526,6 +1527,26 @@ class DispatchRequestBody(BaseModel):
                 "different answers to a full machine."
             )
         return self
+
+
+class CheckRunResult(BaseModel):
+    """What one evaluation pass over a task's acceptance checks did (task-147).
+
+    The same vector ``agentjobs check`` prints, so the two triggers cannot come to
+    describe a pass differently. ``entry_id`` names the one ``check_result`` entry the
+    pass wrote, which is how a client reads the evidence back without guessing which
+    entry it was.
+    """
+
+    task_id: str = Field(..., description="The task whose checks were run.")
+    results: List[CheckOutcome] = Field(
+        ..., description="One outcome per criterion that has a check, in the task's order."
+    )
+    unchecked: List[str] = Field(
+        default_factory=list, description="Criteria with no check, which this pass did not decide."
+    )
+    ok: bool = Field(..., description="True when every check exited 0.")
+    entry_id: int = Field(..., description="Id of the `check_result` entry this pass wrote.")
 
 
 class DispatchStarted(BaseModel):

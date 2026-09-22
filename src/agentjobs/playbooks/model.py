@@ -87,8 +87,17 @@ class PlaybookAcceptance(_Strict):
 
     text: str = Field(..., min_length=1)
     verify: Optional[str] = Field(
-        default=None, description="Optional machine-checkable hint, mirroring the task field."
+        default=None,
+        description=(
+            "Optional prose for a person, mirroring the task field: how somebody would "
+            "satisfy themselves this criterion holds. Never executed."
+        ),
     )
+    # There is deliberately no `check` here (task-147). A playbook is a brief somebody
+    # wrote once and runs repeatedly, so a command in one is a standing instruction to
+    # this machine rather than a criterion on a task -- and `check` is gated by the
+    # dispatch gates precisely because of what it is. Adding it needs that argument made,
+    # not a field copied across because its neighbour was.
 
 
 class PlaybookRunTask(_Strict):

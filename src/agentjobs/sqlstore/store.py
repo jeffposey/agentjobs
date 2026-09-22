@@ -842,6 +842,10 @@ class SqlTaskStore:
             }
             if item["verify"] is not None:
                 criterion["verify"] = item["verify"]
+            # `check_argv` is the column and `check` is the field: `CHECK` is reserved
+            # in SQL (migration 007). This is the one place the two names meet.
+            if item["check_argv"] is not None:
+                criterion["check"] = json.loads(item["check_argv"])
             document["acceptance"].append(criterion)
         for item in deliverables:
             entry: Dict[str, Any] = {"path": item["path"], "status": item["status"]}
@@ -1166,9 +1170,19 @@ class SqlTaskStore:
         )
         connection.executemany(
             "INSERT INTO task_acceptance(project_id, task_id, ac_id, ord, text, verify, "
-            "status) VALUES (?,?,?,?,?,?,?)",
+            "check_argv, status) VALUES (?,?,?,?,?,?,?,?)",
             [
-                (*keys, item.id, index, item.text, item.verify, str(item.status))
+                (
+                    *keys,
+                    item.id,
+                    index,
+                    item.text,
+                    item.verify,
+                    # NULL for no check, never '[]': the model refuses an empty list, so
+                    # a row holding one would be unreadable by the thing that wrote it.
+                    None if item.check is None else json.dumps(item.check),
+                    str(item.status),
+                )
                 for index, item in enumerate(task.acceptance)
             ],
         )

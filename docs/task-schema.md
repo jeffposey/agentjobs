@@ -88,7 +88,7 @@ from a second reason value that could disagree with it.
 | `parent` | str | Task id of an umbrella task. It must exist; a task may not be its own parent, nor be parented into a cycle. A task with an **open** child is never offered by `/next`, but a caller that names it can claim it: what that hands over is the supervisor's seat, and the `ball_prompt` written on the claim says so — a session per child, not the children's work. See [the parent-task protocol](agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them). `GET /api/tasks?parent=<id>` lists one umbrella's children. |
 | `posture` | enum | Optional, and the only field here that says anything about what may *execute*: `read_only` · `supervised` · `auto` · `autonomous`. It **asks** for a dispatch envelope and never grants one — see [`posture`](#posture-a-request-not-a-grant) below. Absent on almost every task, which means "whatever this project's machine says". |
 | `spec` | object | `summary` and `description` are **required**; `intent`, `constraints`, `out_of_scope`, `context[]` are optional. See the example below. |
-| `acceptance[]` | list | `id`, `text`, optional `verify`, `status`: `pending` · `met` · `failed` · `dropped`. |
+| `acceptance[]` | list | `id`, `text`, optional `verify`, optional `check`, `status`: `pending` · `met` · `failed` · `dropped`. `verify` and `check` are [not the same thing](#verify-is-prose-check-is-argv). |
 | `deliverables[]` | list | `path`, `note`, `status`: `pending` · `done` · `dropped`. |
 | `dependencies[]` | list | `task`, `type`: `needs` · `blocks` · `related`, `note`. |
 | `links[]` | list | `url` (validated), `rel`: `pr` · `issue` · `doc` · `design` · `build` · `other`, `title`. |
@@ -227,7 +227,8 @@ spec:
 acceptance:
   - id: ac-1
     text: allow_origins includes both :5173 origins
-    verify: poetry run pytest tests/test_api.py    # optional machine-checkable hint
+    verify: Load the dev server and watch the network tab for a preflight.  # prose, for a person
+    check: [poetry, run, pytest, tests/test_api.py, -q]   # argv; its exit code decides
     status: met            # pending | met | failed | dropped
 
 deliverables:
@@ -268,6 +269,43 @@ log:
 `acceptance` and `deliverables` keep separate vocabularies on purpose: a criterion is
 *verified* (`met`), a deliverable is *produced* (`done`).
 
+### `verify` is prose, `check` is argv
+
+Both say how a criterion is verified and they are **not interchangeable** (task-147).
+
+| | `verify` | `check` |
+|---|---|---|
+| Shape | A sentence | A list of strings |
+| Audience | A person | This machine |
+| Executed | **Never** | By `agentjobs check` and `POST .../tasks/{id}/check`, and by nothing else |
+| Decides the status | No | Yes: exit 0 is `met`, anything else is `failed` |
+
+They are kept apart rather than merged because most criteria can only have the first.
+"The dashboard reads clearly on a phone" is verifiable and not executable, and a schema
+offering one field would either lose that criterion or invite a command written where
+prose belongs. Nothing migrates an existing `verify` into a `check`: turning prose into
+an argv is a judgement per criterion.
+
+Four rules about `check` that the schema enforces rather than describes:
+
+-   **It is a list, never a string.** Nothing splits it and no shell sees it, so
+    `["pytest", "-q"]` — not `"pytest -q"`, which is refused by name.
+-   **An empty list, a non-string element and an empty first element are each refused**,
+    with a message saying which criterion and what was wrong.
+-   **Changing a criterion's `check` resets its `status` to `pending`**, on every write
+    path including PATCH and MCP `task_update_content`. A status is a claim about a
+    check having been run, and the caller cannot have run the new one — so a `status`
+    sent in the same patch as a new `check` is overwritten rather than honoured.
+    Editing `text` changes no such claim and is left alone.
+-   **A check that cannot be started is `failed`, never skipped**, alongside a non-zero
+    exit and a timeout. An unrunnable check treated as anything else would let the loop
+    this feeds converge by breaking its own tests.
+
+Running them is gated: `assert_dispatch_permitted` — the same four gates a dispatch
+walks — opens before any process starts, so a project not enabled for dispatch runs
+nothing, and **no read path ever evaluates a check**. Each pass writes exactly one
+`check_result` log entry, described with the other entry types below.
+
 **Ten fields are required in practice, not seven.** Seven have no default and must be
 written: `id`, `title`, `created`, `updated`, `category`, `spec.summary` and
 `spec.description`. `schema` then defaults to `2` and `lifecycle` to `draft` — and a
@@ -284,14 +322,15 @@ One append-only typed log replaces v1's `status_updates`, `comments` and
 `prompts.followups`.
 
 Types: `note` · `progress` · `transition` · `handoff` · `decision` · `question` ·
-`answer` · `instruction` · `dispatch` · `dispatch_result` · `queue_move`.
+`answer` · `instruction` · `dispatch` · `dispatch_result` · `queue_move` ·
+`authorization` · `check_result`.
 
 Integrity rules, enforced: ids are unique and ascending, and `re:` must reference an
 **earlier** entry that exists. An open `question` is one with no `answer` threaded to
 it, which makes unresolved threads queryable (`Task.open_questions()`).
 
-`transition`, `dispatch`, `dispatch_result` and `queue_move` are written by the manager,
-never by a caller — the API rejects an attempt to post one directly, because an entry
+`transition`, `dispatch`, `dispatch_result`, `queue_move`, `authorization` and
+`check_result` are written by the manager, never by a caller — the API rejects an attempt to post one directly, because an entry
 that does not accompany a real event is a lie in an append-only record. They are the
 model's `MANAGER_WRITTEN_LOG_TYPES`, and every write path consults that set rather than
 listing types of its own.
@@ -519,6 +558,55 @@ from the evidence for it and no migration was needed to introduce it.
 `actors:`. Design section 9 attributes every forced ball move — a run that ended without
 handing off, a session parked on a permission prompt — to the dispatcher rather than to
 the agent, because the agent did not do it.
+
+### `check_result`
+
+One evaluation pass over the task's executable acceptance checks (task-147). **One entry
+per pass, never one per criterion** — a pass is what was asked for and what a loop acts
+on, and splitting it would leave a reader reassembling an invocation from timestamps.
+
+```yaml
+- id: 12
+  actor: Jeff Posey
+  type: check_result
+  data:
+    chain_id: null             # the loop this belongs to; null outside one
+    iteration: null            # which turn of that loop; null outside one
+    results:
+      - id: ac-1
+        status: met
+        exit_code: 0
+        duration_seconds: 4.12
+        output_tail: "12 passed in 3.9s"
+      - id: ac-2
+        status: failed
+        exit_code: null
+        duration_seconds: 300.0
+        cause: timeout         # timeout | not_started | pass_timeout
+        output_tail: "[agentjobs] killed after 300s without exiting"
+    unchecked: [ac-3]          # criteria with no check, named rather than omitted
+```
+
+`status` is only ever `met` or `failed`. There is no third value, because a check that
+could not be started is a failure — see the four rules under
+[`verify` is prose, `check` is argv](#verify-is-prose-check-is-argv). `cause` appears
+when the exit code does not say why: the process timed out, could not be started at all,
+or was never reached because the pass ran out of its own budget.
+
+`unchecked` names the prose criteria rather than leaving them out. What a pass *did not*
+decide is as much a part of its result as what it did, and a client rendering "2 of 2
+passing" over a task with eight criteria would be telling somebody it was done.
+
+`chain_id` and `iteration` are null on every entry this build can write; the loop driver
+that fills them is task-150. They are in the payload now so that an entry written today
+and one written by the driver are the same shape.
+
+Written by the manager only, and by the same argument as the rest of
+`MANAGER_WRITTEN_LOG_TYPES` in its sharpest form: the entry asserts that a command
+exited with a code, and a loop decides whether it has converged by reading it. Two
+triggers write one — `agentjobs check <task-id>`, which exits non-zero if anything
+failed, and `POST /api/projects/{id}/tasks/{task_id}/check`, which needs `dispatch.start`
+and is therefore refused to a dispatched run.
 
 ### `attachments[]` on an entry
 

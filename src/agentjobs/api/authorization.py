@@ -129,6 +129,25 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     # gating it would leave a run unable to discover that it may not draft.
     "draft_task_spec": RouteRule(Capability.MODEL_DRAFT),
     "dispatch_task_endpoint": RouteRule(Capability.DISPATCH),
+    # Running a task's acceptance checks executes commands out of the task record on
+    # this machine (task-147). On shape alone it looks like a `task.*` verb -- it writes
+    # to one named task and nothing else -- which is exactly why it is not classified as
+    # one: every run holds `task.edit` against every task, so a run that could call this
+    # could write a `check` and then have this machine run it. That is starting a
+    # process of its own choosing on somebody else's hardware, which is the act
+    # `dispatch.start` bounds.
+    #
+    # `DISPATCH` rather than a capability of its own, and the alternative is worth
+    # naming: a `CHECK_RUN` absent from `_RUN_SET` would draw the same line. It was
+    # rejected because this module's coarseness is deliberate -- "a capability per route
+    # would be a role system with extra steps" -- and the two would be held by exactly
+    # the same principals for exactly the same reason. A second name for one decision is
+    # a second thing to keep in step.
+    #
+    # `task_param` for the ordinary reason: it is a write to one named task. It changes
+    # nothing today, since no run holds `DISPATCH` at all, and is named so that scoping
+    # that capability one day scopes this route with it.
+    "check_task_acceptance": RouteRule(Capability.DISPATCH, task_param=_TASK),
     "run_playbook_endpoint": RouteRule(Capability.DISPATCH),
     "cancel_dispatch_run": RouteRule(Capability.DISPATCH),
     # Relaying a human's authorisation writes a log entry and starts nothing, so on

@@ -41,11 +41,14 @@ from .sqlstore.history import HistoryWrite
 from .models_v2 import (
     MANAGER_WRITTEN_LOG_TYPES,
     PRIORITY_RANK,
+    AcceptanceStatus,
     AnswerDraft,
     Attachment,
     AuthorizationData,
     Ball,
     BallReason,
+    CheckOutcome,
+    CheckResultData,
     DeliverableStatus,
     DependencyType,
     DispatchData,
@@ -416,6 +419,58 @@ def _with_position(task: Task, position: int) -> Task:
     """Set one task's queue position, for the SQL backend's queue repair."""
     task.queue_position = position
     return task
+
+
+def _criterion_field(criterion: Any, name: str) -> Any:
+    """Read one field off an acceptance criterion that may be a model or a mapping.
+
+    ``update_task`` takes ``**updates`` from anywhere: the API route dumps its request
+    model to dicts, while a CLI or in-process caller passes ``AcceptanceCriterion``
+    objects straight through. Both reach the reset rule below, and a rule that only
+    worked for one of them would be a hole shaped exactly like whichever caller nobody
+    tested.
+    """
+    if isinstance(criterion, Mapping):
+        return criterion.get(name)
+    return getattr(criterion, name, None)
+
+
+def _reset_status_where_the_check_changed(existing: Task, payload: Dict[str, Any]) -> None:
+    """Force ``status: pending`` on every criterion whose ``check`` this patch changes.
+
+    A status is a claim about a check having been run. Changing the command invalidates
+    that claim, and the caller cannot have run the new one -- so a ``status`` sent in the
+    same patch as a new ``check`` is stale by construction and is overwritten rather than
+    honoured. Editing ``text`` changes no claim and is left alone, which is the whole
+    distinction the rule turns on.
+
+    **A criterion that arrives already carrying a check is reset too**, not only one
+    whose check changed from some earlier value. Going from no criterion to a criterion
+    with a check introduces a command nothing has executed, which is the same hole with
+    the old value absent instead of different; the alternative -- treating "new" as
+    exempt -- would let any caller assert ``met`` on a check by adding the criterion and
+    its verdict in one write.
+
+    Mutates ``payload`` in place, before validation, so the reset is part of the task
+    that gets written rather than a second write after one that was wrong.
+    """
+    submitted = payload.get("acceptance")
+    if not isinstance(submitted, list):
+        return
+    before = {item.id: item.check for item in existing.acceptance}
+    for index, criterion in enumerate(submitted):
+        identifier = _criterion_field(criterion, "id")
+        check = _criterion_field(criterion, "check")
+        if check is None:
+            continue
+        if identifier in before and before[identifier] == list(check):
+            continue
+        if isinstance(criterion, Mapping):
+            replacement = dict(criterion)
+            replacement["status"] = AcceptanceStatus.PENDING
+            submitted[index] = replacement
+        else:
+            submitted[index] = criterion.model_copy(update={"status": AcceptanceStatus.PENDING})
 
 
 def supervision_prompt(children: Sequence[str]) -> str:
@@ -1376,6 +1431,8 @@ class TaskManager:
             payload["created"] = existing.created
             if rejoin is not None:
                 payload["queue_position"] = rejoin.position
+            if "acceptance" in updates:
+                _reset_status_where_the_check_changed(existing, payload)
             updated = Task.model_validate(payload)
             if rejoin is not None:
                 self._append_entry(
@@ -3102,6 +3159,65 @@ class TaskManager:
                 body=body,
                 re=re,
                 data=payload.model_dump(mode="json", exclude_none=True),
+                operation=operation,
+            )
+            return task
+
+        return self._mutate(task_id, apply)
+
+    def record_check_result(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        results: Sequence[CheckOutcome],
+        unchecked: Sequence[str],
+        chain_id: Optional[str] = None,
+        iteration: Optional[int] = None,
+        body: Optional[str] = None,
+        operation_id: Optional[str] = None,
+    ) -> Task:
+        """Record one evaluation pass, and move the criteria it decided (task-147).
+
+        The statuses and the entry are written **inside one mutation**. Two calls would
+        leave a window in which the record says a criterion is met and holds no entry
+        saying what ran, and that window is exactly where a reader would go looking for
+        the evidence.
+
+        ``results`` names only criteria that have a ``check``; ``unchecked`` names the
+        rest. A criterion in neither list no longer exists on the task -- it was removed
+        between the evaluation and this write -- and is skipped rather than resurrected.
+
+        Refused by ``add_log_entry`` like every other manager-written type, for the
+        sharpest version of that reason: these entries assert that a command exited with
+        a code, and a loop decides whether it is done by reading them.
+        """
+        payload = CheckResultData(
+            chain_id=chain_id,
+            iteration=iteration,
+            results=list(results),
+            unchecked=list(unchecked),
+        )
+        decided = {outcome.id: outcome.status for outcome in results}
+        operation = self._operation(
+            operation_id,
+            "check_result",
+            actor,
+            {"results": [outcome.id for outcome in results]},
+        )
+
+        def apply(task: Task) -> Optional[Task]:
+            if replay_or_conflict(task, operation):
+                return None
+            for criterion in task.acceptance:
+                if criterion.id in decided:
+                    criterion.status = decided[criterion.id]
+            self._append_entry(
+                task,
+                actor=actor,
+                type=LogEntryType.CHECK_RESULT,
+                body=body,
+                data=payload.model_dump(mode="json"),
                 operation=operation,
             )
             return task

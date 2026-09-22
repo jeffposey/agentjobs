@@ -238,6 +238,21 @@ enums:
           the band as well. Rebalances and compactions write none of these: nobody
           decided anything, and mechanical renumbering would bury the entries that
           mean something. Written by the manager, never trusted to callers.
+      authorization:
+        description: >-
+          A human authorised a dispatch, relayed by the agent they said it to
+          (task-506). The one type whose `actor` is not the party it is about: the
+          actor is the agent that typed it, and `data.authorized_by` names the human.
+          Written by the manager, never trusted to callers.
+      check_result:
+        description: >-
+          One evaluation pass over the task's executable acceptance checks (task-147).
+          `data` carries a `results` vector -- one entry per criterion that has a
+          `check`, with its status, exit code, duration and output tail -- plus the
+          `unchecked` ids, and `chain_id`/`iteration`, which are null outside a loop.
+          One entry per pass, never one per criterion. Written by the manager, never
+          trusted to callers: it asserts that a command exited with a code, and a loop
+          decides whether it is done by reading it.
 
 # ---------------------------------------------------------------------------
 # Classes
@@ -599,8 +614,10 @@ classes:
 
   AcceptanceCriterion:
     description: >-
-      One verifiable condition for done. Replaces SuccessCriterion; adds an optional
-      machine-checkable hint.
+      One verifiable condition for done. Replaces SuccessCriterion, and carries two
+      optional fields describing how it is verified -- which are not the same kind of
+      thing. `verify` is prose for a person and nothing executes it; `check` is an argv
+      list this machine runs, and its exit code decides the criterion.
     attributes:
       id:
         description: Criterion identifier, scoped to the task (e.g. ac-1).
@@ -610,8 +627,17 @@ classes:
         required: true
       verify:
         description: >-
-          Optional machine-checkable hint -- a command that demonstrates the
-          criterion. Advisory, not executed automatically.
+          Optional prose for a person: how somebody would satisfy themselves this
+          criterion holds. Never executed -- an executable check is `check`.
+      check:
+        description: >-
+          Optional argv list whose exit code decides this criterion: 0 is met, anything
+          else is failed, including a timeout and a command that cannot be started
+          (task-147). A list, never a string -- nothing splits it and no shell sees it.
+          Changing it resets `status` to pending on every write path, because a status
+          is a claim about a check having been run.
+        multivalued: true
+        range: string
       status:
         range: AcceptanceStatus
         ifabsent: string(pending)
