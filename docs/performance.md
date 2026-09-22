@@ -855,6 +855,17 @@ Two things a reader needs before quoting this:
   which is why the claim above rests on the gap between `-n auto` and `-n 6` rather than
   on either figure.
 
+**Which suite these five arms measured.** They were taken on 2026-09-21, before task-518
+landed one clock over the dispatch subsystem and made this stage's slowest file about
+three times faster. The absolute seconds above are therefore a suite that no longer
+exists, and arm 1's 507.5s should not be compared with a figure taken today — the
+lone-gate `-n auto` pair to compare against is task-518's own 475.0s and 530.3s,
+[above](#whole-suite-figures-with-their-contention-stated). **The ratios survive that**,
+because every arm ran the same suite as every other arm and nothing task-518 changed
+touches how workers are divided: the shape of the curve, not its height, is what this
+section claims. Re-running the curve on the current suite would cost about ninety minutes
+of gate and would be worth it only if someone wants to argue the *shape* moved.
+
 **What this settles for admission.** `limits.max_concurrent_runs` counts runs and nothing
 weighs what they consume — which is what task-513 set out to fix — but the contended
 resource the evidence is actually about is already budgeted one layer down, by the thing
