@@ -8,7 +8,7 @@ import os
 import sys
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import typer
 import yaml
@@ -52,6 +52,9 @@ from .mcp.config import TIMEOUT_ENV as MCP_TIMEOUT_ENV
 from .migration import migrate_tasks
 from .migration.reporter import MigrationReporter
 from .models_v2 import (
+    DEFAULT_CHAIN_ITERATIONS,
+    DEFAULT_CHAIN_WALL_CLOCK_SECONDS,
+    MAX_CHAIN_ITERATIONS,
     Ball,
     DispatchMode,
     Lifecycle,
@@ -3856,6 +3859,238 @@ def show(task_id: str) -> None:
         typer.secho(f"Task '{task_id}' not found.", fg=typer.colors.RED)
         raise typer.Exit(code=1)
     typer.echo(json.dumps(task.model_dump(mode="json", by_alias=True), indent=2))
+
+
+
+chain_app = typer.Typer(
+    name="chain",
+    help="Authorise, watch and revoke a bounded chain of dispatches against one task.",
+)
+app.add_typer(chain_app)
+
+
+@chain_app.command("authorize")
+def chain_authorize(
+    task_id: str,
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+    actor: Optional[str] = typer.Option(
+        None, "--actor", help="The human authorising this. Defaults to default_user."
+    ),
+    iterations: int = typer.Option(
+        DEFAULT_CHAIN_ITERATIONS,
+        "--iterations",
+        "-n",
+        help=f"How many dispatches this buys, at most. Ceiling {MAX_CHAIN_ITERATIONS}.",
+    ),
+    hours: float = typer.Option(
+        DEFAULT_CHAIN_WALL_CLOCK_SECONDS / 3600,
+        "--hours",
+        help="How long the chain may run. Ceiling 12.",
+    ),
+    note: Optional[str] = typer.Option(
+        None, "--note", help="What the chain is meant to achieve, for the record."
+    ),
+) -> None:
+    """Authorise a bounded chain of dispatches against this task's checks (task-150).
+
+    **This is a purchase, not a request.** It buys up to ``--iterations`` runs against
+    one task with nobody clicking again, bounded by a wall-clock and by the checks as
+    they stand at this moment -- editing any of them afterwards stops the chain rather
+    than moving the finish line.
+
+    Nothing runs yet. ``agentjobs chain run`` spends it, and ``agentjobs chain revoke``
+    stops it before the next iteration.
+
+    Refused, each under its own message: when no criterion carries a ``check``, when
+    every check already passes, when a bound is past its ceiling, and when a chain
+    against this task is already live.
+    """
+    from agentjobs.dispatch.chains import ChainRefused, authorize_chain
+    from agentjobs.dispatch.guards import assert_authorizer_is_human
+
+    project, manager = _chain_context(project_id)
+    task = manager.get_task(task_id)
+    if task is None:
+        typer.secho(f"Task '{task_id}' not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    who = _resolve_actor(project.load_config(), actor)
+    try:
+        assert_authorizer_is_human(project.load_config(), who)
+    except DispatchError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"Evaluating {task_id}'s checks, to see whether there is anything to converge on...")
+    try:
+        outcome = authorize_chain(
+            manager=manager,
+            project=project,
+            task=task,
+            actor=who,
+            max_iterations=iterations,
+            wall_clock_seconds=int(hours * 3600),
+            note=note,
+        )
+    except ChainRefused as exc:
+        typer.secho(f"Refused ({exc.reason}): {exc}", fg=typer.colors.YELLOW)
+        raise typer.Exit(code=1) from exc
+    except DispatchError as exc:
+        typer.secho(f"Refused ({getattr(exc, 'reason', 'refused')}): {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    chain = outcome.chain
+    typer.secho(f"\nAuthorised {chain.describe()}", fg=typer.colors.GREEN)
+    typer.echo(f"  digest   {chain.data.check_digest[:12]}")
+    typer.echo(f"  deadline {chain.deadline.isoformat()}")
+    typer.echo(f"  failing  {', '.join(item.id for item in outcome.baseline.failed)}")
+    typer.echo(f"\nRun it with:    agentjobs chain run {task_id} --project {project.id}")
+    typer.echo(f"Stop it with:   agentjobs chain revoke {task_id} --project {project.id}")
+
+
+@chain_app.command("revoke")
+def chain_revoke(
+    task_id: str,
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+    actor: Optional[str] = typer.Option(None, "--actor", help="Who is stopping it."),
+    chain_id: Optional[str] = typer.Option(
+        None, "--chain", help="Which chain. Defaults to whichever is live."
+    ),
+    note: Optional[str] = typer.Option(None, "--note", help="Why, for the record."),
+) -> None:
+    """Stop a chain before its next iteration. The kill switch (design section 9).
+
+    One command with one argument you already know -- the task. A revoke that needed a
+    chain id copied off a log entry would not be a kill switch, so the id is optional and
+    defaults to whatever is live. Running it twice is not an error.
+
+    **This does not stop a run that is already executing.** An iteration is a dispatch and
+    a dispatch is somebody's session; ``agentjobs dispatch cancel`` ends one of those.
+    ``~/.agentjobs/DISPATCH_DISABLED`` stops every chain on the machine at once, because
+    the sentinel is re-checked before every iteration.
+    """
+    from agentjobs.dispatch.chains import ChainRefused, live_chain, revoke_chain
+
+    project, manager = _chain_context(project_id)
+    task = manager.get_task(task_id)
+    if task is None:
+        typer.secho(f"Task '{task_id}' not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    who = _resolve_actor(project.load_config(), actor)
+    before = live_chain(task)
+    try:
+        revoke_chain(
+            manager=manager, task=task, actor=who, chain_id=chain_id, note=note
+        )
+    except ChainRefused as exc:
+        typer.secho(f"Refused ({exc.reason}): {exc}", fg=typer.colors.YELLOW)
+        raise typer.Exit(code=1) from exc
+    if before is None:
+        typer.echo(f"Nothing to stop: {task_id} has no live chain.")
+        return
+    typer.secho(f"Revoked `{before.chain_id}`. No further iteration will start.", fg=typer.colors.GREEN)
+
+
+@chain_app.command("show")
+def chain_show(
+    task_id: str,
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+) -> None:
+    """Every chain this task has had, and how each iteration's checks came out.
+
+    The convergence question, answered by reading down a column: a chain that is working
+    shows criteria flipping to ``met`` and staying there, and one that is not shows the
+    same row three times, which is what stopped it.
+    """
+    from agentjobs.dispatch.chains import chain_history, iteration_results
+
+    _project, manager = _chain_context(project_id)
+    task = manager.get_task(task_id)
+    if task is None:
+        typer.secho(f"Task '{task_id}' not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    chains = chain_history(task)
+    if not chains:
+        typer.echo(f"{task_id} has never had a chain authorised against it.")
+        return
+    for chain in chains:
+        state = (
+            "revoked"
+            if chain.revoked
+            else ("expired" if chain.expired() else "live")
+        )
+        digest = "digest matches" if chain.matches(task) else "CHECKS HAVE CHANGED"
+        typer.secho(f"\n{chain.chain_id}  ({state}, {digest})", bold=True)
+        typer.echo(f"  authorised by {chain.entry.actor} at {chain.authorized_at.isoformat()}")
+        typer.echo(f"  {chain.describe()}")
+        for iteration, vector in iteration_results(task, chain.chain_id):
+            label = "baseline" if iteration == 0 else f"iter {iteration}"
+            rendered = "  ".join(
+                f"{'✅' if status == 'met' else '❌'} {name}" for name, status in vector
+            )
+            typer.echo(f"    {label:<9} {rendered}")
+
+
+@chain_app.command("run")
+def chain_run(
+    task_id: str,
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+) -> None:
+    """Spend the chain authorised against this task, and block until it stops.
+
+    Blocks deliberately, for the reason ``agentjobs dispatch walk`` blocks: a supervisor
+    that ends its turn promising to check back is asleep. It dispatches, waits for that
+    run to reach a terminal state in the ledger, evaluates the checks, decides, and
+    repeats -- stopping loudly on convergence, a regression, thrash, either ceiling, an
+    edited check, a revocation or a refused dispatch, and handing the ball to a person
+    every time.
+
+    **Exits non-zero unless the chain converged.** Every other ending is a guardrail, and
+    none of them is good news.
+    """
+    from agentjobs.dispatch.loop import run_chain
+
+    project, manager = _chain_context(project_id)
+    result = run_chain(
+        manager=manager,
+        project=project,
+        project_config=project.load_config(),
+        task_id=task_id,
+    )
+    colour = typer.colors.GREEN if result.stop.is_success else typer.colors.YELLOW
+    typer.secho(f"\n{result.summary()}", fg=colour)
+    for item in result.iterations:
+        rendered = "  ".join(
+            f"{'✅' if status == 'met' else '❌'} {name}" for name, status in item.vector
+        )
+        typer.echo(f"  iter {item.iteration}  {item.run_id or '(not started)'}  {rendered}")
+    typer.echo(f"\nThe ball is with a human on {task_id}. Read it there.")
+    if not result.stop.is_success:
+        raise typer.Exit(code=1)
+
+
+def _chain_context(project_id: Optional[str]) -> Tuple[Project, Any]:
+    """The project and the local manager every chain verb needs.
+
+    The dispatch family's local manager, for the reason ``store_factory`` documents and
+    ``agentjobs check`` gives: these verbs execute commands and start runs, so they are
+    gated by ``assert_dispatch_permitted`` rather than by a run credential a service
+    client would present.
+    """
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    return project, dispatch_manager_for(project)
 
 
 @app.command()

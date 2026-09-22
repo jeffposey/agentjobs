@@ -24,3 +24,8 @@ export type { TaskSummaryReadOutput as TaskSummaryRead } from "./generated";
 // whole records until then, which was 5.2 MB at 480 tasks -- every task's spec prose,
 // acceptance criteria and complete log, to draw a title, a summary and two badges.
 export type { TaskCardReadOutput as TaskCardRead } from "./generated";
+
+// A chain and one of its iterations. FastAPI splits these the way it splits the task
+// record -- `CheckOutcome` carries a validator, so request and response schemas differ
+// -- and the app only ever reads them.
+export type { ChainIterationOutput as ChainIteration } from "./generated";

@@ -777,6 +777,260 @@ export type BrokenTaskFile = {
 };
 
 /**
+ * ChainAuthorizeRequest
+ *
+ * Authorise a bounded chain of dispatches against one task (task-150).
+ *
+ * **There is no field here for the digest, the chain id, or which criteria are
+ * covered**, and that absence is the whole of dispatch design section 2 applied to a
+ * loop. Those three are computed from the stored task at the moment of the write; a
+ * request that supplied them would be asking the server to take the definition of done
+ * from the caller, which is precisely the move the digest exists to defeat.
+ *
+ * The two bounds *are* here, because they are the thing a person is choosing. Both are
+ * checked against the design's ceilings on the way in and again on the payload model.
+ */
+export type ChainAuthorizeRequest = {
+    /**
+     * Max Iterations
+     *
+     * How many dispatches this authorisation buys, at most.
+     */
+    max_iterations?: number;
+    /**
+     * Note
+     *
+     * What the person wants the chain to achieve, for the record.
+     */
+    note?: string | null;
+    /**
+     * User
+     *
+     * The human authorising this. Validated against the project's configured actors and refused unless `kind: human`, exactly as a dispatch's is.
+     */
+    user?: string | null;
+    /**
+     * Wall Clock Seconds
+     *
+     * How long the chain may run from the moment it is authorised.
+     */
+    wall_clock_seconds?: number;
+};
+
+/**
+ * ChainIteration
+ *
+ * One turn of a chain, as the task page reads it back.
+ */
+export type ChainIterationInput = {
+    /**
+     * Entry Id
+     *
+     * The `check_result` entry this turn wrote.
+     */
+    entry_id: number;
+    /**
+     * Iteration
+     *
+     * 0 is the baseline recorded at authorisation.
+     */
+    iteration: number;
+    /**
+     * Results
+     *
+     * The result vector, in the task's own order.
+     */
+    results?: Array<CheckOutcome>;
+    /**
+     * Ts
+     *
+     * When the pass was recorded.
+     */
+    ts: string;
+    /**
+     * Unchecked
+     *
+     * Criteria this pass did not decide.
+     */
+    unchecked?: Array<string>;
+};
+
+/**
+ * ChainIteration
+ *
+ * One turn of a chain, as the task page reads it back.
+ */
+export type ChainIterationOutput = {
+    /**
+     * Entry Id
+     *
+     * The `check_result` entry this turn wrote.
+     */
+    entry_id: number;
+    /**
+     * Iteration
+     *
+     * 0 is the baseline recorded at authorisation.
+     */
+    iteration: number;
+    /**
+     * Results
+     *
+     * The result vector, in the task's own order.
+     */
+    results?: Array<CheckOutcome>;
+    /**
+     * Ts
+     *
+     * When the pass was recorded.
+     */
+    ts: string;
+    /**
+     * Unchecked
+     *
+     * Criteria this pass did not decide.
+     */
+    unchecked?: Array<string>;
+};
+
+/**
+ * ChainList
+ *
+ * Every chain a task has ever had, oldest first.
+ */
+export type ChainList = {
+    /**
+     * Chains
+     */
+    chains?: Array<ChainRead>;
+    /**
+     * Task Id
+     */
+    task_id: string;
+};
+
+/**
+ * ChainRead
+ *
+ * One chain and its whole history, for the panel on the task page (task-150).
+ *
+ * Derived from the task's log rather than stored anywhere: the ``chain_authorized``
+ * entry, its revocation if it has one, and every ``check_result`` carrying its id. A
+ * second copy of any of that could disagree with the entries it was derived from, and
+ * the entries are what a person auditing a loop next week will read.
+ */
+export type ChainRead = {
+    /**
+     * Authorized At
+     */
+    authorized_at: string;
+    /**
+     * Authorized By
+     *
+     * Whose act this was.
+     */
+    authorized_by: string;
+    /**
+     * Chain Id
+     */
+    chain_id: string;
+    /**
+     * Check Digest
+     */
+    check_digest: string;
+    /**
+     * Criteria
+     */
+    criteria?: Array<string>;
+    /**
+     * Deadline
+     *
+     * When the wall-clock bound expires.
+     */
+    deadline: string;
+    /**
+     * Digest Matches
+     *
+     * Whether the task's checks are still the ones this authorised.
+     */
+    digest_matches: boolean;
+    /**
+     * Entry Id
+     *
+     * The `chain_authorized` entry.
+     */
+    entry_id: number;
+    /**
+     * Expired
+     *
+     * Whether the wall-clock bound has passed.
+     */
+    expired: boolean;
+    /**
+     * Iterations
+     */
+    iterations?: Array<ChainIterationOutput>;
+    /**
+     * Live
+     *
+     * Whether an iteration could still start: authorised, not revoked, not expired, and the task's checks still match the digest. This is what a Revoke button is offered on.
+     */
+    live: boolean;
+    /**
+     * Max Iterations
+     */
+    max_iterations: number;
+    /**
+     * Revoked
+     *
+     * Whether the authorisation has been withdrawn.
+     */
+    revoked: boolean;
+    /**
+     * Revoked At
+     */
+    revoked_at?: string | null;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Wall Clock Seconds
+     */
+    wall_clock_seconds: number;
+};
+
+/**
+ * ChainRevokeRequest
+ *
+ * Stop a chain. Everything on it is optional, which is the point (task-150).
+ *
+ * Section 9 asks for a kill switch as blunt as ``agentjobs dispatch stop``. A revoke
+ * that required a chain id copied off a log entry would not be one, so an empty body
+ * stops whatever is live.
+ */
+export type ChainRevokeRequest = {
+    /**
+     * Chain Id
+     *
+     * Which chain, when it is not simply the live one.
+     */
+    chain_id?: string | null;
+    /**
+     * Note
+     *
+     * Why, for the record.
+     */
+    note?: string | null;
+    /**
+     * User
+     *
+     * Who is stopping it.
+     */
+    user?: string | null;
+};
+
+/**
  * CheckOutcome
  *
  * What one acceptance criterion's ``check`` did on one pass (task-147).
@@ -3177,7 +3431,7 @@ export type LogEntry = {
  *
  * Type of a log entry (design doc section 4).
  */
-export type LogEntryType = 'note' | 'progress' | 'transition' | 'handoff' | 'decision' | 'question' | 'answer' | 'instruction' | 'dispatch' | 'dispatch_result' | 'queue_move' | 'authorization' | 'check_result';
+export type LogEntryType = 'note' | 'progress' | 'transition' | 'handoff' | 'decision' | 'question' | 'answer' | 'instruction' | 'dispatch' | 'dispatch_result' | 'queue_move' | 'authorization' | 'check_result' | 'chain_authorized' | 'chain_revoked';
 
 /**
  * MachineHolderView
@@ -4489,11 +4743,25 @@ export type QuestionDraft = {
  */
 export type QuestionOption = {
     /**
+     * Who holds the task once this option is chosen. Required with `dispatches: false` and forbidden otherwise.
+     */
+    ball?: Ball | null;
+    /**
+     * Why that holder has it. Travels with `ball`.
+     */
+    ball_reason?: BallReason | null;
+    /**
      * Description
      *
      * What picking this means. Shown under the label.
      */
     description?: string | null;
+    /**
+     * Dispatches
+     *
+     * Whether choosing this hands work back to an agent. False for an answer that means *wait*, *stop* or *decline*, which records the choice and starts nothing.
+     */
+    dispatches?: boolean;
     /**
      * Label
      *
@@ -10852,6 +11120,108 @@ export type RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostRe
 
 export type RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostResponse = RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostResponses[keyof RelayAuthorizationApiProjectsProjectIdTasksTaskIdAuthorizationPostResponses];
 
+export type AuthorizeTaskChainApiProjectsProjectIdTasksTaskIdChainPostData = {
+    body: ChainAuthorizeRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/chain';
+};
+
+export type AuthorizeTaskChainApiProjectsProjectIdTasksTaskIdChainPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthorizeTaskChainApiProjectsProjectIdTasksTaskIdChainPostError = AuthorizeTaskChainApiProjectsProjectIdTasksTaskIdChainPostErrors[keyof AuthorizeTaskChainApiProjectsProjectIdTasksTaskIdChainPostErrors];
+
+export type AuthorizeTaskChainApiProjectsProjectIdTasksTaskIdChainPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: ChainRead;
+};
+
+export type AuthorizeTaskChainApiProjectsProjectIdTasksTaskIdChainPostResponse = AuthorizeTaskChainApiProjectsProjectIdTasksTaskIdChainPostResponses[keyof AuthorizeTaskChainApiProjectsProjectIdTasksTaskIdChainPostResponses];
+
+export type RevokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostData = {
+    body: ChainRevokeRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/chain/revoke';
+};
+
+export type RevokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostError = RevokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostErrors[keyof RevokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostErrors];
+
+export type RevokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChainList;
+};
+
+export type RevokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostResponse = RevokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostResponses[keyof RevokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostResponses];
+
+export type ReadTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/chains';
+};
+
+export type ReadTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetError = ReadTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetErrors[keyof ReadTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetErrors];
+
+export type ReadTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChainList;
+};
+
+export type ReadTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetResponse = ReadTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetResponses[keyof ReadTaskChainsApiProjectsProjectIdTasksTaskIdChainsGetResponses];
+
 export type CheckTaskAcceptanceApiProjectsProjectIdTasksTaskIdCheckPostData = {
     body?: never;
     path: {
@@ -12617,6 +12987,96 @@ export type RelayAuthorizationApiTasksTaskIdAuthorizationPostResponses = {
 };
 
 export type RelayAuthorizationApiTasksTaskIdAuthorizationPostResponse = RelayAuthorizationApiTasksTaskIdAuthorizationPostResponses[keyof RelayAuthorizationApiTasksTaskIdAuthorizationPostResponses];
+
+export type AuthorizeTaskChainApiTasksTaskIdChainPostData = {
+    body: ChainAuthorizeRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/chain';
+};
+
+export type AuthorizeTaskChainApiTasksTaskIdChainPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthorizeTaskChainApiTasksTaskIdChainPostError = AuthorizeTaskChainApiTasksTaskIdChainPostErrors[keyof AuthorizeTaskChainApiTasksTaskIdChainPostErrors];
+
+export type AuthorizeTaskChainApiTasksTaskIdChainPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: ChainRead;
+};
+
+export type AuthorizeTaskChainApiTasksTaskIdChainPostResponse = AuthorizeTaskChainApiTasksTaskIdChainPostResponses[keyof AuthorizeTaskChainApiTasksTaskIdChainPostResponses];
+
+export type RevokeTaskChainApiTasksTaskIdChainRevokePostData = {
+    body: ChainRevokeRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/chain/revoke';
+};
+
+export type RevokeTaskChainApiTasksTaskIdChainRevokePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeTaskChainApiTasksTaskIdChainRevokePostError = RevokeTaskChainApiTasksTaskIdChainRevokePostErrors[keyof RevokeTaskChainApiTasksTaskIdChainRevokePostErrors];
+
+export type RevokeTaskChainApiTasksTaskIdChainRevokePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChainList;
+};
+
+export type RevokeTaskChainApiTasksTaskIdChainRevokePostResponse = RevokeTaskChainApiTasksTaskIdChainRevokePostResponses[keyof RevokeTaskChainApiTasksTaskIdChainRevokePostResponses];
+
+export type ReadTaskChainsApiTasksTaskIdChainsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/chains';
+};
+
+export type ReadTaskChainsApiTasksTaskIdChainsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadTaskChainsApiTasksTaskIdChainsGetError = ReadTaskChainsApiTasksTaskIdChainsGetErrors[keyof ReadTaskChainsApiTasksTaskIdChainsGetErrors];
+
+export type ReadTaskChainsApiTasksTaskIdChainsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChainList;
+};
+
+export type ReadTaskChainsApiTasksTaskIdChainsGetResponse = ReadTaskChainsApiTasksTaskIdChainsGetResponses[keyof ReadTaskChainsApiTasksTaskIdChainsGetResponses];
 
 export type CheckTaskAcceptanceApiTasksTaskIdCheckPostData = {
     body?: never;

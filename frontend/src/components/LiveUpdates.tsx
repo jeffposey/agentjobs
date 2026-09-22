@@ -57,6 +57,12 @@ export const PROJECT_TASK_QUERY_IDS = new Set([
   // holder bands, and all of those are task writes that move the revision. It is one
   // request for the whole page (docs/analytics-design.md section 7.1), so one refetch.
   "getAnalyticsApiProjectsProjectIdAnalyticsGet",
+  // A chain is log entries and nothing else -- a `chain_authorized`, its `chain_revoked`,
+  // and one `check_result` per iteration -- so every write that changes what this answers
+  // is a task write that moves the revision. It additionally polls on its own clock while
+  // a chain is live, because an iteration ending is minutes away and a reader sitting on
+  // the page should not have to wait for a revision poll to see the turn land.
+  "readTaskChainsApiProjectsProjectIdTasksTaskIdChainsGet",
 ]);
 
 /**
