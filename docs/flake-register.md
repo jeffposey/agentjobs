@@ -49,6 +49,8 @@ owns the page.
 | 5 | `test_dispatch_api.py::...::test_cancelling_a_live_run_stops_it_and_marks_it_cancelled` | `assert 'failed' == 'cancelled'` | the `cancel_requested` guard still races at 32 workers | production defect | open -- **task-370** |
 | 6 | `test_dispatch_registration.py::TestRefusals::test_a_session_the_ledger_does_not_hold_is_refused` | the refusal names the ledger rather than the live session | process creation itself failed; the runner never ran | environment, surfaced as a defect | **cause removed** (task-518) |
 | 7 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_marked_launch_the_listing_cannot_find_is_unknown_not_absent` | `AssertionError: []` -- the controller decided nothing | the attempt store stamped `admitted_at` on the machine's clock while the controller read another | clock race | **fixed** (task-518) |
+| 8 | `test_dispatch_journal.py::TestACancelLandingMidPoll::test_the_cancel_wins_and_the_poll_writes_nothing` | `the poller never reached its conclusion` | a ten-second wall-clock budget for a thread that spawns a subprocess | test premise | open -- **task-522** |
+| 9 | `test_task_queued_status.py::TestTheLabel::test_a_waiting_dispatch_reads_queued_and_a_task_without_one_still_reads_ready` | `assert 'In progress (claude)' == 'Queued'` | a dispatch poll reconciled the fixture's fake sessions away, so the full machine emptied and the dispatch started instead of queuing | test premise | open -- **task-522** |
 
 ### 1. The two timelines in `test_auth_recovery` (clock race, fixed)
 
@@ -220,6 +222,63 @@ guard was written to close, still open at 32 workers. A production defect rather
 test premise: a cancelled run reported as failed is wrong on somebody's dashboard, not only
 in a suite. **Reproduction:** the file at `-n 32`; it cost task-268's scripted finish a
 whole gate.
+
+### 8 and 9, seen on 2026-09-22, open
+
+Added by the task-147 run whose gate they stopped, under the rule above: whoever sees a
+flake adds it, at the moment they see it, whether or not they are going to fix it. Task-522
+is the fix. Neither is reachable from that branch's diff, which touches models, the store
+mapper, `update_task`, `dispatch/checks.py`, one CLI command, one route and a migration.
+
+**What makes these two a pair worth reading together.** One scripted finish, `fin_ce2a7482`,
+red at `pytest` twice on the same commit -- and **a different test each time**, each once,
+out of 5553 that passed. That is the signature: a deterministic defect does not move. The
+pytest stage took 641s and 625s against the 52s `docs/performance.md` records for a machine
+to itself, so the load was roughly an order of magnitude, with three agent sessions live.
+
+**8. `test_dispatch_journal.py::TestACancelLandingMidPoll::test_the_cancel_wins_and_the_poll_writes_nothing`.**
+Fails at `tests/test_dispatch_journal.py:164`:
+
+```
+assert reached.wait(10), "the poller never reached its conclusion"
+```
+
+The poller thread shells out to the fake CLI, and entry 2 above already records subprocess
+creation on this machine at **0.064s to 16.7s for identical argv** depending on what else
+is running. A ten-second budget is therefore not a property of the code under test. Same
+class as entry 4, and the same question has to be settled first: whether the poller reaches
+its conclusion late or not at all. A bigger number answers neither.
+
+**9. `test_task_queued_status.py::TestTheLabel::test_a_waiting_dispatch_reads_queued_and_a_task_without_one_still_reads_ready`.**
+`assert 'In progress (claude)' == 'Queued'` at line 95. This one names its own mechanism in
+the captured stdout, which is why it needed no investigation:
+
+```
+Dispatch poll journal: imported 3 task-log entries
+Dispatch poll exe_bc7ff479fe8085fa: launch_reconcile: stopped unfollowable session b55b0000
+```
+
+`fill_the_machine` holds the ceiling with runs whose sessions do not really exist, and
+`launch_reconcile` is entitled to judge exactly such a session unfollowable and stop it.
+That frees a slot, so the dispatch that was supposed to queue is admitted, claims the task,
+and the label reads `In progress (claude)`. Whether the reconcile lands before or after the
+assertion is a race decided by load.
+
+**A test premise, not a production defect.** Stopping an unfollowable session is the
+behaviour we want; the fixture is what assumes it will not happen. `fill_the_machine` lives
+in `tests/test_start_pause.py` and is imported by more than this file, so every caller
+inherits the premise.
+
+**Reproduction for both:** `poetry run python scripts/flake_probe.py runs --times 20
+--slots 2 --files tests/test_dispatch_journal.py tests/test_task_queued_status.py`. Stated
+rather than run: the two files pass 42 of 42 in 95s alone, so the rate is what has to be
+measured, and measuring it honestly means a quiet machine that was not available. Task-522
+owns the pair of rates. **What is evidence here is the two gate logs**, kept at
+`~/.agentjobs/finishes/fin_ce2a7482/gate.log` and `gate-retry-1.log`.
+
+**Related, and not the same.** Task-513 budgets the run ceiling so concurrent tasks stop
+tripling the gate. That lowers the rate both of these fire at. It does not make either
+premise true.
 
 ## Proving a converted test still catches its threshold
 
