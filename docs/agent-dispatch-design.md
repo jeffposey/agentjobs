@@ -4631,6 +4631,66 @@ fallback, daemon-auth latch or blind retry of work against a dead store. The CLI
 perform its own refresh during a probe, which is normal CLI behaviour and is recorded
 as a confound in experiments about the cause of expiry.
 
+#### Claude Code has its own quota resume, and it is pinned off (task-455)
+
+**The vendor ships a feature for the same event, it is on by default, and AgentJobs now
+says so in writing rather than inheriting it.** Anyone reading the section above will
+eventually ask whether task-417 reinvented something the CLI already does. It does not,
+and the answer took reading a binary, so it is recorded here.
+
+Read out of `%APPDATA%/npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe`,
+**Claude Code 2.1.278, on 2026-09-22** (build `2026-09-19T01:12:36Z`). Strings, not
+documentation: treat the mechanism as established and the edge cases as worth confirming
+again on a later version.
+
+- **The setting is `autoContinueAtUsageLimit`**, a boolean, described in its own schema as
+  waiting for a claude.ai usage limit to reset and continuing the task automatically. It
+  is read as `Dct()??!0` -- **on unless something says otherwise**. It appears in the
+  settings panel under *Model & output* as "Continue automatically at usage limit", and
+  there is a `/rate-limit-options` menu and a "Continuing automatically when your limit
+  resets · esc to cancel" status line. There is **no CLI flag**; settings are the only
+  non-interactive way to reach it.
+- **It is an in-process wait by a live session.** Its cancellation reasons include
+  `background_handoff` -- carrying "this session moved to the background, so the task will
+  not resume on its own when the usage limit resets" -- and `process_exit`. Every
+  AgentJobs run is launched `--bg`, and a run whose session dies on the refusal has
+  exited, which is exactly the state this recovery is built for.
+- **It knows nothing about a task record.** No park to `external`/`service`, no reset time
+  on the ball prompt, no incident shared across the several runs that lose one limit
+  together (the thing that makes one notification stand for three tasks), and nothing a
+  human reading the board can see. So it cannot be the owner of the resume, whatever its
+  in-session behaviour turns out to be.
+
+**Does a `--bg` run arm it?** The auto-arm path is refused when `ff()` holds, and `ff()`
+is true when `CLAUDE_CODE_SESSION_KIND === "bg"` -- but that variable is **not set** in an
+AgentJobs worker's environment (measured from inside a dispatched `--bg` session,
+2026-09-22), so that gate does not settle it. The other arming path is a dialog and a
+menu, which a background run has nobody to drive. What our own records do settle is that
+**it did not resume anything**: at the 2026-09-18 usage-limit park (`inc_c6ea1469f5e94c18`
+and `inc_4b522908392a4a9c`, both resetting at 18:40:00Z) the two sessions were **alive and
+idle** when the nudge reached them 75s and 91s after the reset, and both waiters record
+`"recovered": "after the nudge"`. A vendor continue would have fired at the reset and left
+a busy session. So there is **no double-continue signature** in the one park where both
+mechanisms could have competed -- neither run woke twice, and the wake times are our probe
+cadence, not the reset.
+
+**The pin is therefore insurance, not a bug fix, and it is cheap.**
+`session_env.merged_document` sets `autoContinueAtUsageLimit: false` in the per-run
+`session-settings.json`, alongside `crossSessionInbound` and by the same rule: defaulted,
+not imposed, so an operator who wrote the key into a runner's own settings keeps their
+answer. It never widens what a run may do -- `false` is the value Claude Code's own policy
+table marks restrictive for this key. And it means a future version that makes background
+sessions eligible cannot quietly introduce the double-continue nobody would think to look
+for. The user's own global settings are untouched; the pin lives only in the document
+AgentJobs writes, which arrives over `--settings` as a `flagSettings` source (probed
+against 2.1.278 on 2026-09-22: a settings file carrying the key is accepted with no
+warning).
+
+**None of this weakens task-417.** The probe-and-nudge is what parks the task, shares one
+incident across every run on that credential, puts a reset time in front of a person and
+verifies that the session actually made progress. The vendor feature does none of those,
+and cannot for a run whose process has exited.
+
 #### The same incident is also a start gate (task-463)
 
 Everything above is about a run that hits the limit **while it is running**. Once slots
