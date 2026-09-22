@@ -53,8 +53,16 @@ export function liveRunsPollInterval(body: LiveRunsView | undefined): number {
   // A waiting dispatch counts as busy (task-459). The machine is full by definition
   // while one is queued, and the moment worth seeing promptly is the one where a slot
   // frees and the card turns into a run.
+  // A walk that is still taking off counts as busy too (task-523): it starts children
+  // with nobody clicking anything, so the moment worth seeing promptly is the one where
+  // a slot fills with work nobody asked for by hand. A *grounded* walk is deliberately
+  // not busy -- one waiting on a review can wait for days, and a page polling every two
+  // seconds for it would be paying a busy machine's cost for an idle one.
   const busy =
-    body.runs.length > 0 || body.holders.length > 0 || (body.queued?.length ?? 0) > 0;
+    body.runs.length > 0 ||
+    body.holders.length > 0 ||
+    (body.queued?.length ?? 0) > 0 ||
+    (body.walks ?? []).some((walk) => !walk.grounded);
   return busy ? BUSY_POLL_MS : IDLE_POLL_MS;
 }
 

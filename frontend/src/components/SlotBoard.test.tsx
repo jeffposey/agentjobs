@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type {
   ArmedProjectView,
+  EpicWalkView,
   LiveRunView,
   LiveRunsView,
   MachineHolderView,
@@ -12,7 +13,14 @@ import type {
   TaskCardRead,
 } from "../api/types";
 import { capacitySentence } from "./LiveRuns";
-import { BOARD_CELL_LIMIT, SlotBoard, boardLayout, orderedRuns } from "./SlotBoard";
+import {
+  BOARD_CELL_LIMIT,
+  SlotBoard,
+  boardLayout,
+  orderedRuns,
+  walkCountsSentence,
+  walkState,
+} from "./SlotBoard";
 
 /**
  * The slot board (task-092), rendered from a response object.
@@ -1121,5 +1129,190 @@ describe("the pause on a usage-limit incident (task-463)", () => {
     );
 
     expect(screen.getByTestId("slot-board-paused-queue")).toBeVisible();
+  });
+});
+
+function walk(overrides: Partial<EpicWalkView> = {}): EpicWalkView {
+  return {
+    walk_id: "walk_aaaa",
+    project_id: "alpha",
+    project_name: "Alpha Project",
+    parent_task_id: "task-437",
+    parent_task_title: "Teach the epic to land",
+    parent_task_url: "/p/alpha/tasks/task-437",
+    started_at: "2026-09-22T09:00:00Z",
+    children_total: 7,
+    children_completed: 3,
+    children_in_flight: 1,
+    children_remaining: 3,
+    in_flight_task_ids: ["task-440"],
+    grounded: false,
+    grounded_reason: "",
+    grounded_word: "",
+    waiting_on_task_id: "",
+    waiting_on_task_title: "",
+    waiting_on_task_url: "",
+    resumes_by_itself: false,
+    detail: "",
+    ...overrides,
+  };
+}
+
+/**
+ * The walk rail (task-523).
+ *
+ * Every assertion here is on a value a reader would act on -- the counts as the
+ * sentence they are printed as, and the word for whether the walk has stopped -- rather
+ * than on the container being present. A section that exists and says `0 of 0` is the
+ * failure this task was filed about, and a test for the container passes over it.
+ */
+describe("the epics this machine is walking (task-523)", () => {
+  it("names the epic, its counts and that it is still walking", () => {
+    // ac-1. The parent is a link a reader can follow, and the counts read as one
+    // sentence rather than three numbers nobody can order.
+    renderBoard(<SlotBoard body={body({ walks: [walk()] })} queue={[]} projectId="alpha" />);
+
+    const row = screen.getByTestId("epic-walk");
+    expect(within(row).getByTestId("epic-walk-parent")).toHaveTextContent(
+      "task-437Teach the epic to land",
+    );
+    expect(within(row).getByTestId("epic-walk-parent")).toHaveAttribute(
+      "href",
+      "/p/alpha/tasks/task-437",
+    );
+    expect(within(row).getByTestId("epic-walk-counts")).toHaveTextContent(
+      "3 of 7 children done \u00b7 1 in flight \u00b7 3 to come",
+    );
+    expect(within(row).getByTestId("epic-walk-badge")).toHaveTextContent("walking");
+    expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
+      "starting each child as its dependencies close",
+    );
+  });
+
+  it("says a grounded walk has stopped, and why", () => {
+    // ac-1, and the whole reason the section exists: a grounded walk and a quiet one
+    // are the same row otherwise, and a reader who cannot tell them apart reads a
+    // stall as progress.
+    renderBoard(
+      <SlotBoard
+        body={body({
+          walks: [
+            walk({
+              grounded: true,
+              grounded_reason: "child_exhausted_attempts",
+              grounded_word: "a child used both of its attempts",
+              children_in_flight: 0,
+              children_remaining: 4,
+            }),
+          ],
+        })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    const row = screen.getByTestId("epic-walk");
+    expect(within(row).getByTestId("epic-walk-badge")).toHaveTextContent("grounded");
+    expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
+      "grounded: a child used both of its attempts. Nothing more takes off until a person acts.",
+    );
+  });
+
+  it("distinguishes a walk that is only waiting from one that has stopped for good", () => {
+    // task-467's distinction, on the page. Both are grounded; only this one resumes
+    // with nobody involved, and telling a reader to go and act on it would solicit the
+    // one gesture that cannot help.
+    renderBoard(
+      <SlotBoard
+        body={body({
+          walks: [
+            walk({
+              grounded: true,
+              grounded_reason: "child_needs_a_human",
+              grounded_word: "a child needs a person",
+              resumes_by_itself: true,
+              waiting_on_task_id: "task-147",
+              waiting_on_task_title: "Acceptance checks",
+              waiting_on_task_url: "/p/alpha/tasks/task-147",
+            }),
+          ],
+        })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    const row = screen.getByTestId("epic-walk");
+    expect(within(row).getByTestId("epic-walk-badge")).toHaveTextContent("waiting");
+    expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
+      "waiting on task-147: a child needs a person. It takes off again on its own when that clears.",
+    );
+    expect(within(row).getByTestId("epic-walk-waiting-on")).toHaveAttribute(
+      "href",
+      "/p/alpha/tasks/task-147",
+    );
+  });
+
+  it("takes no slot cell and changes nothing the free cells offer", () => {
+    // ac-2. A walk holds no slot (task-458), so the board is the board it would be
+    // without one: the same cells, the same states, the same offer.
+    const without = boardLayout(body(), [task("task-next")], "alpha");
+    const with_ = boardLayout(body({ walks: [walk()] }), [task("task-next")], "alpha");
+
+    expect(with_.cells.map((cell) => cell.kind)).toEqual(without.cells.map((cell) => cell.kind));
+
+    renderBoard(
+      <SlotBoard body={body({ walks: [walk()] })} queue={[task("task-next")]} projectId="alpha" />,
+    );
+
+    expect(cellStates()).toEqual(["queued", "empty", "empty"]);
+    expect(screen.getByTestId("slot-board-capacity")).toHaveTextContent(
+      capacitySentence(body({ walks: [walk()] })),
+    );
+  });
+
+  it("draws nothing at all when no epic is being walked", () => {
+    // ac-3. An "Epic walks (0)" header on every calm day is the page's loudest element
+    // saying nothing.
+    renderBoard(<SlotBoard body={body({ walks: [] })} queue={[]} projectId="alpha" />);
+
+    expect(screen.queryByTestId("slot-board-walks")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Epics being walked/)).not.toBeInTheDocument();
+  });
+
+  it("is status, so it survives an alarm holding the page", () => {
+    // It offers no action, so there is nothing for `statusOnly` to withhold -- and a
+    // machine dispatching children on its own is exactly the status a bad day needs.
+    renderBoard(
+      <SlotBoard body={body({ walks: [walk()] })} queue={[]} projectId="alpha" statusOnly />,
+    );
+
+    expect(screen.getByTestId("epic-walk-counts")).toBeVisible();
+  });
+
+  it("says so rather than printing zeroes when the backlog cannot be read", () => {
+    // A project unregistered while its walk is still open. "0 of 0 children done" would
+    // read as a finished epic, which is the one thing it certainly is not.
+    expect(walkCountsSentence(walk({ children_total: 0 }))).toBe(
+      "children could not be read from this project's backlog",
+    );
+  });
+
+  it("falls back to the raw stop reason when the server has a word this build lacks", () => {
+    expect(walkState(walk({ grounded: true, grounded_reason: "some_new_stop" })).sentence).toBe(
+      "grounded: some_new_stop. Nothing more takes off until a person acts.",
+    );
+  });
+
+  it("draws the board for a walk on a machine with nothing else on it", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({ dispatch_configured: false, occupied: 0, walks: [walk()] })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("slot-board-walks")).toBeVisible();
   });
 });

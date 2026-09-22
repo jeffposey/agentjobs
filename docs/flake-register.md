@@ -59,6 +59,33 @@ went red on a test it did not touch has to know to come here.
 | 10 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_fresh_process_performs_the_recovery` | `assert 'never launched' in '\n'` -- an empty report | `attempt_evidence` asks a bare `process_alive` with no start-time guard, so a reused pid keeps a dead launcher's attempt owned | production defect | open -- **task-489** |
 | 11 | `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output` | `sqlite3.ProgrammingError: Cannot operate on a closed database` | a supervisor thread outlives its test and writes through a store the fixture has closed | teardown lifetime | open -- **task-497** |
 | 12 | whichever test an xdist worker happens to be running (`test_auto_dispatch.py` and `test_dispatch_api.py` seen) | `Windows fatal exception: access violation`, `worker 'gwN' crashed` | `_classify_batch_exit` reads SQLite from a background thread while the fixture closes the database | teardown lifetime | open -- **task-438** |
+| 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone | environment, or entry 3's cause not fully removed | open -- see below |
+
+### 13. A sibling dispatch that exits 1 saying nothing
+
+**What it looked like.** `assert 1 == 0` inside `TestTwoWalkersOfOneEpic.sibling`, which
+dispatches a child from another interpreter with `subprocess.run(..., timeout=180)`. The
+`CompletedProcess` carried `returncode=1`, `stdout=''` and `stderr=''`. A process that
+fails *for a reason* says something on one of those streams; one that says nothing on
+either was killed, or never got far enough to speak.
+
+That is **entry 3's signature**, on a test entry 3 does not list. Entry 3's cause -- a
+`taskkill /T /F` aimed at a recycled pid -- was removed in task-505, so either this is a
+second producer of the same shape or that removal is incomplete. It is deliberately left
+unnamed here rather than attributed to entry 3 on a resemblance.
+
+**Observed** 2026-09-22 16:29-16:52 local, in task-523's pre-handoff gate, on a branch
+whose diff touches neither `epic.py` nor dispatch. The gate said *"Sharing this machine
+with 3 gates, so pytest runs at -n 10 rather than -n auto"*; 5566 passed, this one and
+one unrelated corpus failure red. Both parameters of the same test passed on the
+immediate re-run, alone, in the same worktree and the same interpreter.
+
+**Reproduction.** Not reduced. The load is the thing to reproduce: four concurrent gates
+on this machine, `-n 10`. `scripts/flake_probe.py` over `tests/test_epic_supervision.py`
+under held slots is the tool for it. Until somebody does that, the entry's value is the
+signature: **an exit 1 with nothing on either stream is not a test failure, it is a
+killed or stillborn process**, and reading it as a defect in the code under test costs an
+afternoon.
 
 ### 1. The two timelines in `test_auth_recovery` (clock race, fixed)
 

@@ -31,8 +31,17 @@ Run both at once to see them side by side:
 
 What to check, in both:
 
+  * **The "Epics being walked" rail**, under the slot cells (task-523). The default half
+    reads `walking`; `--grounded` reads `waiting on task-20x` and says the walk takes
+    off again on its own when that child clears. That difference is the whole of what
+    the rail is for: before it, the two halves of this sandbox looked identical on the
+    dashboard once the children had landed, and an epic could supervise for hours with
+    nothing on the page saying so.
+  * The child counts on that rail, against the epic's own page. Completed, in flight and
+    still to come are read from the task graph, so they keep counting children the walk
+    has not touched yet.
   * The Dashboard's slot board. Three child cards flying, or none; never a card for the
-    epic itself.
+    epic itself -- and the rail below takes no cell from it either.
   * The capacity badge. `3 of 3 slots busy` with three children -- the number the old
     shape could not reach, because the supervisor held one.
   * The Runs tab. The epic's own run, `finished`, `epic walk - no agent`, started and
