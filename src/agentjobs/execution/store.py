@@ -56,6 +56,7 @@ from typing import (
     Tuple,
 )
 
+from agentjobs import clock as _clock
 from agentjobs.dispatch.pids import process_created_after
 from agentjobs.execution.errors import (
     ActivityConflict,
@@ -1099,7 +1100,7 @@ def _event_moment(text: str) -> datetime:
 
 
 def _utc(moment: Optional[datetime]) -> datetime:
-    value = moment or datetime.now(timezone.utc)
+    value = moment or _clock.utcnow()
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
@@ -1143,7 +1144,15 @@ class ExecutionStore:
     ) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._clock = clock or (lambda: datetime.now(timezone.utc))
+        # The process's one clock (task-518), not the machine's. An execution attempt's
+        # `admitted_at` is stamped here and the controller subtracts it from its own now to
+        # decide whether a launch has missed its reconcile deadline -- so a store on a
+        # different clock from the controller is that subtraction crossing two timelines,
+        # and under a test clock it silently loses however long the admitting process took
+        # to start. That is what made
+        # `test_a_marked_launch_the_listing_cannot_find_is_unknown_not_absent` red twice in
+        # ten runs at -n 16.
+        self._clock = clock or _clock.utcnow
         self._lock = threading.RLock()
         self.before_commit: Optional[Callable[[str], None]] = None
         """Called with the transaction's label immediately before ``COMMIT``.

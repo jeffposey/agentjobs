@@ -583,6 +583,33 @@ quieter at 18:15 than at 17:51, and this file's own rule is that a wall-clock fi
 a gap like that is an anecdote. The per-test pairs above were taken back to back and are
 the defensible half; the whole-suite column is here because leaving it out would be worse.
 
+The gate's own figure, green, all ten stages, 2026-09-21 20:29-20:41 on the same machine
+with the owner's ordinary desktop load and no other gate running:
+
+| stage | seconds |
+|---|---|
+| `black` | 2.2 |
+| `ruff` | 0.4 |
+| `mypy` | 2.2 |
+| `api` | 6.8 |
+| `icons` | 1.6 |
+| `oxlint` | 2.0 |
+| **`pytest`** | **475.0** |
+| `vitest` | 38.1 |
+| `build` | 9.0 |
+| `e2e` | 189.0 |
+| **total** | **726.2** |
+
+**1146.2s to 475.0s for the pytest stage**, and the same caveat applies to that pair as to
+every other in this section: the before figure was taken on a different evening, and this
+machine's process-creation cost was measured varying by a factor of 260 between identical
+spawns on the day both readings were taken. What is not subject to that caveat is the
+per-test table above, which was measured back to back, and the fact that the stage is again
+the gate is bounded by `pytest` at 475.0s against `e2e`'s 189.0s. That is the reverse of
+where task-268 left it -- 89.1s against 138.8s -- and it is where the next round of this
+work has to look, because nothing in this section touched the thing that actually costs
+the stage its time, which is how many short-lived processes the dispatch tests start.
+
 ### What the slowest tests actually are (task-268)
 
 Every proposal about this suite up to now has been arithmetic over its total — task-268's

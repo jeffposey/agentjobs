@@ -58,6 +58,7 @@ from agentjobs.dispatch.poller import poll_live_sessions
 from agentjobs.dispatch.runner import DispatchRunner, RunDirectory, SessionPhase, runs_root
 from agentjobs.manager import TaskManager
 from skipping_clock import SkippingClock, install
+from time import sleep as real_sleep
 
 from agentjobs.models_v2 import (
     Ball,
@@ -791,6 +792,47 @@ class TestSelfHealingNeedsNobody:
 
         # A later poll of the recovered session is an ordinary poll again.
         assert machine.poll()[run_id].phase is SessionPhase.RUNNING
+
+    def test_the_recovery_survives_wall_clock_passing_mid_scenario(self, machine: Machine) -> None:
+        """The flake this file produced three times on 2026-09-21, made impossible (task-518).
+
+        The scenario above is the one that failed, and the margin it used to have was four
+        seconds of **wall clock** between two of its own lines. `reply_on_wake` stamped the
+        session's reply from one `datetime.now()`, the resume was stamped from another, and
+        recovery needs the reply to be the later of the two; the calls in between spawn
+        subprocesses, whose cost on this machine was measured ranging from 0.064s to 16.7s
+        for identical argv. So the test passed alone and failed inside a full run, which is
+        exactly what was observed -- green in isolation, red twice in one finish's gate.
+
+        This is the same scenario with **six real seconds** burned at the point the margin
+        used to be. It costs the suite those six seconds and it is worth them: it is the
+        only assertion here that would have caught the defect, because every other one in
+        this file passes on the broken code whenever the machine happens to be quiet.
+        """
+        run_id, task_id = machine.start()
+        machine.die_on_login()
+        machine.go_idle()
+        machine.plan_probes([_auth_failure(), _auth_failure(), _success()])
+        machine.reply_on_wake(offset_seconds=124)
+
+        assert machine.poll()[run_id].phase is SessionPhase.AUTH_STALLED
+
+        # The margin, spent. Under one clock this buys the scenario nothing and costs it
+        # nothing; under two it is half again what it took to break the old harness.
+        real_sleep(6.0)
+
+        machine.tick(0)
+        machine.tick(61)
+        machine.tick(122)
+        assert len(machine.lines("nudges.log")) == 1, "the resume was still sent"
+
+        machine.tick(130)
+        waiter = machine.book().waiters(machine.meta(run_id)["auth_incident"])[0]
+        assert waiter.status == auth_recovery.RECOVERED, (
+            "the reply is later than the resume by construction now, not by luck: "
+            "both are offsets from one origin"
+        )
+        assert machine.human_handoffs(task_id) == [], "zero human actions"
 
     def test_the_stop_before_resume_is_not_mistaken_for_the_session_going_away(
         self, machine: Machine, monkeypatch: pytest.MonkeyPatch
