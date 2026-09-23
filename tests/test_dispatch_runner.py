@@ -43,6 +43,7 @@ from agentjobs.dispatch.config import (
     SelectionSource,
     SkipReason,
 )
+from agentjobs.dispatch.pids import process_identity, recorded_process_alive
 from agentjobs.dispatch.runner import (
     CHILDREN_NAMED,
     GUIDE_PATH,
@@ -2558,6 +2559,15 @@ class TestProcessGroup:
             time.sleep(0.05)
         assert marker.exists(), "the grandchild never started, so this proves nothing"
         grandchild_pid = int(marker.read_text())
+        # Taken now, while the grandchild is certainly running: the number alone is not
+        # a name for it. Measured for task-325 on 2026-09-23 under load, the grandchild
+        # was gone the instant `join` returned, and `tasklist` still called its pid alive
+        # five seconds later -- because by then the pid belonged to a `git.exe`. A
+        # stranger that lived thirty seconds on the recycled number was the whole of
+        # "survived the timeout". The creation time is what a recycled number does not
+        # share, and it is what `dispatch.pids` already uses for the same reason.
+        identity = process_identity(grandchild_pid)
+        assert identity is not None, "the grandchild was gone before the timeout fired"
 
         join(handle)
 
@@ -2565,52 +2575,32 @@ class TestProcessGroup:
         # this assertion is not. `_terminate` signals the *process group*, so the parent
         # and the grandchild are killed concurrently and independently; `join` returns
         # when the supervisor thread finishes, which tracks the parent. Nothing makes the
-        # grandchild's exit precede that, and under load it does not.
-        #
-        # Measured on 2026-08-25, this machine, while the full suite ran under `-n auto`:
-        # six runs of this scenario, and in one of them the grandchild was still listed
-        # at the moment `join` returned and gone by the next poll. That is the flake that
-        # failed the gate for task-308's finish -- the branch under it touched neither
-        # this test nor the kill path.
+        # grandchild's exit precede that.
         #
         # This still fails if the grandchild genuinely survives, which is the whole point
-        # of the test. It no longer also fails when the grandchild dies a second late.
-        assert _dies_within(grandchild_pid, 30.0), f"pid {grandchild_pid} survived the timeout"
+        # of the test. It does not fail when the grandchild dies a second late, nor when
+        # its pid has since been handed to somebody else.
+        assert _dies_within(
+            grandchild_pid, identity, 30.0
+        ), f"pid {grandchild_pid} survived the timeout"
 
 
-def _dies_within(pid: int, seconds: float) -> bool:
-    """Whether ``pid`` is gone within ``seconds``. Polls; never sleeps the full budget.
+def _dies_within(pid: int, identity: str, seconds: float) -> bool:
+    """Whether the process ``identity`` names is gone within ``seconds``. Polls.
 
-    The budget is generous on purpose. It is not a measurement of how fast a kill ought
-    to be -- nothing here asserts a deadline -- it is only large enough that a loaded
-    machine cannot exhaust it, so that a failure means "still running", never "slow".
-    `_pid_alive` shells out to `tasklist`, which is itself about a second per call here,
-    and that cost is inside the budget rather than beside it.
+    The budget is not a measurement of how fast a kill ought to be -- nothing here
+    asserts a deadline. Each poll is an ``OpenProcess`` rather than the ``tasklist`` it
+    used to be, which cost two seconds a call on this machine at its ordinary load and
+    five to nine under a heavy one (task-325), so the budget buys hundreds of polls
+    rather than three.
     """
     deadline = time.monotonic() + seconds
     while True:
-        if not _pid_alive(pid):
+        if not recorded_process_alive(pid, identity=identity):
             return True
         if time.monotonic() >= deadline:
             return False
-        time.sleep(0.1)
-
-
-def _pid_alive(pid: int) -> bool:
-    """True when a pid is still running. Windows is the reference platform."""
-    if os.name == "nt":
-        result = subprocess.run(
-            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        return str(pid) in result.stdout
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    return True
+        time.sleep(0.05)
 
 
 # ----- session mode -----------------------------------------------------------
