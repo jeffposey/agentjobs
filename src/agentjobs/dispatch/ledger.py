@@ -38,6 +38,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import yaml
 
+from agentjobs.dispatch import program
 from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.config import sentinel_path
 from agentjobs.dispatch.record_commit import commit_task_record
@@ -1438,7 +1439,7 @@ class DispatchLedger:
         """Run a session-manager subcommand. argv is a list; there is no shell."""
         argv = [resolve_executable(self.session_command[0]), *self.session_command[1:], *args]
         try:
-            return subprocess.run(
+            return program.run(
                 argv,
                 capture_output=True,
                 text=True,

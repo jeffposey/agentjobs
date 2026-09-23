@@ -71,7 +71,7 @@ from typing import (
     Tuple,
 )
 
-from agentjobs.dispatch import auth, peers
+from agentjobs.dispatch import auth, peers, program
 from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.auth_probe import (
     ProbeClass,
@@ -1741,7 +1741,7 @@ class ClaudeSessionNudger:
         env: Mapping[str, str],
         quiesce_seconds: float = 30.0,
         poll_seconds: float = 1.0,
-        run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+        run: Callable[..., subprocess.CompletedProcess] = program.run,
         sleep: Callable[[float], None] = dispatch_clock.sleep,
         monotonic: Callable[[], float] = dispatch_clock.monotonic,
     ) -> None:

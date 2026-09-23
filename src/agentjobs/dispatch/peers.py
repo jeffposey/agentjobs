@@ -68,6 +68,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Mapping, Optional, Sequence
 
+from agentjobs.dispatch import program
+
 SESSIONS_DIR_ENV = "AGENTJOBS_CLAUDE_SESSIONS_DIR"
 """Where to look for the roster instead of ``~/.claude/sessions``.
 
@@ -287,7 +289,7 @@ def send_peer_message(
     cwd: Path,
     env: Mapping[str, str],
     timeout: float = SEND_TIMEOUT_SECONDS,
-    run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+    run: Callable[..., subprocess.CompletedProcess] = program.run,
 ) -> PeerDelivery:
     """Deliver ``message`` to ``target`` through a headless ``claude -p`` turn.
 
