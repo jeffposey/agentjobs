@@ -43,6 +43,7 @@ from agentjobs.models_v2 import (
 from agentjobs.sqlstore import (
     CorpusAlreadyImported,
     CorpusImporter,
+    DatabaseClosed,
     QuotationPolicyError,
     Database,
     SqlStoreError,
@@ -649,6 +650,34 @@ class TestConcurrency:
         )
         assert result.returncode == 0, result.stderr[-3000:]
         assert result.stdout.strip() == "ok"
+
+    def test_a_write_after_close_names_who_closed_the_database(self, tmp_path: Path) -> None:
+        """The next occurrence of task-497 is diagnosable from its own message.
+
+        SQLite's ``Cannot operate on a closed database`` names neither the closer nor the
+        moment. A supervisor thread writing after a teardown closed the store is the shape
+        it came from, so the close happens on one thread and the write on another.
+        """
+        database = Database(tmp_path / "closed.db")
+
+        def teardown_closes_the_store() -> None:
+            database.close()
+
+        closer = threading.Thread(target=teardown_closes_the_store, name="teardown")
+        closer.start()
+        closer.join()
+
+        with pytest.raises(DatabaseClosed) as caught:
+            with database.write():
+                pass  # pragma: no cover - the begin is what refuses
+
+        message = str(caught.value)
+        assert "Cannot operate on a closed database" in message
+        assert "thread 'teardown'" in message
+        assert "in teardown_closes_the_store" in message
+        assert str(tmp_path / "closed.db") in message
+        # Still the exception SQLite would have raised, so no caller stops catching it.
+        assert isinstance(caught.value, sqlite3.ProgrammingError)
 
     def test_a_failed_transaction_leaves_nothing_behind(self, store: SqlTaskStore) -> None:
         """Crash recovery, at the granularity that matters: all of a write or none."""

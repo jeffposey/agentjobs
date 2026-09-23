@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import traceback
 from contextlib import contextmanager, suppress
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, List, Optional
 
@@ -69,6 +71,30 @@ def _configure(connection: sqlite3.Connection, *, read_only: bool) -> None:
         connection.execute(f"PRAGMA synchronous = {SYNCHRONOUS}")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+
+
+class DatabaseClosed(sqlite3.ProgrammingError):
+    """A write reached a :class:`Database` somebody had already closed.
+
+    A ``ProgrammingError`` still, so nothing that caught SQLite's own version stops
+    catching this one; the difference is the message, which names who closed the handle
+    and when. SQLite's ``Cannot operate on a closed database`` names neither, and task-497
+    spent its first hour establishing from a gate log what one sentence could have said.
+    """
+
+
+def _describe_closer() -> str:
+    """Who is closing a database, in one line: thread, time and the calling frames."""
+    frames = [
+        frame
+        for frame in traceback.extract_stack()[:-2]
+        if not frame.filename.endswith(("contextlib.py", "threading.py"))
+    ][-3:]
+    where = " <- ".join(
+        f"{Path(frame.filename).name}:{frame.lineno} in {frame.name}" for frame in reversed(frames)
+    )
+    when = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return f"thread {threading.current_thread().name!r} at {when}, from {where}"
 
 
 class _GuardedCursor(sqlite3.Cursor):
@@ -173,6 +199,10 @@ class Database:
         # on Windows makes it impossible to replace, so a restore fails with a
         # permission error that names no cause (task-311).
         self._all_readers: List[sqlite3.Connection] = []
+        # Who closed the writer, once somebody has. A write after the close cannot
+        # succeed, and without this its error names neither the closer nor the moment,
+        # which is the one thing a reader of a gate log needs (task-497).
+        self._closed_by: Optional[str] = None
 
     # ----- per-thread transaction state -----------------------------------------
 
@@ -251,6 +281,13 @@ class Database:
             if outermost:
                 try:
                     self._writer.execute("BEGIN IMMEDIATE")
+                except sqlite3.ProgrammingError as exc:
+                    if self._closed_by is None:
+                        raise
+                    raise DatabaseClosed(
+                        f"Cannot operate on a closed database: {self.path} was closed by "
+                        f"{self._closed_by}; nothing was written."
+                    ) from exc
                 except sqlite3.OperationalError as exc:
                     # Another *process* holds the file and the busy timeout expired.
                     # Reported as contention rather than as a failure, so the caller is
@@ -350,6 +387,8 @@ class Database:
                 self._writer.execute("PRAGMA optimize")
             finally:
                 self._writer.close()
+                if self._closed_by is None:
+                    self._closed_by = _describe_closer()
                 for reader in self._all_readers:
                     with suppress(sqlite3.Error):
                         reader.close()

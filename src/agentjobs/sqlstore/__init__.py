@@ -6,7 +6,7 @@ The design, its measurements and its rejected alternatives are in
 """
 
 from .backup import restore, snapshot, verify
-from .connection import Database, SqlStoreError, TaskLockTimeout
+from .connection import Database, DatabaseClosed, SqlStoreError, TaskLockTimeout
 from .importer import (
     CorpusAlreadyImported,
     CorpusImporter,
@@ -20,6 +20,7 @@ __all__ = [
     "CorpusAlreadyImported",
     "CorpusImporter",
     "Database",
+    "DatabaseClosed",
     "ImportReport",
     "MigrationReport",
     "QuotationPolicyError",
