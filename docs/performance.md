@@ -1203,6 +1203,27 @@ convoys ran for up to 29.7 minutes. The ledger undercounts this: it does not rec
 run by a scripted finish, which queue on the merge runway right behind the children that
 were just gating.
 
+#### Cores that follow the gates: assessed, not built (task-537, 2026-09-23)
+
+The owner asked whether a lone gate should get the whole budget and a second should take
+half of it from the first. The queue above already gives a lone gate everything the
+reserve leaves; the question is the *take*. Three ways to take, and why none ships:
+
+- **Fewer workers for a running gate is impossible.** pytest-xdist fixes its worker count
+  at launch, so a gate at 26 cannot become 13. The only gates a worker count can be
+  chosen for are gates whose pytest has not started, which is exactly what the capacity
+  already decides.
+- **Shrinking a running gate's CPU affinity was not measured, because nothing it serves
+  still happens.** With a capacity of one, a second gate beside the first exists only
+  after a 60-minute queue timeout or when the slot directory cannot be read. Even then it
+  would put 26 workers on 13 cores with unchanged memory, and cores were not what bound:
+  CPU sat at 25 to 27% busy in every task-534 arm, with the processor queue near zero.
+- **Below-normal priority for agent pytest was not built, for the same reason.** Priority
+  only reorders a contended run queue, and task-534 found none. It does nothing for
+  memory, gate against gate, or the file-system path that is the leading suspect. The
+  owner's reserve of six cores stays the protection. Revisit if a gate is ever measured
+  with the CPU busy.
+
 #### Running the stages concurrently (task-268, 2026-09-06)
 
 `scripts/check.py --concurrent` runs each stage as soon as `check.DEPENDENCIES` allows —
