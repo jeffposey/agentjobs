@@ -173,7 +173,6 @@ class Database:
         # on Windows makes it impossible to replace, so a restore fails with a
         # permission error that names no cause (task-311).
         self._all_readers: List[sqlite3.Connection] = []
-        self._closed = False
 
     # ----- per-thread transaction state -----------------------------------------
 
@@ -208,21 +207,16 @@ class Database:
         existing: Optional[sqlite3.Connection] = getattr(self._readers, "connection", None)
         if existing is not None:
             return existing
+        connection = sqlite3.connect(
+            f"file:{self.path}?mode=ro",
+            uri=True,
+            isolation_level=None,
+            check_same_thread=False,
+            factory=_GuardedConnection,
+        )
+        _configure(connection, read_only=True)
+        self._readers.connection = connection
         with self._write_lock:
-            # Refused rather than reopened. A thread still holding this Database after
-            # `close` used to be handed a fresh reader the closing thread never saw, so
-            # the file stayed open behind a close that had reported success (task-438).
-            if self._closed:
-                raise sqlite3.ProgrammingError("Cannot operate on a closed database.")
-            connection = sqlite3.connect(
-                f"file:{self.path}?mode=ro",
-                uri=True,
-                isolation_level=None,
-                check_same_thread=False,
-                factory=_GuardedConnection,
-            )
-            _configure(connection, read_only=True)
-            self._readers.connection = connection
             self._all_readers.append(connection)
         return connection
 
@@ -345,16 +339,13 @@ class Database:
         plans than the ones its indexes were measured against.
 
         Safe to call while another thread is reading: each reader's close waits out the
-        step that thread is in, and its next one raises instead of crashing the process
-        (task-438). It is not a promise that nothing *wants* to read afterwards -- a
+        step that thread is in, and a further call on that connection raises instead of
+        crashing the process (task-438). It is not a promise that nothing *wants* to read afterwards -- a
         batch supervisor still running is given its moment by ``settle_supervisors``.
         """
         with self._write_lock:
             if self._depth:  # pragma: no cover - defensive
                 raise SqlStoreError("close() called while a write transaction was open")
-            if self._closed:
-                return
-            self._closed = True
             try:
                 self._writer.execute("PRAGMA optimize")
             finally:

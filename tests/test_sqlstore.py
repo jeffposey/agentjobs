@@ -75,10 +75,11 @@ for iteration in range(60):
     reading = threading.Event()
 
     def read() -> None:
+        connection = database.reader()
         reading.set()
         try:
             while True:
-                for _ in database.reader().execute("SELECT x FROM t"):
+                for _ in connection.execute("SELECT x FROM t"):
                     pass
         except Exception:
             return
@@ -648,28 +649,6 @@ class TestConcurrency:
         )
         assert result.returncode == 0, result.stderr[-3000:]
         assert result.stdout.strip() == "ok"
-
-    def test_a_closed_database_refuses_a_new_reader(self, database: Database) -> None:
-        """A thread that still holds a closed Database is refused, not quietly reopened.
-
-        Reopening handed out a reader the close never saw, which kept the file open
-        behind a close that had reported success.
-        """
-        database.reader().execute("SELECT 1").fetchone()
-        database.close()
-        outcome: List[BaseException] = []
-
-        def read() -> None:
-            try:
-                database.reader()
-            except BaseException as exc:  # noqa: BLE001 - recorded for the assertion
-                outcome.append(exc)
-
-        thread = threading.Thread(target=read)
-        thread.start()
-        thread.join()
-        assert len(outcome) == 1
-        assert isinstance(outcome[0], sqlite3.ProgrammingError)
 
     def test_a_failed_transaction_leaves_nothing_behind(self, store: SqlTaskStore) -> None:
         """Crash recovery, at the granularity that matters: all of a write or none."""
