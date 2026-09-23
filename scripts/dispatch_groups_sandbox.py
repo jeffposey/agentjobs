@@ -34,7 +34,7 @@ serves stale code from a process nobody restarts.
 What to look for, since "it renders" is not the property under review:
 
   * On **grouped**, the Dispatch page's THIS PROJECT tile reads
-    ``group: default -> claude-opus-5``. It used to read "no runner chosen" while every
+    ``group: default -> claude-opus-5-5``. It used to read "no runner chosen" while every
     gate was open, which is the defect this task was filed for.
   * On its seeded task, one **Run with** pulldown contains separate ``Automatic groups``
     and ``Specific agents`` sections. There is no runner/group pair that can contradict
@@ -77,6 +77,7 @@ DEFAULT_PORT = 8900
 #: ids remain what dispatch records; ``--model`` and ``driver`` supply the names a
 #: person sees.
 RUNNER_MODELS = {
+    "claude-opus-5-5": ("claude-opus-5-5", "claude"),
     "claude-opus-5": ("claude-opus-5", "claude"),
     "claude-sonnet-5": ("claude-sonnet-5", "claude"),
     "claude-fable-5": ("claude-fable-5", "claude"),
@@ -183,7 +184,7 @@ def write_dispatch_config(home: Path, root: Path, *, with_groups: bool) -> None:
         config["runner_groups"] = {
             "default": {
                 "description": "Cheapest capable model first.",
-                "members": ["claude-opus-5", "codex-terra"],
+                "members": ["claude-opus-5-5", "codex-terra"],
             },
             "simple": {
                 "description": "Mechanical work.",

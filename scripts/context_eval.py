@@ -44,7 +44,7 @@ from agentjobs.contexteval import runner as runner_mod  # noqa: E402
 from agentjobs.contexteval import sandbox as sandbox_mod  # noqa: E402
 
 SUITE_DIR = REPO_ROOT / "evals" / "context"
-DEFAULT_MODEL = "claude-opus-5"
+DEFAULT_MODEL = "claude-opus-5-5"
 GLOBAL_AGENTS = Path.home() / ".claude" / "CLAUDE.md"
 
 

@@ -89,7 +89,7 @@ DEFAULT_PORT = 8902
 
 #: One harmless script wearing a name that looks like a real runner, so the resolution
 #: printed beside the button is a resolution rather than a caption.
-RUNNER = "claude-opus-5"
+RUNNER = "claude-opus-5-5"
 
 RAISED = "raised"
 NOFINISH = "nofinish"
