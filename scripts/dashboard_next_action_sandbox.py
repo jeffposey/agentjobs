@@ -78,7 +78,7 @@ DEFAULT_PORT = 8903
 
 #: A harmless script wearing a name that looks like a real runner, so the sentence
 #: beside the button is a resolution rather than a caption.
-RUNNER = "claude-opus-5"
+RUNNER = "claude-opus-5-5"
 
 REPORTED = "sandbox-reported"
 DRAFTS_ONLY = "sandbox-drafts-only"

@@ -31,7 +31,7 @@ A verdict needs at least two scored runs per arm, so `--runs 1` always reports
 `inconclusive` — cheap for checking the harness works, useless for a decision.
 
 Useful flags: `--case <glob>` to run one scenario, `--model` to name the model under test
-(default `claude-opus-5`), `--jobs` for concurrency, `--keep` to leave the sandboxes on disk
+(default `claude-opus-5-5`), `--jobs` for concurrency, `--keep` to leave the sandboxes on disk
 so you can go and look at one, `--out` for the results directory.
 
 `--dry-run` is worth running on its own after any edit to the bundle. It re-renders both
