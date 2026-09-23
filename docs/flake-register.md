@@ -59,13 +59,13 @@ ready to paste -- nodeid, assertion text, how many gates were running and both g
 | 5 | `test_dispatch_api.py::...::test_cancelling_a_live_run_stops_it_and_marks_it_cancelled` | `assert 'failed' == 'cancelled'` | the `cancel_requested` guard still races at 32 workers | production defect | open -- **task-370** |
 | 6 | `test_dispatch_registration.py::TestRefusals::test_a_session_the_ledger_does_not_hold_is_refused` | the refusal names the ledger rather than the live session | process creation itself failed; the runner never ran | environment, surfaced as a defect | **cause removed** (task-518) |
 | 7 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_marked_launch_the_listing_cannot_find_is_unknown_not_absent` | `AssertionError: []` -- the controller decided nothing | the attempt store stamped `admitted_at` on the machine's clock while the controller read another | clock race | **fixed** (task-518) |
-| 8 | `test_dispatch_journal.py::TestACancelLandingMidPoll::test_the_cancel_wins_and_the_poll_writes_nothing` | `the poller never reached its conclusion` | a ten-second wall-clock budget for a thread that spawns a subprocess | test premise | open -- **task-522** |
-| 9 | `test_task_queued_status.py::TestTheLabel::test_a_waiting_dispatch_reads_queued_and_a_task_without_one_still_reads_ready` | `assert 'In progress (claude)' == 'Queued'` | a dispatch poll reconciled the fixture's fake sessions away, so the full machine emptied and the dispatch started instead of queuing | test premise | open -- **task-522** |
+| 8 | `test_dispatch_journal.py::TestACancelLandingMidPoll::test_the_cancel_wins_and_the_poll_writes_nothing` | `the poller never reached its conclusion` | the poller arrived late, not never: a ten-second wall-clock budget for a thread that spawns a subprocess | test premise | **fixed** (task-522) |
+| 9 | `test_task_queued_status.py::TestTheLabel::test_a_waiting_dispatch_reads_queued_and_a_task_without_one_still_reads_ready` | `assert 'In progress (claude)' == 'Queued'` | a controller tick between the runner naming a session and recording its dispatch stopped a live launch; the fixture's concurrent poll was where it showed | production defect | **fixed** (task-522) |
 | 10 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_fresh_process_performs_the_recovery` | `assert 'never launched' in '\n'` -- an empty report | `attempt_evidence` asks a bare `process_alive` with no start-time guard, so a reused pid keeps a dead launcher's attempt owned | production defect | open -- **task-489** |
 | 11 | `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output` | `sqlite3.ProgrammingError: Cannot operate on a closed database` | a supervisor thread outlives its test and writes through a store the fixture has closed | teardown lifetime | open -- **task-497** |
 | 12 | whichever test an xdist worker happens to be running (`test_auto_dispatch.py` and `test_dispatch_api.py` seen) | `Windows fatal exception: access violation`, `worker 'gwN' crashed` | `_classify_batch_exit` reads SQLite from a background thread while the fixture closes the database | teardown lifetime | open -- **task-438** |
 | 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone | environment, or entry 3's cause not fully removed | open -- see below |
-| 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | not named | unknown | open -- seen by finish `fin_8f638f51` |
+| 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | not named; the process-global sweep throttle is the first suspect | unknown | open -- **task-546**; seen by finish `fin_8f638f51` and by task-522 |
 | 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | not named | unknown | open -- seen by finish `fin_8f638f51` |
 | 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | not named | unknown | open -- seen by finish `fin_8f638f51` |
 
@@ -274,7 +274,7 @@ test premise: a cancelled run reported as failed is wrong on somebody's dashboar
 in a suite. **Reproduction:** the file at `-n 32`; it cost task-268's scripted finish a
 whole gate.
 
-### 8 and 9, seen on 2026-09-22, open
+### 8 and 9, seen on 2026-09-22 (fixed -- see below)
 
 Added by the task-147 run whose gate they stopped, under the rule above: whoever sees a
 flake adds it, at the moment they see it, whether or not they are going to fix it. Task-522
@@ -330,6 +330,98 @@ owns the pair of rates. **What is evidence here is the two gate logs**, kept at
 **Related, and not the same.** Task-513 budgets the run ceiling so concurrent tasks stop
 tripling the gate. That lowers the rate both of these fire at. It does not make either
 premise true.
+
+### 8 and 9, resolved 2026-09-23 (task-522)
+
+The text above is what was known when they were filed. It is kept as written. One
+sentence in it turned out to be wrong, and that is corrected below rather than edited
+out.
+
+**8 arrived late, not never.** The kept `gate.log` settles it. Its warnings summary holds
+a `PytestUnhandledThreadExceptionWarning` for `Thread-263 (poll_live_sessions)`: the
+traceback runs `follow_session` -> `poll_session` -> `_finish_session` ->
+`claim_conclusion` -> the test's own `held`, and ends in *"the test never released the
+poller"*. So the poller that "never reached its conclusion" did reach it, after the ten
+seconds had run out, and then waited out ten more seconds for a release the failed test
+would never send. That makes it a budget question. As entry 4 says, a bigger number does
+not answer a budget question.
+
+**The fix for 8 waits on facts.** "Never reached" can only be observed as the poller's
+thread ending without arriving, so the test now waits for one of two things: the
+conclusion, or the end of the thread (`reached_or_finished`). The test also always
+releases and joins the poller. The test itself sets no bound. The bound comes from the
+code under test: every subprocess the poll runs has the runner's own 60-second timeout.
+`skipping_clock` was the tool the spec suggested, but it does not fit: nothing on this
+path reads a clock, and the ordering is enforced by events.
+
+| arm | result |
+|---|---|
+| old test, poller made 12s late (`poll_session` sleeps first) | **red**, `the poller never reached its conclusion`, the text this entry quotes |
+| new test, same 12s | green |
+| new test, hold removed, so the poll concludes before the cancel | **red** (`cancel.stopped` is False), and it fails fast rather than hanging |
+
+Worth knowing: breaking the journal's compare-and-set (the early return removed and
+`won` forced true) does **not** turn this test red. The outbox's shared
+`result_operation_id` and the run's meta each refuse a second ending as well. That is
+defence in depth, and it means this test is not what guards the compare-and-set on its
+own.
+
+**9 was a production defect; the "test premise" paragraph above is wrong.** The runner
+writes `session_id` to the run's meta the moment the session exists, and writes
+`dispatch_entry_id` only after `_record_dispatch` returns. `perform_launch_reconcile` sent
+any record carrying a `session_id` straight to `_adopt_session` without asking whether the
+launcher was still alive. So a tick that landed between those two writes found "a session
+with no dispatch entry" and stopped a launch that was still in progress. The server's
+lifespan poll runs beside the dispatches it serves, so this could happen on the live
+dashboard, not only under `served`. The fixture was a faithful witness.
+
+**The fix for 9 is in the controller.** While the admitting process is alive and the
+launch is younger than `launch_observation_seconds` (120), such a run counts as a launch
+in progress and the tick waits. A launcher that never records anything is still stopped
+once that window has passed. This rule already existed one branch further down, for a
+launch with no session id yet, and now it covers both.
+
+| arm | result |
+|---|---|
+| controller tick run from inside `_record_dispatch`, without the guard | **red**, `launch_reconcile: stopped unfollowable session b55b0000`, the line this entry quotes |
+| the same, with the guard | green |
+| launcher stuck 121s inside that window, with the guard | still stopped |
+
+Both of these are kept as tests: `TestLaunchCrashWindows::test_a_tick_inside_a_live_launch_stops_nothing`
+and its neighbour in `tests/test_execution_controller.py`.
+
+**The other callers of `fill_the_machine`.** Only `test_task_queued_status.py` polls
+while the machine fills, because its `served` fixture starts the app lifespan. The tests
+in `test_start_pause.py` tick on the test thread after the fill has finished, when every
+run already has its dispatch entry. Its one `TestClient` is used without `with`, so no
+lifespan starts there. With the guard, no poll can empty the fixture's machine: each run
+it holds is either mid-launch with a live launcher, or recorded and followable.
+
+**The rate pair, with its limits.** `scripts/flake_probe.py runs --times 10 --slots 2`
+over the two files, on 2026-09-23 between 16:43 and 16:48 local:
+
+| tree | condition | result |
+|---|---|---|
+| `main`'s controller and both test files | 10 runs, `-n 13`, 2 gates holding slots | 0 red, 9.6s to 15.5s a run |
+| this work | 10 runs, `-n 8`, 3 gates holding slots (a third gate started between the arms) | 0 red, 11.1s to 16.2s a run |
+
+**A null pair, as expected.** Both failures needed roughly ten times the machine's
+normal load (the gate's pytest stage took 641s against 52s). The probe holds slots and
+does not create that load. The evidence is the two deterministic pairs above. The rate
+pair is recorded because the spec asked for it and because a red result in it would have
+meant something.
+
+### 14. The retraction sweep that swept nothing (open, task-546)
+
+Seen twice on 2026-09-23, independently: in finish `fin_8f638f51` (above, with 15 and 16),
+and in task-522's own run. In the second it failed with `AssertionError: []` while
+task-522 was running `pytest -n 8` over eight
+dispatch files on 2026-09-23 (397 passed). It passed alone four times, on that branch
+and on `main`, and that branch's diff does not reach it. The first suspect is not
+confirmed: `_last_retraction_sweep` is process-global, and this test, unlike its
+neighbour, does not reset it. The test sets the interval to zero, so the sweep skips only
+if the stamp reads *later* than this test's `now`: a thread still polling, or a stamp
+taken from a different clock. **Reproduction:** not reduced yet.
 
 ### 10, 11 and 12, filed before this page existed, open
 
