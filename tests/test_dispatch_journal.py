@@ -266,6 +266,166 @@ class TestACancelLandingMidPoll:
         assert only.data["outcome"] == "interrupted"
 
 
+# ----- task-370: a Stop recorded after the guard read, before the set --------------------
+
+
+def _hold_conclusions(monkeypatch) -> Dict[str, tuple[threading.Event, threading.Event]]:
+    """Park every ``claim_conclusion`` at its call, keyed by who is concluding.
+
+    ``ledger`` covers every ``ledger: <actor>`` concluder. Each entry is (reached,
+    release); a caller not in the table passes straight through.
+    """
+    gates = {
+        name: (threading.Event(), threading.Event())
+        for name in ("poller", "batch supervisor", "ledger")
+    }
+    original = journal.claim_conclusion
+
+    def held(home, record, outcome, **kwargs):
+        by = str(kwargs.get("concluded_by") or "")
+        key = "ledger" if by.startswith("ledger") else by
+        if key in gates:
+            reached, release = gates[key]
+            reached.set()
+            assert release.wait(20), f"the test never released {key}"
+        return original(home, record, outcome, **kwargs)
+
+    monkeypatch.setattr(journal, "claim_conclusion", held)
+    return gates
+
+
+class TestAStopRecordedBetweenTheGuardAndTheSet:
+    """task-370: the concluder that read "no Stop" and then reached the set first.
+
+    ``_finish_batch`` and ``_finish_session`` each ask the journal whether a Stop is on
+    record and *then*, in a separate transaction, claim the conclusion. A Stop recorded
+    between the two was invisible to the guard, and the compare-and-set did not look at
+    it either -- so the supervisor won with ``failed`` (or the poll with ``completed``),
+    the cancellation lost, and the person who pressed Cancel was told ``stopped: true``
+    beside an outcome that said otherwise. That is the gate's
+    ``assert 'failed' == 'cancelled'``, reproduced here on purpose.
+
+    Both orders of the final writes are now driven: the ledger-first order is
+    ``TestACancelLandingMidPoll``; this class is the concluder-first order.
+    """
+
+    def test_a_batch_run_that_exits_as_it_is_cancelled_still_says_cancelled(
+        self, sandbox, monkeypatch, tmp_path: Path
+    ) -> None:
+        from test_dispatch_runner import make_resolution
+
+        home, root, manager, fake_cli = sandbox
+        task_id = _dispatched_task(manager)
+        run_id = new_run_id()
+        journal.journal(home).admit(
+            project_id="sandbox", task_id=task_id, run_id=run_id, capacity=3
+        )
+        gates = _hold_conclusions(monkeypatch)
+        # Exits on its own, non-zero: the supervisor has a real `failed` to write, and the
+        # pid the ledger goes on to kill is already gone -- the busy-machine case.
+        script = write_script(tmp_path / "exits.py", "import sys\nsys.exit(3)\n")
+        runner = DispatchRunner(
+            manager=manager,
+            resolution=make_resolution([sys.executable, str(script), "{prompt}"]),
+            project_root=root,
+            home=home,
+        )
+        handle = runner.start(
+            must(manager.get_task(task_id)), actor="Jeff Posey", caused_by=1, run_id=run_id
+        )
+        supervisor_reached, supervisor_release = gates["batch supervisor"]
+        assert supervisor_reached.wait(20), "the supervisor never reached its conclusion"
+
+        ledger = DispatchLedger(
+            home, session_command=[sys.executable, str(fake_cli)], managers={"sandbox": manager}
+        )
+        outcome: Dict[str, object] = {}
+        cancelling = threading.Thread(
+            target=lambda: outcome.update(result=ledger.cancel(run_id, requester="Jeff Posey"))
+        )
+        cancelling.start()
+        ledger_reached, ledger_release = gates["ledger"]
+        assert ledger_reached.wait(20), "the cancellation never reached its conclusion"
+
+        # The supervisor read "no Stop" before the Stop existed, and reaches the set first.
+        supervisor_release.set()
+        assert handle.supervisor is not None
+        handle.supervisor.join(20)
+        assert not handle.supervisor.is_alive()
+        ledger_release.set()
+        cancelling.join(20)
+        assert not cancelling.is_alive()
+
+        assert outcome["result"].stopped  # type: ignore[attr-defined]
+        (only,) = results_for(manager, task_id, run_id)
+        assert only.data["outcome"] == "cancelled"
+        assert must(journal.journal(home).attempt(run_id)).outcome == "cancelled"
+        assert _run_meta(home, run_id)["outcome"] == "cancelled"
+
+    def test_a_poll_that_reaches_the_set_after_a_stop_defers_to_it(
+        self, sandbox, monkeypatch
+    ) -> None:
+        home, _, manager, fake_cli = sandbox
+        run_id, task_id = start_admitted_session(sandbox)
+        manager.handoff(
+            task_id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Look.",
+        )
+        _set_ledger(fake_cli, [{"id": "b55b35ad", "status": "idle", "state": "done"}])
+        gates = _hold_conclusions(monkeypatch)
+
+        poller = threading.Thread(target=poll_live_sessions, args=(home,))
+        poller.start()
+        poll_reached, poll_release = gates["poller"]
+        assert poll_reached.wait(20), "the poller never reached its conclusion"
+
+        ledger = DispatchLedger(
+            home, session_command=[sys.executable, str(fake_cli)], managers={"sandbox": manager}
+        )
+        outcome: Dict[str, object] = {}
+        cancelling = threading.Thread(
+            target=lambda: outcome.update(result=ledger.cancel(run_id, requester="Jeff Posey"))
+        )
+        cancelling.start()
+        ledger_reached, ledger_release = gates["ledger"]
+        assert ledger_reached.wait(20), "the cancellation never reached its conclusion"
+
+        poll_release.set()
+        poller.join(20)
+        assert not poller.is_alive()
+        ledger_release.set()
+        cancelling.join(20)
+        assert not cancelling.is_alive()
+
+        assert outcome["result"].stopped  # type: ignore[attr-defined]
+        (only,) = results_for(manager, task_id, run_id)
+        assert only.data["outcome"] == "cancelled"
+        assert _run_meta(home, run_id)["outcome"] == "cancelled"
+
+    def test_a_conclusion_that_does_not_defer_is_not_refused(self, sandbox) -> None:
+        """The deferral is opt-in: a sweep concluding a Stop nobody finished still ends it."""
+        home, _, _, _ = sandbox
+        run_id, _ = start_admitted_session(sandbox)
+        record = read_run(home / "runs" / run_id)
+        journal.request_cancel(home, record, requester="Jeff Posey", source="gui")
+
+        deferred = journal.claim_conclusion(
+            home,
+            record,
+            DispatchOutcome.FAILED,
+            concluded_by="batch supervisor",
+            defer_to_cancel=True,
+        )
+        assert not deferred.won
+        swept = journal.claim_conclusion(
+            home, record, DispatchOutcome.INTERRUPTED, concluded_by="ledger: sweep"
+        )
+        assert swept.won
+
+
 # ----- auditor 12: a worker's own meta is not authority --------------------------------
 
 
