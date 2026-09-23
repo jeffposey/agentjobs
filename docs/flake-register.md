@@ -23,9 +23,10 @@ not touch. Whoever fixes one updates its entry rather than closing a task quietl
 owns the page.
 
 **The work is task-524.** Every open row here is a child of that epic, and a new row
-that needs fixing gets a child there rather than a task of its own. The finisher's
-escalation does not yet point at this page (task-526); until it does, an agent whose gate
-went red on a test it did not touch has to know to come here.
+that needs fixing gets a child there rather than a task of its own. When a scripted
+finish goes red at pytest twice, its escalation names this page and hands over the rows
+ready to paste -- nodeid, assertion text, how many gates were running and both gate logs
+(task-526). Number them after the last row here and fill in the cause if you know it.
 
 ## How to use this page
 
@@ -42,6 +43,10 @@ went red on a test it did not touch has to know to come here.
   flake into an invisible one and make the gate report green for a suite that is still
   racing. The finisher's own one retry is a different thing: it is recorded as
   `flaky_test` and counted, and `agentjobs execution failures --since 14` reads the count.
+  A retry that fails **the same way** -- same nodeid, same assertion text -- is recorded
+  as `deterministic_in_context` instead, because chance does not repeat itself verbatim:
+  the branch or the machine is the cause, and that is the first thing to rule out before
+  adding a row here (task-526).
 
 ## The register
 
@@ -60,6 +65,17 @@ went red on a test it did not touch has to know to come here.
 | 11 | `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output` | `sqlite3.ProgrammingError: Cannot operate on a closed database` | a supervisor thread outlives its test and writes through a store the fixture has closed | teardown lifetime | open -- **task-497** |
 | 12 | whichever test an xdist worker happens to be running (`test_auto_dispatch.py` and `test_dispatch_api.py` seen) | `Windows fatal exception: access violation`, `worker 'gwN' crashed` | `_classify_batch_exit` reads SQLite from a background thread while the fixture closes the database | teardown lifetime | open -- **task-438** |
 | 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone | environment, or entry 3's cause not fully removed | open -- see below |
+| 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | not named | unknown | open -- seen by finish `fin_8f638f51` |
+| 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | not named | unknown | open -- seen by finish `fin_8f638f51` |
+| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | not named | unknown | open -- seen by finish `fin_8f638f51` |
+
+**14-16 observed** 2026-09-23 about 21:50 UTC in task-526's finish `fin_8f638f51` on
+`b6be1fd9`, a branch touching only the finisher's classification, the failure rollup and
+docs. Attempt 1 (`scripts/check.py`, `-n 13, sharing this machine with 3 gates`): 14 and
+15 red, 5681 passed; log `~/.agentjobs/finishes/fin_8f638f51/gate.log`. Its retry
+(`--from pytest`, `-n 26, alone on this machine`): pytest all green, then 16 red in `e2e`;
+log `gate-retry-1.log` beside it. 14 and 15 passed run alone on the same commit. Three
+different tests over two attempts, none repeating: the flake signature.
 
 ### 13. A sibling dispatch that exits 1 saying nothing
 

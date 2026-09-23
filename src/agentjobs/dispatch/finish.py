@@ -337,12 +337,20 @@ class Escalate(Exception):
     a call path from which step did not run (task-388).
     """
 
-    def __init__(self, step: str, reason: str, detail: str, frames: str = "") -> None:
+    def __init__(
+        self,
+        step: str,
+        reason: str,
+        detail: str,
+        frames: str = "",
+        data: Optional[Dict[str, Any]] = None,
+    ) -> None:
         super().__init__(detail)
         self.step = step
         self.reason = reason
         self.detail = detail
         self.frames = frames
+        self.data = dict(data or {})
 
 
 class Withdrawn(Escalate):
@@ -1024,7 +1032,28 @@ to bound, which is the whole difference from "retry until green".
 FIRST_PASS = "first_pass"
 INPUTS_CHANGED = "inputs_changed"
 FLAKY_TEST = "flaky_test"
-"""What a retried green is recorded as, when nothing proven to have changed explains it."""
+"""What a retried green is recorded as, when nothing proven to have changed explains it.
+
+Also what a red retry is recorded as when it failed on a *different* test: two reds that
+do not repeat are the flake signature (fin_ce2a7482, task-526)."""
+
+DETERMINISTIC_IN_CONTEXT = "deterministic_in_context"
+"""What a red retry is recorded as when a test failed the same way on both attempts.
+
+The same nodeid with the same assertion text, twice, is the opposite of a flake: chance
+does not reproduce itself verbatim, so the branch or the machine is the cause. fin_43b6c07a
+(task-147, 2026-09-21) was that, and was called ``flaky_test`` because nothing could say
+otherwise (task-526)."""
+
+FLAKE_REGISTER = "docs/flake-register.md"
+"""Where whoever sees a flake records it. An escalation after a red pytest stage names it,
+because the moment somebody sees the flake is that escalation (task-526)."""
+
+GATE_WIDTH = re.compile(
+    r"pytest runs at -n (\w+), (alone on this machine|sharing this machine with \d+ gates)"
+)
+"""``gate_slots.note``, which the gate prints at the top of every pytest stage: the width
+and how many gates it shared the machine with, read rather than guessed."""
 
 CORPUS_INPUT = "task_corpus"
 """The one mutable input this module knows how to read a revision of. See ``gate_scope``."""
@@ -1091,6 +1120,7 @@ class GateAttempt:
     tests: List[str] = field(default_factory=list)
     stages: List[str] = field(default_factory=list)
     tree: str = ""
+    company: str = ""
 
     @property
     def command(self) -> str:
@@ -1110,6 +1140,7 @@ class GateAttempt:
             "failed_stage": self.stage,
             "failing_tests": list(self.tests),
             "log": str(self.log) if self.log else "",
+            "company": self.company,
         }
 
 
@@ -1247,6 +1278,7 @@ def attempt_gate(
         # Every failing line, not the salient dozen: a classification that holds for the
         # first twelve failures and not the thirteenth is not proof.
         attempt.tests = failing_tests(attempt.output, limit=10_000)
+        attempt.company = gate_company(attempt.output)
     started_records = [
         record for record in read_phases(directory.path) if record.get("kind") == "gate_started"
     ]
@@ -1396,6 +1428,120 @@ def explain_red(
     return FLAKY_TEST, "nothing proven to have changed explains the first red." + unclassified
 
 
+def gate_company(output: str) -> str:
+    """The width pytest ran at and the gates it shared the machine with, as the gate said."""
+    found = None
+    for found in GATE_WIDTH.finditer(_COLOUR.sub("", output or "")):
+        pass
+    if found is None:
+        return ""
+    return f"-n {found.group(1)}, {found.group(2)}"
+
+
+def repeated_failures(first: GateAttempt, second: GateAttempt) -> List[str]:
+    """The failure lines -- nodeid *and* assertion text -- that both attempts printed."""
+    again = set(second.tests)
+    return [line for line in first.tests if line in again]
+
+
+def judge_second_red(
+    first: GateAttempt,
+    second: GateAttempt,
+    *,
+    moved: bool,
+    classification: str,
+    explanation: str,
+) -> Tuple[str, str]:
+    """What a red retry says about the first red: ``(classification, why)`` (task-526).
+
+    A line that repeats verbatim is ``deterministic_in_context`` whatever the first
+    classification guessed. A flake guess whose retry went red somewhere else stays a
+    flake, and now says why. A proven input change is left as it was: the retry ran on
+    the corrected inputs, so its red is about the branch, and the record already says so.
+    """
+    repeated = repeated_failures(first, second)
+    if repeated:
+        ids = ", ".join(f"`{identity}`" for identity in _test_ids(repeated))
+        where = (
+            f"on an unchanged tree (`{first.head[:8]}`)"
+            if not moved
+            else f"before and after the rebase onto `{second.base[:8]}`"
+        )
+        return (
+            DETERMINISTIC_IN_CONTEXT,
+            f"the same test failed the same way twice {where} -- {ids} -- so the branch or "
+            "the machine, not chance, is the cause.",
+        )
+    if classification != FLAKY_TEST:
+        return classification, explanation
+    named = ", ".join(f"`{identity}`" for identity in _test_ids(second.tests)[:3])
+    elsewhere = f"on a different test ({named})" if named else f"at `{second.stage or '?'}`"
+    return (
+        FLAKY_TEST,
+        f"the retry went red {elsewhere}, and no failure repeated: two reds that do not "
+        f"repeat are the flake signature. {explanation}",
+    )
+
+
+def _cell(text: str) -> str:
+    return text.replace("|", "\\|").replace("`", "'").strip()
+
+
+def flake_register_entry(
+    first: GateAttempt,
+    second: GateAttempt,
+    *,
+    classification: str,
+    finish_id: str,
+    when: datetime,
+) -> str:
+    """The paragraph pointing at ``docs/flake-register.md``, with an entry ready to paste.
+
+    Empty unless pytest went red and named a test, because the register is a list of
+    tests: a red lint stage has nothing to put in it.
+    """
+    if "pytest" not in (first.stage, second.stage):
+        return ""
+    lines: List[str] = []
+    for line in [*repeated_failures(first, second), *first.tests, *second.tests]:
+        if line not in lines:
+            lines.append(line)
+    if not lines:
+        return ""
+    status = f"open -- seen by finish `{finish_id}`"
+    rows = []
+    for line in lines:
+        text = line
+        for prefix in FAILURE_PREFIXES:
+            if text.startswith(prefix):
+                text = text[len(prefix) :]
+                break
+        identity, _, assertion = text.partition(" - ")
+        failure = f"`{_cell(assertion)}`" if assertion.strip() else "(no assertion text)"
+        rows.append(f"| N | `{_cell(identity)}` | {failure} | not named | unknown | {status} |")
+
+    def attempt_line(attempt: GateAttempt) -> str:
+        company = attempt.company or "the gate did not say how many gates were running"
+        return f"- attempt {attempt.number} (`{attempt.command}`): {company}; log `{attempt.log}`"
+
+    if classification == DETERMINISTIC_IN_CONTEXT:
+        lead = (
+            "A test that fails the same way twice is first a question for the branch: run it "
+            "alone in this worktree. If the branch does not explain it, it goes in "
+            f"`{FLAKE_REGISTER}` now -- whoever sees a flake adds it, at the moment they see it."
+        )
+    else:
+        lead = (
+            f"Add this to `{FLAKE_REGISTER}` now, whether or not you fix it: whoever sees a "
+            "flake adds it, at the moment they see it."
+        )
+    return f"{lead} The rows, ready to paste (number them after the last one):\n\n" + "\n".join(
+        rows
+    ) + f"\n\n**Observed** {when:%Y-%m-%d %H:%M} UTC in finish `{finish_id}` on " f"`{second.head[:8]}`, recorded as `{classification}`.\n\n" + "\n".join(
+        attempt_line(attempt) for attempt in (first, second)
+    )
+
+
 def gate_the_branch(
     plan: Plan,
     directory: FinishDirectory,
@@ -1483,6 +1629,28 @@ def gate_the_branch(
     )
     if not second.ok:
         assert second.log is not None
+        classification, explanation = judge_second_red(
+            first,
+            second,
+            moved=moved,
+            classification=classification,
+            explanation=explanation,
+        )
+        directory.record(
+            "finish_gate_red_twice",
+            failed_stage=first.stage,
+            classification=classification,
+            explanation=explanation,
+            repeated=_test_ids(repeated_failures(first, second)),
+            attempts=[first.evidence(), second.evidence()],
+        )
+        register = flake_register_entry(
+            first,
+            second,
+            classification=classification,
+            finish_id=directory.finish_id,
+            when=_now(),
+        )
         raise Escalate(
             "gate",
             "gate_failed",
@@ -1492,7 +1660,20 @@ def gate_the_branch(
             f"{selection_reason}, was red too"
             f"{' at `' + second.stage + '`' if second.stage else ''} and exited "
             f"{second.code}. A red gate never merges, and a second red is a red: nothing is "
-            "retried again, and nothing was merged.",
+            "retried again, and nothing was merged.\n\n"
+            f"Recorded as `{classification}`: {explanation}"
+            + (f"\n\n{register}" if register else ""),
+            data={
+                "gate_red_twice": {
+                    "classification": classification,
+                    "explanation": explanation,
+                    "stage": first.stage,
+                    "repeated": _test_ids(repeated_failures(first, second)),
+                    "tests": _test_ids([*first.tests, *second.tests]),
+                    "logs": [str(first.log), str(second.log)],
+                    "finish_id": directory.finish_id,
+                }
+            },
         )
     return GateVerdict(
         [first, second],
@@ -2526,6 +2707,7 @@ def escalate_on_record(
             "merge_commit": merge_commit,
             "merged": merge_commit is not None,
             **({"traceback": failure.frames} if failure.frames else {}),
+            **failure.data,
         },
     )
     task = manager.get_task(task_id)

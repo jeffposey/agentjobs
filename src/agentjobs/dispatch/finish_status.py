@@ -539,7 +539,11 @@ def _status_of(
             home, task_id, resolved_project, exclude=directory, branch=branch
         )
     retry = next(
-        (record for record in reversed(records) if record.get("kind") == "finish_gate_retry"),
+        (
+            record
+            for record in reversed(records)
+            if record.get("kind") in ("finish_gate_retry", "finish_gate_red_twice")
+        ),
         None,
     )
     status = FinishStatus(
