@@ -446,6 +446,16 @@ class Controller:
         meta = _meta(record) if record is not None else {}
 
         if record is not None and record.session_id:
+            # The runner names the session the instant it exists and records the dispatch
+            # entry a moment later, so a session with no entry and a live launcher is a
+            # launch still in progress, not an unfollowable one. Stopping it here stopped
+            # a live dispatch whenever a tick landed in that window (task-522).
+            if (
+                holder_alive
+                and not isinstance(meta.get("dispatch_entry_id"), int)
+                and age < settings.launch_observation_seconds
+            ):
+                return None
             return self._adopt_session(execution, intent, attempt, record, record.session_id)
         if record is not None and record.pid is not None and not record.is_session:
             return self._adopt_batch(execution, intent, attempt, record, meta)

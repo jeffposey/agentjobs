@@ -111,6 +111,22 @@ def start_admitted_session(sandbox) -> tuple[str, str]:
     return run_id, task_id
 
 
+def reached_or_finished(reached: threading.Event, worker: threading.Thread) -> bool:
+    """Wait until ``reached`` is set or ``worker`` has ended, and say which.
+
+    No budget, deliberately (task-522, flake register entry 8). ``reached.wait(10)`` read
+    a loaded machine as a poller that never arrived: the gate log shows the same poller
+    arriving after the ten seconds and then waiting on a release the failed test never
+    sent. "Never" is only observable as the thread ending without arriving, so that is
+    the question asked. The wait is bounded by the code under test, not by the test:
+    every subprocess the poll runs carries the runner's own 60-second timeout.
+    """
+    while not reached.wait(0.05):
+        if not worker.is_alive():
+            return reached.is_set()
+    return True
+
+
 # ----- ac-1: a cancel landing mid-poll -------------------------------------------------
 
 
@@ -129,7 +145,8 @@ class TestACancelLandingMidPoll:
         def held(home, record, outcome, **kwargs):
             if kwargs.get("concluded_by") == "poller":
                 reached.set()
-                assert release.wait(10), "the test never released the poller"
+                # Unbounded: the test releases this in a `finally`, whatever happens.
+                release.wait()
             return original(home, record, outcome, **kwargs)
 
         monkeypatch.setattr(journal, "claim_conclusion", held)
@@ -161,19 +178,21 @@ class TestACancelLandingMidPoll:
 
         poller = threading.Thread(target=poll_live_sessions, args=(home,))
         poller.start()
-        assert reached.wait(10), "the poller never reached its conclusion"
+        try:
+            assert reached_or_finished(reached, poller), "the poller never reached its conclusion"
 
-        ledger = DispatchLedger(
-            home,
-            session_command=[sys.executable, str(fake_cli)],
-            managers={"sandbox": manager},
-        )
-        cancelled = ledger.cancel(run_id, actor="dispatcher", source="test", requester="Jeff Posey")
-        assert cancelled.stopped
-
-        release.set()
-        poller.join(10)
-        assert not poller.is_alive()
+            ledger = DispatchLedger(
+                home,
+                session_command=[sys.executable, str(fake_cli)],
+                managers={"sandbox": manager},
+            )
+            cancelled = ledger.cancel(
+                run_id, actor="dispatcher", source="test", requester="Jeff Posey"
+            )
+            assert cancelled.stopped
+        finally:
+            release.set()
+            poller.join()
 
         (only,) = results_for(manager, task_id, run_id)
         assert only.data["outcome"] == "cancelled"
