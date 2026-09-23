@@ -96,6 +96,7 @@ from agentjobs.models_v2 import (
     Outcome,
     utcnow,
 )
+from in_process import answer_in_process, spawn_for_real
 from support import task_store
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -2687,8 +2688,11 @@ print("backgrounded \\u00b7 b55b35ad \\u00b7 aj-task")
 
 
 @pytest.fixture
-def fake_cli(tmp_path: Path) -> Path:
-    return write_script(tmp_path / "fakecli.py", FAKE_CLI)
+def fake_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    # In-process (task-525): this fake is an answer -- a listing, a transcript, a launch
+    # that prints an id and returns -- read from a file, with no pid or lifetime of its
+    # own for a test to be about. Tests about a real process use their own scripts.
+    return answer_in_process(monkeypatch, write_script(tmp_path / "fakecli.py", FAKE_CLI))
 
 
 def session_resolution(fake_cli: Path, **kwargs: object) -> DispatchResolution:
@@ -2959,9 +2963,16 @@ class TestSessionMode:
         assert results[0].data["outcome"] == DispatchOutcome.INTERRUPTED.value
 
     def test_the_ledger_is_scoped_to_this_project(
-        self, workspace: Path, manager: TaskManager, task, fake_cli: Path
+        self,
+        workspace: Path,
+        manager: TaskManager,
+        task,
+        fake_cli: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """An unrelated session elsewhere must never be mistaken for a dispatched run."""
+        # Its subject is the argv the listing is spawned with, so it spawns (task-525).
+        spawn_for_real(monkeypatch, fake_cli)
         runner = build(workspace, manager, session_resolution(fake_cli))
         runner.start(task, actor="Jeff Posey", caused_by=1)
 

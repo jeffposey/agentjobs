@@ -37,6 +37,7 @@ from agentjobs.dispatch.runner import SessionPhase
 from agentjobs.models_v2 import Lifecycle, LogEntryType, Outcome
 from agentjobs.projects import ProjectRegistry
 
+from in_process import spawn_for_real
 from test_dispatch_poller import _set_ledger, machine  # noqa: F401 - fixture import
 
 SESSION = "b55b35ad"
@@ -549,7 +550,10 @@ class TestAMachineThatCouldNotStartTheRunner:
     machine produced it in ordinary shell output on the day task-518 was worked.
     """
 
-    def _runner(self, bench):
+    def _runner(self, bench, monkeypatch):
+        # A real spawn: these tests are about the spawn failing, so they replace
+        # `subprocess.run`, and an in-process answer would never reach it (task-525).
+        spawn_for_real(monkeypatch, bench["fake_cli"])
         from agentjobs.dispatch.config import assert_dispatch_permitted
         from agentjobs.dispatch.runner import DispatchRunner
 
@@ -565,7 +569,7 @@ class TestAMachineThatCouldNotStartTheRunner:
 
         from agentjobs.dispatch import runner as runner_module
 
-        runner = self._runner(bench)
+        runner = self._runner(bench, monkeypatch)
         real = subprocess_module.run
         calls: list[int] = []
 
@@ -588,7 +592,7 @@ class TestAMachineThatCouldNotStartTheRunner:
 
         from agentjobs.dispatch import runner as runner_module
 
-        runner = self._runner(bench)
+        runner = self._runner(bench, monkeypatch)
         real = subprocess_module.run
         calls: list[int] = []
 
@@ -610,7 +614,7 @@ class TestAMachineThatCouldNotStartTheRunner:
         from agentjobs.dispatch.runner import DispatchRunError
         from agentjobs.dispatch import runner as runner_module
 
-        runner = self._runner(bench)
+        runner = self._runner(bench, monkeypatch)
 
         def always_refuse(argv, *args, **kwargs):
             raise OSError(8, "Not enough memory resources are available")
@@ -632,7 +636,7 @@ class TestAMachineThatCouldNotStartTheRunner:
         from agentjobs.dispatch.runner import DispatchRunError
         from agentjobs.dispatch import runner as runner_module
 
-        runner = self._runner(bench)
+        runner = self._runner(bench, monkeypatch)
         calls: list[int] = []
 
         def answered_badly(argv, *args, **kwargs):
