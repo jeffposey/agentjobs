@@ -65,6 +65,17 @@ ready to paste -- nodeid, assertion text, how many gates were running and both g
 | 11 | `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output` | `sqlite3.ProgrammingError: Cannot operate on a closed database` | a supervisor thread outlives its test and writes through a store the fixture has closed | teardown lifetime | open -- **task-497** |
 | 12 | whichever test an xdist worker happens to be running (`test_auto_dispatch.py` and `test_dispatch_api.py` seen) | `Windows fatal exception: access violation`, `worker 'gwN' crashed` | `_classify_batch_exit` reads SQLite from a background thread while the fixture closes the database | teardown lifetime | open -- **task-438** |
 | 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone | environment, or entry 3's cause not fully removed | open -- see below |
+| 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | not named | unknown | open -- seen by finish `fin_8f638f51` |
+| 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | not named | unknown | open -- seen by finish `fin_8f638f51` |
+| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | not named | unknown | open -- seen by finish `fin_8f638f51` |
+
+**14-16 observed** 2026-09-23 about 21:50 UTC in task-526's finish `fin_8f638f51` on
+`b6be1fd9`, a branch touching only the finisher's classification, the failure rollup and
+docs. Attempt 1 (`scripts/check.py`, `-n 13, sharing this machine with 3 gates`): 14 and
+15 red, 5681 passed; log `~/.agentjobs/finishes/fin_8f638f51/gate.log`. Its retry
+(`--from pytest`, `-n 26, alone on this machine`): pytest all green, then 16 red in `e2e`;
+log `gate-retry-1.log` beside it. 14 and 15 passed run alone on the same commit. Three
+different tests over two attempts, none repeating: the flake signature.
 
 ### 13. A sibling dispatch that exits 1 saying nothing
 
