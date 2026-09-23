@@ -260,6 +260,7 @@ def claim_conclusion(
     concluded_by: str,
     status: Optional[str] = None,
     projection: Optional[OutboxItem] = None,
+    defer_to_cancel: bool = False,
 ) -> Conclusion:
     """Ask for the one right to write this run's terminal result.
 
@@ -270,6 +271,9 @@ def claim_conclusion(
     The recovery classification rides along (task-416). The store keeps the execution
     open only when the durable controller drives it; for every other run the class is
     ignored and the execution closes with its attempt, as it always has.
+
+    ``defer_to_cancel`` loses the set to any Stop on record -- see
+    ``ExecutionStore.conclude`` (task-370).
     """
     ensure_attempt(home, record)
     failure_class = failure_class_for(outcome)
@@ -281,6 +285,7 @@ def claim_conclusion(
         projection=projection,
         retry_owed=failure_class is not None,
         failure_class=failure_class,
+        defer_to_cancel=defer_to_cancel,
     )
 
 

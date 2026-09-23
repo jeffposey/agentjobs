@@ -2348,6 +2348,7 @@ class ExecutionStore:
         projection: Optional[OutboxItem] = None,
         retry_owed: bool = False,
         failure_class: Optional[str] = None,
+        defer_to_cancel: bool = False,
     ) -> Conclusion:
         """The one compare-and-set terminal transition for a run.
 
@@ -2371,10 +2372,20 @@ class ExecutionStore:
         retry policy whether a next attempt is permitted. An execution the legacy poller
         follows closes with its attempt exactly as before, because nothing would ever come
         back for it.
+
+        ``defer_to_cancel`` (task-370) refuses any ending but ``cancelled`` once a Stop is
+        on record, in the same transaction as the set. A supervisor or poll asks "was a
+        Stop requested?" before it gets here, and that read is a separate transaction: a
+        Stop recorded between the two was invisible to it, so it won with ``failed`` and
+        the cancellation that followed lost. Opt-in, because only a concluder that some
+        cancellation is certain to follow may yield -- a sweep ending a run whose
+        cancellation died half-way must still end it.
         """
         with self.transaction("conclude") as connection:
             row = self._attempt_for_update(connection, run_id, epoch=epoch)
             if row["state"] == ATTEMPT_TERMINAL:
+                return Conclusion(False, Attempt.from_row(row))
+            if defer_to_cancel and outcome != "cancelled" and int(row["cancel_requested"]):
                 return Conclusion(False, Attempt.from_row(row))
             if expected_generation is not None and int(row["control_generation"]) != int(
                 expected_generation

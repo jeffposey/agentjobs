@@ -4401,6 +4401,7 @@ class DispatchRunner:
                 concluded_by="poller",
                 status="finished",
                 projection=projection,
+                defer_to_cancel=True,
             )
         except ExecutionStoreError:
             # Not committed, so not concluded: the run stays live and the next poll asks
@@ -4709,7 +4710,14 @@ class DispatchRunner:
         reported as failed roughly half the time -- observed while building the GUI's
         cancel button, which shows that word to a human who has just pressed Cancel.
         The ledger sets the flag **before** it kills, and this supervisor is blocked in
-        ``wait()`` until then, so the flag is always visible here by the time it matters.
+        ``wait()`` until then, so the flag is visible here when the kill is what woke it.
+
+        **Not when the run exited on its own a moment earlier** (task-370). Then this
+        supervisor reads no flag, the ledger records its Stop and "kills" an already-dead
+        pid, and both reach the set -- and the read above cannot see a Stop recorded after
+        it. So the set itself defers: ``defer_to_cancel`` makes the compare-and-set refuse
+        any ending but ``cancelled`` once a Stop is on record, whichever side gets there
+        first. The read stays because it saves the projection work, not for correctness.
         """
         from agentjobs.dispatch import journal  # local: journal imports this module lazily
 
@@ -4753,6 +4761,7 @@ class DispatchRunner:
                 concluded_by="batch supervisor",
                 status="finished",
                 projection=projection,
+                defer_to_cancel=True,
             )
         except ExecutionStoreError:
             # The journal could not record the ending, so nothing may claim it. The run is
