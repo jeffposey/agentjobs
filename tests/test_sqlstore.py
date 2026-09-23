@@ -18,6 +18,8 @@ was measured to be possible on task-273:
 from __future__ import annotations
 
 import sqlite3
+import subprocess
+import sys
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,6 +56,47 @@ from agentjobs.sqlstore import (
 )
 from agentjobs.sqlstore.migrations import MIGRATIONS_DIR, available
 from agentjobs.storage_protocol import TaskStore
+
+
+CLOSE_UNDER_READ = """
+import random
+import sys
+import threading
+from pathlib import Path
+
+from agentjobs.sqlstore import Database
+
+root = Path(sys.argv[1])
+for iteration in range(60):
+    database = Database(root / f"race-{iteration}.db")
+    with database.write() as connection:
+        connection.execute("CREATE TABLE t(x)")
+        connection.executemany("INSERT INTO t VALUES (?)", [(n,) for n in range(2000)])
+    reading = threading.Event()
+
+    def read() -> None:
+        reading.set()
+        try:
+            while True:
+                for _ in database.reader().execute("SELECT x FROM t"):
+                    pass
+        except Exception:
+            return
+
+    thread = threading.Thread(target=read)
+    thread.start()
+    reading.wait()
+    threading.Event().wait(random.random() / 100)
+    database.close()
+    thread.join(timeout=30)
+    assert not thread.is_alive()
+print("ok")
+"""
+"""Close a database while another thread steps a query over it, sixty times.
+
+Every read loops until the close stops it, so the only ways out are a Python exception
+in the reading thread, which is the fixed behaviour, or the process dying natively.
+"""
 
 
 @pytest.fixture()
@@ -583,6 +626,50 @@ class TestConcurrency:
                     (place * 100, task_id),
                 )
         assert [task.id for task in store.list_tasks()][:4] == order
+
+    def test_closing_under_a_reading_thread_raises_rather_than_crashing(
+        self, tmp_path: Path
+    ) -> None:
+        """A close from one thread while another steps a query must not kill the process.
+
+        Before task-438 it did, with ``Windows fatal exception: access violation``: a
+        dispatch supervisor was still reading when a test's teardown closed the store,
+        and the xdist worker died with every test queued on it. Run in a subprocess for
+        that reason -- a regression here must fail this test, not take the worker down.
+        On the unfixed code this script crashed in five runs out of five.
+        """
+        script = tmp_path / "close_under_read.py"
+        script.write_text(CLOSE_UNDER_READ, encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(script), str(tmp_path)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert result.returncode == 0, result.stderr[-3000:]
+        assert result.stdout.strip() == "ok"
+
+    def test_a_closed_database_refuses_a_new_reader(self, database: Database) -> None:
+        """A thread that still holds a closed Database is refused, not quietly reopened.
+
+        Reopening handed out a reader the close never saw, which kept the file open
+        behind a close that had reported success.
+        """
+        database.reader().execute("SELECT 1").fetchone()
+        database.close()
+        outcome: List[BaseException] = []
+
+        def read() -> None:
+            try:
+                database.reader()
+            except BaseException as exc:  # noqa: BLE001 - recorded for the assertion
+                outcome.append(exc)
+
+        thread = threading.Thread(target=read)
+        thread.start()
+        thread.join()
+        assert len(outcome) == 1
+        assert isinstance(outcome[0], sqlite3.ProgrammingError)
 
     def test_a_failed_transaction_leaves_nothing_behind(self, store: SqlTaskStore) -> None:
         """Crash recovery, at the granularity that matters: all of a write or none."""
