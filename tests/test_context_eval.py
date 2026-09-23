@@ -323,6 +323,15 @@ class TestComposeArgv:
         assert "--strict-mcp-config" in argv
         assert '{"mcpServers":{}}' in argv
 
+    def test_effort_is_absent_unless_named(self):
+        # The model's own default is what dispatched runs get, so it is the default here.
+        assert "--effort" not in compose_argv(model="m", max_turns=4)
+
+    def test_a_named_effort_is_passed_before_the_variadic_flag(self):
+        argv = compose_argv(model="m", max_turns=4, effort="high")
+        assert argv[argv.index("--effort") + 1] == "high"
+        assert argv.index("--effort") < argv.index("--disallowed-tools")
+
     def test_it_asks_for_the_stream_the_checks_read(self):
         argv = compose_argv(model="m", max_turns=4)
         assert argv[argv.index("--output-format") + 1] == "stream-json"

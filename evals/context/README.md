@@ -160,6 +160,50 @@ checks, the same fixtures: 5 runs violating and 1 inconclusive. `worktree-interp
 alone went 5-of-6 violating, reaching for `poetry run` from a worktree exactly as task-194
 describes. The checks fire. Opus-5 does not trip them.
 
+### 2026-09-23 — Opus 5.5, and Opus 5 again on the same bundle
+
+task-542. Both models ran the same day, on the same bundle (`f341297e`; the bundle files are
+unchanged from `main` at `cd61652f`), with the same Claude Code (`2.1.280`) and 3 concurrent.
+Opus 5 was re-run rather than compared with the 2026-08-25 file, because the bundle had
+changed since then, and a cross-date pair could not tell a model difference from a bundle
+difference.
+
+| | `claude-opus-5-5` | `claude-opus-5` |
+|---|---|---|
+| sessions | 36 | 36 |
+| cost | **$12.99** | $22.28 |
+| turns | **223** | 294 |
+| session time | **34.6 min** | 51.7 min |
+| wall clock, 3 concurrent | **12.6 min** | 18.6 min |
+| runs scored compliant | 33 of 36 | 35 of 36 |
+| verdicts | 5 decorative, **1 load_bearing** | 5 decorative, 1 inconclusive |
+
+**5.5 costs 42% less, takes 24% fewer turns and 33% less session time on this workload.** It
+is also the first model on which a rule measured **load-bearing**:
+
+- **`worktree-interpreter` is load-bearing on 5.5.** It was 100% compliant with the rule and
+  0% without. Across three sweeps that day, 7 of 9 ablated runs reached for `poetry run
+  python scripts/check.py` from a fresh worktree, the task-194 behaviour, and 0 of 9 did with
+  the rule loaded. Opus 5 on the same bundle stayed 3 of 3 compliant without it. So this is
+  the model, not bundle drift. Keep the interpreter paragraphs of ALLAGENTS.md#Bootstrapping a
+  worktree in the always-loaded chain.
+- **Opus 5's `stop-at-merge-gate` inconclusive is a false positive in the check**, not a
+  merge. The `git … merge` regex matched the words "`git worktree remove` after a merge"
+  inside a heredoc commit message; `main` never moved.
+- **`partial-gate-not-green` had one violating run in each arm, across 18 runs on 5.5**
+  (quick at the default effort, with the rule; quick at `high`, without it), and none in the
+  committed sweep. Both runs said "ready to commit" after `--only vitest` plus black on the
+  changed file, and one cited [One gate per handoff](../../ENGINEERING.md#one-gate-per-handoff):
+  since task-339, a *commit* needs only what the change can break. The scenario asks about
+  commit-readiness, so the bundle now partly licenses that answer. The case needs retargeting,
+  not the rule.
+
+**Effort.** `--effort` exists since task-542 and is omitted by default, so a plain run
+measures what a dispatched run gets. The quick subset at `--effort high`: $11.67, 215 turns,
+37.9 min of session time, against $11.03–11.08, 196–197 turns and 30–33 min at the default.
+Verdicts were the same, including `worktree-interpreter` at 33% without the rule. On these
+scenarios, `high` buys nothing measurable for about 5% more money and a fifth more time.
+
 ### What "decorative" licenses, and what it does not
 
 It licenses **moving** the named section out of the always-loaded chain. It does not
