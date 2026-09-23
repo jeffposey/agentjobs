@@ -25,6 +25,7 @@ import pytest
 from agentjobs.actors import FINISHER
 from agentjobs.dispatch import finish as finish_module
 from agentjobs.dispatch.finish import (
+    DETERMINISTIC_IN_CONTEXT,
     ESCALATED,
     FINISHED,
     FLAKY_TEST,
@@ -34,6 +35,7 @@ from agentjobs.dispatch.finish import (
     receipt_vector,
     retry_selection,
 )
+from agentjobs.dispatch.failure_rollup import rollup
 from agentjobs.dispatch.finish_receipts import APPLIED, FinishReceipts
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle
 import test_dispatch_finish
@@ -101,8 +103,9 @@ if run_dir:
         handle.write(json.dumps({{"kind": "gate_started", "stages": selected}}) + chr(10))
 
 
-def red(test):
-    print("FAILED " + test + " - AssertionError: it broke")
+def red(test, assertion="AssertionError: it broke"):
+    print("pytest runs at -n 10, sharing this machine with 3 gates: 32 cores less 6.")
+    print("FAILED " + test + " - " + assertion)
     print("Failed at stage 'pytest'.", file=sys.stderr)
     sys.exit(1)
 
@@ -114,6 +117,10 @@ if MODE == "flaky":
     sys.exit(0)
 if MODE == "always_red":
     red("tests/test_broken.py::test_always")
+if MODE == "different_red":
+    if first:
+        red("tests/test_flaky.py::test_sometimes")
+    red("tests/test_flaky.py::test_other_times", "assert 'nudged' == 'recovered'")
 if MODE == "main_fix":
     if pathlib.Path("docs/fix.md").exists():
         sys.exit(0)
@@ -179,6 +186,22 @@ def entries_with(task: Any, key: str) -> List[Any]:
     return [entry for entry in task.log if key in entry.data]
 
 
+def escalation_prompt(task: Any) -> str:
+    """The ``ball_prompt`` the finisher handed the agent, as its handoff entry kept it.
+
+    Read from the log because this world starts no agent, so a later fallback moves the
+    ball on to a person and the task's current prompt is that one.
+    """
+    handoff = next(
+        entry
+        for entry in reversed(task.log)
+        if entry.type.value == "handoff"
+        and entry.actor == FINISHER
+        and entry.data.get("ball") == "agent"
+    )
+    return str(handoff.body)
+
+
 def merge_entry(task: Any) -> Any:
     return next(entry for entry in reversed(task.log) if entry.data.get("finish_step") == "merge")
 
@@ -239,6 +262,88 @@ class TestAFlakeIsRetriedOnceAndRecorded:
         assert not merged_into(world["root"], world["branch"])
         task = world["manager"].get_task(world["task_id"])
         assert entries_with(task, "flaky_test") == []
+
+    def test_the_same_red_twice_is_not_called_a_flake(self, world: Dict[str, Any]) -> None:
+        install_gate(world, "always_red")
+
+        result = run(world)
+
+        assert result.outcome == ESCALATED and result.reason == "gate_failed"
+        task = world["manager"].get_task(world["task_id"])
+        verdict = entries_with(task, "gate_red_twice")[-1].data["gate_red_twice"]
+        assert verdict["classification"] == DETERMINISTIC_IN_CONTEXT
+        assert verdict["repeated"] == ["tests/test_broken.py::test_always"]
+        assert "the same test failed the same way twice on an unchanged tree" in (
+            verdict["explanation"]
+        )
+        prompt = escalation_prompt(task)
+        assert "`deterministic_in_context`" in prompt
+        assert "flaky_test" not in prompt
+        assert "first a question for the branch" in prompt
+
+    def test_a_retry_red_on_a_different_test_is_still_a_flake(self, world: Dict[str, Any]) -> None:
+        install_gate(world, "different_red")
+
+        result = run(world)
+
+        assert result.outcome == ESCALATED and result.reason == "gate_failed"
+        task = world["manager"].get_task(world["task_id"])
+        verdict = entries_with(task, "gate_red_twice")[-1].data["gate_red_twice"]
+        assert verdict["classification"] == FLAKY_TEST
+        assert verdict["repeated"] == []
+        assert "on a different test (`tests/test_flaky.py::test_other_times`)" in (
+            verdict["explanation"]
+        )
+        # A red retry is not a green one: no log entry claims the retry was green.
+        assert entries_with(task, "flaky_test") == []
+
+    def test_the_escalation_hands_over_a_register_entry_ready_to_paste(
+        self, world: Dict[str, Any]
+    ) -> None:
+        install_gate(world, "different_red")
+
+        result = run(world)
+
+        prompt = escalation_prompt(world["manager"].get_task(world["task_id"]))
+        assert "`docs/flake-register.md`" in prompt
+        assert (
+            "| N | `tests/test_flaky.py::test_sometimes` | `AssertionError: it broke` "
+            f"| not named | unknown | open -- seen by finish `{result.finish_id}` |"
+        ) in prompt
+        assert (
+            "| N | `tests/test_flaky.py::test_other_times` | `assert 'nudged' == 'recovered'` "
+        ) in prompt
+        finishes = world["home"] / "finishes"
+        logs = sorted(str(p) for p in finishes.rglob("gate*.log"))
+        assert len(logs) == 2
+        for log in logs:
+            assert f"log `{log}`" in prompt
+        assert prompt.count("-n 10, sharing this machine with 3 gates") == 2
+
+    def test_the_failures_report_tells_the_two_reds_apart(self, world: Dict[str, Any]) -> None:
+        install_gate(world, "always_red")
+        run(world)
+
+        classes = {item.klass: item for item in rollup(world["home"]).classes}
+
+        assert DETERMINISTIC_IN_CONTEXT in classes
+        assert FLAKY_TEST not in classes
+        assert classes[DETERMINISTIC_IN_CONTEXT].tests == {"tests/test_broken.py::test_always": 1}
+        assert classes[DETERMINISTIC_IN_CONTEXT].dispositions["stopped"] == 1
+
+    def test_the_failures_report_counts_a_different_second_red_as_a_flake(
+        self, world: Dict[str, Any]
+    ) -> None:
+        install_gate(world, "different_red")
+        run(world)
+
+        classes = {item.klass: item for item in rollup(world["home"]).classes}
+
+        assert DETERMINISTIC_IN_CONTEXT not in classes
+        assert classes[FLAKY_TEST].tests == {
+            "tests/test_flaky.py::test_sometimes": 1,
+            "tests/test_flaky.py::test_other_times": 1,
+        }
 
     def test_a_red_that_names_no_stage_is_not_retried(self, world: Dict[str, Any]) -> None:
         root: Path = world["root"]

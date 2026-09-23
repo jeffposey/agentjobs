@@ -11,7 +11,9 @@ human actions is the next thing to fix (task-419, a7; the recurring review is ta
   launch and delivery results the world could not settle, escalations to a person, policy
   waits, Stops, and the auth, usage-limit and spend-limit incidents with their waiters;
 - scripted-finish directories: the gate verdict a finish recorded, which names a
-  ``flaky_test`` or a proven input change and the tests behind it;
+  ``flaky_test`` or a proven input change and the tests behind it -- and, for a retry
+  that was red too, whether it failed on a different test (``flaky_test``, stopped) or
+  the same way twice (``deterministic_in_context``, which is not a flake; task-526);
 - phase records in run and finish directories: ``gate_stage_browser_gone``, the one gate
   retry that is infrastructure rather than a test outcome (task-404).
 
@@ -40,6 +42,7 @@ STOPPED = "stopped"
 DISPOSITIONS = (RETRIED, WAITED, STOPPED)
 
 FLAKY_TEST = "flaky_test"
+DETERMINISTIC_IN_CONTEXT = "deterministic_in_context"
 GATE_INPUTS_CHANGED = "gate_inputs_changed"
 BROWSER_DEATH = "browser_death"
 AUTH_UNAVAILABLE = reducer.AUTH_UNAVAILABLE
@@ -47,7 +50,7 @@ USAGE_EXHAUSTED = "usage_exhausted"
 SPEND_LIMIT = "spend_limit"
 CANCELLED_BY_USER = reducer.CANCELLED_BY_USER
 
-TEST_CLASSES = frozenset({FLAKY_TEST, BROWSER_DEATH})
+TEST_CLASSES = frozenset({FLAKY_TEST, DETERMINISTIC_IN_CONTEXT, BROWSER_DEATH})
 """Classes whose occurrences name test ids, and so can repeat by test."""
 
 INCIDENT_CLASS = {
@@ -528,6 +531,34 @@ def _directory_occurrences(home: Path) -> List[Occurrence]:
                             tests=tuple(_test_id(t) for t in first.get("failing_tests") or ()),
                         )
                     )
+                elif is_finish and kind == "finish_gate_red_twice":
+                    classification = str(record.get("classification") or "")
+                    if classification not in (FLAKY_TEST, DETERMINISTIC_IN_CONTEXT):
+                        continue
+                    if classification == DETERMINISTIC_IN_CONTEXT:
+                        tests = tuple(str(t) for t in record.get("repeated") or ())
+                    else:
+                        attempts = [a for a in record.get("attempts") or [] if isinstance(a, dict)]
+                        tests = tuple(
+                            dict.fromkeys(
+                                _test_id(t)
+                                for attempt in attempts
+                                for t in attempt.get("failing_tests") or ()
+                            )
+                        )
+                    found.append(
+                        Occurrence(
+                            classification,
+                            STOPPED,
+                            0,
+                            at=at,
+                            project_id=project_id,
+                            task_id=task_id,
+                            run_id=run_id,
+                            detail=str(record.get("failed_stage") or ""),
+                            tests=tests,
+                        )
+                    )
     return found
 
 
@@ -573,6 +604,7 @@ def counts(result: Rollup) -> Mapping[str, int]:
 __all__: Sequence[str] = [
     "BROWSER_DEATH",
     "ClassRollup",
+    "DETERMINISTIC_IN_CONTEXT",
     "FLAKY_TEST",
     "Occurrence",
     "Rollup",

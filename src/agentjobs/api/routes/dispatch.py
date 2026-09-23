@@ -492,7 +492,10 @@ class FinishGateRetryView(BaseModel):
     failed_stage: str = ""
     classification: str = Field(
         default="",
-        description="'inputs_changed' (a proven change explains the red) or 'flaky_test'.",
+        description=(
+            "'inputs_changed' (a proven change explains the red), 'flaky_test', or, once "
+            "the retry has failed the same way, 'deterministic_in_context'."
+        ),
     )
     explanation: str = ""
 

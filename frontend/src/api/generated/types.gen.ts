@@ -2283,7 +2283,7 @@ export type FinishGateRetryView = {
     /**
      * Classification
      *
-     * 'inputs_changed' (a proven change explains the red) or 'flaky_test'.
+     * 'inputs_changed' (a proven change explains the red), 'flaky_test', or, once the retry has failed the same way, 'deterministic_in_context'.
      */
     classification?: string;
     /**
