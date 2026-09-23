@@ -18,10 +18,13 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Iterator
+from pathlib import Path
+from typing import Iterator, Optional, Tuple
 
 import pytest
 
+from agentjobs.dispatch import pids
+from agentjobs.dispatch.journal import attempt_evidence
 from agentjobs.dispatch.pids import (
     describe_exit,
     is_the_recorded_process,
@@ -31,6 +34,7 @@ from agentjobs.dispatch.pids import (
     recorded_process_alive,
 )
 from agentjobs.dispatch.runner import _kill_tree
+from agentjobs.execution.store import PROVENANCE_NATIVE, Attempt
 
 SLEEPER = "import sys, time\nsys.stdout.write('up')\nsys.stdout.flush()\ntime.sleep(120)\n"
 """A child that announces itself and then does nothing, so a test can wait for it to be
@@ -148,6 +152,89 @@ class TestNothingIsKilledOnAPidAlone:
             time.sleep(0.05)
         assert _kill_tree(stranger.pid, identity=receipt) is False
         assert is_the_recorded_process(stranger.pid, identity=receipt) is False
+
+
+class TestANeverLaunchedAttemptIsReleasedPastAReusedPid:
+    """``attempt_evidence``'s never-launched branch, with the reused-pid state built directly.
+
+    task-489: a launcher crashed before writing its launch marker, its pid was reissued
+    before the next tick, and a bare ``process_alive`` kept the attempt owned -- which is
+    what ``test_a_fresh_process_performs_the_recovery`` caught at random under a loaded
+    gate. Racing the kernel for a recycled number would measure the machine, so these
+    admit an attempt on a live stranger's pid and set ``admitted_at`` either side of when
+    that stranger started.
+    """
+
+    NEVER_LAUNCHED = "admitted but never launched"
+
+    def verdict(
+        self, tmp_path: Path, pid: Optional[int], admitted_at: str
+    ) -> Optional[Tuple[str, str, str]]:
+        # No run directory, so no session, no pid and no launch marker: the only thing
+        # standing between this attempt and release is whether its holder is running.
+        return attempt_evidence(tmp_path, lambda _project: None)(
+            Attempt(
+                run_id="run_never_launched",
+                execution_id=None,
+                project_id="p",
+                task_id="task-1",
+                mode="session",
+                takes_slot=True,
+                holder="launcher",
+                holder_pid=pid,
+                epoch=1,
+                owner_mode="dispatch",
+                provenance=PROVENANCE_NATIVE,
+                state="admitted",
+                reservation="none",
+                reservation_data={},
+                cancel_requested=False,
+                cancel=None,
+                control_generation=0,
+                session_id=None,
+                outcome=None,
+                status=None,
+                concluded_by=None,
+                admitted_at=admitted_at,
+                launched_at=None,
+                concluded_at=None,
+            )
+        )
+
+    def test_a_stranger_started_after_the_admission_does_not_keep_it_owned(
+        self, tmp_path: Path, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        """The defect. The pid is alive; the process holding it is not the admitter."""
+        admitted = (moment_now() - timedelta(minutes=5)).isoformat()
+        assert process_alive(stranger.pid) is True
+        released = self.verdict(tmp_path, stranger.pid, admitted)
+        assert released is not None and self.NEVER_LAUNCHED in released[2]
+
+    def test_the_admitter_itself_still_running_keeps_it_owned(
+        self, tmp_path: Path, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        """A holder admitted *after* it started is the holder, so nothing is released."""
+        assert self.verdict(tmp_path, stranger.pid, moment_now().isoformat()) is None
+
+    def test_a_holder_that_is_gone_releases_it(self, tmp_path: Path) -> None:
+        released = self.verdict(tmp_path, 0, moment_now().isoformat())
+        assert released is not None and self.NEVER_LAUNCHED in released[2]
+
+    def test_an_unreadable_start_time_is_not_proof_of_reuse(
+        self,
+        tmp_path: Path,
+        stranger: "subprocess.Popen[bytes]",
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Doubt keeps ownership: releasing a possibly-live worker is task-419's failure."""
+        monkeypatch.setattr(pids, "_times", lambda _pid: None)
+        admitted = (moment_now() - timedelta(minutes=5)).isoformat()
+        assert self.verdict(tmp_path, stranger.pid, admitted) is None
+
+    def test_an_unreadable_admission_time_is_not_proof_of_reuse(
+        self, tmp_path: Path, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        assert self.verdict(tmp_path, stranger.pid, "not a timestamp") is None
 
 
 def moment_now() -> datetime:
