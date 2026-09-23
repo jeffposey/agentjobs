@@ -23,9 +23,10 @@ not touch. Whoever fixes one updates its entry rather than closing a task quietl
 owns the page.
 
 **The work is task-524.** Every open row here is a child of that epic, and a new row
-that needs fixing gets a child there rather than a task of its own. The finisher's
-escalation does not yet point at this page (task-526); until it does, an agent whose gate
-went red on a test it did not touch has to know to come here.
+that needs fixing gets a child there rather than a task of its own. When a scripted
+finish goes red at pytest twice, its escalation names this page and hands over the rows
+ready to paste -- nodeid, assertion text, how many gates were running and both gate logs
+(task-526). Number them after the last row here and fill in the cause if you know it.
 
 ## How to use this page
 
@@ -42,6 +43,10 @@ went red on a test it did not touch has to know to come here.
   flake into an invisible one and make the gate report green for a suite that is still
   racing. The finisher's own one retry is a different thing: it is recorded as
   `flaky_test` and counted, and `agentjobs execution failures --since 14` reads the count.
+  A retry that fails **the same way** -- same nodeid, same assertion text -- is recorded
+  as `deterministic_in_context` instead, because chance does not repeat itself verbatim:
+  the branch or the machine is the cause, and that is the first thing to rule out before
+  adding a row here (task-526).
 
 ## The register
 
