@@ -14,10 +14,12 @@ without a ceiling does not share the machine, it makes every gate slow at once; 
 gates at ten workers is the regime that produced the 45-minute gates this task was filed
 on. Task-536 therefore adds the three things a budget alone cannot express:
 
-**A capacity of two** (``CAPACITY``). Two gates at thirteen workers each sit on the flat
-part of that curve, so each costs close to what it costs alone, and a third run waits one
-gate rather than two. It queues visibly, in the shape the merge runway uses -- takeoff
-and landing are different resources, and so are a gate's cores.
+**A capacity** (``CAPACITY``), queued visibly in the shape the merge runway uses --
+takeoff and landing are different resources, and so are a gate's cores. Task-536 set it
+to two on the strength of that lone-gate curve; **task-534 measured real concurrent gates
+and set it to one**, because side-by-side gates finished about the same work an hour as a
+queue and each finished later. ``DIVISION_CEILING`` keeps the division at two for a gate
+that finds a neighbour without being admitted beside it.
 
 **An owner's reserve** (``OWNER_RESERVE``). ``workers()`` never returns ``auto`` again.
 Six of this machine's cores are not the gate's to take, whatever else is running, because
@@ -30,9 +32,9 @@ that feeds itself. The holding process now touches its slot every minute and sta
 drops to five, which means a killed gate frees its slot within five minutes and a live
 one is never mistaken for a corpse however long it runs.
 
-The numbers here are a choice from task-513's existing curve rather than a measurement of
-their own; task-534 measures against them. If a different shape wins there, the numbers
-change and this mechanism stays.
+The capacity is task-534's measurement; the reserve and the heartbeat are task-536's
+choices. ``scripts/gate_shape.py`` re-runs the shape comparison, and should be re-run
+before any of them changes.
 
 Five properties, each of which is a way this could have gone wrong:
 
@@ -40,7 +42,7 @@ Five properties, each of which is a way this could have gone wrong:
 that cannot be created, a heartbeat thread that dies. Each costs speed and never the run.
 A budget that can stop a gate is worse than an oversubscribed one.
 
-**The wait is bounded.** ``QUEUE_TIMEOUT_SECONDS`` is forty minutes, after which a queued
+**The wait is bounded.** ``QUEUE_TIMEOUT_SECONDS`` is sixty minutes, after which a queued
 gate says so and proceeds beside the others at the two-gate share. A budget that can hold
 a gate forever is a new way to be stuck (task-190).
 
@@ -58,7 +60,7 @@ cores, and the gates competing for them are in different worktrees by constructi
 Only a *parallel pytest* takes a slot -- the gate's pytest stage, or a hand-run
 ``pytest -n auto`` through the hook in ``tests/conftest.py``. A gate that does not select
 pytest takes nothing and waits for nothing, so the ``--only oxlint`` loop that
-ENGINEERING.md asks for is never queued behind two suites; and neither is a serial
+ENGINEERING.md asks for is never queued behind a suite; and neither is a serial
 ``pytest -k one_test``, which costs one core.
 """
 
@@ -87,16 +89,46 @@ environment is how the two recognise each other: it is inherited by the subproce
 gate launches and by nothing else on the machine.
 """
 
-CAPACITY = 2
-"""How many gates may run pytest at once here. A third queues.
+CAPACITY = 1
+"""How many gates may run at once here. A second queues.
 
-The owner asked for one at thirty or three at ten. Neither, on the curve task-513
-measured: three at ten sits at its knee, each gate 1.5 to 2x its lone cost, and that is
-the regime the 45-minute gates came from; one at thirty gives the best per-gate time and
-the deepest queue, since with the run ceiling at three the third run waits two whole
-gates. Two at thirteen stays on the flat part -- each gate close to its lone cost -- and
-the third run waits one gate. Memory is inside what task-339 measured for two at sixteen:
-6.4 GB peak, 1452 MB lowest free.
+**Task-534 measured the shapes with real gates.** Whole unqualified gates started
+together, on one frozen tree, three repetitions interleaved, 2026-09-22:
+
+    shape          wave per rep               gates/hour, mean    red gates
+    1 at -n 26     707s, 972s, 866s*          4.40 (3.70-5.09)    0 of 2*
+    2 at -n 13     1587s, 1648s, 1559s        4.51 (4.37-4.62)    2 of 6
+    3 at -n 8      2431s, 2321s, 2183s        4.68 (4.44-4.95)    2 of 9
+
+    * rep 3 of the lone arm overlapped a hand-run test session, so it is left out
+      of the mean and its red is not counted.
+
+**Throughput is a tie.** The contended shapes average up to 6% more, which is inside
+the lone arm's own spread, because this machine's aggregate rate barely moves with the
+shape: CPU 25 to 27% and 56,000 to 74,000 file-control operations a second whether one
+gate runs or three. Two gates at thirteen did **not** each cost close to their lone
+figure, which is what task-536 inferred from task-513's lone-gate curve: a paired pytest
+stage ran 2.7x a lone one, and three together 4.2x.
+
+**So latency decides, and the queue wins it.** A convoy of three -- an epic walk filling
+every run slot -- finishes at about 14, 28 and 42 minutes one at a time, a mean of 28;
+about 27, 27 and 41 at two, a mean of 31; and all three at about 38 at three. The first
+result arrives nearly three times sooner, and every red in the measurement came from a
+contended shape, though four reds is too few to call a rate. Memory never bound: the
+lowest free figure in any arm was 5.9 GB.
+"""
+
+DIVISION_CEILING = 2
+"""The most gates the machine is ever divided between, when more are running than admitted.
+
+Admission and division are separate numbers because two cases put a second gate beside
+the first without the queue letting it in: a gate that waited out ``QUEUE_TIMEOUT_SECONDS``,
+and a gate that cannot count its neighbours at all. Neither should run at the whole
+lone-gate width beside another -- two at ``-n auto`` drove this machine to 6 MB free on
+2026-09-05 -- so they divide by two, the shape task-339 measured as safe for memory.
+
+A capacity lifted above this for a measurement divides by the capacity, so that
+``scripts/gate_shape.py`` can still run three gates at a third each.
 """
 
 CAPACITY_ENV = "AGENTJOBS_GATE_CAPACITY"
@@ -162,13 +194,15 @@ indistinguishable from a hung one, and the cost of that confusion is a person ki
 run that was working. The merge runway's ``runway_queued`` note is the precedent.
 """
 
-QUEUE_TIMEOUT_SECONDS = 40 * 60.0
+QUEUE_TIMEOUT_SECONDS = 60 * 60.0
 """How long a gate queues before proceeding anyway.
 
-Two suites ahead of it is roughly fifteen minutes on this machine, so forty is generous
-rather than tight -- it is the point at which the slot directory has more likely gone
-wrong than the queue has been long. Proceeding is never refusing: the gate runs, at the
-two-gate share, and says in its own output that it did.
+With one slot, the third gate of a three-run convoy waits for two whole gates, and a lone
+gate measured 12 to 16 minutes on this machine (task-534) -- so up to about half an hour
+is the queue working. Sixty leaves room for a slow pair ahead of it and is still the point
+at which the slot directory has more likely gone wrong than the queue has been long.
+Proceeding is never refusing: the gate runs at the ``DIVISION_CEILING`` share, and says in
+its own output that it did.
 """
 
 POLL_SECONDS = 2.0
@@ -306,8 +340,9 @@ _DEGRADED = False
 
 A gate with no slot is invisible to its neighbours, so it cannot count itself and neither
 can they. The honest answer to "how many gates are there" is then not zero but *as many
-as there may be*, which is why :func:`visible_gates` returns ``CAPACITY`` here -- the
-gate runs at the two-gate share and says so, rather than at the whole machine. It is
+as there may be*, which is why :func:`visible_gates` returns :func:`division_ceiling`
+here -- the gate runs at the two-gate share and says so, rather than at the whole
+machine. It is
 process-wide rather than passed around because the two places that care -- taking the
 slot, and resolving ``-n`` minutes later -- have no call path between them.
 """
@@ -322,26 +357,36 @@ def reset_degraded() -> None:
 def visible_gates(now: Optional[float] = None) -> int:
     """The number to divide this machine by, never below one and never a guess downwards.
 
-    ``CAPACITY`` when the directory cannot be read or this process failed to take a slot,
-    because both mean the count is unknown and the cost of guessing low is two gates at
-    26 workers each on a machine that has 32.
+    :func:`division_ceiling` when the directory cannot be read or this process failed to
+    take a slot, because both mean the count is unknown and the cost of guessing low is
+    two gates at 26 workers each on a machine that has 32.
     """
     if _DEGRADED:
-        return capacity()
+        return division_ceiling()
     found = survey(now=now)
     if not found.readable:
-        return capacity()
+        return division_ceiling()
     return max(1, found.gates)
+
+
+def division_ceiling() -> int:
+    """The most gates the machine is divided between: ``DIVISION_CEILING`` or the capacity.
+
+    The larger of the two, so a measurement that lifts the capacity to three divides by
+    three, and the default capacity of one still divides an overrunning pair by two.
+    """
+    return max(capacity(), DIVISION_CEILING)
 
 
 def budget(cores: Optional[int] = None, gates: Optional[int] = None, reserve: int = 0) -> int:
     """How many xdist workers this gate may ask for.
 
-    ``(cores - OWNER_RESERVE) // min(gates, CAPACITY)``, floored at ``MIN_WORKERS``: 26
-    alone and 13 paired on this 32-core machine. ``min`` rather than the raw count
-    because a third gate is a queue rather than a third share -- and when one proceeds
-    anyway after ``QUEUE_TIMEOUT_SECONDS``, it takes the same thirteen its neighbours
-    have rather than a ninth of the machine.
+    ``(cores - OWNER_RESERVE) // min(gates, division_ceiling())``, floored at
+    ``MIN_WORKERS``: 26 for the one gate the capacity admits on this 32-core machine, and
+    13 for a gate that finds a neighbour anyway -- one that waited out
+    ``QUEUE_TIMEOUT_SECONDS``, or one that cannot count. ``min`` rather than the raw count
+    because a gate beyond the ceiling takes the same thirteen its neighbour has rather
+    than a ninth of the machine.
 
     ``reserve`` is cores this gate is holding back from its own suite, which only a
     ``--concurrent`` run does: there the frontend lane runs *inside* the same gate while
@@ -352,7 +397,7 @@ def budget(cores: Optional[int] = None, gates: Optional[int] = None, reserve: in
         gates = visible_gates()
     if cores is None:
         cores = os.cpu_count() or 1
-    share = max(1, min(gates, capacity()))
+    share = max(1, min(gates, division_ceiling()))
     return max(MIN_WORKERS, (cores - OWNER_RESERVE) // share - max(0, reserve))
 
 
@@ -462,12 +507,13 @@ def queued_note(holders: tuple[Holder, ...], waited: float, ceiling: Optional[in
     waited_phrase = "" if waited < 1 else f" Waiting {waited / 60:.0f}m so far."
     room = capacity() if ceiling is None else ceiling
     return (
-        f"\nQueued for one of this machine's {room} gate slots, held by: {who}."
+        f"\nQueued for {'the' if room == 1 else 'one of the'} {room} gate "
+        f"slot{'' if room == 1 else 's'} on this machine, held by: {who}."
         f"{waited_phrase}\n"
-        f"**This is the queue working, not a stall.** Three suites at a third of the "
-        f"machine each are slower than two at half and one waiting -- task-513 measured "
-        f"the curve. Nothing runs here until a slot comes free, and this gate says who "
-        f"it is waiting for every {QUEUE_NOTICE_SECONDS:.0f}s.\n"
+        f"**This is the queue working, not a stall.** Gates side by side finish no "
+        f"more work an hour than gates one at a time, and each finishes later -- "
+        f"task-534 measured it. Nothing runs here until a slot comes free, and this gate "
+        f"says who it is waiting for every {QUEUE_NOTICE_SECONDS:.0f}s.\n"
     )
 
 

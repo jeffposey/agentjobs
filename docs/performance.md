@@ -1018,6 +1018,10 @@ another it does not control.
 
 #### Two gates, thirteen workers each, and a queue (task-536, 2026-09-22)
 
+*The capacity of two is superseded by
+[one gate at a time](#one-gate-at-a-time-measured-with-real-gates-task-534-2026-09-22),
+which measured real concurrent gates. The reserve and the heartbeat below still stand.*
+
 The sections above are the evidence this change rests on; it adds no measurement of its
 own, which is deliberate and is why task-534 follows it. What it does is stop the
 regime those sections describe from recurring: on 2026-09-22 three gates overlapped on
@@ -1077,6 +1081,127 @@ numbers change and the mechanism stays.
 still admits three runs, and should: a run is not a gate, and the third run's *work*
 proceeds while only its gate queues. Its comment is the owner's to update — the
 recommended text is on task-536.
+
+#### One gate at a time, measured with real gates (task-534, 2026-09-22)
+
+Task-536 chose two gates at thirteen workers from task-513's curve, which throttled a
+*lone* gate with synthetic slots. That curve says 16 workers cost 8% over 32 when nothing
+else is running. It could not say what a real neighbour costs, because a synthetic slot
+uses no memory, starts no browser and runs none of the gate's other stages. This section
+measures that directly.
+
+**The experiment.** Three detached worktrees at one commit (`worktrees/agentjobs-534-a`,
+`-b` and `-c`, at 446a0599), each bootstrapped and pre-warmed. Each arm is a wave of `K`
+whole unqualified gates started together, one per worktree, and timed until the last one
+finishes. The arms were interleaved A, B, C three times, so machine drift lands on every
+arm rather than on one:
+
+```
+python scripts/gate_shape.py arm --label A --rep N --worktree <a>
+python scripts/gate_shape.py arm --label B --rep N --worktree <a> --worktree <b>
+python scripts/gate_shape.py arm --label C --rep N --worktree <a> --worktree <b> --worktree <c>
+python scripts/gate_shape.py report
+```
+
+`gate_shape.py` sets `AGENTJOBS_GATE_CAPACITY` to `K` for the arm, so arm C runs three
+gates at `26 // 3 = 8` rather than queueing its third. It reads each gate's width from the
+gate's own output rather than assuming it. Memory is sampled every five seconds;
+`typeperf` sampled CPU, disk, file-system operations, context switches and Defender from
+part-way through rep 1 onwards.
+
+| Arm | Shape | Wave, rep 1 / 2 / 3 | Gates per hour, mean (range) | One gate's pytest stage | Red gates |
+|---|---|---|---|---|---|
+| A | 1 at `-n 26` | 707 / 972 / 866\* s | **4.40** (3.70–5.09) | 521–669 s | 0 of 2\* |
+| B | 2 at `-n 13` | 1587 / 1648 / 1559 s | **4.51** (4.37–4.62) | 1358–1398 s | 2 of 6 |
+| C | 3 at `-n 8` | 2431 / 2321 / 2183 s | **4.68** (4.44–4.95) | 2170–2175 s | 2 of 9 |
+
+\* A rep 3 overlapped a hand-run test session, so its time is shown but left out of the
+mean, and its red, an e2e timeout, is not counted.
+
+**Throughput is a tie.** The contended shapes average up to 6% more gates an hour, which
+is inside the lone arm's own spread. The reason is visible in the counters: the machine's
+aggregate rate barely moves with the shape.
+
+| Window | CPU | File-control ops/s | Context switches/s | Processes | Defender (cores) |
+|---|---|---|---|---|---|
+| A rep 2, one gate | 24.9% | 55,800 | 84,200 | 661 | 0.64 |
+| B rep 2, two gates | 26.5% | 66,600 | 97,300 | 672 | 0.75 |
+| C rep 2, three gates | 26.9% | 66,600 | 91,200 | 676 | 0.78 |
+| B rep 3, two gates | 25.5% | 73,500 | 87,400 | 668 | 0.74 |
+| C rep 3, three gates | 25.8% | 65,500 | 86,800 | 673 | 0.78 |
+
+**So a neighbour costs far more than the width does.** A paired gate's pytest stage ran
+**2.7x** a lone one, and three together **4.2x**, where task-513's lone curve predicted
++8% for halving the workers. Neither cores nor memory is the bound. CPU never averaged
+above 27% busy and the processor queue stayed near zero. The lowest free memory in any arm
+was 5.9 GB. Disk latency was 0.26 ms. A single gate already drives the machine at about
+the rate three do, so the binding resource is something shared and roughly serial that
+none of these counters saturates. The file-system path is the leading candidate: 56,000
+to 74,000 file-control operations a second, with Defender inspecting them. That is an
+inference, not a measurement. Confirming it needs a run with Defender exclusions on the
+worktrees, which is a machine security setting and was not changed here.
+
+**With throughput tied, latency decides.** Take a convoy of three, an epic walk filling
+every run slot, with a lone gate at about 14 minutes:
+
+| Capacity | Finish times | Mean time to review | First result |
+|---|---|---|---|
+| **1** | 14, 28, 42 min | **28 min** | **14 min** |
+| 2 | 27, 27, 41 min | 31 min | 27 min |
+| 3 | 38, 38, 38 min | 38 min | 38 min |
+
+Every red in the measurement came from a contended shape: a vitest region lookup, two
+pytest timing tests and an e2e reload. Four reds are too few to state a rate, and they are
+not claimed as one. They are evidence in the same direction, not the basis of the
+decision.
+
+**What changed.** `gate_slots.CAPACITY` went from 2 to 1. `DIVISION_CEILING = 2` keeps a
+gate that finds a neighbour anyway at the paired share. That covers a gate that waited out
+the timeout and a gate that cannot count its neighbours, and without it such a gate would
+run at 26 beside another 26, the shape that drove this machine to 6 MB free on
+2026-09-05. `QUEUE_TIMEOUT_SECONDS` went from 40 to 60 minutes, because the third gate of
+a convoy now waits two whole gates, up to about 32 minutes at the slowest lone figure
+measured.
+
+**What was rejected.**
+
+- *Keep two at thirteen (task-536).* It ties on throughput and loses on latency: 31
+  minutes mean against 28, and the first result at 27 minutes rather than 14.
+- *Three at eight.* This was the owner's question, and it is today's behaviour whenever
+  the cap is lifted. It ties on throughput, and every gate in a convoy waits for the
+  slowest, 38 minutes for all three.
+- *A weighted budget at gate start*, as this task's description sketched. The budget
+  would divide a resource the measurement shows does not divide: the machine's aggregate
+  rate is the same at one gate as at three. A queue is the budget that matches that.
+
+**Two confounders from the task, and what happened to them.** The fixed cost outside
+pytest (black, ruff, mypy, api, icons, oxlint, vitest and build) was paid by every
+concurrent gate, as predicted, and is inside every wave above. The e2e stage ran on four
+Playwright workers throughout (task-369 had landed), so a gate in e2e was not using only
+one core. That was the state measured, and a later change to e2e is a reason to re-run
+`gate_shape.py` rather than to reuse these numbers.
+
+**The run ceiling.** `limits.max_concurrent_runs` should stay at three, which is the
+recommendation; it lives outside this repository. `run_report.py --overlap` put runs at
+6.1 : 1 work to gate over the last week (75 runs), so runs rarely collide except in a
+convoy. There a fourth run's gate would wait three gates, about 42 to 48 minutes, close to
+the queue timeout. So a ceiling above three should come with a longer timeout, not on its
+own.
+
+**What the ledger says about overlap.** `run_report.py --overlap` measures how often
+dispatched gates really run together:
+
+| Window | Runs that gated | Work : gate | Gate time beside a neighbour | Most at once |
+|---|---|---|---|---|
+| 7 days | 75 | 6.1 : 1 | 42.2% | 3 |
+| 14 days | 111 | 6.4 : 1 | 37.6% | 3 |
+| 30 days | 176 | 5.2 : 1 | 29.1% | 3 |
+
+On average gates rarely overlap, but the overlap clusters in epic walks. On 2026-09-20,
+17 of the fortnight's 28 overlap episodes were siblings gating together, and three-gate
+convoys ran for up to 29.7 minutes. The ledger undercounts this: it does not record gates
+run by a scripted finish, which queue on the merge runway right behind the children that
+were just gating.
 
 #### Running the stages concurrently (task-268, 2026-09-06)
 

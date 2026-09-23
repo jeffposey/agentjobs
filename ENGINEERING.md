@@ -116,11 +116,11 @@ source rather than a neighbouring one's.
     `api` stage names `frontend/src/api/generated` when those files are uncommitted, and
     does not fail — `git add` takes explicit paths here, and generated output is what
     that habit forgets.
--   **Overlapping gates are the normal case, and at most two run pytest at once**
-    (task-536). A third queues, names the gates it is waiting for, and repeats that every
-    30 seconds — so **a gate that says it is queued, or is simply slower than you
-    expected, is working rather than stuck**. Six cores stay the owner's: pytest gets 26
-    alone and 13 paired, never the machine. Figures in
+-   **One gate runs at a time** (task-534). Side-by-side gates finished about the same work
+    an hour as a queue and each finished later, so a second queues, names the gate it is
+    waiting for, and repeats that every 30 seconds — so **a gate that says it is queued,
+    or is simply slower than you expected, is working rather than stuck**. Six cores stay
+    the owner's: pytest gets 26, never the machine. Figures in
     [docs/performance.md](docs/performance.md#how-the-gate-degrades-under-contention).
     Concurrency is safe at all only because each checkout derives its own Playwright and
     benchmark ports from its path (task-187); a collision is a bug, not a reason to
