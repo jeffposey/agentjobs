@@ -25,7 +25,7 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 import yaml
@@ -36,7 +36,7 @@ from agentjobs.dispatch.guards import DispatchRequest, dispatch_task
 from agentjobs.dispatch.journal import journal
 from agentjobs.dispatch.ledger import DispatchLedger, read_run
 from agentjobs.dispatch.poller import poll_live_sessions
-from agentjobs.dispatch.runner import SESSION_NAME_PATTERN, runs_root
+from agentjobs.dispatch.runner import SESSION_NAME_PATTERN, DispatchRunner, runs_root
 from agentjobs.execution import reducer
 from agentjobs.execution.store import CONTROLLED_BY_CONTROLLER
 from agentjobs.manager import TaskManager
@@ -475,6 +475,30 @@ class TestRouting:
 # ----- crash windows around a launch (a1, a2) ------------------------------------------
 
 
+def tick_inside_the_launch_window(
+    machine: Machine, monkeypatch: pytest.MonkeyPatch, *, after_seconds: float
+) -> Tuple[str, List[str]]:
+    """Dispatch a task, running a controller tick at the one moment it used to race.
+
+    The tick runs as the runner is about to record the dispatch entry: the session exists
+    and ``meta.yaml`` names it, and nothing on the task does yet. ``after_seconds`` is how
+    long the launcher has apparently been stuck there when the tick lands.
+    """
+    original = DispatchRunner._record_dispatch
+    lines: List[str] = []
+
+    def ticking(self: DispatchRunner, *args: Any, **kwargs: Any) -> int:
+        if after_seconds:
+            machine.clock.advance(after_seconds)
+        lines.extend(machine.tick())
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(DispatchRunner, "_record_dispatch", ticking)
+    task_id = machine.task()
+    machine.dispatch(task_id)
+    return task_id, lines
+
+
 class TestLaunchCrashWindows:
     def test_death_before_the_launcher_ran_is_retried_once_under_the_same_execution(
         self, machine: Machine
@@ -536,6 +560,33 @@ class TestLaunchCrashWindows:
         assert attempt is not None and attempt.state == "live" and attempt.session_id
         assert len(machine.rows()) == 1, "no second session"
         assert machine.execution(task_id).state == "working"
+
+    def test_a_tick_inside_a_live_launch_stops_nothing(
+        self, machine: Machine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The window between naming the session and recording the dispatch (task-522).
+
+        The server's own poll runs beside the dispatches it serves, so a tick can land
+        after the runner wrote ``session_id`` and before it wrote ``dispatch_entry_id``.
+        That run is not unfollowable -- its launcher is alive and a moment from recording
+        it -- and until task-522 the tick stopped it. Flake register entry 9 was this, seen
+        through a fixture.
+        """
+        task_id, lines = tick_inside_the_launch_window(machine, monkeypatch, after_seconds=0)
+
+        assert not any("stopped unfollowable" in line for line in lines), lines
+        assert len(machine.live_sessions()) == 1
+        machine.tick()
+        [attempt] = machine.attempts(task_id)
+        assert attempt.state == "live" and attempt.session_id
+
+    def test_a_launcher_that_never_records_is_still_stopped_once_the_window_has_passed(
+        self, machine: Machine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The guard above waits for a live launcher; it does not wait for ever."""
+        _, lines = tick_inside_the_launch_window(machine, monkeypatch, after_seconds=121)
+
+        assert any("stopped unfollowable session" in line for line in lines), lines
 
     def test_a_marked_launch_the_listing_cannot_find_is_unknown_not_absent(
         self, machine: Machine
