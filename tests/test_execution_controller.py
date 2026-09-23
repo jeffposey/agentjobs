@@ -698,11 +698,13 @@ class TestBatchRecovery:
             concluded = journal(machine.home).attempt(attempt.run_id)
         from agentjobs.dispatch.runner import RunDirectory
 
-        worker = RunDirectory(path=record.path).read_meta().get("pid_identity")
+        receipt = RunDirectory(path=record.path).read_meta().get("pid_identity")
+        worker = machine.controller().still_running(
+            record.pid, identity=receipt if isinstance(receipt, str) else None
+        )
         assert concluded is not None and not concluded.is_live, (
             f"not concluded after {ticks} ticks in 60s; the worker "
-            f"{'is still running' if machine.controller().still_running(record.pid, identity=worker) else 'is gone'}"
-            f"; lines: {lines}"
+            f"{'is still running' if worker else 'is gone'}; lines: {lines}"
         )
         assert (machine.root / "half-done.txt").read_text(encoding="utf-8") == "work in progress\n"
         task = machine.manager.get_task(task_id)
