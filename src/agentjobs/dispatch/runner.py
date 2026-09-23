@@ -140,7 +140,7 @@ from agentjobs.dispatch.credentials import (
     mint_run_credential,
     revoke_run_credential,
 )
-from agentjobs.dispatch import peers
+from agentjobs.dispatch import peers, program
 from agentjobs.dispatch.session_env import daemon_was_started, deliver_identity
 from agentjobs.project_setup import MCP_CONFIG_FILENAME
 from agentjobs.execution.errors import ExecutionStoreError
@@ -3198,7 +3198,7 @@ class DispatchRunner:
             session_name=self.session_name_for(task.id, run_id, task.title),
         )
         try:
-            completed = subprocess.run(
+            completed = program.run(
                 argv,
                 # No credential here, deliberately, and this is the one place the
                 # asymmetry with the run id matters. This process is a *launcher*: when
@@ -3536,7 +3536,7 @@ class DispatchRunner:
         while True:
             attempts += 1
             try:
-                completed = subprocess.run(
+                completed = program.run(
                     argv,
                     cwd=str(self.project_root),
                     env=self._environment(),
@@ -3589,7 +3589,7 @@ class DispatchRunner:
         act from deriving structured state out of a terminal rendering.
         """
         try:
-            completed = subprocess.run(
+            completed = program.run(
                 [*self.executable_prefix(), "logs", session_id],
                 cwd=str(self.project_root),
                 env=self._environment(),
@@ -3643,7 +3643,7 @@ class DispatchRunner:
         if self.runner.driver is RunnerDriver.CODEX:
             return False
         try:
-            completed = subprocess.run(
+            completed = program.run(
                 [*self.executable_prefix(), "stop", session_id],
                 cwd=str(self.project_root),
                 env=self._environment(),

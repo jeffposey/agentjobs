@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -40,7 +41,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 import pytest
 import yaml
 
-from agentjobs.dispatch import auth_recovery
+from agentjobs.dispatch import auth_recovery, program
 from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
 from agentjobs.dispatch.controller import Controller
@@ -58,6 +59,7 @@ from agentjobs.manager import TaskManager
 from agentjobs.dispatch.config import Posture
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome
 from agentjobs.projects import ProjectRegistry
+import fake_claude
 from skipping_clock import SkippingClock
 from support import task_store
 
@@ -79,90 +81,9 @@ def load_fixture(name: str) -> Dict[str, Any]:
 
 # ----- the fake driver --------------------------------------------------------------
 
-FAKE_CLAUDE = r"""
-import json, pathlib, sys
-sys.stdout.reconfigure(encoding="utf-8")
-here = pathlib.Path(__file__).parent
-ledger = here / "ledger.json"
-argv = sys.argv[1:]
-
-def rows():
-    return json.loads(ledger.read_text(encoding="utf-8")) if ledger.is_file() else []
-
-def save(value):
-    ledger.write_text(json.dumps(value), encoding="utf-8")
-
-def log(name, value):
-    with (here / name).open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(value) + chr(10))
-
-if argv[:1] == ["agents"]:
-    listed = rows() if "--all" in argv else [r for r in rows() if r.get("state") != "stopped"]
-    print(json.dumps(listed))
-    raise SystemExit(0)
-
-if argv[:1] == ["logs"]:
-    print("session output")
-    raise SystemExit(0)
-
-if argv[:1] == ["stop"]:
-    log("calls.log", argv)
-    updated = []
-    for row in rows():
-        if row["id"] == argv[1]:
-            row.update({"pid": None, "status": "stopped", "state": "stopped"})
-        updated.append(row)
-    save(updated)
-    print("stopped")
-    raise SystemExit(0)
-
-if argv[:1] == ["-p"]:
-    sys.stdin.read()
-    store = json.loads((here / "store.json").read_text(encoding="utf-8"))
-    log("probes.log", {"argv": argv, "store": store})
-    if store["answer"] == "ready":
-        print(json.dumps({"type": "result", "subtype": "success", "is_error": False,
-                          "api_error_status": None, "result": "AUTH_OK", "num_turns": 1}))
-        raise SystemExit(0)
-    print(json.dumps({"type": "result", "subtype": "success", "is_error": True,
-                      "api_error_status": store.get("status", 401), "result": store["text"]}))
-    raise SystemExit(store.get("exit", 1))
-
-if argv[:2] == ["--bg", "--resume"]:
-    message = sys.stdin.read()
-    log("nudges.log", {"argv": argv, "stdin": message})
-    updated = []
-    for row in rows():
-        if row.get("sessionId") == argv[2]:
-            row.update({"pid": 5151, "status": "busy", "state": "working"})
-        updated.append(row)
-    save(updated)
-    reply = here / "reply_on_wake.json"
-    if reply.is_file():
-        plan = json.loads(reply.read_text(encoding="utf-8"))
-        target = plan["transcripts"].get(argv[2])
-        if target:
-            with open(target, "a", encoding="utf-8") as handle:
-                for line in plan["lines"][argv[2]]:
-                    handle.write(json.dumps(line) + chr(10))
-    print("woke session " + argv[2][:8] + " with its saved options (--model)")
-    raise SystemExit(0)
-
-current = rows()
-number = len(current)
-short = "%08x" % (0xa19e0000 + number)
-full = short + "-0000-4000-8000-%012d" % number
-name = argv[argv.index("--name") + 1] if "--name" in argv else ""
-model = argv[argv.index("--model") + 1] if "--model" in argv else ""
-log("launches.log", {"id": short, "name": name, "model": model})
-current.append({
-    "id": short, "sessionId": full, "cwd": str(pathlib.Path.cwd()), "kind": "background",
-    "name": name, "pid": 4000 + number, "startedAt": 1787087345053, "status": "busy",
-    "state": "working",
-})
-save(current)
-print("backgrounded · " + short + " · " + name)
-"""
+# The fake lives in `fake_claude.py` beside this file, so the crash children -- separate
+# interpreters on purpose -- run it as a script and this process answers it in-process.
+FAKE_CLAUDE = HERE / "fake_claude.py"
 
 
 class FakeClock:
@@ -303,7 +224,20 @@ class World:
         self.cli_dir = tmp_path / "cli"
         self.cli_dir.mkdir()
         self.cli = self.cli_dir / "claude.py"
-        self.cli.write_text(FAKE_CLAUDE, encoding="utf-8")
+        shutil.copyfile(FAKE_CLAUDE, self.cli)
+        # **What is real and what is answered in-process** (task-525). This process asks
+        # the fake CLI for its listing, transcript, probes and launches in-process: the
+        # scenarios are about what dispatch decides from those answers, and task-518
+        # counted TestTask224 alone spawning 120 interpreters to get them. A crash child
+        # installs nothing, so every scenario that is about a process -- a death at a
+        # named line, a fresh coordinator after it -- still starts real ones, and they
+        # run the same `fake_claude.answer` as a script.
+        cli_dir = self.cli_dir
+        monkeypatch.setitem(
+            program.INSTALLED,
+            program.key(str(self.cli)),
+            lambda argv, stdin, cwd: fake_claude.answer(argv, lambda: stdin, cwd, cli_dir),
+        )
         self.store_answers("refused")
         self.clock = clock if clock is not None else FakeClock()
         # Installed here rather than in the fixture, because two scenarios build a World

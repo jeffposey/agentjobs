@@ -38,6 +38,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence
 
+from agentjobs.dispatch import program
+
 PROBE_TOKEN = "AUTH_OK"
 PROBE_PROMPT = f"Reply with exactly: {PROBE_TOKEN}"
 PROBE_TIMEOUT_SECONDS = 30.0
@@ -176,7 +178,7 @@ def run_probe(request: ProbeRequest) -> ProbeResult:
     """Run one probe as a subprocess and classify it. Never raises."""
     try:
         request.cwd.mkdir(parents=True, exist_ok=True)
-        completed = subprocess.run(
+        completed = program.run(
             request.argv(),
             input=PROBE_PROMPT,
             cwd=str(request.cwd),

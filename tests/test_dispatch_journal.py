@@ -46,6 +46,7 @@ from agentjobs.models_v2 import (
     LogEntryType,
 )
 from agentjobs.projects import ProjectRegistry
+from in_process import answer_in_process
 from support import task_store
 
 from test_dispatch_poller import _dispatch_yaml, _dispatched_task, _run_meta, _set_ledger
@@ -71,7 +72,10 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     (root / ".agentjobs" / "config.yaml").write_text(
         yaml.safe_dump({"project_name": "Sandbox", "tasks_directory": "tasks"}), encoding="utf-8"
     )
-    fake_cli = write_script(tmp_path / "fakecli.py", FAKE_CLI)
+    # In-process (task-525): this fake is an answer -- a listing, a transcript, a launch
+    # that prints an id and returns -- read from a file, with no pid or lifetime of its
+    # own for a test to be about. Tests about a real process use their own scripts.
+    fake_cli = answer_in_process(monkeypatch, write_script(tmp_path / "fakecli.py", FAKE_CLI))
     _dispatch_yaml(home, fake_cli)
     monkeypatch.setenv("AGENTJOBS_HOME", str(home))
     ProjectRegistry(home=home).add(root, project_id="sandbox")

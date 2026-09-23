@@ -44,6 +44,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from agentjobs.dispatch import program
 from agentjobs import clock as dispatch_clock
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -637,7 +638,7 @@ def ledger_rows(executable: str = "claude") -> List[Dict[str, Any]]:
     """
     from agentjobs.dispatch.runner import resolve_executable
 
-    completed = subprocess.run(
+    completed = program.run(
         [resolve_executable(executable), "agents", "--json"],
         capture_output=True,
         text=True,
@@ -684,7 +685,7 @@ def stop_background_session(short_id: str, executable: str = "claude") -> Tuple[
     from agentjobs.dispatch.runner import resolve_executable
 
     try:
-        completed = subprocess.run(
+        completed = program.run(
             [resolve_executable(executable), "stop", short_id],
             capture_output=True,
             text=True,

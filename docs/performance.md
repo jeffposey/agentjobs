@@ -401,6 +401,7 @@ the whole point of printing it.
 | 5 | `icons` | the committed PWA icons match `assets/app-icon.svg` | 2.8s | 1.2 / 1.2s |
 | 6 | `oxlint` | frontend lint | 0.6s | 0.4 / 0.4s |
 | 7 | `pytest` | the Python suite, across every core | 52.1s | 79.3 / 89.1s |
+| | | *the same stage on 2026-09-23, before and after task-525, median of three* | | *142.1s then 128.3s* |
 | 8 | `vitest` | the jsdom component tests | 5.2s | 28.4 / 7.2s |
 | 9 | `build` | `tsc --noEmit` and the production bundle | 3.7s | 4.5 / 4.3s |
 | 10 | `e2e` | the Playwright suite against a live server | 25.0s | 135.3 / 138.8s |
@@ -757,6 +758,128 @@ reverse of where task-268 left it, 89.1s against 138.8s. That is where the next 
 to look, and this round says where: nothing here touched the thing that actually costs the
 stage its time, which is how many short-lived processes the dispatch tests start. The
 figure to attack is 120 interpreter spawns across three tests, not any number of seconds.
+
+### What the suite starts, counted (task-525)
+
+Task-518 ended on a figure to attack: process creation, not sleeping. This is that figure
+for the whole suite, and the change it measured. **A spawn count is the primary number
+here** because it means the same thing on any machine and any evening, which this
+machine's wall clock does not.
+
+**The instrument.** `scripts/spawn_census.py` loads itself into every xdist worker as a
+plugin, wraps `subprocess.Popen.__init__`, attributes each spawn to the test running, and
+classes it by argv (`git commit`, `python fakecli.py agents`). It sees what a pytest worker
+starts, not what a started process starts in turn, so it is a floor. `--root` and
+`--python` measure another checkout, which is how the before figure was taken from a
+detached worktree at `main` while the branch was being edited.
+
+```
+poetry run python scripts/spawn_census.py                  # the whole suite, -n auto
+poetry run python scripts/spawn_census.py tests/dispatch   # any selection
+```
+
+#### Before and after
+
+Whole suite, `-n auto`, 2026-09-23. Before is `main` at df398c13; after is the task-525
+branch before its rebase:
+
+| | before | after |
+|---|---|---|
+| **every spawn** | **10,876** across 1,234 tests | **9,629** across 1,230 tests |
+| git | 8,948 | 8,949 |
+| of which repository setup (`init`, `config`, `add`, `commit`) | 4,944 | 4,944 |
+| Python interpreters | 1,889 | **641** |
+| of which a fake runner answering `agents`, `logs`, `stop`, a probe or a launch | 1,257 | **9** |
+
+The heaviest tests before, and what they start now:
+
+| test | before | after |
+|---|---|---|
+| `test_durable_replay.py::test_the_failure_rollup_reports_every_injected_class_with_its_count` | 78 | **10** |
+| `test_durable_replay.py::TestTask224::test_a_spend_limit_answer_is_never_taken_for_a_healthy_store` | 59 | **6** |
+| `test_durable_replay.py::TestTask224::test_a_dead_store_pages_once_for_a_login_and_needs_no_answer_or_dispatch` | 52 | **6** |
+
+About a ninth of what they started. What is left in each is the five git calls that build
+its fixture repository, which is the next lever (below).
+
+By file, for the files whose fake changed: `test_durable_replay.py` 588 to 246,
+`test_auth_recovery.py` 158 to 24, `test_dispatch_poller.py` 142 to 27,
+`test_dispatch_question_park.py` 79 to 11, `test_dispatch_wake.py` 94 to 31.
+
+#### What changed: a decision's answer, without a process
+
+Every command dispatch sends the runner's own program goes through one function now:
+`agentjobs.dispatch.program.run`. That covers the ledger listing, `logs`, `stop`, the
+launch, the auth probe, the peer message, the nudger and the idle-session listing. In
+production it is `subprocess.run` behind one empty-dictionary check. The runner is a
+separate program and stays one, so the polling contract is untouched.
+
+A test whose subject is a decision installs an answer in `program.INSTALLED`: the
+controller's reconcile, recovery's paging, the finisher's stand-down, the poller's phase.
+`tests/in_process.py` runs a fake runner script's own source in the pytest worker, with
+its own `sys.argv`, stdin, stdout, `os.getcwd` and `pathlib.Path.cwd`. An uncaught
+exception becomes exit 1 and a traceback, as it would be in a real interpreter; a test
+feeds its fake a corrupt ledger to get exactly that. The script is re-read on every call,
+so a test that rewrites it mid-scenario is obeyed.
+
+**What still spawns, on purpose.** A test whose subject is a process keeps one: the
+replay harness's crash children, the batch launches, the grandchild kill, pid reuse, the
+finisher running a gate script, the acceptance checks. The replay harness's fake lives in
+`tests/dispatch/fake_claude.py` so one function answers both ways: in-process for the
+harness, as a script for its children. A test whose subject is the spawn itself opts back
+out with `spawn_for_real`. Those are the `CreateProcess` retry (task-518) and the argv a
+listing is started with. Every install site says which side of that line it is on.
+
+**Polling less was not needed.** The spec's third lever, coarsening a cadence a test does
+not assert on, was for polls that cost two interpreters each. Answered in-process, a poll
+costs no spawn, so there is nothing left for a coarser cadence to buy. `scripts/threshold_probe.py`
+still catches all five of its cases on the branch, so no threshold got cheaper by being
+removed. `git diff` over `tests/` against the merge base removes no assertion.
+
+#### What it did to the stage's seconds, and why that is the weaker figure
+
+Three `scripts/check.py --only pytest` runs of each tree, interleaved before, after,
+before, after, on the evening of 2026-09-23. Each ran with the gate slot to itself.
+Contention is stated from the load sampled at each start:
+
+| run | before | after |
+|---|---|---|
+| 1 | 148.7s (109 processes, CPU 68%) | 128.3s (48 processes, CPU 30%) |
+| 2 | 140.2s (52 processes, CPU 96%) | 152.7s (46 processes, CPU 69%) |
+| 3 | 142.1s (46 processes, CPU 71%) | 126.8s (48 processes, CPU 77%) |
+| median | **142.1s** | **128.3s** |
+
+These are pytest's own session figures, not the stage's. **The stage's wall clock carries
+an exit tax that belongs to neither tree.** At exit pytest deletes the oldest numbered
+directory under `pytest-of-<user>` (`cleanup_numbered_dir`). That directory is shared by
+every pytest process on the machine: every worktree, every agent. The run that rotates
+out a full suite's tree, thousands of fixture repositories with read-only git objects,
+pays for deleting it. Caught with a `faulthandler` dump after unconfigure: 33.6s in one
+run and 45.3s in another, all in `rmtree` and `chmod_rw`. Two of the "after" stage
+figures carry it (162.8s and 160.3s) and none of the "before" ones did, which is the draw
+and not the code.
+
+A median of 142.1s against 128.3s is about ten percent, inside what this machine varies
+by. **Do not read it as the size of the change.** On 2026-09-21, task-518 measured the
+same stage at 475 to 530s. This evening process creation was cheap enough that 1,248
+fewer spawns barely show. The count is the part that survives a loaded evening, and a
+loaded evening is exactly when the saved spawns were each worth up to 16.7s.
+
+#### What is left, and where it went
+
+- **Git is 93% of what the suite starts now**, and half of that is setup: 4,944 calls
+  building fixture repositories one `init`/`config`/`add`/`commit` at a time, across 31
+  files with 31 helpers. That is task-547. Fewer repositories would also shrink the tree
+  whose deletion is the exit tax above.
+- The rest of the git calls are the finisher's own rebase, merge and worktree work, which
+  is what those tests are about.
+- Two red runs during these measurements were not this change, and each is recorded where
+  it belongs. `test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots`
+  awards the last machine slot twice under load, on `main` too (1 of 48 on `main`,
+  4 of 48 on the branch, 12 at once): task-549.
+  `test_dispatch_atomic_yaml.py::test_a_reader_never_sees_a_partial_document` saw a torn
+  read once in about ten full runs, in a module this change does not touch: task-550.
+  Both are in [the flake register](flake-register.md), rows 15 and 17.
 
 ### What the slowest tests actually are (task-268)
 
