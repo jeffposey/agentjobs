@@ -16,7 +16,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager, suppress
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import Any, Iterator, List, Optional
 
 #: Milliseconds a blocked statement waits before raising ``SQLITE_BUSY``.
 #:
@@ -69,6 +69,75 @@ def _configure(connection: sqlite3.Connection, *, read_only: bool) -> None:
         connection.execute(f"PRAGMA synchronous = {SYNCHRONOUS}")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+
+
+class _GuardedCursor(sqlite3.Cursor):
+    """A cursor whose every call into SQLite holds its connection's guard.
+
+    See :class:`_GuardedConnection`. Every method that steps a statement is here,
+    because ``fetchall`` and ``fetchone`` step it from C without going through
+    ``__next__``, so guarding iteration alone would leave them bare.
+    """
+
+    connection: "_GuardedConnection"
+
+    def execute(self, *args: Any, **kwargs: Any) -> "_GuardedCursor":
+        with self.connection.guard:
+            super().execute(*args, **kwargs)
+        return self
+
+    def executemany(self, *args: Any, **kwargs: Any) -> "_GuardedCursor":
+        with self.connection.guard:
+            super().executemany(*args, **kwargs)
+        return self
+
+    def __next__(self) -> Any:
+        with self.connection.guard:
+            return super().__next__()
+
+    def fetchone(self) -> Any:
+        with self.connection.guard:
+            return super().fetchone()
+
+    def fetchmany(self, *args: Any, **kwargs: Any) -> List[Any]:
+        with self.connection.guard:
+            return super().fetchmany(*args, **kwargs)
+
+    def fetchall(self) -> List[Any]:
+        with self.connection.guard:
+            return super().fetchall()
+
+
+class _GuardedConnection(sqlite3.Connection):
+    """A reader connection another thread can close without crashing the process.
+
+    Readers are thread-local, but :meth:`Database.close` closes all of them from
+    whichever thread is shutting down. ``sqlite3`` releases the GIL around every step of
+    a statement, so a close from one thread could run while another was stepping, and
+    the process died with ``Windows fatal exception: access violation`` rather than
+    raising (task-438: a dispatch supervisor still classifying a batch run's exit while a
+    test's teardown closed the store). The guard is held for each call into SQLite, not
+    for a whole read, which is all that race needs: a close waits out the step in
+    progress, and the next call on the closed connection raises ``ProgrammingError``.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.guard = threading.RLock()
+
+    def cursor(self, factory: Any = _GuardedCursor) -> Any:
+        with self.guard:
+            return super().cursor(factory)
+
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        return self.cursor().execute(*args, **kwargs)
+
+    def executemany(self, *args: Any, **kwargs: Any) -> Any:
+        return self.cursor().executemany(*args, **kwargs)
+
+    def close(self) -> None:
+        with self.guard:
+            super().close()
 
 
 class Database:
@@ -139,7 +208,11 @@ class Database:
         if existing is not None:
             return existing
         connection = sqlite3.connect(
-            f"file:{self.path}?mode=ro", uri=True, isolation_level=None, check_same_thread=False
+            f"file:{self.path}?mode=ro",
+            uri=True,
+            isolation_level=None,
+            check_same_thread=False,
+            factory=_GuardedConnection,
         )
         _configure(connection, read_only=True)
         self._readers.connection = connection
@@ -264,6 +337,11 @@ class Database:
         ``PRAGMA optimize`` runs first: it updates the statistics the query planner uses
         and costs milliseconds, and skipping it is how a database gradually picks worse
         plans than the ones its indexes were measured against.
+
+        Safe to call while another thread is reading: each reader's close waits out the
+        step that thread is in, and a further call on that connection raises instead of
+        crashing the process (task-438). It is not a promise that nothing *wants* to read afterwards -- a
+        batch supervisor still running is given its moment by ``settle_supervisors``.
         """
         with self._write_lock:
             if self._depth:  # pragma: no cover - defensive
