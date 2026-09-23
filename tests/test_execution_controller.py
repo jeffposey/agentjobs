@@ -681,14 +681,29 @@ class TestBatchRecovery:
         assert journal(machine.home).attempt(attempt.run_id).is_live  # type: ignore[union-attr]
 
         machine.release.write_text("go", encoding="utf-8")
+        # Wait for what the assertion is about -- the controller concluding the attempt --
+        # rather than for a pid and one tick after it (task-454). A tick that lands while
+        # the worker still runs concludes nothing, which is the behaviour under test, so
+        # ticking until the conclusion is not a retry of a flaky check: the controller
+        # still has to prove the death itself. The bound is generous because the gate runs
+        # this beside 25 other workers; a run that is never concluded still fails.
+        lines: List[str] = []
+        ticks = 0
         deadline = time.monotonic() + 60
-        from agentjobs.dispatch.ledger import process_alive
-
-        while process_alive(record.pid) and time.monotonic() < deadline:
-            time.sleep(0.1)
-        lines = machine.tick()
         concluded = journal(machine.home).attempt(attempt.run_id)
-        assert concluded is not None and not concluded.is_live, lines
+        while concluded is not None and concluded.is_live and time.monotonic() < deadline:
+            time.sleep(0.2)
+            lines.extend(machine.tick())
+            ticks += 1
+            concluded = journal(machine.home).attempt(attempt.run_id)
+        from agentjobs.dispatch.runner import RunDirectory
+
+        worker = RunDirectory(path=record.path).read_meta().get("pid_identity")
+        assert concluded is not None and not concluded.is_live, (
+            f"not concluded after {ticks} ticks in 60s; the worker "
+            f"{'is still running' if machine.controller().still_running(record.pid, identity=worker) else 'is gone'}"
+            f"; lines: {lines}"
+        )
         assert (machine.root / "half-done.txt").read_text(encoding="utf-8") == "work in progress\n"
         task = machine.manager.get_task(task_id)
         assert task is not None
