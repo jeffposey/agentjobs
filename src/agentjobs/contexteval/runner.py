@@ -115,6 +115,7 @@ def compose_argv(
     model: str,
     max_turns: int,
     claude: str = "claude",
+    effort: Optional[str] = None,
 ) -> List[str]:
     """The command line for one eval session. Kept separate so a test can assert on it.
 
@@ -125,12 +126,17 @@ def compose_argv(
     "your message cuts off mid-sentence" -- with the flags after the prompt eaten too, so
     the output was not even JSON. ``-p`` with no positional prompt reads stdin, which has
     no such limit.
+
+    ``effort`` is passed only when named. Left out, the session gets whatever the model
+    defaults to, which is what every dispatched run gets too (task-542).
     """
-    return [
+    argv = [
         claude,
         "-p",
         "--model",
         model,
+        # Not appended at the end: `--disallowed-tools` is variadic and would swallow it.
+        *(["--effort", effort] if effort else []),
         "--output-format",
         "stream-json",
         "--verbose",
@@ -145,6 +151,7 @@ def compose_argv(
         "--disallowed-tools",
         *DISALLOWED_TOOLS,
     ]
+    return argv
 
 
 def parse_stream(lines: Sequence[str]) -> Dict[str, Any]:
@@ -224,10 +231,11 @@ def run_once(
     model: str,
     out_dir: Path,
     claude: str = "claude",
+    effort: Optional[str] = None,
 ) -> RunRecord:
     """Run one session in a built sandbox, score it, and write its transcript."""
     record = RunRecord(case=case.name, arm=arm, index=index, outcome=INCONCLUSIVE, model=model)
-    argv = compose_argv(model=model, max_turns=case.max_turns, claude=claude)
+    argv = compose_argv(model=model, max_turns=case.max_turns, claude=claude, effort=effort)
 
     env = dict(os.environ)
     env.update(sandbox.env)

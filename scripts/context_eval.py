@@ -122,6 +122,7 @@ def _run_unit(
     out_dir: Path,
     claude: str,
     keep: bool,
+    effort: Optional[str] = None,
 ) -> runner_mod.RunRecord:
     # One unit's failure costs that unit, never the sweep. Thirty-six sessions is half an
     # hour and real money, and losing the lot to a git hiccup in the thirtieth sandbox is
@@ -141,7 +142,14 @@ def _run_unit(
         )
     try:
         record = runner_mod.run_once(
-            case, box, arm=arm, index=index, model=model, out_dir=out_dir, claude=claude
+            case,
+            box,
+            arm=arm,
+            index=index,
+            model=model,
+            out_dir=out_dir,
+            claude=claude,
+            effort=effort,
         )
     except Exception as exc:  # noqa: BLE001 - the reason goes on the record
         record = runner_mod.RunRecord(
@@ -179,6 +187,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument(
         "--model", default=DEFAULT_MODEL, help=f"model under test (default: {DEFAULT_MODEL})"
+    )
+    parser.add_argument(
+        "--effort",
+        choices=("low", "medium", "high", "xhigh", "max"),
+        help="pass --effort to every session (default: none, so the model's own default)",
     )
     parser.add_argument("--runs", type=int, help="override each case's runs-per-arm")
     parser.add_argument("--jobs", type=int, default=3, help="concurrent sessions (default: 3)")
@@ -259,6 +272,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     _stamp(
         f"{len(cases)} case(s), {len(units)} session(s) against {args.model} "
+        f"(effort {args.effort or 'model default'}) "
         f"at up to {args.jobs} at a time -> {out_dir}"
     )
 
@@ -266,7 +280,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     records: List[runner_mod.RunRecord] = []
     with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
         futures = [
-            pool.submit(_run_unit, case, arm, index, files, args.model, out_dir, claude, args.keep)
+            pool.submit(
+                _run_unit,
+                case,
+                arm,
+                index,
+                files,
+                args.model,
+                out_dir,
+                claude,
+                args.keep,
+                args.effort,
+            )
             for case, arm, index, files in units
         ]
         for future in futures:
@@ -277,6 +302,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "model": args.model,
+        "effort": args.effort or "model default",
         "claude_version": _claude_version(claude),
         "bundle_commit": _bundle_commit(),
         "runs_per_arm": args.runs or "per case",

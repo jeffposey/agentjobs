@@ -264,7 +264,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     lines.append(f"# Context-bundle ablation baseline: {meta.get('date', 'unknown date')}")
     lines.append("")
     lines.append(
-        f"Model **`{meta.get('model', 'unknown')}`** | Claude Code `{meta.get('claude_version', '?')}` "
+        f"Model **`{meta.get('model', 'unknown')}`** | effort: {meta.get('effort', 'not recorded')} "
+        f"| Claude Code `{meta.get('claude_version', '?')}` "
         f"| bundle at commit `{meta.get('bundle_commit', '?')}` | runs per arm: "
         f"{meta.get('runs_per_arm', '?')}"
     )
