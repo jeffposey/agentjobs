@@ -242,11 +242,11 @@ interleaved output is worse to read when you are debugging one.
 
 **`-n auto` is every core, and nothing here asks for it any more** (task-536).
 `gate_slots.workers` resolves `@workers` to `(cores - OWNER_RESERVE) // min(gates,
-CAPACITY)`: 26 for a lone gate on this 32-core machine, 13 for a paired one, and a third
-gate queues rather than taking a third share. Two things are being protected. The machine
-is somebody's desktop -- six cores stay theirs whatever is running -- and the suite's
-worker curve is nearly flat from 32 to 16 and steep below ten (task-513), so dividing
-without a ceiling makes every gate slow at once instead of sharing anything.
+division_ceiling())`: 26 for the one gate the capacity admits on this 32-core machine,
+and 13 for a gate that finds a neighbour anyway. Since task-534 a second gate queues
+rather than sharing: real side-by-side gates finished about the same work an hour as a
+queue, and each finished later. The machine is also somebody's desktop -- six cores stay theirs
+whatever is running.
 
 `--serial` turns it off for the case where the interleaving is the problem, and takes no
 slot: one worker is not what the capacity is protecting.
@@ -1132,10 +1132,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # The slot is held for the whole gate rather than for the pytest stage alone, so a
     # neighbour deciding its own budget can see this gate coming while it is still in the
-    # cheap block -- and, since task-536, so that a third gate queues *before* paying for
-    # the cheap block rather than after it. Only a run that will start a parallel pytest
-    # takes one: `--only oxlint` and `--serial` are not what the capacity protects, and
-    # queueing the iteration loop behind two suites would be a bad trade.
+    # cheap block -- and, since task-536, so that a gate past the capacity queues *before*
+    # paying for the cheap block rather than after it. Holding it through vitest, build
+    # and e2e is deliberate too: task-534 measured whole gates, not stages, so nothing yet
+    # supports admitting a neighbour while this one is in its frontend stages. Only a run that will start a parallel pytest takes one: `--only oxlint`
+    # and `--serial` are not what the capacity protects, and queueing the iteration loop
+    # behind a suite would be a bad trade.
     # See `scripts/gate_slots.py`.
     wants_a_slot = not args.serial and any(stage.name == "pytest" for stage in selected)
     with gate_slots.hold(ROOT, needed=wants_a_slot):

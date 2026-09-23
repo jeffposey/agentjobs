@@ -50,7 +50,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -117,6 +117,16 @@ class Gate:
     stages_run: int
     stages_total: int
     failed_stage: Optional[str]
+
+    started_at: Optional[datetime] = None
+    """When this gate began, from its own ``gate_started`` record.
+
+    Every other figure here is a duration, which is all a per-run report needs. Task-534
+    needs the moment as well: whether two gates on this machine were *simultaneous* is
+    not recoverable from two durations, and it is the question the gate budget is sized
+    against. ``None`` for a gate reconstructed from a lone ``gate_finished`` in an old
+    ledger, which :func:`gate_overlap` drops rather than guesses a start for.
+    """
 
     abandoned: bool = False
     """Started and never finished: killed, timed out, or the session moved on (task-339).
@@ -285,7 +295,7 @@ def read_gates(directory: Path) -> List[Gate]:
             consumed.add(finished)
             gate = _finished_gate(records[finished])
             if gate is not None:
-                found.append((index, gate))
+                found.append((index, replace(gate, started_at=as_moment(records[index].get("ts")))))
             continue
         elapsed = _abandoned_seconds(records, index, end)
         if elapsed is None:
@@ -308,6 +318,7 @@ def read_gates(directory: Path) -> List[Gate]:
                     stages_run=len(inside),
                     stages_total=int(started.get("stages_total") or 0),
                     failed_stage=inside[-1] if inside else None,
+                    started_at=as_moment(started.get("ts")),
                     abandoned=True,
                 ),
             )
@@ -1112,6 +1123,136 @@ def split_report(
     return 0
 
 
+@dataclass(frozen=True)
+class Overlap:
+    """How many gates were live at once on this machine, from the ledger (task-534).
+
+    ``live_seconds[k]`` is wall-clock time during which exactly ``k`` gates were running,
+    for ``k >= 1``. ``gate_seconds[k]`` is the same time weighted by ``k`` -- the gate
+    time *spent* at that concurrency -- which is the figure a gate budget is sized
+    against: a moment with three gates live is three gates' worth of experience of it.
+    """
+
+    gates: int
+    undated: int
+    live_seconds: Dict[int, float]
+    gate_seconds: Dict[int, float]
+    runs_with_gates: int
+    run_seconds: float
+    run_gate_seconds: float
+
+    @property
+    def total_gate_seconds(self) -> float:
+        return sum(self.gate_seconds.values())
+
+    @property
+    def neighboured_share(self) -> float:
+        """The fraction of all gate time spent beside at least one other gate."""
+        total = self.total_gate_seconds
+        if not total:
+            return 0.0
+        return sum(seconds for k, seconds in self.gate_seconds.items() if k >= 2) / total
+
+    @property
+    def most(self) -> int:
+        return max(self.live_seconds, default=0)
+
+    @property
+    def mean_live(self) -> float:
+        """Gates live on average, over the time at least one was."""
+        busy = sum(self.live_seconds.values())
+        return self.total_gate_seconds / busy if busy else 0.0
+
+    @property
+    def work_to_gate(self) -> Optional[float]:
+        """Run time outside gates, over run time inside them, for runs that gated at all.
+
+        Summed per run and then divided, so a long run weighs as much as it lasted. A
+        run whose gates overlapped each other is counted at its phase records' sum -- the
+        same caveat :attr:`Run.gates_overlapped` states -- which overstates gate time and
+        so errs toward the claim being tested, not away from it.
+        """
+        if not self.run_gate_seconds:
+            return None
+        return max(0.0, self.run_seconds - self.run_gate_seconds) / self.run_gate_seconds
+
+
+def gate_overlap(runs: Sequence[Run]) -> Overlap:
+    """Sweep every gate interval in ``runs`` and count how many were live at each moment.
+
+    A gate's interval is its ``gate_started`` timestamp plus its recorded seconds, which
+    for an abandoned gate is the floor ``_abandoned_seconds`` computes. Gates with no
+    start timestamp -- an old ledger's lone ``gate_finished`` -- cannot be placed on a
+    timeline and are counted in ``undated`` rather than guessed at.
+
+    The ledger records *dispatched* gates only. A gate a person or an interactive session
+    ran by hand is invisible here, so every figure is a floor on real overlap.
+    """
+    events: List[Tuple[float, int]] = []
+    undated = 0
+    for run in runs:
+        for gate in run.gates:
+            if gate.started_at is None or gate.seconds <= 0:
+                undated += 1
+                continue
+            begin = gate.started_at.timestamp()
+            events.append((begin, 1))
+            events.append((begin + gate.seconds, -1))
+    # Ends sort before starts at the same instant, so a gate that starts as another
+    # finishes is not counted as overlapping it.
+    events.sort(key=lambda item: (item[0], item[1]))
+    live: Dict[int, float] = {}
+    weighted: Dict[int, float] = {}
+    depth = 0
+    previous: Optional[float] = None
+    for moment, step in events:
+        if previous is not None and depth > 0 and moment > previous:
+            span = moment - previous
+            live[depth] = live.get(depth, 0.0) + span
+            weighted[depth] = weighted.get(depth, 0.0) + span * depth
+        depth += step
+        previous = moment
+
+    gated = [run for run in runs if run.gates and run.seconds is not None]
+    return Overlap(
+        gates=len(events) // 2,
+        undated=undated,
+        live_seconds=live,
+        gate_seconds=weighted,
+        runs_with_gates=len(gated),
+        run_seconds=sum(run.seconds or 0.0 for run in gated),
+        run_gate_seconds=sum(run.gate_seconds for run in gated),
+    )
+
+
+def overlap_report(overlap: Overlap) -> str:
+    lines = [
+        f"  gates placed          {overlap.gates}"
+        + (f" ({overlap.undated} with no start time, left out)" if overlap.undated else ""),
+        f"  time with a gate live {hours(sum(overlap.live_seconds.values()))}",
+        f"  gate time             {hours(overlap.total_gate_seconds)}",
+        "",
+        "  at once   wall clock   gate time   share of gate time",
+    ]
+    total = overlap.total_gate_seconds or 1.0
+    for depth in sorted(overlap.live_seconds):
+        lines.append(
+            f"  {depth:>7}   {hours(overlap.live_seconds[depth]):>10}   "
+            f"{hours(overlap.gate_seconds[depth]):>9}   "
+            f"{overlap.gate_seconds[depth] / total * 100:>17.1f}%"
+        )
+    ratio = overlap.work_to_gate
+    lines += [
+        "",
+        f"  beside a neighbour    {overlap.neighboured_share * 100:.1f}% of gate time",
+        f"  mean gates live       {overlap.mean_live:.2f} while any was, at most {overlap.most}",
+        "  work : gate           "
+        + (f"{ratio:.1f} : 1" if ratio is not None else "-")
+        + f" over {overlap.runs_with_gates} runs that gated",
+    ]
+    return "\n".join(lines)
+
+
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Report where dispatched agent time goes.")
     parser.add_argument(
@@ -1142,6 +1283,11 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--epic", metavar="TASK_ID", help="only this epic, with a row per child span"
+    )
+    parser.add_argument(
+        "--overlap",
+        action="store_true",
+        help="how many dispatched gates ran at once, and the runs' work-to-gate ratio",
     )
     parser.add_argument(
         "--gap-ceiling",
@@ -1185,6 +1331,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(
                     f"  {span.task_id:<12} {span.label:<16} {start}  " f"{minutes(span.seconds):>7}"
                 )
+        print()
+        return 0
+
+    if args.overlap:
+        print(f"\nGate overlap in {home / 'runs'}, {len(runs)} runs\n")
+        print(overlap_report(gate_overlap(runs)))
         print()
         return 0
 

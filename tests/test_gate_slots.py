@@ -4,15 +4,18 @@ Task-339 made this a budget -- divide the machine by the number of gates, nobody
 Task-513 then measured the worker curve and showed the budget alone has the wrong shape:
 the suite is nearly flat from 32 workers to 16 and **3.0x slower at six**, so dividing
 without a ceiling does not share the machine, it makes every gate slow at once.
-Task-536 therefore adds a capacity of two with a visible queue, an owner's reserve the
-suite never gets, and a heartbeat so a long gate cannot vanish from the count.
+Task-536 therefore adds a capacity with a visible queue, an owner's reserve the suite
+never gets, and a heartbeat so a long gate cannot vanish from the count. Task-534 measured
+real concurrent gates, found they finish about the same work an hour as a queue, and set the
+capacity to one -- with the division still capped at two for a gate beside a neighbour.
 
 What is guarded here is not the arithmetic -- that is one division -- but the ways a
 regime like this goes wrong:
 
 * it **never blocks forever and never fails a gate**: every failure is a gate that runs;
 * **pytest never gets every core**, whether it is a gate or a hand-run ``-n auto``;
-* a third gate **queues visibly**, naming who it waits for, rather than looking hung;
+* a gate past the capacity **queues visibly**, naming who it waits for, rather than
+  looking hung;
 * **staleness is by age**, because a killed gate cannot clean up after itself and asking
   Windows whether a pid is alive mistakes pid reuse for a running gate;
 * a gate **outliving the old 30-minute ceiling keeps its slot**, which is the specific
@@ -71,6 +74,20 @@ def a_budget_with_no_memory() -> Iterator[None]:
             module.reset_degraded()
 
 
+@pytest.fixture(autouse=True)
+def the_default_capacity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every test here starts at ``CAPACITY``, whatever the gate running it was handed.
+
+    ``CAPACITY_ENV`` is inherited by the pytest a gate launches, which is the point of it
+    for ``gate_cost.py`` and ``gate_shape.py``. It also means the suite ran inside a
+    three-gate measurement arm read a capacity of three, and six tests here that assert on
+    the default of two went red -- which stopped the gate at pytest and cut vitest, build and
+    e2e out of the timing being measured (task-534). A test that wants another capacity sets
+    it itself.
+    """
+    monkeypatch.delenv(gate_slots.CAPACITY_ENV, raising=False)
+
+
 @pytest.fixture()
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv(gate_slots.HOME_ENV, str(tmp_path))
@@ -79,8 +96,15 @@ def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def fill(count: int) -> List[Any]:
-    """``count`` slots held by gates that are not this test, with no heartbeat thread."""
-    return [gate_slots.acquire(ROOT, heartbeat=3600.0) for _ in range(count)]
+    """``count`` slots held by gates that are not this test, with no heartbeat thread.
+
+    Written directly rather than through ``acquire``, which would queue every one past the
+    capacity. A neighbour here is a gate this test did not admit -- one that waited out the
+    timeout, or was admitted under a lifted capacity -- and what it leaves behind is a file.
+    """
+    return [
+        gate_slots.Slot(path=gate_slots._create(gate_slots.slots_dir(), ROOT)) for _ in range(count)
+    ]
 
 
 def free(slots: List[Any]) -> None:
@@ -126,6 +150,13 @@ class TestTheArithmetic:
         paired gate takes, because a ninth of the machine is where the curve is steep."""
         assert gate_slots.workers(cores=32, gates=3) == "13"
         assert gate_slots.workers(cores=32, gates=9) == "13"
+
+    def test_a_lifted_capacity_divides_by_itself(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Admission is one and the division ceiling is two, but a measurement that lifts
+        the capacity to three must run three gates at a third each -- the shape task-534's
+        arm C measured -- rather than three at the paired share."""
+        monkeypatch.setenv(gate_slots.CAPACITY_ENV, "3")
+        assert gate_slots.workers(cores=32, gates=3) == "8"
 
     def test_the_division_is_floored_rather_than_trusted(self) -> None:
         """Eight cores less six, divided between two gates, is one -- which is serial
@@ -177,7 +208,12 @@ class TestHoldingASlot:
 
         assert gate_slots.active() == 0
 
-    def test_two_gates_are_counted_as_two(self, home: Path) -> None:
+    def test_two_gates_are_counted_as_two(
+        self, home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Counting, not admission: at the default capacity of one the second hold would
+        # queue, which is `TestTheCapacity`'s business.
+        monkeypatch.setenv(gate_slots.CAPACITY_ENV, "2")
         with gate_slots.hold(ROOT):
             with gate_slots.hold(ROOT):
                 assert gate_slots.active() == 2
@@ -217,14 +253,14 @@ class TestHoldingASlot:
         monkeypatch.setattr(gate_slots, "slots_dir", lambda: Path("\0 not a path"))
 
         with gate_slots.hold(ROOT):
-            assert gate_slots.visible_gates() == gate_slots.CAPACITY
+            assert gate_slots.visible_gates() == gate_slots.division_ceiling()
             assert gate_slots.workers(cores=32) == "13"
 
 
 class TestTheCapacity:
     """Two gates run pytest at once here. A third waits, and says who it waits for."""
 
-    def test_a_third_gate_queues_and_names_both_holders(self, home: Path) -> None:
+    def test_a_gate_past_the_capacity_queues_and_names_the_holder(self, home: Path) -> None:
         held = fill(gate_slots.CAPACITY)
         said: List[str] = []
 
@@ -242,8 +278,8 @@ class TestTheCapacity:
 
         assert slot.path is not None, "the queued gate must start once a slot comes free"
         assert len(said) == 1, "queued once, not once per poll"
-        assert "Queued for one of this machine's 2 gate slots" in said[0]
-        assert said[0].count("pid ") == gate_slots.CAPACITY, "both holders are named"
+        assert "Queued for the 1 gate slot on this machine" in said[0]
+        assert said[0].count("pid ") == gate_slots.CAPACITY, "every holder is named"
         assert "not a stall" in said[0]
         slot.release()
 
@@ -490,9 +526,12 @@ class TestWhatTheGateDoesWithIt:
         stage = next(stage for stage in check.stages() if stage.name == "pytest")
 
         alone, _ = self.only_command(stage)
-        with gate_slots.hold(ROOT):
-            with gate_slots.hold(ROOT):
+        neighbour = fill(1)
+        try:
+            with gate_slots.hold(ROOT, timeout=0.0, announce=lambda line: None):
                 paired, note = self.only_command(stage)
+        finally:
+            free(neighbour)
 
         lone_value = int(alone[alone.index("-n") + 1])
         paired_value = int(paired[paired.index("-n") + 1])
@@ -613,7 +652,8 @@ class TestAHandRunPytest:
 def test_the_reserve_and_the_capacity_are_the_documented_ones() -> None:
     """The numbers ENGINEERING.md and docs/performance.md quote, asserted once so the
     prose and the code cannot drift apart silently."""
-    assert gate_slots.CAPACITY == 2
+    assert gate_slots.CAPACITY == 1
+    assert gate_slots.DIVISION_CEILING == 2
     assert gate_slots.OWNER_RESERVE == 6
     assert gate_slots.workers(cores=32, gates=1) == "26"
     assert gate_slots.workers(cores=32, gates=2) == "13"
@@ -634,7 +674,7 @@ def test_every_public_entry_point_is_wrapped(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(gate_slots.Path, "write_text", explode)
 
     assert gate_slots.active() == 0
-    assert gate_slots.visible_gates() == gate_slots.CAPACITY
+    assert gate_slots.visible_gates() == gate_slots.division_ceiling()
     assert int(gate_slots.workers(cores=32)) >= gate_slots.MIN_WORKERS
     with gate_slots.hold(ROOT):
         pass
