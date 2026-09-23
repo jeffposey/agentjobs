@@ -2517,28 +2517,34 @@ class TestProcessGroup:
     ) -> None:
         """An agent that shelled out to pytest must not leave the pytest behind."""
         marker = tmp_path / "grandchild.pid"
-        grandchild = write_script(
-            tmp_path / "grandchild.py",
-            f"""
-            import os, time
-            open(r"{marker}", "w").write(str(os.getpid()))
-            time.sleep(600)
-            """,
-        )
+        # The *parent* names the grandchild, the moment `Popen` returns -- not the
+        # grandchild once its interpreter is up. `CreateProcess` has put it in the tree
+        # by then, which is all the kill needs; waiting for its interpreter as well put a
+        # second CPython startup between `start` and the timeout, and under heavy load
+        # the two did not fit (task-325, 2026-09-23: about half of 16 runs beside 32 CPU
+        # spinners failed "never started"). Both interpreters run `-I -S`: the scripts
+        # need only the standard library, and skipping `site` skips the virtualenv's
+        # `.pth` processing, the largest part of a startup here. Written by rename so
+        # the test never reads a half-written number.
+        grandchild = write_script(tmp_path / "grandchild.py", "import time\ntime.sleep(600)\n")
         parent = write_script(
             tmp_path / "parent.py",
             f"""
-            import subprocess, sys, time
-            subprocess.Popen([sys.executable, r"{grandchild}"])
+            import os, subprocess, sys, time
+            child = subprocess.Popen([sys.executable, "-I", "-S", r"{grandchild}"])
+            open(r"{marker}.tmp", "w").write(str(child.pid))
+            os.replace(r"{marker}.tmp", r"{marker}")
             time.sleep(600)
             """,
         )
+        timeout = 20
         runner = build(
             workspace,
             manager,
-            make_resolution([sys.executable, str(parent), "{prompt}"], timeout=20),
+            make_resolution([sys.executable, "-I", "-S", str(parent), "{prompt}"], timeout=timeout),
         )
 
+        started = time.monotonic()
         handle = runner.start(task, actor="Jeff Posey", caused_by=1)
         # Waiting for the grandchild used to spawn a CPython per poll -- `subprocess.run`
         # of a script whose whole body was a 0.2s sleep -- which measured 0.4s an
@@ -2554,20 +2560,35 @@ class TestProcessGroup:
         # `time.sleep` is what `_dies_within` below already uses. The timeout is 20s for
         # the same reason and proves exactly as much: the parent sleeps for 600, so every
         # timeout under that fires, and the assertion is that the *group* dies with it.
-        deadline = time.monotonic() + 15.0
-        while not marker.exists() and time.monotonic() < deadline:
+        #
+        # The wait ends on an outcome -- the marker, or the run being over -- rather than
+        # on a clock of its own. A separate 15s bound shorter than the timeout was a way
+        # to fail while the grandchild still had five seconds in which to appear. The
+        # ceiling is only there so a supervisor that never finishes cannot hang the gate.
+        assert handle.supervisor is not None
+        ceiling = started + timeout + 60.0
+        while not marker.exists() and handle.supervisor.is_alive() and time.monotonic() < ceiling:
             time.sleep(0.05)
-        assert marker.exists(), "the grandchild never started, so this proves nothing"
+        assert marker.exists(), (
+            f"the grandchild was not spawned within {time.monotonic() - started:.1f}s of "
+            f"start (runner timeout {timeout}s; run "
+            f"{'still going' if handle.supervisor.is_alive() else 'already over'}), "
+            "so this proves nothing"
+        )
         grandchild_pid = int(marker.read_text())
-        # Taken now, while the grandchild is certainly running: the number alone is not
-        # a name for it. Measured for task-325 on 2026-09-23 under load, the grandchild
-        # was gone the instant `join` returned, and `tasklist` still called its pid alive
-        # five seconds later -- because by then the pid belonged to a `git.exe`. A
-        # stranger that lived thirty seconds on the recycled number was the whole of
-        # "survived the timeout". The creation time is what a recycled number does not
-        # share, and it is what `dispatch.pids` already uses for the same reason.
+        # Taken now, while the grandchild is almost certainly running: the number alone
+        # is not a name for it. Measured for task-325 on 2026-09-23 under load, the
+        # grandchild was gone the instant `join` returned, and `tasklist` still called
+        # its pid alive five seconds later -- because by then the pid belonged to a
+        # `git.exe`. A stranger that lived thirty seconds on the recycled number was the
+        # whole of "survived the timeout". The creation time is what a recycled number
+        # does not share, and it is what `dispatch.pids` already uses for the same reason.
+        #
+        # `None` means the grandchild is already gone, which can now happen honestly: the
+        # marker may land a moment before the timeout, and the group kill is then what
+        # took it. It is not a failure; the wait below falls back to the bare pid, which
+        # a broken kill leaves alive.
         identity = process_identity(grandchild_pid)
-        assert identity is not None, "the grandchild was gone before the timeout fired"
 
         join(handle)
 
@@ -2580,12 +2601,19 @@ class TestProcessGroup:
         # This still fails if the grandchild genuinely survives, which is the whole point
         # of the test. It does not fail when the grandchild dies a second late, nor when
         # its pid has since been handed to somebody else.
-        assert _dies_within(
-            grandchild_pid, identity, 30.0
-        ), f"pid {grandchild_pid} survived the timeout"
+        #
+        # Bounded rather than left to wait forever (task-243's decision): nothing in this
+        # suite imposes a per-test timeout, so an unbounded wait would turn a real
+        # regression in the kill path into a gate that never finishes.
+        joined = time.monotonic()
+        assert _dies_within(grandchild_pid, identity, 30.0), (
+            f"pid {grandchild_pid} was still alive {time.monotonic() - joined:.1f}s after "
+            f"the run ended ({joined - started:.1f}s after start, runner timeout "
+            f"{timeout}s): the group kill left the grandchild behind"
+        )
 
 
-def _dies_within(pid: int, identity: str, seconds: float) -> bool:
+def _dies_within(pid: int, identity: Optional[str], seconds: float) -> bool:
     """Whether the process ``identity`` names is gone within ``seconds``. Polls.
 
     The budget is not a measurement of how fast a kill ought to be -- nothing here
