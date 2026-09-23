@@ -160,6 +160,8 @@ def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, Any]:
         "manager": manager,
         "task_id": task.id,
         "home": home,
+        # For a helper that installs something for this test's lifetime only.
+        "monkeypatch": monkeypatch,
     }
 
 
@@ -2877,7 +2879,13 @@ def make_session_dispatchable(
 
     from test_dispatch_runner import FAKE_CLI, write_script
 
-    fake_cli = write_script(tmp_path / "fakecli.py", FAKE_CLI)
+    from in_process import answer_in_process
+
+    # In-process (task-525): the runner's fake is followed, not the subject -- these tests
+    # are about what the finisher and the poller do when a run ends.
+    fake_cli = answer_in_process(
+        world["monkeypatch"], write_script(tmp_path / "fakecli.py", FAKE_CLI)
+    )
     (world["home"] / "dispatch.yaml").write_text(
         yaml.safe_dump(
             {

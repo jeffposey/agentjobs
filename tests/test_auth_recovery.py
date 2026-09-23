@@ -68,6 +68,7 @@ from agentjobs.models_v2 import (
     self_clearing_wait,
 )
 from agentjobs.projects import ProjectRegistry
+from in_process import answer_in_process
 from support import task_store
 from test_dispatch_auth import auth_failure_line, real_reply_line, write_transcript
 from test_dispatch_runner import write_script
@@ -553,7 +554,12 @@ class Machine:
             encoding="utf-8",
         )
         (tmp_path / "cli").mkdir()
-        self.cli = write_script(tmp_path / "cli" / "fakecli.py", AUTH_FAKE_CLI)
+        # In-process (task-525): the fake's listing, probe plan and resume are answers read
+        # from files; what recovery decides from them is the subject. No test here is
+        # about the fake's own process.
+        self.cli = answer_in_process(
+            monkeypatch, write_script(tmp_path / "cli" / "fakecli.py", AUTH_FAKE_CLI)
+        )
         self.write_dispatch_yaml()
         monkeypatch.setenv("AGENTJOBS_HOME", str(self.home))
         monkeypatch.setenv(CLAUDE_HOME_ENV, str(self.claude))

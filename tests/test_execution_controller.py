@@ -43,6 +43,7 @@ from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, Lifecycle, LogEntryType
 from agentjobs.projects import ProjectRegistry
 from skipping_clock import install
+from in_process import answer_in_process
 from support import task_store
 
 TESTS = Path(__file__).resolve().parent
@@ -218,6 +219,11 @@ class Machine:
         self.cli_dir.mkdir()
         self.fake_cli = self.cli_dir / "claude.py"
         self.fake_cli.write_text(FAKE_CLAUDE, encoding="utf-8")
+        # In-process (task-525): the fake is a listing and a launch that returns an id, read
+        # from a file; the controller's decisions are the subject, not its process. The
+        # crash children (`CRASHING_DISPATCH`) and the batch worker are processes on
+        # purpose and still spawn -- a child runs this same script for real.
+        answer_in_process(monkeypatch, self.fake_cli)
         self.worker = tmp_path / "worker.py"
         self.worker.write_text(BATCH_WORKER, encoding="utf-8")
         self.release = tmp_path / "release"

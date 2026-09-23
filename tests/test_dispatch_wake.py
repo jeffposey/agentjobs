@@ -68,6 +68,7 @@ from agentjobs.models_v2 import (
     LogEntryType,
 )
 from agentjobs.projects import ProjectRegistry
+from in_process import answer_in_process
 from support import task_store
 
 # ----- a launcher that records what it was given ------------------------------
@@ -124,11 +125,13 @@ def task(manager: TaskManager):
 
 
 @pytest.fixture
-def cli(workspace: Path) -> Path:
+def cli(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     script = workspace / "fakecli.py"
     script.write_text(textwrap.dedent(FAKE_CLI), encoding="utf-8")
     (workspace / "sessions.json").write_text("[]", encoding="utf-8")
-    return script
+    # In-process (task-525): this fake records the argv and stdin it was handed and
+    # answers a listing; what the wake sends is the subject, not a process.
+    return answer_in_process(monkeypatch, script)
 
 
 def set_sessions(workspace: Path, rows: List[dict]) -> None:
