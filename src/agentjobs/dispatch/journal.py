@@ -451,7 +451,8 @@ def attempt_evidence(
        existed for it.
     """
     from agentjobs.dispatch.ledger import read_run
-    from agentjobs.dispatch.pids import process_alive as default_alive, process_created_after
+    from agentjobs.dispatch.pids import process_alive as default_alive
+    from agentjobs.dispatch.pids import process_created_after, process_identity
     from agentjobs.dispatch.runner import runs_root
 
     alive = process_alive or default_alive
@@ -461,14 +462,21 @@ def attempt_evidence(
 
         A bare ``alive`` here kept an attempt owned forever whenever the dead holder's
         number had been handed to something else, which on this machine takes seconds
-        (task-505). The holder was already running when it admitted the attempt, so a
-        process created after that moment cannot be it.
+        (task-505). The holder's own receipt, recorded at admission, settles it where there
+        is one, and doubt keeps the holder. Only a row without one falls back to "the
+        holder was already running when it admitted the attempt, so a process created
+        after that moment cannot be it" -- which compares the OS's clock with the
+        journal's, and read a live holder as recycled whenever the journal's clock was
+        behind (task-549).
         """
         if attempt.holder_pid is None:
             return False
         pid = int(attempt.holder_pid)
         if not alive(pid):
             return False
+        if attempt.holder_identity is not None:
+            current = process_identity(pid)
+            return current is None or current == attempt.holder_identity
         try:
             admitted = datetime.fromisoformat(str(attempt.admitted_at))
         except (TypeError, ValueError):

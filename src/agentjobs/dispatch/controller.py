@@ -439,9 +439,11 @@ class Controller:
         now = self.clock()
         admitted = _parse(attempt.admitted_at) or now
         age = (now - admitted).total_seconds()
-        # The holder was already running when it admitted the attempt, so a process at
-        # that pid created *after* the admission is a different one (task-505).
-        holder_alive = self.still_running(attempt.holder_pid, recorded_at=admitted)
+        # The holder's receipt from admission where there is one (task-549); otherwise a
+        # process at that pid created *after* the admission is a different one (task-505).
+        holder_alive = self.still_running(
+            attempt.holder_pid, identity=attempt.holder_identity, recorded_at=admitted
+        )
         record = self.record(run_id)
         meta = _meta(record) if record is not None else {}
 
@@ -731,6 +733,8 @@ class Controller:
         # that serves for a process which was already running when the record was
         # written: a pid whose process started later is a different process.
         supervisor_receipt = meta.get("supervisor_identity")
+        if supervisor_receipt is None and supervisor == attempt.holder_pid:
+            supervisor_receipt = attempt.holder_identity
         if isinstance(supervisor, int) and self.still_running(
             supervisor,
             identity=supervisor_receipt if isinstance(supervisor_receipt, str) else None,

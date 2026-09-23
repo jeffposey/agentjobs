@@ -168,7 +168,11 @@ class TestANeverLaunchedAttemptIsReleasedPastAReusedPid:
     NEVER_LAUNCHED = "admitted but never launched"
 
     def verdict(
-        self, tmp_path: Path, pid: Optional[int], admitted_at: str
+        self,
+        tmp_path: Path,
+        pid: Optional[int],
+        admitted_at: str,
+        holder_identity: Optional[str] = None,
     ) -> Optional[Tuple[str, str, str]]:
         # No run directory, so no session, no pid and no launch marker: the only thing
         # standing between this attempt and release is whether its holder is running.
@@ -198,6 +202,7 @@ class TestANeverLaunchedAttemptIsReleasedPastAReusedPid:
                 admitted_at=admitted_at,
                 launched_at=None,
                 concluded_at=None,
+                holder_identity=holder_identity,
             )
         )
 
@@ -235,6 +240,34 @@ class TestANeverLaunchedAttemptIsReleasedPastAReusedPid:
         self, tmp_path: Path, stranger: "subprocess.Popen[bytes]"
     ) -> None:
         assert self.verdict(tmp_path, stranger.pid, "not a timestamp") is None
+
+    def test_the_admitters_receipt_keeps_it_owned_whatever_the_journal_clock_said(
+        self, tmp_path: Path, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        """task-549. The journal writes ``admitted_at`` through the installed clock, which
+        a test freezes before the admitting process even exists. Compared with the OS's
+        start time, a live admitter read as a recycled pid, its attempt was released while
+        it was launching, and a second dispatch took the slot it still held."""
+        receipt = process_identity(stranger.pid)
+        before_it_started = (moment_now() - timedelta(minutes=5)).isoformat()
+        assert self.verdict(tmp_path, stranger.pid, before_it_started, receipt) is None
+
+    def test_a_receipt_that_does_not_match_releases_it_whatever_the_clock_said(
+        self, tmp_path: Path, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        """The receipt is the proof in both directions, not only the forgiving one."""
+        released = self.verdict(tmp_path, stranger.pid, moment_now().isoformat(), "win:1:1")
+        assert released is not None and self.NEVER_LAUNCHED in released[2]
+
+    def test_an_unreadable_receipt_now_is_not_proof_of_reuse(
+        self,
+        tmp_path: Path,
+        stranger: "subprocess.Popen[bytes]",
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        receipt = process_identity(stranger.pid)
+        monkeypatch.setattr(pids, "_times", lambda _pid: None)
+        assert self.verdict(tmp_path, stranger.pid, moment_now().isoformat(), receipt) is None
 
 
 def moment_now() -> datetime:
