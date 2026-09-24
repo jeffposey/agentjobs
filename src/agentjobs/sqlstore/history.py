@@ -78,6 +78,9 @@ _GATE_COLUMNS = (
     "stages_run",
     "stages_total",
     "source",
+    "free_mb_start",
+    "free_mb_low",
+    "low_memory",
 )
 
 
@@ -166,7 +169,7 @@ def upsert_gate_run(
 
     Same contract as :func:`upsert_finish`, for ``gate_run`` and ``gate_stage``. Stages
     carry ``seq``, ``stage``, ``seconds``, ``passed``, ``started_at`` and
-    ``finished_at``.
+    ``finished_at``, and the free-memory readings task-548 added (all optional).
     """
     source = record.get("source") or NATIVE
     with database.write() as connection:
@@ -174,6 +177,7 @@ def upsert_gate_run(
             return HistoryWrite(False, EXISTS)
         values = {column: record.get(column) for column in _GATE_COLUMNS}
         values["passed"] = _flag(values["passed"])
+        values["low_memory"] = _flag(values["low_memory"])
         values["source"] = source
         assignments = ", ".join(f"{column} = excluded.{column}" for column in _GATE_COLUMNS)
         placeholders = ", ".join("?" for _ in _GATE_COLUMNS)
@@ -186,7 +190,8 @@ def upsert_gate_run(
         for stage in stages:
             connection.execute(
                 "INSERT OR REPLACE INTO gate_stage(project_id, gate_id, seq, stage, seconds, "
-                "passed, started_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "passed, started_at, finished_at, free_mb_start, free_mb_end, free_mb_low, "
+                "low_memory) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     project_id,
                     gate_id,
@@ -196,6 +201,10 @@ def upsert_gate_run(
                     _flag(stage.get("passed")),
                     str(stage["started_at"]),
                     stage.get("finished_at"),
+                    stage.get("free_mb_start"),
+                    stage.get("free_mb_end"),
+                    stage.get("free_mb_low"),
+                    _flag(stage.get("low_memory")),
                 ),
             )
     return HistoryWrite(True)

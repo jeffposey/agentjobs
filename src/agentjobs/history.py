@@ -217,6 +217,23 @@ def preflight_checkout(
 # ----- the gate row -----------------------------------------------------------------------
 
 
+def _mb(value: Any) -> Optional[int]:
+    """A free-memory reading from a phase event, or ``None`` when it was not measured."""
+    try:
+        return None if value is None else int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _low(value: Any) -> Optional[bool]:
+    """``low_memory`` from a phase event: a stage's flag, or the gate's list of stages."""
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        return bool(value)
+    return bool(value)
+
+
 class GateAssembler:
     """The ``gate_run`` row and its stages, built from the gate's phase events in order.
 
@@ -256,9 +273,13 @@ class GateAssembler:
             "stages_run": None,
             "stages_total": None,
             "source": source,
+            "free_mb_start": None,
+            "free_mb_low": None,
+            "low_memory": None,
         }
         self.stages: List[Dict[str, Any]] = []
         self._stage_started: Dict[str, str] = {}
+        self._stage_free: Dict[str, Optional[int]] = {}
 
     @property
     def started(self) -> bool:
@@ -276,6 +297,7 @@ class GateAssembler:
             self.record["tree"] = fields.get("tree") or None
             total = fields.get("stages_total")
             self.record["stages_total"] = int(total) if total is not None else None
+            self.record["free_mb_start"] = _mb(fields.get("free_mb"))
             return True
         if not self.started:
             return False
@@ -283,6 +305,7 @@ class GateAssembler:
         if kind == "gate_stage_started":
             if stage:
                 self._stage_started[stage] = when
+                self._stage_free[stage] = _mb(fields.get("free_mb"))
             return False
         if kind == "gate_stage_finished":
             if not stage:
@@ -296,6 +319,10 @@ class GateAssembler:
                     "passed": True,
                     "started_at": self._stage_started.pop(stage, when),
                     "finished_at": when,
+                    "free_mb_start": self._stage_free.pop(stage, None),
+                    "free_mb_end": _mb(fields.get("free_mb")),
+                    "free_mb_low": _mb(fields.get("free_mb_low")),
+                    "low_memory": _low(fields.get("low_memory")),
                 }
             )
             return True
@@ -312,6 +339,8 @@ class GateAssembler:
                 self.record["stages_total"] = int(total)
             failed = fields.get("failed_stage") or None
             self.record["failed_stage"] = failed
+            self.record["free_mb_low"] = _mb(fields.get("free_mb_low"))
+            self.record["low_memory"] = _low(fields.get("low_memory"))
             if failed:
                 # The stage that failed has no `gate_stage_finished` of its own. Its
                 # seconds stay null (section 20.4); its start is known when the gate
@@ -324,6 +353,7 @@ class GateAssembler:
                         "passed": False,
                         "started_at": self._stage_started.pop(str(failed), when),
                         "finished_at": when,
+                        "free_mb_start": self._stage_free.pop(str(failed), None),
                     }
                 )
             return True

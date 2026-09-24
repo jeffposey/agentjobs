@@ -532,6 +532,14 @@ def failing_tests(output: str, limit: int = SALIENT_LIMIT) -> List[str]:
     return seen
 
 
+def _without_memory(output: str) -> str:
+    return chr(10).join(
+        line
+        for line in (output or "").splitlines()
+        if not _COLOUR.sub("", line).strip().startswith(LOW_MEMORY_PREFIX)
+    )
+
+
 def lead_with_the_cause(output: str, *, log: Path) -> str:
     """The dispositive lines of a red gate first, then the pointer to the rest.
 
@@ -546,6 +554,12 @@ def lead_with_the_cause(output: str, *, log: Path) -> str:
     is the best available answer. Once a test has been named, thirty further lines of
     warnings are exactly the noise this removes, and the whole output is on disk.
     """
+    memory = gate_memory(output)
+    if memory:
+        # Before the failure, because it may be the cause of it: a timeout or a browser
+        # death on a starved machine says nothing about the branch.
+        headline = "**The machine was short of memory when this ran:** " + " ".join(memory)
+        return headline + chr(10) * 2 + lead_with_the_cause(_without_memory(output), log=log)
     stage = failing_stage(output)
     tests = failing_tests(output)
     pointer = "Full output: " + str(log)
@@ -1121,6 +1135,7 @@ class GateAttempt:
     stages: List[str] = field(default_factory=list)
     tree: str = ""
     company: str = ""
+    memory: List[str] = field(default_factory=list)
 
     @property
     def command(self) -> str:
@@ -1141,6 +1156,7 @@ class GateAttempt:
             "failing_tests": list(self.tests),
             "log": str(self.log) if self.log else "",
             "company": self.company,
+            "low_memory": list(self.memory),
         }
 
 
@@ -1181,6 +1197,9 @@ class GateVerdict:
 
     def sentence(self) -> str:
         """What the merge message and the merge entry say about the gate. Never softened."""
+        return self._sentence() + memory_clause(self.attempts)
+
+    def _sentence(self) -> str:
         if not self.retried:
             return "`scripts/check.py` ran green"
         tests = ", ".join(_test_ids(self.first.tests)[:3]) or "no test named"
@@ -1199,6 +1218,39 @@ class GateVerdict:
             "attempts": [attempt.evidence() for attempt in self.attempts],
             "receipt": dict(self.receipt),
         }
+
+
+LOW_MEMORY_PREFIX = "LOW MEMORY"
+"""What ``scripts/check.py`` starts a line with when a stage ran below the floor (task-548)."""
+
+
+def gate_memory(output: str, limit: int = 6) -> List[str]:
+    """The gate's own low-memory sentences, in order and once each."""
+    found: List[str] = []
+    for raw in (output or "").splitlines():
+        line = _COLOUR.sub("", raw).strip()
+        if line.startswith(LOW_MEMORY_PREFIX) and line not in found:
+            found.append(line)
+        if len(found) >= limit:
+            break
+    return found
+
+
+def memory_clause(attempts: Sequence["GateAttempt"]) -> str:
+    """A sentence naming low memory for a gate that ran below the floor, else empty.
+
+    A slow gate on a starved machine is the machine's fault first, and on 2026-09-23
+    nothing in any finish's record said so until the owner rebooted. So the gate's own
+    words go on the record, beside the verdict they qualify.
+    """
+    lines: List[str] = []
+    for attempt in attempts:
+        for line in attempt.memory:
+            if line not in lines:
+                lines.append(line)
+    if not lines:
+        return ""
+    return ". **The machine was short of memory:** " + " ".join(lines)
 
 
 def _test_ids(lines: Sequence[str]) -> List[str]:
@@ -1273,6 +1325,7 @@ def attempt_gate(
     attempt.code = result.returncode
     attempt.ok = result.returncode == 0
     attempt.output = (result.stdout or "") + (result.stderr or "")
+    attempt.memory = gate_memory(attempt.output)
     if not attempt.ok:
         attempt.stage = failing_stage(attempt.output)
         # Every failing line, not the salient dozen: a classification that holds for the
