@@ -357,7 +357,17 @@ describe("a task being finished", () => {
     );
 
     expect(state.label).toBe("Finishing");
-    expect(state.kind).toBe("flight");
+    expect(state.kind).toBe("finishing");
+  });
+
+  it("draws the chip in the finishing violet, not the in-flight blue", () => {
+    // task-533: the owner's screenshot of task-548 showed "Finishing" in the blue a
+    // session editing files gets. Asserted on the rendered chip, not on the kind.
+    render(<DependencyState task={task({ display_status: "Finishing", live_finish: finish })} />);
+    const chip = screen.getByText("Finishing");
+
+    expect(chip.className).toMatch(/\bbg-violet-900\b/);
+    expect(chip.className).not.toMatch(/blue/);
   });
 
   it("is what separates it from a task an agent is genuinely working", () => {

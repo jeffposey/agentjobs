@@ -1245,6 +1245,7 @@ HEALTH_UNKNOWN = "unknown"
 HEALTH_IDLE = "idle"
 HEALTH_HANDBACK = "handback"
 HEALTH_WORK_DONE = "work_done"
+HEALTH_FINISHING = "finishing"
 
 INTERACTIVE_IDLE_SECONDS = 600.0
 """How long an interactive session's transcript may go unwritten before it reads as
@@ -1269,7 +1270,7 @@ def _transcript_age_seconds(record: RunRecord) -> Optional[float]:
     return max(0.0, dispatch_clock.utcnow().timestamp() - modified)
 
 
-def run_health(record: RunRecord) -> str:
+def run_health(record: RunRecord, *, finishing: bool = False) -> str:
     """What a *live* run is actually doing, which is not the same as being live.
 
     ``is_live`` answers only "nothing has declared this over", so every surface that
@@ -1305,6 +1306,26 @@ def run_health(record: RunRecord) -> str:
     - ``unknown`` -- an unreadable or unrecognised meta. ``read_run`` deliberately keeps
       such a run live rather than calling it finished, and this is what stops that
       caution being rendered as confidence.
+    - ``finishing`` -- a scripted finish is live for this run's task, which is still
+      open (task-533). The ledger cannot see finishes, so the caller passes
+      ``finishing``, and it must derive it from ``finish_status.live_finishes`` -- the
+      same lookup the task read's ``live_finish`` comes from -- so this tile and the
+      task's own "Finishing" chip are one fact, not two that happen to agree.
+
+      **It outranks everything, ``handback`` and ``parked`` included**, which is
+      ``derived_display_status``'s rule for the task and deliberately the same one. A
+      finish starts only on an approval or on the run's own ``--posture-release``, so
+      feedback that was waiting has been superseded by the time one is live; and a
+      finish holds the task's lock and does not need the session, so a parked prompt
+      or a quiet one (a four-minute gate prints nothing the poller sees) is not what is
+      happening to the task. Ranking ``parked`` first was the alternative, and rejected:
+      it would put back exactly the disagreement this value exists to remove, one tile
+      reading "Waiting on you" beside a page reading "Finishing".
+
+      **A closed task never reads ``finishing``.** The caller passes ``False`` there,
+      because the task page says "Completed" in the second or two a finish spends
+      cleaning up after its ``close`` step, and ``work_done`` is this function's word
+      for that.
 
     **The pid deliberately gets no vote on a session run**, for the reason
     ``stale_lock_reason`` spells out: a dispatched session outlives the process that
@@ -1315,6 +1336,8 @@ def run_health(record: RunRecord) -> str:
     *is* the poller writing these statuses.
     """
     status = record.status
+    if finishing and not record.slot_released:
+        return HEALTH_FINISHING
     if record.handback_pending is not None:
         return HEALTH_HANDBACK
     if record.slot_released:

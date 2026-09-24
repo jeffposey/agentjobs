@@ -623,6 +623,41 @@ def live_finishes(home: Path, project_id: str = "") -> Dict[str, FinishStatus]:
     return live
 
 
+def machine_live_finishes(
+    home: Path, project_ids: Sequence[str] = ()
+) -> Dict[Tuple[str, str], FinishStatus]:
+    """Every live finish on this machine, keyed ``(project_id, task_id)`` (task-533).
+
+    :func:`live_finishes` for the machine-wide runs surface, which holds runs from every
+    project at once. It is that function called once per project that could have a
+    finish, and nothing else: the liveness answer is still :func:`_status_of`'s, so the
+    slot board's tile and the task read's chip are the same fact read the same way.
+
+    **Why per project rather than ``live_finishes(home, "")``.** An empty project id
+    reads only a pre-task-264 unscoped lock, so every scoped finish would confirm as
+    ``interrupted`` and nothing would ever read as finishing.
+
+    **Which projects get asked.** Those named by a held lock, plus ``project_ids`` --
+    the caller's live runs, which covers a spawn marker's second-long window before its
+    process takes a lock. Both are bounded by what is running on the machine, never by
+    how many tasks or rows exist, so this costs what ``live_finishes`` costs times the
+    number of projects with something running -- in practice one or two. Measured
+    figures are in ``api.routes.runs.list_live_runs``.
+    """
+    try:
+        holders = live_lock_holders(home)
+    except OSError:  # pragma: no cover - unreadable home
+        holders = []
+    projects = {split_lock_name(name)[0] for name, holder in holders if not holder.is_runway}
+    projects.update(project_ids)
+    projects.discard("")
+    found: Dict[Tuple[str, str], FinishStatus] = {}
+    for project_id in sorted(projects):
+        for task_id, status in live_finishes(home, project_id).items():
+            found[(project_id, task_id)] = status
+    return found
+
+
 def _finishing_candidates(home: Path, project_id: str) -> Dict[str, Optional[Path]]:
     """Tasks that could have a finish in flight, mapped to its directory where that is known.
 

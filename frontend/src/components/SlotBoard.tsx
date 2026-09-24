@@ -15,7 +15,7 @@ import {
   FinishBadge,
   HealthBadge,
   capacitySentence,
-  finishStepLabel,
+  finishDetail,
   liveFinishes,
   runKindLabel,
   unexplainedRunways,
@@ -300,8 +300,15 @@ function RunCell({ run, projectId }: { run: LiveRunView; projectId: string }) {
   // project -- slots are the machine's -- but printing "agentjobs" on the agentjobs
   // dashboard is a line of noise on a card with four lines of room.
   const elsewhere = Boolean(run.project_id) && run.project_id !== projectId;
+  // A run finishing itself is drawn as the finish it now is (task-533): the violet edge
+  // a finish card has, and the step where the posture would go. It keeps its own lock
+  // rather than taking a finish one, so this tile is the only cell its merge gets.
+  const finishing = run.health === "finishing";
   return (
-    <div className={`${CELL_BASE} border-dark-border bg-dark-bg`}>
+    <div
+      data-run-id={run.run_id}
+      className={`${CELL_BASE} ${finishing ? "border-violet-900/70" : "border-dark-border"} bg-dark-bg`}
+    >
       <div className="min-w-0">
         <div className="mb-1 flex items-center justify-between gap-2">
           <HealthBadge health={run.health} />
@@ -331,8 +338,16 @@ function RunCell({ run, projectId }: { run: LiveRunView; projectId: string }) {
         </Link>
       </div>
       <div className="flex items-center justify-between gap-2 text-xs text-dark-muted">
-        <span className="truncate">{elsewhere ? run.project_name : runKindLabel(run)}</span>
-        {elsewhere && <span className="shrink-0">{runKindLabel(run)}</span>}
+        <span className="truncate">
+          {finishing
+            ? finishDetail(run.finish_step, run.runway_behind)
+            : elsewhere
+              ? run.project_name
+              : runKindLabel(run)}
+        </span>
+        {elsewhere && (
+          <span className="shrink-0">{finishing ? run.project_name : runKindLabel(run)}</span>
+        )}
       </div>
     </div>
   );
@@ -376,7 +391,7 @@ function FinishCell({ finish, projectId }: { finish: MachineHolderView; projectI
         )}
       </div>
       <div className="flex items-center justify-between gap-2 text-xs text-dark-muted">
-        <span className="truncate">{finishStepLabel(finish.detail)}</span>
+        <span className="truncate">{finishDetail(finish.detail, finish.runway_behind)}</span>
         {elsewhere && <span className="shrink-0">{finish.project_name}</span>}
       </div>
     </div>

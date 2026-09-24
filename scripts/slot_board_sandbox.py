@@ -8,7 +8,8 @@ and you certainly cannot make one of them belong to a project you are not lookin
 so this seeds each of them and hands over a URL.
 
     python scripts/slot_board_sandbox.py [port] [--idle] [--finishing] [--alarm]
-                                         [--work-done] [--ceiling N] [--unconfigured]
+                                         [--work-done] [--self-finishing]
+                                         [--ceiling N] [--unconfigured]
 
 Six things to look at, and the comparison is the point:
 
@@ -36,6 +37,15 @@ Six things to look at, and the comparison is the point:
                        state task-352 was filed from -- the badge read 0 and the Runs tab
                        said nothing was running -- so it is the one to compare with
                        ``--idle``: same three free cells, plus the two finish cards.
+    --self-finishing   task-533's report, every half of it on one board. task-101 has
+                       an agent genuinely working it and reads *Working*. task-104's
+                       run is finishing itself under --posture-release, queued for the
+                       runway, and reads *Finishing* -- "behind task-102" -- where it
+                       used to read *Working*. task-102's finish is in the gate holding
+                       the runway, and the runway now names it. task-103's finish was
+                       run by hand and holds no lock of its own, and still gets a card.
+                       Open the task list beside it: every one of those tasks reads the
+                       same word there, in the same violet.
     --alarm            a task stopped on a human. The alert keeps the top of the page
                        and the board keeps its shape below it -- with every Dispatch
                        button withheld, which is task-081's rule stated for a grid.
@@ -272,6 +282,7 @@ def main() -> None:
     finishing = "--finishing" in argv
     attended = "--attended" in argv
     work_done = "--work-done" in argv
+    self_finishing = "--self-finishing" in argv
     alarm = "--alarm" in argv
     unconfigured = "--unconfigured" in argv
     ceiling = DEFAULT_CEILING
@@ -295,7 +306,9 @@ def main() -> None:
     # and a free cell offering the task whose merge is on the card beside it would be
     # the duplicate the board exists to avoid.
     running_here: Tuple[str, ...] = (
-        ("task-101", "task-102")
+        ("task-101", "task-102", "task-103", "task-104")
+        if self_finishing
+        else ("task-101", "task-102")
         if work_done
         else ("task-101",)
         if attended
@@ -307,7 +320,7 @@ def main() -> None:
     )
     running_elsewhere: Tuple[str, ...] = (
         ()
-        if attended or work_done
+        if attended or work_done or self_finishing
         else ("task-501",)
         if finishing
         else ()
@@ -454,6 +467,78 @@ def main() -> None:
         )
         print("[board] seeded a finish in the gate and a finish queued for the runway", flush=True)
 
+    def seed_self_finishing() -> None:
+        """task-533: a run finishing itself, next to a run that is genuinely working.
+
+        Scoped lock names, as every lock since task-264 is written. The self-finishing
+        run keeps its own ``kind=dispatch`` lock and adopts no finish one -- which is the
+        whole reason the board had no card for it -- and its finish record names the run.
+        """
+        pid = os.getpid()
+        seed_run(
+            home,
+            run_id="run_working",
+            task_id="task-101",
+            project_id="sandbox-here",
+            mode="session",
+            posture="auto",
+            status="running",
+            session_id="working01",
+        )
+        seed_lock(home, "sandbox-here~task-101", f"pid={pid} run=run_working kind=dispatch")
+        seed_finish(
+            home,
+            finish_id="fin_gating",
+            task_id="task-102",
+            project_id="sandbox-here",
+            done_steps=("preflight", "runway", "rebase"),
+            started_seconds_ago=250,
+        )
+        seed_lock(
+            home,
+            "sandbox-here~task-102",
+            f"pid={pid} run= kind=finish finish=fin_gating started={_ago(250)}",
+        )
+        seed_lock(
+            home,
+            runway_lock_name(here),
+            f"pid={pid} run= kind=runway finish=fin_gating started={_ago(248)}",
+        )
+        seed_run(
+            home,
+            run_id="run_selffin",
+            task_id="task-104",
+            project_id="sandbox-here",
+            mode="session",
+            posture="autonomous",
+            status="running",
+            session_id="selffin01",
+            started_at=_ago(1_900),
+        )
+        seed_lock(home, "sandbox-here~task-104", f"pid={pid} run=run_selffin kind=dispatch")
+        seed_finish(
+            home,
+            finish_id="fin_selffin",
+            task_id="task-104",
+            project_id="sandbox-here",
+            done_steps=("preflight",),
+            started_seconds_ago=90,
+        )
+        seed_finish(
+            home,
+            finish_id="fin_byhand",
+            task_id="task-103",
+            project_id="sandbox-here",
+            done_steps=("preflight",),
+            started_seconds_ago=40,
+        )
+        seed_lock(home, "sandbox-here~task-103", f"pid={pid} run= kind=dispatch")
+        print(
+            "[board] seeded a working run, a self-finishing run, a gating finish and a "
+            "finish with no lock of its own",
+            flush=True,
+        )
+
     def seed_activity() -> None:
         """Write the fake runs and locks, a moment after the server is up.
 
@@ -504,6 +589,8 @@ def main() -> None:
         threading.Timer(2.0, seed_work_done).start()
     elif finishing:
         threading.Timer(2.0, seed_finishing).start()
+    elif self_finishing:
+        threading.Timer(2.0, seed_self_finishing).start()
     elif not idle:
         threading.Timer(2.0, seed_activity).start()
 
@@ -518,6 +605,8 @@ def main() -> None:
         shape = "no dispatched runs -- one chat session working a task"
     if work_done:
         shape = "one run holding a cell, one whose task closed and gave its slot back"
+    if self_finishing:
+        shape = "one run working, one finishing itself, two finishes beside them"
     if unconfigured:
         shape = "no dispatch config -- a queue rather than a board"
     if alarm:
@@ -526,6 +615,8 @@ def main() -> None:
     print(f"[board]   Dashboard  http://127.0.0.1:{port}/app/p/sandbox-here", flush=True)
     print(f"[board]   Runs tab   http://127.0.0.1:{port}/app/p/sandbox-here/runs", flush=True)
     print(f"[board]   Elsewhere  http://127.0.0.1:{port}/app/p/sandbox-elsewhere", flush=True)
+    if self_finishing:
+        print(f"[board]   Task list  http://127.0.0.1:{port}/app/p/sandbox-here/tasks", flush=True)
     if not idle:
         print(
             "[board]   Compare with the idle half: python scripts/slot_board_sandbox.py "

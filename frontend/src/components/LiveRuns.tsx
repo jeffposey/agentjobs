@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { listLiveRunsApiRunsLiveGetOptions } from "../api/generated/@tanstack/react-query.gen";
 import type { LiveRunView, LiveRunsView, MachineHolderView } from "../api/types";
+import { FINISHING_FILL } from "./DependencyState";
 import { formatElapsed } from "./DispatchPanel";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
@@ -101,6 +102,10 @@ export const HEALTH_LABELS: Record<string, string> = {
   // (task-482). It holds no slot from here on, so a board that draws this badge is
   // drawing a run outside the slot cells.
   work_done: "Work done",
+  // A scripted finish is live for this run's task (task-533). The same word the task's
+  // own chip says -- `display_status` is "Finishing" from the same lookup -- because
+  // the board read "Working" beside a task page reading "Finishing", twice reported.
+  finishing: "Finishing",
 };
 
 const HEALTH_CLASSES: Record<string, string> = {
@@ -113,6 +118,7 @@ const HEALTH_CLASSES: Record<string, string> = {
   idle: "bg-slate-700 text-slate-200",
   handback: "bg-sky-900 text-sky-200",
   work_done: "bg-slate-700 text-slate-200",
+  finishing: FINISHING_FILL,
 };
 
 /**
@@ -178,10 +184,13 @@ export function liveFinishes(body: LiveRunsView): MachineHolderView[] {
  * that repository is queued behind it.
  */
 export function unexplainedRunways(body: LiveRunsView): MachineHolderView[] {
+  // A run finishing itself explains its runway too: it keeps its own lock rather than
+  // taking a finish one, so its finish id is on the run row (task-533).
   const listed = new Set(
-    liveFinishes(body)
-      .map((finish) => finish.finish_id ?? "")
-      .filter((id) => id.length > 0),
+    [
+      ...liveFinishes(body).map((finish) => finish.finish_id ?? ""),
+      ...body.runs.map((run) => run.finish_id ?? ""),
+    ].filter((id) => id.length > 0),
   );
   return body.holders.filter(
     (holder) => holder.kind === "runway" && !(holder.finish_id && listed.has(holder.finish_id)),
@@ -228,6 +237,18 @@ export function finishStepLabel(detail: string | undefined): string {
 }
 
 /**
+ * The step, plus whose merge it is waiting behind when it is queued for the runway.
+ *
+ * "Queued for the merge runway" alone read as a finish going nowhere, while the runway
+ * holder beside it named no task at all (task-533, seen 2026-09-23). The chip stays one
+ * word; the detail line is where the queue is explained.
+ */
+export function finishDetail(step: string | undefined, behind: string | undefined): string {
+  const label = finishStepLabel(step);
+  return behind ? `${label}, behind ${behind}` : label;
+}
+
+/**
  * The state word for a finish, styled apart from a run's health: it is not a session.
  *
  * `overtaken` is the one that is not "Finishing" (task-514). This board renders from the
@@ -242,7 +263,7 @@ export function FinishBadge({ finish }: { finish: MachineHolderView }) {
       className={
         finish.overtaken
           ? "whitespace-nowrap rounded bg-amber-900 px-2 py-1 text-xs text-amber-200"
-          : "whitespace-nowrap rounded bg-violet-900 px-2 py-1 text-xs text-violet-200"
+          : `whitespace-nowrap rounded px-2 py-1 text-xs ${FINISHING_FILL}`
       }
     >
       {finish.overtaken ? "Overtaken" : "Finishing"}
@@ -260,7 +281,10 @@ export function FinishBadge({ finish }: { finish: MachineHolderView }) {
 export function capacitySentence(body: LiveRunsView): string {
   // Overtaken finishes are excluded rather than counted: they hold a lock and a slot on
   // the board, but "1 merging" is the word this sentence exists to make honest (task-514).
-  const merging = liveFinishes(body).filter((finish) => !finish.overtaken).length;
+  // A run finishing itself is merging too, and holds no finish card (task-533).
+  const merging =
+    liveFinishes(body).filter((finish) => !finish.overtaken).length +
+    body.runs.filter((run) => run.health === "finishing").length;
   const suffix = merging > 0 ? ` · ${merging} merging` : "";
   if (!body.dispatch_configured) {
     const head =
@@ -359,7 +383,9 @@ function FinishRow({ finish }: { finish: MachineHolderView }) {
       <ResponsiveCell label="State">
         <span className="inline-flex flex-wrap items-center gap-2">
           <FinishBadge finish={finish} />
-          <span className="text-xs text-dark-muted">{finishStepLabel(finish.detail)}</span>
+          <span className="text-xs text-dark-muted">
+            {finishDetail(finish.detail, finish.runway_behind)}
+          </span>
         </span>
       </ResponsiveCell>
       <ResponsiveCell label="Running for" className="text-sm text-dark-muted">
@@ -448,7 +474,14 @@ export function LiveRunsPage({ body }: { body: LiveRunsView | null }) {
                       {run.project_name}
                     </ResponsiveCell>
                     <ResponsiveCell label="State">
-                      <HealthBadge health={run.health} />
+                      <span className="inline-flex flex-wrap items-center gap-2">
+                        <HealthBadge health={run.health} />
+                        {run.health === "finishing" && (
+                          <span className="text-xs text-dark-muted">
+                            {finishDetail(run.finish_step, run.runway_behind)}
+                          </span>
+                        )}
+                      </span>
                     </ResponsiveCell>
                     <ResponsiveCell label="Running for" className="text-sm text-dark-muted">
                       {formatElapsed(run.elapsed_seconds)}

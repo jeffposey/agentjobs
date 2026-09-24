@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { FinishStepView, TaskFinishView } from "../api/types";
+import { FINISHING_FILL } from "./DependencyState";
 
 /**
  * What is happening to this task's branch, on the page that started it.
@@ -176,9 +177,10 @@ export function finishBadge(finish: TaskFinishView): string {
   }
 }
 
+// A live finish in the finishing colour every other surface uses for it (task-533).
 const STATE_CLASSES: Record<string, string> = {
-  starting: "bg-sky-900 text-sky-200",
-  running: "bg-sky-900 text-sky-200",
+  starting: FINISHING_FILL,
+  running: FINISHING_FILL,
   finished: "bg-emerald-900 text-emerald-200",
   escalated: "bg-orange-900 text-orange-100",
   declined: "bg-slate-700 text-slate-200",
