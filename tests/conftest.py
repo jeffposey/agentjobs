@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 import pytest
 
@@ -127,6 +128,24 @@ def never_reads_the_machines_processes(monkeypatch) -> None:
     monkeypatch.setattr(ledger, "SESSION_FINDER", lambda: [])
     monkeypatch.setenv("AGENTJOBS_MEMORY_WATCH", "off")
     monkeypatch.delenv("AGENTJOBS_MEMORY_FLOOR_MB", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def a_fresh_retraction_throttle() -> Iterator[None]:
+    """Start every test as the first tick of a process, as far as the retraction sweep goes.
+
+    Its throttle stamp is a module global read from whatever clock is installed, so a test
+    that ticks the poller under a skipping clock left a stamp of fake seconds behind -- up
+    to 7190 -- and the next test in that worker compared it with the real uptime. Within
+    two hours of a reboot the stamp read as the future and the sweep skipped (task-546).
+    The poller now sweeps on a future stamp, but a stamp from another test's timeline is
+    still another test's state. Only when the module is already imported: importing the
+    poller for every test would cost every test that never touches it.
+    """
+    poller = sys.modules.get("agentjobs.dispatch.poller")
+    if poller is not None:
+        setattr(poller, "_last_retraction_sweep", 0.0)
+    yield
 
 
 @pytest.fixture(autouse=True)

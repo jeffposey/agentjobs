@@ -230,7 +230,12 @@ def _retract_resolved_asks(
 
     global _last_retraction_sweep
     now = dispatch_clock.monotonic()
-    if _last_retraction_sweep and now - _last_retraction_sweep < RETRACTION_SWEEP_SECONDS:
+    # A stamp in the future of `now` means the clock changed under the stamp, not that the
+    # sweep ran recently; skipping on it would skip until the new clock caught up, which
+    # after a test's skipping clock was hours (task-546). So only a non-negative gap
+    # inside the window throttles.
+    elapsed = now - _last_retraction_sweep
+    if _last_retraction_sweep and 0 <= elapsed < RETRACTION_SWEEP_SECONDS:
         return []
     _last_retraction_sweep = now
 
