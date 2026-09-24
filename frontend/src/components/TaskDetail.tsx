@@ -22,6 +22,7 @@ import {
 } from "./QuestionForm";
 import { DependencyGraph } from "./DependencyGraph";
 import { ArchivedTag, DependencyState } from "./DependencyState";
+import { PriorityMark } from "./PriorityMark";
 import { StatusChip, taskMotion } from "./StatusChip";
 import { ChainPanel } from "./ChainPanel";
 import { DispatchPanel, type DispatchPanelProps, type DispatchRefusal } from "./DispatchPanel";
@@ -68,13 +69,6 @@ export function heldByAgent(task: TaskRead): { owner: string; since: string } | 
   if (!took || took.actor !== owner) return null;
   return { owner, since: took.ts };
 }
-
-const PRIORITY_CLASSES: Record<string, string> = {
-  critical: "bg-red-900 text-red-200",
-  high: "bg-orange-900 text-orange-200",
-  medium: "bg-yellow-900 text-yellow-200",
-  low: "bg-slate-700 text-slate-200",
-};
 
 const LOG_CLASSES: Record<string, string> = {
   handoff: "border-orange-500",
@@ -948,7 +942,7 @@ export function TaskDetail(props: TaskDetailProps) {
         }`}
         data-pinned={pinned ? "yes" : "no"}
       >
-        <div className="min-w-0"><div className="select-all font-mono text-sm text-blue-300">{task.id}</div><h1 className="break-words text-2xl font-bold @min-[768px]:text-3xl">{task.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2"><StatusChip category={task.status_category} label={task.display_status} motion={taskMotion(task)} />{task.archived && <ArchivedTag />}<span className={`rounded px-2 py-1 text-xs ${PRIORITY_CLASSES[task.priority ?? "medium"]}`}>{task.priority ?? "medium"}</span><span className="text-sm text-dark-muted">{task.category}</span>{task.tags?.map((tag) => <span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 text-xs" key={tag}>{tag}</span>)}</div></div>
+        <div className="min-w-0"><div className="select-all font-mono text-sm text-blue-300">{task.id}</div><h1 className="break-words text-2xl font-bold @min-[768px]:text-3xl">{task.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2"><StatusChip category={task.status_category} label={task.display_status} motion={taskMotion(task)} />{task.archived && <ArchivedTag />}<PriorityMark priority={task.priority} /><span className="text-sm text-dark-muted">{task.category}</span>{task.tags?.map((tag) => <span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 text-xs" key={tag}>{tag}</span>)}</div></div>
         <Link to={`/p/${encodeURIComponent(projectId)}/tasks`} className="touch-target shrink-0 rounded-lg border border-dark-border bg-dark-surface px-4 text-sm hover:bg-dark-border">← Back to Tasks</Link>
       </header>
 
