@@ -344,7 +344,7 @@ def main() -> None:
 
     threading.Timer(0.2, fly).start()
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -366,7 +366,7 @@ def main() -> None:
         flush=True,
     )
     try:
-        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+        serve(app, port=port)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

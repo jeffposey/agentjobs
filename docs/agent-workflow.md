@@ -949,9 +949,9 @@ Three checks; the third needs a task page rather than the list.
   2. Narrow the window to phone width; the panel should restack.
   3. Open the task page below and confirm the log expands.
 
-Desktop shell: http://127.0.0.1:8910/app/
-Tablet: http://127.0.0.1:8910/app/?w=1024
-Task page for check 3: http://127.0.0.1:8910/app/p/sandbox-shell/tasks/task-143
+Desktop shell: http://host.example.ts.net:8910/app/
+Tablet: http://host.example.ts.net:8910/app/?w=1024
+Task page for check 3: http://host.example.ts.net:8910/app/p/sandbox-shell/tasks/task-143
 ```
 
 The review panel reads exactly that shape. A **link line** — an address alone on its
@@ -973,6 +973,21 @@ Two shapes the panel cannot help with, both of which `task_handoff` warns about:
 The first version of the card showed every address in both places. Reviewed on
 2026-09-06: it "wastes too much space", and the state that read best was the one where
 the links were only in the card. That is the rule this convention exists to satisfy.
+
+#### A review sandbox link must open on a phone
+
+**When Tailscale is up, a sandbox link names the tailnet host, not `127.0.0.1`**
+(task-567). Reviews are often read from a phone or tablet, where a loopback address
+opens nothing. Serve with `scripts/sandbox_serve.py` — `serve(app, port=port)` at the end
+of the script — and never call uvicorn yourself; `tests/test_sandbox_serve.py` fails a
+sandbox that does. It binds loopback always, adds this machine's tailnet address whenever
+`tailscale ip` answers, and prints the phone URL. Copy that one into the handoff.
+Tailscale is optional: without it the sandbox serves loopback and says so, and a
+`127.0.0.1` link is then correct.
+
+On the tailnet, looking works and writing is refused (403): a sandbox is not behind the
+tailnet front door, so the server cannot prove who is calling. When a check needs a
+write, name the loopback URL for that step as well.
 
 **Ask in options, not in paragraphs** (task-017). A handoff may carry `questions[]`,
 each a question with the answers you are offering and which one you recommend, written

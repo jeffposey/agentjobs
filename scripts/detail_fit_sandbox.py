@@ -204,7 +204,7 @@ def main() -> None:
         build(root, project_id=project_id, name=name), project_id=project_id, name=name
     )
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -213,7 +213,7 @@ def main() -> None:
     print(f"[review]   the full record   {base}/task-201", flush=True)
     print(f"[review]   the bare one      {base}/task-202", flush=True)
     print("[review] Widen to 2560, then narrow to 900x700, then 390x844.", flush=True)
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    serve(app, port=port)
 
 
 if __name__ == "__main__":

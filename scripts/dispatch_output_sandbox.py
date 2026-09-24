@@ -341,7 +341,7 @@ def main() -> None:
     )
     seed_session_transcript(fake_home, project_root, "failing1", failing_run())
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -353,7 +353,7 @@ def main() -> None:
     print(f"[output] throwaway data under {root}", flush=True)
     print("[output] stop with Ctrl-C; the data is deleted with the process.", flush=True)
     try:
-        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+        serve(app, port=port)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

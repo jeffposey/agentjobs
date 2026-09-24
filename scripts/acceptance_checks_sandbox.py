@@ -365,11 +365,11 @@ def serve(port: int) -> None:
     )
     print(f"[review] data under {root}; Ctrl-C stops it and deletes everything.", flush=True)
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    serve(app, port=port)
 
 
 def main() -> None:

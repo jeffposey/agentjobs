@@ -275,7 +275,7 @@ def main() -> None:
     queue(home, manager, authorised)
     incident = pause_one_credential(home)
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -296,7 +296,7 @@ def main() -> None:
     # what a queued dispatch is waiting for. A sandbox whose exhibit empties itself thirty
     # seconds in is no exhibit, so nothing drives the queue here and the three entries sit
     # where they were put. Everything a browser touches is served by the real application.
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", lifespan="off")
+    serve(app, port=port, lifespan="off")
 
 
 if __name__ == "__main__":

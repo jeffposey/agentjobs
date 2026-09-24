@@ -205,12 +205,12 @@ def main() -> None:
     print("[review] read it at 390px wide too; that is where the rows wrap.")
     print(f"[review] throwaway data under {root}", flush=True)
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
     try:
-        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+        serve(app, port=port)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

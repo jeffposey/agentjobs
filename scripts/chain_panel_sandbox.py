@@ -230,7 +230,7 @@ def serve(port: int) -> None:
     write_dispatch_config(home, root, project_id)
     ProjectRegistry(home).add(project_root, project_id=project_id, name="Sandbox: agent loops")
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -240,7 +240,7 @@ def serve(port: int) -> None:
     print(f"[review]   live chain, Revoke is clickable: {base}/tasks/task-002", flush=True)
     print(f"[review]   no chain, so no panel: {base}/tasks/task-003", flush=True)
     print(f"[review] throwaway data under {root}", flush=True)
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    serve(app, port=port)
 
 
 def main() -> None:

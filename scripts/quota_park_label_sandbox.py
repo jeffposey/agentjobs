@@ -205,7 +205,7 @@ def main() -> None:
         build(root, project_id=project_id, name=name), project_id=project_id, name=name
     )
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -216,7 +216,7 @@ def main() -> None:
     print(f"[review]   a self-clearing wait  {base}/tasks?status=reset", flush=True)
     print(f"[review]   the quota park's page {base}/tasks/task-001", flush=True)
     print("[review] Glance at the list first, then open the filters. Then 390x844.", flush=True)
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    serve(app, port=port)
 
 
 if __name__ == "__main__":

@@ -140,12 +140,12 @@ def main() -> None:
         flush=True,
     )
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
     try:
-        uvicorn.run(app, host=host, port=port, log_level="warning")
+        serve(app, port=port, host=host)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
