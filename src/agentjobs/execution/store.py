@@ -257,7 +257,7 @@ CREATE TABLE child_wait (
 );
 """
 
-SCHEMA_REVISION = 8
+SCHEMA_REVISION = 9
 """Additive revisions applied on top of physical schema version 1 (task-416).
 
 Revision 3 (task-417) adds the auth-recovery incident, waiter and probe tables, which no
@@ -277,6 +277,10 @@ allowed, which is the safe direction for an old process to be wrong in.
 
 Revision 8 (task-549) adds ``run_attempt.holder_identity``, the admitting process's OS
 receipt. The previous build neither writes nor reads it and keeps its timestamp check.
+
+Revision 9 (task-558) adds ``supervision.holder_identity``, the same receipt for an epic
+walk's supervisor. The previous build neither writes nor reads it and keeps its timestamp
+check; a row it writes has none, and a new build reading that row falls back to the same.
 
 **Deliberately not a ``user_version`` bump.** Processes running the previous build share
 this file with the new one -- an epic walk started before an upgrade keeps dispatching
@@ -448,6 +452,7 @@ _ADDED_COLUMNS = (
     ("run_attempt", "slot_released_at", "TEXT"),
     ("run_attempt", "slot_released_reason", "TEXT"),
     ("run_attempt", "holder_identity", "TEXT"),
+    ("supervision", "holder_identity", "TEXT"),
 )
 """``run_attempt.operation_id`` is the admission's stable operation id, so a supervisor
 that died between a child's admission and its own bookkeeping finds the same attempt
@@ -457,7 +462,9 @@ every row the previous build writes, which is what keeps the legacy poller in ch
 them. ``run_attempt.slot_released_at`` and ``slot_released_reason`` are task-482's: when
 and why a live attempt stopped counting against the machine ceiling, ``NULL`` for every
 attempt that still counts. ``run_attempt.holder_identity`` is task-549's: the admitting
-process's OS receipt, ``NULL`` on every row the previous build writes."""
+process's OS receipt, ``NULL`` on every row the previous build writes.
+``supervision.holder_identity`` is task-558's: the walking supervisor's receipt, likewise
+``NULL`` on a row an earlier build wrote."""
 
 CONTROLLED_BY_CONTROLLER = "controller"
 
@@ -483,6 +490,13 @@ def _dumps(value: Any) -> str:
 def digest(value: Any) -> str:
     """A stable hash of a JSON-able value: what an activity's input is compared by."""
     return hashlib.sha256(_dumps(value).encode("utf-8")).hexdigest()
+
+
+_READ_RECEIPT: Any = object()
+"""``open_walk``'s default for ``holder_identity``: read the receipt from the holder's pid.
+
+A sentinel rather than ``None``, because ``None`` is a receipt's real value on a row an
+earlier build wrote, and a test that models one has to be able to say so."""
 
 
 def this_holder() -> Tuple[str, int]:
@@ -1032,6 +1046,15 @@ class Supervision:
     it moves only when the walk *decides* something, so a long quiet wait looks recent
     and a busy epic looks stale (task-523)."""
 
+    holder_identity: Optional[str] = None
+    """The holder's OS receipt (``process_identity``), read when it took the walk (task-558).
+
+    What proves a live pid is still the supervisor. The fallback -- a process created after
+    ``updated_at`` cannot be the holder -- allows a second of slack and compares the OS's
+    clock with the store's, so a supervisor that wrote and died inside a second left a
+    stranger on its reissued pid that every later walk refused to take over from. ``None``
+    on a row an earlier build wrote, or when the platform would not say."""
+
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Supervision":
         return cls(
@@ -1053,6 +1076,7 @@ class Supervision:
             peak_in_flight=int(row["peak_in_flight"]),
             updated_at=row["updated_at"],
             created_at=row["created_at"],
+            holder_identity=_column(row, "holder_identity"),
         )
 
 
@@ -3715,6 +3739,7 @@ class ExecutionStore:
         holder: Optional[str] = None,
         holder_pid: Optional[int] = None,
         holder_alive: Callable[[int], bool] = lambda _pid: True,
+        holder_identity: Any = _READ_RECEIPT,
     ) -> Tuple[Supervision, bool]:
         """Start supervising an epic on one authorisation, or resume the walk that already is.
 
@@ -3727,10 +3752,34 @@ class ExecutionStore:
 
         A fresh authorisation of the epic supersedes the old walk, which is the existing
         escape hatch for a child that burned its attempts: the new walk's budget is new.
+
+        Whether the recorded holder is still alive is settled by its receipt where the row
+        has one (task-558), and only a row without one falls back to the moment it last
+        wrote. ``holder_identity`` is read from ``holder_pid`` unless a caller hands one
+        over, which only a test modelling a process that has since died needs to.
         """
         who, pid = this_holder()
         who = holder or who
         pid = holder_pid if holder_pid is not None else pid
+        # Read before the transaction: an OS call has no business holding the write lock.
+        identity = process_identity(pid) if holder_identity is _READ_RECEIPT else holder_identity
+
+        def still_holds(current: Supervision) -> bool:
+            """Whether the process at the recorded pid is the supervisor that recorded it.
+
+            Doubt keeps the holder: a refusal is recoverable by a person, two supervisors of
+            one epic is not. The receipt is the proof in both directions -- a stranger on a
+            reissued pid is not the holder however recently the holder wrote, and a live
+            holder is the holder whatever the store's clock said when it wrote (task-558).
+            """
+            held = int(current.holder_pid or 0)
+            if not holder_alive(held):
+                return False
+            if current.holder_identity is not None:
+                now_holding = process_identity(held)
+                return now_holding is None or now_holding == current.holder_identity
+            return not process_created_after(held, datetime.fromisoformat(current.updated_at))
+
         with self.transaction("walk-open") as connection:
             row = connection.execute(
                 "SELECT * FROM supervision WHERE project_id = ? AND parent_task_id = ? "
@@ -3745,10 +3794,7 @@ class ExecutionStore:
                     other
                     and current.holder_pid is not None
                     and current.host == "process"
-                    and holder_alive(int(current.holder_pid))
-                    and not process_created_after(
-                        int(current.holder_pid), datetime.fromisoformat(row["updated_at"])
-                    )
+                    and still_holds(current)
                 ):
                     # Named by pid and time, because the reader of this is deciding which
                     # of two processes to stop (task-444): a walker they believed was gone
@@ -3762,8 +3808,9 @@ class ExecutionStore:
                 if current.authority_entry == int(authority_entry):
                     connection.execute(
                         "UPDATE supervision SET holder = ?, holder_pid = ?, host = ?, "
-                        "epoch = epoch + 1, updated_at = ? WHERE walk_id = ?",
-                        (who, pid, host, now, current.walk_id),
+                        "holder_identity = ?, epoch = epoch + 1, updated_at = ? "
+                        "WHERE walk_id = ?",
+                        (who, pid, host, identity, now, current.walk_id),
                     )
                     found = connection.execute(
                         "SELECT * FROM supervision WHERE walk_id = ?", (current.walk_id,)
@@ -3782,7 +3829,8 @@ class ExecutionStore:
             connection.execute(
                 "INSERT INTO supervision(walk_id, project_id, parent_task_id, authority_entry, "
                 "authority_actor, settings_json, state, host, holder, holder_pid, epoch, "
-                "created_at, updated_at) VALUES (?,?,?,?,?,?,'walking',?,?,?,1,?,?)",
+                "created_at, updated_at, holder_identity) "
+                "VALUES (?,?,?,?,?,?,'walking',?,?,?,1,?,?,?)",
                 (
                     walk_id,
                     project_id,
@@ -3795,6 +3843,7 @@ class ExecutionStore:
                     pid,
                     now,
                     now,
+                    identity,
                 ),
             )
             found = connection.execute(

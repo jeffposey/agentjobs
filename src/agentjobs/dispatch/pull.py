@@ -417,9 +417,11 @@ def walking_now(home: Path) -> List[Supervision]:
     its only other reader takes such a walk over. A reader that yielded to it instead
     would idle this machine's slots forever on a supervisor nobody is running, so an
     attached walk counts only while its holder is alive, with the pid-reuse check
-    ``open_walk`` already makes against the moment the holder last wrote.
+    ``open_walk`` already makes: the holder's receipt where the row has one, and the
+    moment the holder last wrote where it does not.
     """
     from agentjobs.dispatch.ledger import process_alive
+    from agentjobs.dispatch.pids import process_identity
     from agentjobs.execution.store import process_created_after
 
     flying: List[Supervision] = []
@@ -429,6 +431,13 @@ def walking_now(home: Path) -> List[Supervision]:
             continue
         pid = walk.holder_pid
         if pid is None or not process_alive(int(pid)):
+            continue
+        if walk.holder_identity is not None:
+            # The holder's receipt where the row has one (task-558); doubt keeps it flying.
+            current = process_identity(int(pid))
+            if current is not None and current != walk.holder_identity:
+                continue  # the number was reissued; the supervisor that wrote this is gone
+            flying.append(walk)
             continue
         moment = _moment(walk.updated_at)
         if moment is not None and process_created_after(int(pid), moment):
