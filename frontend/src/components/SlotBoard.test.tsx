@@ -1315,6 +1315,28 @@ describe("the epics this machine is walking (task-523)", () => {
 
     expect(screen.getByTestId("slot-board-walks")).toBeVisible();
   });
+
+  it("draws the rails in the order they get the next free slot: queue, walks, armed", () => {
+    // The queue is served before walk children, and both before the pull mode (task-477,
+    // docs/agent-dispatch-design.md section 7). Task-557 moved the walk rail from
+    // directly under the cells to second, so the page reads in that order.
+    renderBoard(
+      <SlotBoard
+        body={body({ occupied: 0, queued: [queued()], walks: [walk()], armed: [armed()] })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    const rails = ["slot-board-queue", "slot-board-walks", "slot-board-armed"].map((id) =>
+      screen.getByTestId(id),
+    );
+    for (let index = 1; index < rails.length; index += 1) {
+      expect(
+        rails[index - 1]!.compareDocumentPosition(rails[index]!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+  });
 });
 
 describe("a run whose task is being merged (task-533)", () => {

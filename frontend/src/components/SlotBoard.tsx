@@ -736,7 +736,7 @@ export function walkState(walk: EpicWalkView): { badge: string; sentence: string
 }
 
 /**
- * The epics this machine is supervising, under the slots and above the waiting rail.
+ * The epics this machine is supervising, under the waiting rail and above the armed one.
  *
  * **A walk is the one thing here that dispatches with no human act at the moment of
  * dispatch**, and since task-458 it is hosted by the server rather than by a blocking
@@ -1154,12 +1154,6 @@ export function SlotBoard({
           {" is the long form."}
         </p>
       )}
-      {/* Directly under the cells, which is where the owner asked for it: a walk is
-          the explanation for children appearing in the slots above, so it reads before
-          the rails of work that has not started yet. It takes nothing from `statusOnly`
-          because it offers no action to withhold -- task-523 is read-only about walks
-          on purpose. */}
-      <WalkRail walks={walks} />
       {/* Above the gate line and the runway strip, and drawn even under an alarm:
           work this machine has already been told to do is status, not a nudge. The one
           thing `statusOnly` withholds is the cancel control, which is an action. */}
@@ -1170,8 +1164,17 @@ export function SlotBoard({
         pauses={pausesHoldingQueue(waiting, pauses)}
         renderAction={statusOnly ? undefined : renderQueuedAction}
       />
-      {/* Under the waiting rail, which is the order the two are honoured in: a dispatch
-          somebody asked for by name starts before the pull mode fills anything. */}
+      {/* Second, under the queued rail: the rails are drawn in the order they get the
+          next free slot, and the queue is served before walk children (the owner's
+          decision on task-477; docs/agent-dispatch-design.md section 7). Task-523 had
+          put this directly under the cells, because a walk explains children appearing
+          in the slots above; task-557 moved it here, accepting one rail between the
+          slots and that explanation. It takes nothing from `statusOnly` because it
+          offers no action to withhold -- task-523 is read-only about walks on purpose. */}
+      <WalkRail walks={walks} />
+      {/* Under the walk rail, which is the order they are honoured in: a dispatch
+          somebody asked for by name, and then a walk's next child, start before the
+          pull mode fills anything. */}
       <ArmedRail
         armed={armed}
         pauses={pausesHoldingArmings(armed, pauses)}
