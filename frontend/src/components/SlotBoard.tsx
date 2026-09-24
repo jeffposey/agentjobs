@@ -13,7 +13,7 @@ import type {
 } from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
 import { PriorityMark } from "./PriorityMark";
-import { StatusChip, WALK_STATES } from "./StatusChip";
+import { StatusChip, WALK_STATES, categoryMotion } from "./StatusChip";
 import {
   FinishBadge,
   HealthBadge,
@@ -811,6 +811,7 @@ function WalkRail({ walks }: { walks: EpicWalkView[] }) {
                   testId="epic-walk-badge"
                   category={state.category}
                   label={state.badge}
+                  motion={categoryMotion(state.category)}
                 />
               </div>
               <p data-testid="epic-walk-counts" className="mt-1 text-xs text-dark-muted">

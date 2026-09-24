@@ -307,4 +307,13 @@ describe("a task chip moves only when a live fact backs it (task-570)", () => {
     render(<DependencyState task={task({ ...working, live_run_health: "parked" })} />);
     expect(chip()).not.toHaveAttribute("data-motion");
   });
+  it("flashes a task waiting on a person (task-577)", () => {
+    render(
+      <DependencyState
+        task={task({ lifecycle: "active", ball: "human", ball_reason: "review", display_status: "Needs review", status_category: "needs_you" })}
+      />,
+    );
+    expect(chip()).toHaveAttribute("data-motion", "flash");
+    expect(chip()).toHaveClass("chip-motion-flash");
+  });
 });

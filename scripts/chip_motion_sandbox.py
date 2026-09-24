@@ -1,7 +1,9 @@
-"""Stand up a task list and a run board where only the live chips move (task-570).
+"""Stand up a task list and a run board with both chip motions (task-570, task-577).
 
-One motion -- a comet running round the border -- and it must appear only where a live
-fact backs it. So this seeds **both sides of every row** of the task's table in one project:
+Two motions, two meanings, and each must appear only where it belongs. **Orbit** -- a
+comet running round the border -- is "something is happening right now", backed by a live
+fact. **Flash** -- an uneven glow that catches and dies -- is "waiting on you", every chip
+in the red needs_you category. So this seeds **both sides of every row** in one project:
 
     python scripts/chip_motion_sandbox.py [port]
 
@@ -13,22 +15,28 @@ fact backs it. So this seeds **both sides of every row** of the task's table in 
     task-006  claimed, and no run at all              Working          STILL -- the catch
     task-007  a run parked on a permission prompt     Working          still
     task-008  a run with feedback waiting for it      Working          still
-    task-009  handed to review, session still open    Needs review     still
+    task-009  handed to review, session still open    Needs review     flash
     task-010  on hold                                 On hold          still
     task-011  waiting on another task                 Blocked          still
     task-012  merged                                  Completed        still
+    task-013  needs its spec written                  Needs spec       flash
+    task-014  needs a call                            Needs decision   flash
+    task-015  needs an answer                         Needs input      flash
+    task-016  needs a sign-off                        Needs approval   flash
+
+Five flashing chips on one list is deliberate: it is how dense the flash gets on a real
+day, and density is the thing to judge.
 
 The Runs tab shows the run side: Finishing, Working and Starting orbit; Waiting on you
-and Feedback do not. task-009's session is still producing output, so its run chip
-orbits while its task chip, Needs review, stays still.
+(task-007's parked run) flashes; Feedback stays still. task-009's session is still
+producing output, so its run chip orbits while its task chip, Needs review, flashes.
 
-task-004 and task-006 are the comparison that matters. Their records are identical --
-active, agent, work, same owner -- and only one has a live run behind it. Before this
-both would have been drawn the same, and a chip that moved on the record alone would have
-moved on task-006, where nothing is happening.
+task-004 and task-006 are the comparison that matters for the orbit. Their records are
+identical -- active, agent, work, same owner -- and only one has a live run behind it.
 
 **Reduced motion:** DevTools -> More tools -> Rendering -> "Emulate CSS media feature
-prefers-reduced-motion" -> reduce. Every chip stops; the live ones keep a still outer ring.
+prefers-reduced-motion" -> reduce. Every chip stops; the moving ones keep a still outer
+ring.
 
 The runs, locks, finish and queue entry are the shapes the ledger, ``dispatch.finish``
 and the dispatch queue write, read by the real readers -- nothing is spawned. The locks
@@ -192,11 +200,15 @@ ROWS = [
     (
         "task-009",
         "Handed to review with its session still open",
-        "Needs review: still, live run or not.",
+        "Needs review: the flash, live run or not.",
     ),
     ("task-010", "On hold", "On hold: still."),
     ("task-011", "Waiting on another task", "Blocked: still."),
     ("task-012", "Merged an hour ago", "Completed: still."),
+    ("task-013", "Its spec needs writing", "Needs spec: the flash."),
+    ("task-014", "It needs a call from you", "Needs decision: the flash."),
+    ("task-015", "It needs an answer from you", "Needs input: the flash."),
+    ("task-016", "It needs your sign-off", "Needs approval: the flash."),
 ]
 
 
@@ -222,8 +234,26 @@ def seed(manager: Any) -> Dict[str, int]:
 
     for task_id in ("task-001", "task-004", "task-005", "task-006", "task-007", "task-008"):
         manager.claim_task(task_id, agent="claude")
-    for task_id in ("task-009", "task-010", "task-011", "task-012"):
+    for task_id in (
+        "task-009",
+        "task-010",
+        "task-011",
+        "task-012",
+        "task-013",
+        "task-014",
+        "task-015",
+        "task-016",
+    ):
         manager.claim_task(task_id, agent="claude")
+    for task_id, reason, prompt in (
+        ("task-013", BallReason.SPEC, "Write the acceptance criteria."),
+        ("task-014", BallReason.DECISION, "Pick one of the two designs."),
+        ("task-015", BallReason.INPUT, "Which port should it use?"),
+        ("task-016", BallReason.APPROVAL, "Approve the release."),
+    ):
+        manager.handoff(
+            task_id, actor="claude", ball=Ball.HUMAN, ball_reason=reason, ball_prompt=prompt
+        )
     manager.handoff(
         "task-009",
         actor="claude",
@@ -325,7 +355,7 @@ def main() -> None:
     print(f"[review]   the run board        {base}/runs", flush=True)
     print(f"[review]   the dashboard        http://127.0.0.1:{port}/app/", flush=True)
     print(
-        "[review] Compare task-004 (moves) with task-006 (still): same record, one has a run.",
+        "[review] Orbit: compare task-004 (moves) with task-006 (still). Flash: tasks 009, 013-016.",
         flush=True,
     )
     # `lifespan="off"`: the lifespan starts the dispatch poller, which would reap the

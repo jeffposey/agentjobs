@@ -404,6 +404,7 @@ describe("a run's badge moves only while the run is doing something (task-570)",
     ["working", "Working", "orbit"],
     ["starting", "Starting", "orbit"],
     ["finishing", "Finishing", "orbit"],
+    ["parked", "Waiting on you", "flash"],
   ])("moves %s", (health, label, motion) => {
     render(<HealthBadge health={health} />);
 
@@ -413,7 +414,6 @@ describe("a run's badge moves only while the run is doing something (task-570)",
 
   it.each([
     ["handback", "Feedback"],
-    ["parked", "Waiting on you"],
     ["silent", "No output"],
     ["idle", "Idle"],
   ])("keeps %s still", (health, label) => {

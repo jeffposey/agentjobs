@@ -78,14 +78,26 @@ export function chipCase(label: string | null | undefined): string {
  * motions on one page read as three things to learn rather than one signal. The chip's
  * colour already says which kind of activity it is.
  *
- * It is a pseudo-element, so a chip never changes size, and `prefers-reduced-motion`
- * stills it to a static outer ring.
+ * **A second motion for a chip waiting on a person** (task-577, owner decision,
+ * 2026-09-24): an uneven glow that catches and dies, the audition first cut for Starting.
+ * Two motions, two meanings -- orbit is "happening now", flash is "waiting on you" -- and
+ * the second needs no live fact behind it, because the `needs_you` category is itself
+ * the fact: the ball is with a person.
+ *
+ * Neither changes a chip's size -- the orbit is a pseudo-element, the flash a shadow --
+ * and `prefers-reduced-motion` stills both to a static outer ring.
  */
-export type ChipMotion = "orbit";
+export type ChipMotion = "orbit" | "flash";
 
 export const MOTION_CLASSES: Record<ChipMotion, string> = {
   orbit: "chip-motion chip-motion-orbit",
+  flash: "chip-motion chip-motion-flash",
 };
+
+/** A chip whose category alone decides its motion: waiting on a person flashes. */
+export function categoryMotion(category: StatusCategory | null | undefined): ChipMotion | null {
+  return category === "needs_you" ? "flash" : null;
+}
 
 /** Run-board health words that are activity. `handback` is a wait, not work, so it is absent. */
 const HEALTH_MOTION: Record<string, ChipMotion> = {
@@ -94,9 +106,9 @@ const HEALTH_MOTION: Record<string, ChipMotion> = {
   finishing: "orbit",
 };
 
-/** A run's chip: its health word is itself the live fact. */
+/** A run's chip: its health word is itself the live fact. "Waiting on you" flashes by its category. */
 export function runMotion(health: string): ChipMotion | null {
-  return HEALTH_MOTION[health] ?? null;
+  return HEALTH_MOTION[health] ?? categoryMotion(RUN_HEALTH[health]?.category);
 }
 
 /** The facts a task read carries that can back a moving chip. Every task read model has them. */
@@ -110,7 +122,7 @@ type MotionFacts = {
 /**
  * A task's chip. The category must agree with the fact as well as the fact being there:
  * a task handed to review while its session is still open has a working run and a red
- * chip, and a red chip does not move.
+ * chip, and a red chip does not orbit -- it flashes, because it is waiting on a person.
  */
 export function taskMotion(task: MotionFacts): ChipMotion | null {
   const live =
@@ -118,7 +130,7 @@ export function taskMotion(task: MotionFacts): ChipMotion | null {
     (task.status_category === "queued" && task.queued_dispatch?.status === "starting") ||
     (task.status_category === "working" &&
       (task.live_run_health === "working" || task.live_run_health === "starting"));
-  return live ? "orbit" : null;
+  return live ? "orbit" : categoryMotion(task.status_category);
 }
 
 /** The chip's classes, with its motion when it has one. */
