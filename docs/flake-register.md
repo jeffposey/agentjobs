@@ -68,7 +68,7 @@ ready to paste -- nodeid, assertion text, how many gates were running and both g
 | 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | a skipping clock's stamp (up to 7190 fake seconds) left in the process-global sweep throttle read as the future against real uptime within two hours of a reboot, and the throttle skipped on a future stamp | production defect, surfaced by test state leaking between tests | **fixed** (task-546) |
 | 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | not named. Reproduces on `main` df398c13 under load: 1 of 48 runs with 12 copies at once, 30 of 30 green run alone (task-525, 2026-09-23) | production defect, until shown otherwise | open -- **task-549**; seen by finish `fin_8f638f51` |
 | 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | not named | unknown | open -- seen by finish `fin_8f638f51` |
-| 17 | `test_dispatch_atomic_yaml.py::TestTheDocumentIsNeverHalfWritten::test_a_reader_never_sees_a_partial_document` | `461 of 1153 reads saw a document without run_id` | not named. Seen once in about ten full runs on 2026-09-23 (task-525's measurements) | production defect, until shown otherwise | open -- **task-550**, needs a reproduction |
+| 17 | `test_dispatch_atomic_yaml.py::TestTheDocumentIsNeverHalfWritten::test_a_reader_never_sees_a_partial_document` | `461 of 1153 reads saw a document without run_id` | a refusal to open the file that outlasted the reader's 40ms retry budget answered *absent*: `read_yaml_resiliently` returned `None`, and `read_meta` turned that into `{}`. Reproduced by holding the file exclusively, as a real-time scanner would; the organic load did not reproduce it | production defect | **fixed** (task-550) -- see below |
 
 **14-16 observed** 2026-09-23 about 21:50 UTC in task-526's finish `fin_8f638f51` on
 `b6be1fd9`, a branch touching only the finisher's classification, the failure rollup and
@@ -454,6 +454,35 @@ production change and runs with the real 300s window.
 
 `idle_sessions.tick` has the same throttle shape. It is keyed per `home`, and every test
 has its own tmp home, so this leak cannot reach it across tests. It was not changed.
+
+### 17. A file nobody could open, reported as a file that was not there (fixed, task-550)
+
+`read_yaml_resiliently` retried a refused open eight times, about 40ms, and then returned
+`None`. `None` means *absent*, and `RunDirectory.read_meta` turned it into `{}`. Every
+guard then read `{}` as *the flag is not set*. That is task-390's defect again, with a
+40ms delay.
+
+**What reproduces it.** Organic load did not. There were 96 runs with 32 copies of the
+test at once, 160 runs with 80 copies at once, and 40 runs during another branch's `-n 26`
+gate. Every one of those runs was green, and no read was refused for longer than a single
+retry. What does reproduce it is a second handle opened on the file **with no sharing**,
+for 60ms at a time with 20ms gaps. That is what a real-time scanner does to a freshly
+replaced file, and Defender's real-time protection is on here. On `main` 31758b30, **20
+of 20 runs failed** with this row's message: 384 torn reads, every one of them retry
+exhaustion on `winerror=32`, a sharing violation. None was an immediate
+`FileNotFoundError`, a parse error or an empty document. The instrument was a copy of
+`read_yaml_resiliently` that counted which path produced each answer, and it is not
+committed. That the gate's red came from a scanner is inferred, not observed: the path is
+proved and the holder is not.
+
+**The fix.** The read budget is now two seconds, measured in time, and running out of it
+raises `DocumentUnreadable`. It no longer answers `None`. `DocumentUnreadable` is
+deliberately not an `OSError`, so no `except OSError` can turn it back into *missing*.
+`merge_yaml_atomically` inherits this, and that matters more than the read: on exhaustion
+it used to merge onto `{}` and replace the file, erasing every field it had not been
+handed. The same probe on the branch: **0 of 20 runs failed**, 19533 complete reads,
+nothing raised. `test_an_exclusive_hold_is_waited_out_then_named` pins both halves with a
+real exclusive handle.
 
 ### 10, 11 and 12, filed before this page existed, open
 
