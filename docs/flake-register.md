@@ -28,6 +28,21 @@ finish goes red at pytest twice, its escalation names this page and hands over t
 ready to paste -- nodeid, assertion text, how many gates were running and both gate logs
 (task-526). Number them after the last row here and fill in the cause if you know it.
 
+**File that child `ready`, never `draft`.** The epic is worked by a walk that dispatches
+every claimable child, and a draft is not claimable. So a draft child does not wait its
+turn: it stops the walk (`no_eligible_child`) until somebody specifies it by hand. That
+happened three times on 2026-09-23 and 09-24, each time because a child's own load probe
+found a new flake and filed it as a draft. A child is ready when it has what
+`task-546` and `task-553` have: the signature, the command that produced it with N and K,
+the candidate causes marked unverified, a first reduction step, and acceptance criteria
+that require the cause to be named before the fix. If you cannot write that yet, add the
+row here with `status: open` and leave the filing to the epic's supervisor. Do not park a
+draft under the epic.
+
+**Whoever closes a child updates its row in the table, not only its section.** On
+2026-09-24 six rows still read `open` after their tasks had merged (task-524's
+reconciliation). A row's `status` cell is what the epic's close condition reads.
+
 ## How to use this page
 
 - **Adding an entry** is the job of whoever sees the failure, at the moment they see it,
@@ -55,20 +70,21 @@ ready to paste -- nodeid, assertion text, how many gates were running and both g
 | 1 | `test_auth_recovery.py::TestSelfHealingNeedsNobody::test_a_store_that_recovers_is_probed_and_the_session_resumed_in_place` | `assert 'nudged' == 'recovered'` | two timelines in one test | clock race | **fixed** (task-518) |
 | 2 | `test_execution_controller.py::TestBatchRecovery::test_a_surviving_worker_is_left_alone_and_its_death_is_proved_not_guessed` | `AssertionError: []` -- the controller concluded nothing | Windows pid reuse: a stranger answered a dead supervisor's pid | production defect | **fixed** (task-505); task-454 confirmed the 2026-09-18 red was this -- the test ran under 8s, so its 60s wait never expired -- and made it tick until the conclusion it asserts on |
 | 3 | various dispatch tests, `exit 1` with empty stdout and stderr | a killed process's signature | `_stop_batch` ran `taskkill /T /F` at a recycled pid | production defect | **fixed** (task-505) |
-| 4 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | times out | a 30s budget sized for a machine running one gate | test premise | open -- **task-325**, and task-243, the same test filed a week earlier; whoever takes one closes the other |
-| 5 | `test_dispatch_api.py::...::test_cancelling_a_live_run_stops_it_and_marks_it_cancelled` | `assert 'failed' == 'cancelled'` | the `cancel_requested` guard still races at 32 workers | production defect | open -- **task-370** |
+| 4 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | times out, or "the grandchild never started" | two causes, neither a slow kill: the liveness check was `tasklist` by bare pid, which under load named a recycled pid's new owner (a `git.exe`) as the survivor; and the setup waited for the grandchild's own interpreter to start, two CPython startups inside the timeout | test premise | **fixed** -- task-325 (`b2013ba2`: identity by creation time, not `tasklist`) and task-243 (`ee55dfbe`: the parent names the grandchild at `Popen`, `-I -S`, waits end on an outcome). A different signature on this test is row 18 |
+| 5 | `test_dispatch_api.py::...::test_cancelling_a_live_run_stops_it_and_marks_it_cancelled` | `assert 'failed' == 'cancelled'` | the supervisor and the session poll each read "is a Stop on record?" and then claimed the conclusion in a separate transaction; a run that exited on its own as Cancel was pressed fell between the two, and the supervisor won the compare-and-set with `failed`. The 2026-09-06/07 reds were the torn meta read task-390 fixed | production defect | **fixed** (task-370, `32d9000a`: `conclude(defer_to_cancel=True)` refuses any outcome but `cancelled` once a Stop is recorded, inside the same transaction) |
 | 6 | `test_dispatch_registration.py::TestRefusals::test_a_session_the_ledger_does_not_hold_is_refused` | the refusal names the ledger rather than the live session | process creation itself failed; the runner never ran | environment, surfaced as a defect | **cause removed** (task-518) |
 | 7 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_marked_launch_the_listing_cannot_find_is_unknown_not_absent` | `AssertionError: []` -- the controller decided nothing | the attempt store stamped `admitted_at` on the machine's clock while the controller read another | clock race | **fixed** (task-518) |
 | 8 | `test_dispatch_journal.py::TestACancelLandingMidPoll::test_the_cancel_wins_and_the_poll_writes_nothing` | `the poller never reached its conclusion` | the poller arrived late, not never: a ten-second wall-clock budget for a thread that spawns a subprocess | test premise | **fixed** (task-522) |
 | 9 | `test_task_queued_status.py::TestTheLabel::test_a_waiting_dispatch_reads_queued_and_a_task_without_one_still_reads_ready` | `assert 'In progress (claude)' == 'Queued'` | a controller tick between the runner naming a session and recording its dispatch stopped a live launch; the fixture's concurrent poll was where it showed | production defect | **fixed** (task-522) |
-| 10 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_fresh_process_performs_the_recovery` | `assert 'never launched' in '\n'` -- an empty report | `attempt_evidence` asks a bare `process_alive` with no start-time guard, so a reused pid keeps a dead launcher's attempt owned | production defect | open -- **task-489** |
-| 11 | `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output` | `sqlite3.ProgrammingError: Cannot operate on a closed database` | a supervisor thread outlives its test and writes through a store the fixture has closed | teardown lifetime | open -- **task-497** |
-| 12 | whichever test an xdist worker happens to be running (`test_auto_dispatch.py` and `test_dispatch_api.py` seen) | `Windows fatal exception: access violation`, `worker 'gwN' crashed` | `_classify_batch_exit` reads SQLite from a background thread while the fixture closes the database | teardown lifetime | open -- **task-438** |
-| 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone | environment, or entry 3's cause not fully removed | open -- see below |
+| 10 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_fresh_process_performs_the_recovery` | `assert 'never launched' in '\n'` -- an empty report | `attempt_evidence` asks a bare `process_alive` with no start-time guard, so a reused pid keeps a dead launcher's attempt owned | production defect | **fixed** -- the guard landed in task-505 (`783f93a6`, `pids.process_created_after`); task-489 (`60669876`) pinned it with tests that build a stranger on the recycled pid directly, and reverting the branch to a bare `alive` fails them |
+| 11 | `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output` | `sqlite3.ProgrammingError: Cannot operate on a closed database` | the 2026-09-20 red was row 12's worker crash, and the closed-database tracebacks beside it were supervisor threads writing after teardown | teardown lifetime | **cause removed** by task-438 (row 12) and task-505; task-497 (`c195359f`) made the next occurrence one read: a write after close raises `DatabaseClosed`, naming the closing thread, the time and the frames |
+| 12 | whichever test an xdist worker happens to be running (`test_auto_dispatch.py` and `test_dispatch_api.py` seen) | `Windows fatal exception: access violation`, `worker 'gwN' crashed` | `Database.close()` closed every thread's reader from the closing thread, and sqlite3 releases the GIL around each step, so `_classify_batch_exit` mid-step on another thread used a closed handle | teardown lifetime | **fixed** (task-438, `24ce3e28`: each reader call holds a guard a close waits out, the next call raises `ProgrammingError`, and a closed `Database` refuses new readers) |
+| 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone | environment, or entry 3's cause not fully removed | open -- **task-554**; see below |
 | 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | a skipping clock's stamp (up to 7190 fake seconds) left in the process-global sweep throttle read as the future against real uptime within two hours of a reboot, and the throttle skipped on a future stamp | production defect, surfaced by test state leaking between tests | **fixed** (task-546) |
-| 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | not named. Reproduces on `main` df398c13 under load: 1 of 48 runs with 12 copies at once, 30 of 30 green run alone (task-525, 2026-09-23) | production defect, until shown otherwise | open -- **task-549**; seen by finish `fin_8f638f51` |
-| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | not named | unknown | open -- seen by finish `fin_8f638f51` |
+| 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | a reconcile judged a live launcher's never-launched attempt abandoned by comparing the OS creation time of `holder_pid` with an `admitted_at` written through the installed clock; under the durable-replay suite's frozen clock that clock read earlier than the holder's own start, so a live holder looked like a recycled pid and a second dispatch took its slot | production defect | **fixed** (task-549, `faed64f2`: admission records the holder's `process_identity` and both holder checks compare receipts, with the timestamp kept only as a fallback for older rows) |
+| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | not named. The same spec timed out on 2026-09-21 (finish `fin_419905b6`, then `:234`), so it repeats | unknown | open -- **task-515**; seen by finishes `fin_419905b6` and `fin_8f638f51` |
 | 17 | `test_dispatch_atomic_yaml.py::TestTheDocumentIsNeverHalfWritten::test_a_reader_never_sees_a_partial_document` | `461 of 1153 reads saw a document without run_id` | a refusal to open the file that outlasted the reader's 40ms retry budget answered *absent*: `read_yaml_resiliently` returned `None`, and `read_meta` turned that into `{}`. Reproduced by holding the file exclusively, as a real-time scanner would; the organic load did not reproduce it | production defect | **fixed** (task-550) -- see below |
+| 18 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | `PermissionError: [Errno 13]` reading the test's own `grandchild.pid`, then `Cannot operate on a closed database` -- not a timeout | not named. The writer closes the file before renaming it, so something else held it or was replacing it: a second parent, or a scanner. Seen 1 of 20 in task-546's probe (`-n 13`, 2 slots held), on the cold first run | unknown | open -- **task-553** |
 
 **14-16 observed** 2026-09-23 about 21:50 UTC in task-526's finish `fin_8f638f51` on
 `b6be1fd9`, a branch touching only the finisher's classification, the failure rollup and
@@ -254,7 +270,13 @@ it is a broken test, and it only became reproducible *because* the clocks were m
 agree. Making a race deterministic is a good outcome, and it is what a register is for:
 that run would otherwise have read as "the flake is still there".
 
-### 4 and 5, still open, with what is known
+### 4 and 5, as they were known when filed (both fixed since -- see the table)
+
+**Resolved 2026-09-23.** Row 4: task-325 measured it. The grandchild was dead at the first
+exact poll after `join` every time (13 of 13), and the "survivor" was a `git.exe` holding
+the recycled pid. Task-243 then removed the setup race. Row 5: task-370. The table rows
+carry the cause and the commit. What follows is the entry as written before either
+landed, kept because it is what the fixes were measured against.
 
 Neither is this task's to fix -- each has its own -- but a register with only the solved
 ones in it is a trophy cabinet.
@@ -484,7 +506,13 @@ handed. The same probe on the branch: **0 of 20 runs failed**, 19533 complete re
 nothing raised. `test_an_exclusive_hold_is_waited_out_then_named` pins both halves with a
 real exclusive handle.
 
-### 10, 11 and 12, filed before this page existed, open
+### 10, 11 and 12, filed before this page existed (all resolved since -- see the table)
+
+**Resolved 2026-09-23.** Row 12 was the native crash, and task-438 fixed it at `Database.close()`.
+Row 11 turned out to be row 12's crash plus supervisor writes after teardown that task-505
+had already removed. Task-497 added the diagnostic that names the closer. Row 10's guard
+was already in task-505, and task-489 pinned it with tests. The prediction below, that 11
+and 12 were one cause with two faces, held. The entries are kept as written.
 
 Three tasks that predate the register and were missed when it was written on 2026-09-21.
 Added 2026-09-22 by the review of task-518. Each is a child of task-524, the epic that
