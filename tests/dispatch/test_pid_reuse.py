@@ -163,6 +163,76 @@ class TestNothingIsKilledOnAPidAlone:
         assert is_the_recorded_process(stranger.pid, identity=receipt) is False
 
 
+ORPHANING = (
+    "import subprocess, sys\n"
+    "quiet = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+    "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'], **quiet)\n"
+    "print(child.pid, flush=True)\n"
+)
+"""Starts a sleeper and exits, so the test holds no handle on the sleeper -- as the
+process that kills a recorded worker holds none on it. The sleeper's streams are its own,
+or reading this script's output would wait the full two minutes for it."""
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="a handle reserving a pid is Windows")
+class TestTheProofIsHeldAcrossTheKill:
+    """task-554: a proof passed *before* the kill is not a proof *at* the kill.
+
+    ``_kill_tree`` used to prove the receipt and then spawn ``taskkill /PID <number>``.
+    A worker that exited on its own during that spawn freed its number, and this machine
+    reissues a number in 0.35s, so ``taskkill`` could land on whatever was handed it.
+    Nothing here has to win a race to show that. The target is ended inside the window,
+    deterministically, and the assertion is about the **number**: while the proof is held
+    it still names the recorded process, so there is nothing a stranger could be holding.
+    """
+
+    def test_a_target_that_exits_inside_the_window_keeps_its_number(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import agentjobs.dispatch.runner as runner_module
+
+        parent = subprocess.run(
+            [sys.executable, "-c", ORPHANING], capture_output=True, text=True, timeout=120
+        )
+        target = int(parent.stdout.split()[-1])
+        receipt = process_identity(target)
+        assert receipt is not None, "the sleeper was not running, so this proves nothing"
+        seen: list = []
+
+        def exits_first(pid: int) -> bool:
+            # The worker ends by itself inside the window, the way a run does when its
+            # work finishes as the cancel arrives...
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+            deadline = time.monotonic() + 30
+            while process_alive(pid) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            assert not process_alive(pid), "the target never ended"
+            # ...and its number is still its own: the corpse, reserved, not a vacancy.
+            seen.append(process_identity(pid))
+            return True
+
+        monkeypatch.setattr(runner_module, "_kill_tree_now", exits_first)
+        assert _kill_tree(target, identity=receipt) is True
+        assert seen == [receipt], (
+            "the number was released while the proof was being acted on; a stranger "
+            "given it in that window would have been the one killed"
+        )
+
+    def test_once_the_kill_is_over_the_number_is_released(self) -> None:
+        """The handle is not leaked: nothing reserves a pid past the call that proved it."""
+        parent = subprocess.run(
+            [sys.executable, "-c", ORPHANING], capture_output=True, text=True, timeout=120
+        )
+        target = int(parent.stdout.split()[-1])
+        receipt = process_identity(target)
+        assert receipt is not None
+        assert _kill_tree(target, identity=receipt) is True
+        deadline = time.monotonic() + 30
+        while process_identity(target) == receipt and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert process_identity(target) != receipt
+
+
 class TestANeverLaunchedAttemptIsReleasedPastAReusedPid:
     """``attempt_evidence``'s never-launched branch, with the reused-pid state built directly.
 

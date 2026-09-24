@@ -45,11 +45,12 @@ rule has one implementation rather than three halves of one.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Iterator, Optional, Tuple
 
 REUSE_SLACK = timedelta(seconds=1)
 """Clock granularity allowance when comparing a creation time against a written moment.
@@ -86,23 +87,9 @@ def _times(pid: int) -> Optional[Tuple[str, datetime]]:
             if not handle:
                 return None
             try:
-                created = ctypes.c_ulonglong()
-                ignored = [ctypes.c_ulonglong() for _ in range(3)]
-                if not kernel32.GetProcessTimes(
-                    handle,
-                    ctypes.byref(created),
-                    ctypes.byref(ignored[0]),
-                    ctypes.byref(ignored[1]),
-                    ctypes.byref(ignored[2]),
-                ):
-                    return None
+                return _times_through(kernel32, handle, pid)
             finally:
                 kernel32.CloseHandle(handle)
-            ticks = created.value
-            started = datetime(1601, 1, 1, tzinfo=timezone.utc) + timedelta(
-                microseconds=ticks // 10
-            )
-            return f"win:{pid}:{ticks}", started
 
         stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
         # The command name is parenthesised and may contain spaces; fields follow its close.
@@ -120,6 +107,25 @@ def _times(pid: int) -> Optional[Tuple[str, datetime]]:
         return f"proc:{pid}:{ticks_since_boot}", started
     except Exception:  # noqa: BLE001 - an unreadable start time is "cannot tell"
         return None
+
+
+def _times_through(kernel32: object, handle: int, pid: int) -> Optional[Tuple[str, datetime]]:
+    """:func:`_times`, read through a handle the caller already holds. Windows only."""
+    import ctypes
+
+    created = ctypes.c_ulonglong()
+    ignored = [ctypes.c_ulonglong() for _ in range(3)]
+    if not kernel32.GetProcessTimes(  # type: ignore[attr-defined]
+        handle,
+        ctypes.byref(created),
+        ctypes.byref(ignored[0]),
+        ctypes.byref(ignored[1]),
+        ctypes.byref(ignored[2]),
+    ):
+        return None
+    ticks = created.value
+    started = datetime(1601, 1, 1, tzinfo=timezone.utc) + timedelta(microseconds=ticks // 10)
+    return f"win:{pid}:{ticks}", started
 
 
 def process_alive(pid: int) -> bool:
@@ -246,10 +252,20 @@ def is_the_recorded_process(
     only shows up on Windows: a process that has exited still answers ``OpenProcess``
     and still reports its creation time for as long as anybody holds a handle on it, so
     the receipt alone would match a corpse. There is nothing there to kill.
+
+    **An answer, not a licence.** The process can exit, and its number go to a stranger,
+    the instant this returns. Code that acts on the pid afterwards wants
+    :func:`held_if_recorded`, which gives the same answer and keeps it true.
     """
-    if pid is None or int(pid) <= 0 or not process_alive(int(pid)):
-        return False
-    times = _times(int(pid))
+    with held_if_recorded(pid, recorded_at=recorded_at, identity=identity) as proved:
+        return proved
+
+
+def _proves(
+    times: Optional[Tuple[str, datetime]],
+    recorded_at: Optional[datetime],
+    identity: Optional[str],
+) -> bool:
     if times is None:
         return False
     if identity is not None:
@@ -257,6 +273,56 @@ def is_the_recorded_process(
     if recorded_at is not None:
         return times[1] <= recorded_at + REUSE_SLACK
     return False
+
+
+@contextlib.contextmanager
+def held_if_recorded(
+    pid: Optional[int],
+    *,
+    recorded_at: Optional[datetime] = None,
+    identity: Optional[str] = None,
+) -> Iterator[bool]:
+    """Prove ``pid`` is the recorded process, and keep that true for the whole block.
+
+    Yields what :func:`is_the_recorded_process` answers, with the difference this exists
+    for (task-554): on Windows the proof is read **through an open handle, and the
+    handle stays open until the block ends**. The kernel does not free a process object
+    while anybody holds a handle on it, and does not reissue its number until it frees
+    it. So whatever the block does with ``pid`` -- ``taskkill /PID``, which is the only
+    way to walk a tree, takes a number -- reaches the process that was proved, or that
+    process's corpse, and never a stranger.
+
+    A proof followed by a kill is otherwise a check and an act with a gap between them,
+    and the gap is not small: the act is a ``taskkill`` spawn, and a spawn took seconds
+    under a loaded gate on a machine that reissues a dead number in 0.35s.
+
+    Elsewhere nothing holds a pid, and the answer is only as good as the moment it was
+    read -- which on Linux, where a number comes back after the whole space has cycled,
+    is a far better moment than here.
+    """
+    if pid is None or int(pid) <= 0:
+        yield False
+        return
+    if os.name != "nt":  # pragma: no cover - Windows is the reference platform
+        alive = process_alive(int(pid))
+        yield alive and _proves(_times(int(pid)), recorded_at, identity)
+        return
+    import ctypes
+
+    still_active = 259
+    query_limited_information = 0x1000
+    kernel32 = getattr(ctypes, "windll").kernel32
+    handle = kernel32.OpenProcess(query_limited_information, False, int(pid))
+    if not handle:
+        yield False
+        return
+    try:
+        code = ctypes.c_ulong()
+        alive = bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code)))
+        alive = alive and code.value == still_active
+        yield alive and _proves(_times_through(kernel32, handle, int(pid)), recorded_at, identity)
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 KILLED_EXIT_CODE = 1
