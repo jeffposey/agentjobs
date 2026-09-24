@@ -1,7 +1,19 @@
 import type { TaskSummaryRead } from "../api/types";
 
+/**
+ * The finishing colour, one definition for every surface that says "Finishing".
+ *
+ * Violet, the colour the slot board has drawn a finish card in since task-352. The task
+ * chip used to borrow the in-flight blue, so a task being merged and a session editing
+ * files looked the same at a glance, and the owner asked on 2026-09-24 that finishing
+ * read in its own colour everywhere (task-533). Filled rather than outlined, which is
+ * also what keeps it apart from the outlined violet of a closed-but-unfinished task.
+ */
+export const FINISHING_FILL = "bg-violet-900 text-violet-200";
+
 export const STATE_CLASSES = {
   actionable: "border-emerald-700 bg-emerald-950/40 text-emerald-300",
+  finishing: `border-violet-600 ${FINISHING_FILL}`,
   blocked: "border-red-700 bg-red-950/40 text-red-300",
   cycle: "border-amber-600 bg-amber-950/40 text-amber-200",
   done: "border-slate-600 bg-slate-900 text-slate-300",
@@ -42,14 +54,15 @@ export function dependencyState(task: TaskSummaryRead) {
     // its `close` step and spends a second or two afterwards removing the worktree, and
     // "Completed" is the more useful truth in that window.
     //
-    // Drawn in the in-flight colour because it is work in flight; the label is what
-    // separates it from a session editing files, which is the whole defect. It reads
+    // Drawn in the finishing colour, not the in-flight blue it used to borrow: the
+    // colour is what a scan of the list reads, and blue said "an agent is on it" about a
+    // task no agent is touching (task-533). It reads
     // `display_status` rather than spelling "Finishing" here, for the reason every
     // other branch does: the server decides the word, so the chip and the task page's
     // panel cannot drift apart.
     const step = task.live_finish.step_meaning || task.live_finish.current_step;
     return {
-      kind: "flight" as const,
+      kind: "finishing" as const,
       label: task.display_status,
       reasons: [step ? `Merging this branch. ${step}.` : "Merging this branch."],
     };

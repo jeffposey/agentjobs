@@ -1316,3 +1316,56 @@ describe("the epics this machine is walking (task-523)", () => {
     expect(screen.getByTestId("slot-board-walks")).toBeVisible();
   });
 });
+
+describe("a run whose task is being merged (task-533)", () => {
+  // The state task-369 and task-526 were in when this was reported: a run finishing
+  // itself under --posture-release keeps its own lock, so it had no finish card and its
+  // tile read "Working" beside a task page reading "Finishing".
+  const finishing = () =>
+    run({
+      health: "finishing",
+      finish_id: "fin_own",
+      finish_step: "runway",
+      runway_behind: "task-526",
+    });
+
+  it("reads Finishing in the finishing violet, with the queue it is in", () => {
+    renderBoard(
+      <SlotBoard body={body({ occupied: 1, runs: [finishing()] })} queue={[]} projectId="alpha" />,
+    );
+
+    const cell = screen.getAllByTestId("slot-cell")[0]!;
+    const badge = within(cell).getByText("Finishing");
+    expect(badge.className).toMatch(/\bbg-violet-900\b/);
+    expect(cell).not.toHaveTextContent("Working");
+    expect(cell).toHaveTextContent("Queued for the merge runway, behind task-526");
+  });
+
+  it("is the same colour as a finish card", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({ occupied: 1, runs: [finishing()], holders: [holder()] })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    const badges = screen.getAllByText("Finishing");
+    expect(badges).toHaveLength(2);
+    expect(new Set(badges.map((badge) => badge.className))).toHaveProperty("size", 1);
+  });
+
+  it("counts as merging in the capacity sentence", () => {
+    expect(capacitySentence(body({ occupied: 1, runs: [finishing()] }))).toBe(
+      "1 of 3 slots busy · 1 merging",
+    );
+  });
+
+  it("a run merely working still reads Working", () => {
+    renderBoard(<SlotBoard body={body({ occupied: 1, runs: [run()] })} queue={[]} projectId="alpha" />);
+
+    const cell = screen.getAllByTestId("slot-cell")[0]!;
+    expect(within(cell).getByText("Working")).toBeVisible();
+    expect(cell).not.toHaveTextContent("Finishing");
+  });
+});
