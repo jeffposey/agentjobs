@@ -75,6 +75,7 @@ disagree, so a new spec cannot be added without classifying it.
 | `queue-order.spec.ts` | project | Reorders the project's queue. |
 | `report-issue.spec.ts` | project | Files an issue from the header control and reads the record back. |
 | `review-findability.spec.ts` | project | Files tasks waiting on review and finds them. |
+| `sidebar-weight.spec.ts` | project | Files a critical and a high task, measures the sidebar's edges and title weight, then closes them. |
 | `task-detail-fit.spec.ts` | project | Files a task and measures its detail page. |
 | `task-list-density.spec.ts` | project | Files a corpus and measures the list's density. |
 | `tasks-shell.spec.ts` | project | Files a crowd of its own so the list overflows, drives the shell, then closes them. |
