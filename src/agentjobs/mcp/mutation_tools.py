@@ -1000,10 +1000,12 @@ def mutation_tool_definitions(client: TaskClient) -> List[ToolDefinition]:
             "task_create_draft",
             "Create a draft task",
             (
-                "Create a task that still needs its spec finished. It is born "
-                "draft/human/spec: the ball sits with a human, and there is no way to "
-                "create a task in any other state, because doing so would skip the "
-                "transitions the log exists to record."
+                "Hand a task's spec to a person. It is born draft/human/spec: it lands "
+                "in the owner's Needs-spec queue, nothing can claim or dispatch it until "
+                "a person finishes the spec and promotes it, and a draft child of an "
+                "epic stops that epic's walk. Use it only when the spec needs a fact or "
+                "a decision only a person has, and say which in the description. Work "
+                "you found yourself is not that: file it with task_create_ready."
             ),
             _CREATE_SCHEMA,
             _build_create(client, ready=False),
@@ -1012,9 +1014,14 @@ def mutation_tool_definitions(client: TaskClient) -> List[ToolDefinition]:
             "task_create_ready",
             "Create a ready task",
             (
-                "Create a task ready for an agent to claim. It is born "
-                "ready/agent/available and is NOT claimed -- call task_claim after "
-                "this if you intend to work it yourself."
+                "Create a task ready for an agent to claim -- the default for work you "
+                "found. Write the spec while the evidence is in front of you: a summary a "
+                "zero-context reader can orient by, a description with what you saw (the "
+                "command, the output, where), what you suspect marked unverified, the "
+                "first step, and acceptance criteria that say what done means. It is born "
+                "ready/agent/available and is NOT claimed -- call task_claim after this "
+                "if you intend to work it yourself. A ready child of a running epic walk "
+                "is dispatched within seconds."
             ),
             _CREATE_SCHEMA,
             _build_create(client, ready=True),
