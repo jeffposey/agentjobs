@@ -198,6 +198,24 @@ CASES = [
         "Draft",
         C.NOT_NOW,
     ),
+    (
+        "draft-handed-to-an-agent",
+        lambda: _task(lifecycle="draft", ball_reason="work", ball_prompt="Draft the spec."),
+        None,
+        None,
+        StatusFacts(),
+        "Draft",
+        C.NOT_NOW,
+    ),
+    (
+        "draft-waiting-on-its-spec",
+        lambda: _task(lifecycle="draft", ball="human", ball_reason="spec", ball_prompt="Spec."),
+        None,
+        None,
+        StatusFacts(),
+        "Needs spec",
+        C.NEEDS_YOU,
+    ),
     *[
         (
             f"closed-{outcome}",

@@ -2237,10 +2237,12 @@ def task_status(
       is blocked on, and red is the colour for what a reader would otherwise miss.
     - **Hold, unmet needs and an external ball** are pink. Most blocks clear with nobody
       acting, and drawing them red sends somebody to investigate a handled condition.
+    - **A draft** not waiting on a person is "Draft", pink, whoever holds the ball: a
+      draft cannot be claimed, so nothing is being done to it as work.
     - **An agent on it** is "Working". The owner is not in the chip (the one-word rule
       from 2026-09-19); the task page names it.
-    - **Open sub-tasks, a draft, a queued dispatch** -- in that order -- each explain
-      why a task nobody holds is not "Ready".
+    - **Open sub-tasks, then a queued dispatch** each explain why a task nobody holds
+      is not "Ready".
     - **"Ready" is reached only by a ready task nothing above applies to**, so given the
       facts it is exactly the claim gate's ``actionable``: a task that cannot be started
       never reads "Ready", and "Ready" is never drawn in anything but green.
@@ -2272,6 +2274,12 @@ def task_status(
         if wait_of(task) is not None:
             return TaskStatus("Quota reset", StatusCategory.NOT_NOW)
         return TaskStatus("Blocked", StatusCategory.NOT_NOW)
+    if task.lifecycle is Lifecycle.DRAFT:
+        # A draft nobody is asking a person to specify. Drafts are born human/spec and
+        # read "Needs spec" above; this is one handed elsewhere. It is not "Working"
+        # even with an agent holding the ball: a draft cannot be claimed, so nothing is
+        # being done to it as work, and blue would say otherwise.
+        return TaskStatus("Draft", StatusCategory.NOT_NOW)
     if task.ball is Ball.AGENT and (
         task.ball_reason is not BallReason.AVAILABLE or task.lifecycle is Lifecycle.ACTIVE
     ):
@@ -2283,8 +2291,6 @@ def task_status(
         return TaskStatus(str(task.lifecycle.value).capitalize(), StatusCategory.NOT_NOW)
     if facts.open_children:
         return TaskStatus("Sub-tasks", StatusCategory.NOT_NOW)
-    if task.lifecycle is Lifecycle.DRAFT:
-        return TaskStatus("Draft", StatusCategory.NOT_NOW)
     if queued is not None:
         # One word, as the chip requires: the place in line and a paused credential are
         # fields on `queued_dispatch`, drawn in prose where there is room (2026-09-19).
