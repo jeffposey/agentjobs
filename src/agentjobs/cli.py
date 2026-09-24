@@ -726,8 +726,31 @@ def _stop_server(pid: int, port: int) -> bool:
     import subprocess
     import time
 
+    from agentjobs.dispatch import kills
+    from agentjobs.dispatch.pids import process_identity
+
+    # Journalled either side (task-561), so a process this kills can find out who did.
+    site = "cli._stop_server"
+    identity = process_identity(pid)
+    kills.record(site, pid, identity=identity)
     if platform.system() == "Windows":
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=True)
+        done = subprocess.run(
+            ["taskkill", "/F", "/PID", str(pid)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        kills.record(
+            site,
+            pid,
+            phase="ended",
+            identity=identity,
+            output=f"{done.stdout}{done.stderr}",
+            returncode=done.returncode,
+        )
+        done.check_returncode()
     else:
         os.kill(pid, signal.SIGTERM)
 
@@ -741,6 +764,7 @@ def _stop_server(pid: int, port: int) -> bool:
         # Guarded rather than annotated: `signal.SIGKILL` does not exist on Windows,
         # so naming it unconditionally is an AttributeError at import on the platform
         # this repository is developed on.
+        kills.record(site, pid, identity=identity)
         with suppress(ProcessLookupError):
             os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
         time.sleep(0.2)

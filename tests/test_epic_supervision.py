@@ -30,8 +30,10 @@ from agentjobs.dispatch.epic import (
     supervisor_slot_held,
     walk_epic,
 )
+from agentjobs.dispatch import kills
 from agentjobs.dispatch.journal import journal
 from agentjobs.dispatch.ledger import read_run
+from agentjobs.dispatch.pids import process_identity
 from agentjobs.dispatch.runner import runs_root
 from agentjobs.execution import store as epic_store
 from agentjobs.models_v2 import (
@@ -82,7 +84,18 @@ epic.walk_epic(
 """
 
 
-SIBLING_DISPATCH = r"""
+MARK_SELF = r"""
+import os as _os
+from agentjobs.dispatch.pids import process_identity as _identity
+with open(_os.environ["SIBLING_MARKER"], "w", encoding="utf-8") as _marker:
+    _marker.write(f"{_os.getpid()} {_identity(_os.getpid())}")
+"""
+"""The first thing a watched script does: say which process it is (task-561). On Windows
+the pid ``Popen`` names is a launcher, and the interpreter is its child."""
+
+SIBLING_DISPATCH = (
+    MARK_SELF
+    + r"""
 import pathlib, sys
 sys.path.insert(0, sys.argv[4])
 from support import task_store
@@ -108,6 +121,7 @@ handle = dispatch_task(
 )
 print(handle.run_id)
 """
+)
 
 LIVE_WALKER = r"""
 import os, pathlib, sys, time
@@ -886,28 +900,103 @@ def test_a_walk_with_no_record_adopts_children_already_flying_then_starts_what_w
 # ----- task-444: two walkers of one epic ---------------------------------------------
 
 
+def run_watched(
+    arguments: List[str], *, env: Dict[str, str], marker: Path, timeout: float = 180
+) -> "tuple[subprocess.CompletedProcess[str], str]":
+    """Run ``python -c <arguments>``, and on failure say which AgentJobs kill, if any, did it.
+
+    Flake register row 13 (task-561): a sibling dispatch exits 1 with both streams empty,
+    which is ``taskkill /F``'s signature, too rarely to catch on demand. So the second
+    value is the failure message to assert with -- stderr, then every kill-journal line
+    naming the script's interpreter or its launcher since the launcher started. The
+    script must begin with :data:`MARK_SELF`. An empty journal answer is itself the
+    finding: the killer was not AgentJobs.
+    """
+    started = datetime.now(timezone.utc)
+    process = subprocess.Popen(
+        [sys.executable, "-c", *arguments],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env={**env, "SIBLING_MARKER": str(marker)},
+    )
+    launcher_identity = process_identity(process.pid)
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        stdout, stderr = process.communicate()
+        raise
+    done = subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
+    if done.returncode == 0:
+        return done, ""
+    victims = {"launcher": process.pid}
+    identities = [f"launcher {launcher_identity}"]
+    try:
+        interpreter, identity = marker.read_text(encoding="utf-8").split(" ", 1)
+        victims["interpreter"] = int(interpreter)
+        identities.append(f"interpreter {identity}")
+    except (OSError, ValueError):
+        identities.append("interpreter never wrote its marker")
+    return done, "\n".join(
+        [
+            f"exit {done.returncode}",
+            f"stderr: {stderr!r}",
+            f"identities: {'; '.join(identities)}",
+            kills.describe(victims, since=started),
+        ]
+    )
+
+
+class TestAKilledSiblingNamesItsKiller:
+    """task-561: when row 13 next fires, its assertion message says who did it."""
+
+    def test_a_sibling_killed_through_kill_tree_quotes_the_line(self, tmp_path: Path) -> None:
+        # The sibling kills its own tree with its own receipt: the real kill path, the
+        # real exit-1-and-silence, and no race over which pid to aim at.
+        suicide = MARK_SELF + (
+            "from agentjobs.dispatch.runner import _kill_tree\n"
+            "_kill_tree(_os.getpid(), identity=_identity(_os.getpid()))\n"
+            "import time; time.sleep(60)\n"
+        )
+        done, why = run_watched(
+            [suicide], env=environment(tmp_path), marker=tmp_path / "sibling.pid", timeout=120
+        )
+        interpreter = int((tmp_path / "sibling.pid").read_text(encoding="utf-8").split()[0])
+        assert done.returncode != 0
+        assert f"interpreter pid {interpreter}" in why
+        assert '"site": "runner._kill_tree"' in why, why
+        assert "not AgentJobs" not in why
+
+    def test_a_sibling_nobody_in_agentjobs_killed_says_so(self, tmp_path: Path) -> None:
+        done, why = run_watched(
+            [MARK_SELF + "_os._exit(1)\n"],
+            env=environment(tmp_path),
+            marker=tmp_path / "sibling.pid",
+            timeout=120,
+        )
+        assert done.returncode == 1
+        assert "the killer was not AgentJobs" in why, why
+
+
 class TestTwoWalkersOfOneEpic:
     """On 2026-09-13 a second walk of one epic ran beside the first, and the first counted
     the second's healthy child dead and grounded the epic on it."""
 
     def sibling(self, walk: Epic, child_id: str, *, epic_authority: bool) -> str:
         """Dispatch ``child_id`` from another interpreter, as a second walk would."""
-        done = subprocess.run(
+        done, why = run_watched(
             [
-                sys.executable,
-                "-c",
                 SIBLING_DISPATCH,
                 str(walk.machine.home),
                 child_id,
                 "epic" if epic_authority else "own",
                 str(TESTS),
             ],
-            capture_output=True,
-            text=True,
             env=environment(walk.machine.home),
-            timeout=180,
+            marker=walk.machine.tmp / f"sibling-{child_id}.pid",
         )
-        assert done.returncode == 0, done.stderr
+        assert done.returncode == 0, why
         return done.stdout.strip().splitlines()[-1]
 
     def racing(self, walk: Epic, child_id: str, *, epic_authority: bool) -> Callable[..., Any]:

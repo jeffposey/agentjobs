@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 
 import pytest
 
@@ -18,6 +19,7 @@ from agentjobs.api.dependencies import reset_dependency_cache
 from agentjobs.dispatch.address import ApiBaseProbe
 from agentjobs.dispatch.auth import CLAUDE_HOME_ENV
 from agentjobs.dispatch.credentials import verify_run_credential
+from agentjobs.dispatch.kills import JOURNAL_ENV as KILL_JOURNAL_ENV
 from agentjobs.dispatch.peers import SESSIONS_DIR_ENV
 from agentjobs.dispatch.runner import settle_supervisors
 from agentjobs.front_door import SECRET_ENV
@@ -37,6 +39,15 @@ import corpus_source  # noqa: E402,F401
 # report a bare `assert False`. Registering it here, before anything imports it, keeps
 # the diagnostics.
 pytest.register_assert_rewrite("task_write_guard_matrix")
+
+# Every kill any test process makes is journalled to one file outside every test's home
+# (task-561), set in the environment rather than per test so that subprocesses inherit
+# it. One file for the machine rather than one per test: row 13's victim and its killer,
+# if the killer is AgentJobs at all, are in different tests and possibly different gates.
+# Never the owner's real journal, which lives under the real home.
+os.environ.setdefault(
+    KILL_JOURNAL_ENV, str(Path(tempfile.gettempdir()) / "agentjobs-suite" / "kills.jsonl")
+)
 
 
 @pytest.fixture(autouse=True)

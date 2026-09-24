@@ -31,6 +31,8 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set
 
+from agentjobs.dispatch import kills
+
 TICK_SLACK = 10_000
 """How far apart two readings of one creation time may be, in 100ns ticks (1 ms).
 
@@ -380,7 +382,17 @@ def terminate(proc: Proc) -> bool:
             return False
         if not same_creation(created.value, proc.created):
             return False
-        return bool(kernel32.TerminateProcess(handle, 1))
+        identity = f"win:{proc.pid}:{created.value}"
+        kills.record("proctree.terminate", proc.pid, identity=identity)
+        ended = bool(kernel32.TerminateProcess(handle, 1))
+        kills.record(
+            "proctree.terminate",
+            proc.pid,
+            phase="ended",
+            identity=identity,
+            ended=[proc.pid] if ended else [],
+        )
+        return ended
     finally:
         kernel32.CloseHandle(handle)
 
@@ -393,6 +405,7 @@ def _terminate_posix(proc: Proc) -> bool:  # pragma: no cover
             fields = handle.read().rsplit(")", 1)[-1].split()
         if int(fields[19]) != proc.created:
             return False
+        kills.record("proctree.terminate", proc.pid, identity=f"proc:{proc.pid}:{proc.created}")
         os.kill(proc.pid, getattr(signal, "SIGKILL"))
         return True
     except (OSError, ValueError, IndexError):

@@ -79,7 +79,7 @@ reconciliation). A row's `status` cell is what the epic's close condition reads.
 | 10 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_fresh_process_performs_the_recovery` | `assert 'never launched' in '\n'` -- an empty report | `attempt_evidence` asks a bare `process_alive` with no start-time guard, so a reused pid keeps a dead launcher's attempt owned | production defect | **fixed** -- the guard landed in task-505 (`783f93a6`, `pids.process_created_after`); task-489 (`60669876`) pinned it with tests that build a stranger on the recycled pid directly, and reverting the branch to a bare `alive` fails them |
 | 11 | `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output` | `sqlite3.ProgrammingError: Cannot operate on a closed database` | the 2026-09-20 red was row 12's worker crash, and the closed-database tracebacks beside it were supervisor threads writing after teardown | teardown lifetime | **cause removed** by task-438 (row 12) and task-505; task-497 (`c195359f`) made the next occurrence one read: a write after close raises `DatabaseClosed`, naming the closing thread, the time and the frames |
 | 12 | whichever test an xdist worker happens to be running (`test_auto_dispatch.py` and `test_dispatch_api.py` seen) | `Windows fatal exception: access violation`, `worker 'gwN' crashed` | `Database.close()` closed every thread's reader from the closing thread, and sqlite3 releases the GIL around each step, so `_classify_batch_exit` mid-step on another thread used a closed handle | teardown lifetime | **fixed** (task-438, `24ce3e28`: each reader call holds a guard a close waits out, the next call raises `ProgrammingError`, and a closed `Database` refuses new readers) |
-| 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone. Task-554 did not reproduce it in 19 instrumented runs, and no kill in the suite reached a sibling. It removed one producer of the signature: `_kill_tree` released its proof before `taskkill` ran | environment, or a producer not yet found | open -- **task-561** (a kill journal, so the next sighting names its killer); see below |
+| 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone. Task-554 did not reproduce it in 19 instrumented runs, and no kill in the suite reached a sibling. It removed one producer of the signature: `_kill_tree` released its proof before `taskkill` ran | environment, or a producer not yet found | open, instrumented -- since task-561 every AgentJobs kill is journalled and the failing assertion quotes the lines naming the victim; read that message when it next fires (see below) |
 | 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | a skipping clock's stamp (up to 7190 fake seconds) left in the process-global sweep throttle read as the future against real uptime within two hours of a reboot, and the throttle skipped on a future stamp | production defect, surfaced by test state leaking between tests | **fixed** (task-546) |
 | 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | a reconcile judged a live launcher's never-launched attempt abandoned by comparing the OS creation time of `holder_pid` with an `admitted_at` written through the installed clock; under the durable-replay suite's frozen clock that clock read earlier than the holder's own start, so a live holder looked like a recycled pid and a second dispatch took its slot | production defect | **fixed** (task-549, `faed64f2`: admission records the holder's `process_identity` and both holder checks compare receipts, with the timestamp kept only as a fallback for older rows) |
 | 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix | test premise | **fixed** (task-515) -- see below |
@@ -153,9 +153,30 @@ kill in 70 `taskkill` calls. So it is **a** producer, and not shown to be row 13
 process on this machine tree-killing a number it recorded earlier. An agent session's
 own background-command stop, for example, runs `taskkill /T /F` on a shell pid that may
 have been reissued. Hunting again by load reproduction is unlikely to pay, because 19
-runs here never produced it. Task-561 instead makes every AgentJobs kill leave a line in
-a machine-wide journal that the failing assertion quotes. The next organic sighting then
-either names its killer or proves the killer was not AgentJobs.
+runs here never produced it.
+
+**Instrumented instead (task-561, 2026-09-24).** Every kill AgentJobs makes --
+`runner._kill_tree`, `proctree.terminate`, `cli._stop_server` -- appends to a kill
+journal (`agentjobs.dispatch.kills`): one line *before* the act, naming the site, the
+caller's pid, parent pid, identity and command, and the target's pid and identity; and
+one *after* it carrying what the OS reported, which for `taskkill /T` is every pid it
+ended. Outside tests the file is `kills.jsonl` in the AgentJobs home. The suite points
+`AGENTJOBS_KILL_JOURNAL` at one file for the whole machine,
+`%TEMP%/agentjobs-suite/kills.jsonl`, so a kill made in another test, another xdist
+worker or another concurrent gate is found as well. It never fails a kill and is capped at
+about 1 MB plus one rotated `.1`.
+
+`sibling` now runs through `run_watched`, which records the launcher's pid and identity
+and has the interpreter write its own. On a non-zero exit the assertion message quotes
+every journal line naming either pid since the launcher started. The assertion is still
+`returncode == 0`, with no retry. **When the row next fires, read that message:**
+
+- **It quotes a `"phase": "kill"` line** -- the killer was AgentJobs, and the line says
+  which site, from which process (`caller.command`, `caller.ppid` for the xdist worker)
+  and aimed at what. If the target identity is not the victim's, the kill was aimed at
+  a reused number and missed its proof; that is a defect in the site's receipt.
+- **It says *no AgentJobs kill named ...*** -- the killer was not AgentJobs. Record that
+  here, and move to the candidates outside the suite above.
 
 The entry's value is still the signature: **an exit 1 with nothing on either stream is
 not a test failure, it is a killed or stillborn process**, and reading it as a defect in
