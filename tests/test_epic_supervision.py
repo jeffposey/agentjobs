@@ -327,11 +327,19 @@ class TestSupervisorDeath:
         assert result is not None and result.stop is WalkStop.ALREADY_SUPERVISED
         assert walk.machine.rows() == []
 
-    def test_a_recycled_holder_pid_does_not_refuse_the_walk_forever(self, walk: Epic) -> None:
+    @pytest.mark.parametrize(
+        "receipt", [None, "gone:1:1"], ids=["no-receipt-older-row", "receipt-of-another"]
+    )
+    def test_a_recycled_holder_pid_does_not_refuse_the_walk_forever(
+        self, walk: Epic, receipt: Optional[str]
+    ) -> None:
         """task-444: the gate recycled a crashed walker's pid, and its resume was refused.
 
         A process that started after the walk last wrote cannot be the walk's holder,
-        however alive it is. This test's own interpreter plays the newcomer.
+        however alive it is. This test's own interpreter plays the newcomer. Since
+        task-558 the row carries its holder's receipt, and a receipt this process does
+        not match proves the reuse on its own; a row an earlier build wrote has none and
+        is still settled by the moment it last wrote.
         """
         only = walk.child("First")
         store = journal(walk.machine.home)
@@ -350,8 +358,8 @@ class TestSupervisorDeath:
         )
         with store.transaction("test: the holder last wrote long ago") as connection:
             connection.execute(
-                "UPDATE supervision SET updated_at = ? WHERE walk_id = ?",
-                ("2000-01-01T00:00:00+00:00", opened.walk_id),
+                "UPDATE supervision SET updated_at = ?, holder_identity = ? WHERE walk_id = ?",
+                ("2000-01-01T00:00:00+00:00", receipt, opened.walk_id),
             )
         assert epic_store.process_created_after(
             os.getpid(), datetime(2000, 1, 1, tzinfo=timezone.utc)

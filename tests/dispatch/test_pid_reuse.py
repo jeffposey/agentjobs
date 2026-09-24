@@ -34,7 +34,8 @@ from agentjobs.dispatch.pids import (
     recorded_process_alive,
 )
 from agentjobs.dispatch.runner import _kill_tree
-from agentjobs.execution.store import PROVENANCE_NATIVE, Attempt
+from agentjobs.execution.errors import OwnershipConflict
+from agentjobs.execution.store import PROVENANCE_NATIVE, Attempt, ExecutionStore, Supervision
 
 SLEEPER = "import sys, time\nsys.stdout.write('up')\nsys.stdout.flush()\ntime.sleep(120)\n"
 """A child that announces itself and then does nothing, so a test can wait for it to be
@@ -421,3 +422,81 @@ class TestTheVictimsEndIsSaidOutLoud:
         )
         assert "exit 9" in described
         assert "taskkill" not in described
+
+
+class TestAWalkIsNotRefusedByAStrangerOnItsDeadSupervisorsPid:
+    """task-558. One supervisor per epic is a lease on ``supervision``, and the takeover
+    rule asked whether the process at ``holder_pid`` was created after ``updated_at``. A
+    supervisor that wrote to its walk and died inside a second, whose number was reissued
+    inside the same second -- 0.35 s is this machine's measured minimum -- left a stranger
+    that ``REUSE_SLACK`` could not tell from the holder, and every later walk of the epic
+    refused ALREADY_SUPERVISED on a process that had never walked anything."""
+
+    def open(
+        self,
+        tmp_path: Path,
+        stamp: datetime,
+        holder: str,
+        pid: int,
+        **kwargs: object,
+    ) -> Tuple[Supervision, bool]:
+        store = ExecutionStore(tmp_path / "execution.db", clock=lambda: stamp)
+        try:
+            return store.open_walk(
+                project_id="sandbox",
+                parent_task_id="task-001",
+                authority_entry=7,
+                authority_actor="Jeff Posey",
+                settings={},
+                holder=holder,
+                holder_pid=pid,
+                holder_alive=process_alive,
+                **kwargs,  # type: ignore[arg-type]
+            )
+        finally:
+            store.close()
+
+    def test_a_stranger_born_inside_the_slack_does_not_hold_the_epic(
+        self, tmp_path: Path, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        born = pids.process_started_at(stranger.pid)
+        assert born is not None
+        # The dead supervisor's last write, half a second before its number was reissued.
+        last_write = born - timedelta(seconds=0.5)
+        first, _ = self.open(
+            tmp_path, last_write, "gone:1", stranger.pid, holder_identity=f"gone:{stranger.pid}:1"
+        )
+        second, resumed = self.open(tmp_path, moment_now(), "fresh:2", os_pid())
+        assert resumed and second.walk_id == first.walk_id and second.holder == "fresh:2"
+
+    def test_a_live_holder_still_refuses_a_second_supervisor(
+        self, tmp_path: Path, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        """The rule the fix must not relax: two live supervisors never walk one epic."""
+        self.open(tmp_path, moment_now(), "alive:1", stranger.pid)
+        with pytest.raises(OwnershipConflict, match="already being walked"):
+            self.open(tmp_path, moment_now(), "fresh:2", os_pid())
+
+    def test_a_live_holder_refuses_whatever_its_clock_said(
+        self, tmp_path: Path, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        """The opposite skew, task-549's: a stamp from before the holder started made a live
+        holder read as recycled. Its receipt keeps it the holder."""
+        self.open(tmp_path, moment_now() - timedelta(minutes=5), "alive:1", stranger.pid)
+        with pytest.raises(OwnershipConflict, match="already being walked"):
+            self.open(tmp_path, moment_now(), "fresh:2", os_pid())
+
+    def test_a_row_without_a_receipt_keeps_the_timestamp_check(
+        self, tmp_path: Path, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        """A row an earlier build wrote has no receipt; a stranger created well after it is
+        still recognised by the moment, as before."""
+        self.open(
+            tmp_path,
+            moment_now() - timedelta(minutes=5),
+            "old:1",
+            stranger.pid,
+            holder_identity=None,
+        )
+        second, resumed = self.open(tmp_path, moment_now(), "fresh:2", os_pid())
+        assert resumed and second.holder == "fresh:2"
