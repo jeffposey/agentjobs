@@ -156,16 +156,54 @@ async function requestUpdate(page: Page) {
  * takeover failed on every one of those checks -- which is a real finding.
  */
 async function untilTakenOver(page: Page, done: () => Promise<boolean>) {
-  await expect
-    .poll(
-      async () => {
-        if (await done()) return true;
-        await requestUpdate(page);
-        return false;
-      },
-      { timeout: 20_000, intervals: [1_000] },
-    )
-    .toBe(true);
+  try {
+    await expect
+      .poll(
+        async () => {
+          if (await done()) return true;
+          await requestUpdate(page);
+          return false;
+        },
+        { timeout: 20_000, intervals: [1_000] },
+      )
+      .toBe(true);
+  } catch (error) {
+    throw new Error(`${String(error)}\n\nWhat the page could see: ${await workerState(page)}`);
+  }
+}
+
+/**
+ * Everything a red `untilTakenOver` needs in order to say which half failed (task-571).
+ *
+ * "The tab was never reloaded" has at least three causes that look identical from the
+ * assertion: the browser never installed the new worker, installed it and did not hand
+ * it the tab, or handed it the tab and the page declined to reload. The registration's
+ * three slots and the takeover count tell them apart.
+ */
+async function workerState(page: Page): Promise<string> {
+  try {
+    return await page.evaluate(async () => {
+      const slot = (worker: ServiceWorker | null | undefined) =>
+        worker ? `${worker.state} ${worker.scriptURL}` : "none";
+      const registration = await navigator.serviceWorker.getRegistration("/app/");
+      const probe = window as unknown as { __takeovers?: number; __survived?: string };
+      const served = await fetch("/app/sw.js", { cache: "no-store" })
+        .then((response) => response.text())
+        .then((text) => text.trim().split("\n").pop())
+        .catch((error: unknown) => `fetch failed: ${String(error)}`);
+      return JSON.stringify({
+        controller: slot(navigator.serviceWorker.controller),
+        installing: slot(registration?.installing),
+        waiting: slot(registration?.waiting),
+        active: slot(registration?.active),
+        takeovers: probe.__takeovers ?? "not counted",
+        survived: probe.__survived ?? "fresh document",
+        servedSwLastLine: served,
+      });
+    });
+  } catch (error) {
+    return `unreadable (${String(error)})`;
+  }
 }
 
 /** Whether the tab is a fresh document; `false` while it is between the two. */
@@ -295,6 +333,7 @@ test("a rebuild still reloads a tab where nobody is typing", async ({ page, bund
   await page.goto("/app/p/_local");
   await waitForControl(page);
   await markPage(page);
+  await countTakeovers(page);
 
   const restore = await rebuildFrontend(page, "idletab00000", bundleDir);
   try {

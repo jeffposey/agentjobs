@@ -82,7 +82,7 @@ reconciliation). A row's `status` cell is what the epic's close condition reads.
 | 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone. Task-554 did not reproduce it in 19 instrumented runs, and no kill in the suite reached a sibling. It removed one producer of the signature: `_kill_tree` released its proof before `taskkill` ran | environment, or a producer not yet found | open, instrumented -- since task-561 every AgentJobs kill is journalled and the failing assertion quotes the lines naming the victim; read that message when it next fires (see below) |
 | 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | a skipping clock's stamp (up to 7190 fake seconds) left in the process-global sweep throttle read as the future against real uptime within two hours of a reboot, and the throttle skipped on a future stamp | production defect, surfaced by test state leaking between tests | **fixed** (task-546) |
 | 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | a reconcile judged a live launcher's never-launched attempt abandoned by comparing the OS creation time of `holder_pid` with an `admitted_at` written through the installed clock; under the durable-replay suite's frozen clock that clock read earlier than the holder's own start, so a live holder looked like a recycled pid and a second dispatch took its slot | production defect | **fixed** (task-549, `faed64f2`: admission records the holder's `process_identity` and both holder checks compare receipts, with the timestamp kept only as a fallback for older rows) |
-| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix | test premise | **fixed** (task-515) -- see below |
+| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix. **Recurred after that fix** in 4 of 12 finish gates on 2026-09-24, and 0 of 99 runs off a finish reproduce it; cause unknown | unknown | **open** -- reopened by task-571, see below |
 | 17 | `test_dispatch_atomic_yaml.py::TestTheDocumentIsNeverHalfWritten::test_a_reader_never_sees_a_partial_document` | `461 of 1153 reads saw a document without run_id` | a refusal to open the file that outlasted the reader's 40ms retry budget answered *absent*: `read_yaml_resiliently` returned `None`, and `read_meta` turned that into `{}`. Reproduced by holding the file exclusively, as a real-time scanner would; the organic load did not reproduce it | production defect | **fixed** (task-550) -- see below |
 | 18 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | `PermissionError: [Errno 13]` reading its own `grandchild.pid`, then `Cannot operate on a closed database` | the read landed after `os.replace` made the name visible but before `MoveFileExW` closed its DELETE-access handle; a plain `open` does not share delete, so it hit a sharing violation. One writer is enough | test premise | **fixed** (task-553) -- see below |
 | 19 | `dispatch/test_durable_replay.py::TestRegressions::test_grounding_outlives_two_real_supervisor_deaths` | `WalkStop.ALREADY_SUPERVISED ... already being walked by pid 224680` at line 1662 -- a fresh walk refused by a supervisor that had exited 9 | the walk lease judged its holder alive by `process_created_after(holder_pid, updated_at)`, which allows a second of slack. The supervisor writes its walk and dies inside a second; a pid reissued inside that second (0.35 s is this machine's measured minimum) left a stranger the check took for the holder. The opposite skew let a live holder be taken over. Seen 2 of 20 in task-553's probe (`-n 13`) | production defect | **fixed (task-558)**: `supervision.holder_identity` (revision 9) records the holder's `process_identity`, and `open_walk` and the pull pass's `flying_walks` compare receipts, with the timestamp kept only for older rows -- see below |
@@ -606,7 +606,10 @@ reds were this row. On its own, 0 of 20 against 2 of 20 is weak evidence. The de
 reduction is what proves the mechanism, and the probe shows nothing else in those files
 took its place.
 
-### 16. A reload asked for once, and lost (fixed, task-515)
+### 16. A reload asked for once, and lost (reopened, task-571)
+
+The task-515 account below is kept as written. It found one real race and fixed it, and
+the test still fails after that fix.
 
 **It repeats, and the ledger undercounts it.** `agentjobs execution failures --since 14`
 names this test once. It filed that one as `browser_death`, and most finish verdicts
@@ -638,6 +641,69 @@ same kill then left every port free within 3 seconds on 3 of 3 runs.
 `tests/test_e2e_server_owner.py` pins the pieces. That includes the first version's own
 defect: it printed before stopping, the print raised on a stdout piped to the dead
 runner, and the watcher thread died before it could stop anything.
+
+**2026-09-24: it recurred after the fix, and the cause is still unknown (task-571).**
+The test is now `capture-draft.spec.ts:329`. Every finish gate log after task-515 merged
+(fin_f618f710, 17:41Z) was counted:
+
+| finish | attempt | result |
+|---|---|---|
+| fin_8cf34319 (task-368) | gate, then its `--from e2e` retry | **red, red** |
+| fin_0b7af440 (task-562) | gate / retry | **red** / green |
+| fin_477a3352 (task-568) | gate / retry | **red** / green |
+| fin_008a9fff, fin_67391d70, fin_a2fe2316, fin_d9eff6b3, fin_02621362 | gate | green |
+
+That is 4 red in 12 attempts. Every red is the same one: `untilTakenOver` times out at
+exactly 20 seconds, which is twenty update requests and no reload. When the test passes
+it takes about 2.5 seconds. So the reload either comes quickly or does not come at all.
+The typing-tab sibling at `:348` passed in every one of those runs. It counts
+`controllerchange`, so in the same worker, against the same server, a rebuild did take
+a tab over.
+
+**No context away from a finish reproduced it: 0 red in 99 runs.**
+
+| context | runs | idle-tab red |
+|---|---|---|
+| `npx playwright test` from a dispatched session's shell | 6 | 0 |
+| the same, started the way `spawn_finish` starts a finish: the 8876 server's environment read from its PEB, `CREATE_NEW_PROCESS_GROUP`, output to a file | 6 | 0 |
+| `check.py --only build,e2e` | 4 | 0 |
+| `check.py`, unqualified | 3 | 0 |
+| the idle test alone, `--repeat-each 40` | 40 | 0 |
+| the same, beside 32 busy processes | 40 | 0 |
+
+**Ruled out:**
+
+- **The dashboard-spawned environment.** task-571 was filed on this hypothesis. It is
+  refuted three ways. Most green finishes above were also spawned by the dashboard. The
+  finish-like context above ran 0 red in 6. And no stage sees the difference:
+  `check.py`'s `child_environment` strips `AGENTJOBS_RUN_ID`, `_DIR` and `_CREDENTIAL`.
+  The live server's environment differs from a shell's only in `MSYSTEM`, `SHELL`,
+  `WT_SESSION` and the askpass/git-prompt variables. `TEMP`, `TMP` and `TMPDIR` are the
+  same, and Node and Python both resolve the per-server bundle copy from those.
+- **Two checkouts sharing a port block, and so sharing an `agentjobs-e2e-dist-<port>`
+  copy.** No two current worktrees derive the same first port. That includes 368, 562,
+  568 and the main clone.
+- **CPU contention alone.** 0 red in 40 beside 32 spinners.
+
+**What is left** is a guess, not a finding. The update check could find the new
+`sw.js` and then leave its worker stuck in `installing`. That would absorb every later
+`update()` as byte-identical, which matches "twenty asks and none of them lands".
+`install` does a `cache.addAll` of the shell, so a single request that hangs would do
+it. This has not been observed.
+
+**What changed.** `untilTakenOver` now reports what the page can see when it goes red:
+the registration's `installing`, `waiting` and `active` slots, the controller, the
+takeover count, whether the document is fresh, and the last line of the `sw.js` the
+server is serving now. The idle test also counts takeovers. The next red in a finish's
+`gate.log` will therefore say which part failed. With no takeover, and a new worker in
+`installing` or `waiting`, the browser never handed over the tab. With a takeover and
+the old document still there, `pwa.ts` declined or the reload hung. With `servedSwLastLine`
+missing the rebuild marker, the bundle was overwritten under the test.
+
+**The traces were lost, and that cost this investigation its evidence.** The finish
+leaves `frontend/test-results/` in the branch's worktree. Its own retry clears it, and
+so does the worktree's removal. Keeping a red attempt's `test-results/` beside
+`gate.log` would have given each of these reds a Playwright trace.
 
 ### 18. A marker that existed and could not be opened (fixed, task-553)
 
