@@ -79,7 +79,7 @@ reconciliation). A row's `status` cell is what the epic's close condition reads.
 | 10 | `test_execution_controller.py::TestLaunchCrashWindows::test_a_fresh_process_performs_the_recovery` | `assert 'never launched' in '\n'` -- an empty report | `attempt_evidence` asks a bare `process_alive` with no start-time guard, so a reused pid keeps a dead launcher's attempt owned | production defect | **fixed** -- the guard landed in task-505 (`783f93a6`, `pids.process_created_after`); task-489 (`60669876`) pinned it with tests that build a stranger on the recycled pid directly, and reverting the branch to a bare `alive` fails them |
 | 11 | `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output` | `sqlite3.ProgrammingError: Cannot operate on a closed database` | the 2026-09-20 red was row 12's worker crash, and the closed-database tracebacks beside it were supervisor threads writing after teardown | teardown lifetime | **cause removed** by task-438 (row 12) and task-505; task-497 (`c195359f`) made the next occurrence one read: a write after close raises `DatabaseClosed`, naming the closing thread, the time and the frames |
 | 12 | whichever test an xdist worker happens to be running (`test_auto_dispatch.py` and `test_dispatch_api.py` seen) | `Windows fatal exception: access violation`, `worker 'gwN' crashed` | `Database.close()` closed every thread's reader from the closing thread, and sqlite3 releases the GIL around each step, so `_classify_batch_exit` mid-step on another thread used a closed handle | teardown lifetime | **fixed** (task-438, `24ce3e28`: each reader call holds a guard a close waits out, the next call raises `ProgrammingError`, and a closed `Database` refuses new readers) |
-| 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone | environment, or entry 3's cause not fully removed | open -- **task-554**; see below |
+| 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone. Task-554 did not reproduce it in 19 instrumented runs, and no kill in the suite reached a sibling. It removed one producer of the signature: `_kill_tree` released its proof before `taskkill` ran | environment, or a producer not yet found | open -- see below |
 | 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | a skipping clock's stamp (up to 7190 fake seconds) left in the process-global sweep throttle read as the future against real uptime within two hours of a reboot, and the throttle skipped on a future stamp | production defect, surfaced by test state leaking between tests | **fixed** (task-546) |
 | 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | a reconcile judged a live launcher's never-launched attempt abandoned by comparing the OS creation time of `holder_pid` with an `admitted_at` written through the installed clock; under the durable-replay suite's frozen clock that clock read earlier than the holder's own start, so a live holder looked like a recycled pid and a second dispatch took its slot | production defect | **fixed** (task-549, `faed64f2`: admission records the holder's `process_identity` and both holder checks compare receipts, with the timestamp kept only as a fallback for older rows) |
 | 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix | test premise | **fixed** (task-515) -- see below |
@@ -113,12 +113,51 @@ with 3 gates, so pytest runs at -n 10 rather than -n auto"*; 5566 passed, this o
 one unrelated corpus failure red. Both parameters of the same test passed on the
 immediate re-run, alone, in the same worktree and the same interpreter.
 
-**Reproduction.** Not reduced. The load is the thing to reproduce: four concurrent gates
-on this machine, `-n 10`. `scripts/flake_probe.py` over `tests/test_epic_supervision.py`
-under held slots is the tool for it. Until somebody does that, the entry's value is the
-signature: **an exit 1 with nothing on either stream is not a test failure, it is a
-killed or stillborn process**, and reading it as a defect in the code under test costs an
-afternoon.
+**Reproduction (task-554, 2026-09-24). Not caught.** Every kill site was instrumented,
+probe-only. `runner._kill_tree`, `proctree.terminate` and `cli._stop_server` logged the
+caller, the test, the target and `taskkill`'s own report of what it ended, and the
+sibling logged its own pid and its launcher's. Then:
+
+- `flake_probe.py runs --times 15 --slots 1 --files tests/test_epic_supervision.py
+  tests/test_dispatch_runner.py tests/test_dispatch_api.py
+  tests/test_execution_controller.py`, at `-n 6` with 4 gates holding slots: **0/15
+  red**. 52 kills, every one an identity-proved `_stop_batch`, and every root `taskkill`
+  ended was a child of the process that asked.
+- `flake_probe.py runs --times 4 --slots 2 --files tests` (the whole suite), at `-n 6`
+  with 4 gates: **0/4 red**. 60 kills, including `TestStopSessionReapsItsTree`'s six,
+  which ended only its own stand-in tree.
+
+Across both, no kill ended a live sibling. The matcher did flag three kills, but each
+one landed on a sibling's old number minutes before that sibling started or after it
+had exited. That was pid reuse, not a hit.
+
+**Ruled out along the way.** `taskkill /T` does not follow a stale parent pid. I
+measured it: B's parent A exited, A's number was reissued to a `ping` 307 spawns later,
+and `taskkill /PID <ping> /T /F` ended the `ping` alone. B survived. Batch workers get
+their own console group (`CREATE_NEW_PROCESS_GROUP`), and a Ctrl-Break exit would read
+`0xC000013A` rather than 1 in any case.
+
+**Removed: one producer of this exact signature.** `_kill_tree` proved a receipt with
+`is_the_recorded_process`, which closes its handle, and then spawned `taskkill /PID
+<number>`. A worker that exited on its own during that spawn freed its number, and this
+machine reissues one in 0.35s, so a correct receipt could still kill a stranger. The fix
+is `pids.held_if_recorded`, which keeps the proving handle open until `taskkill` has
+finished. The kernel does not reissue a pid while a handle is open.
+`TestTheProofIsHeldAcrossTheKill` ends the target inside the window and asserts that the
+number still names it. Under the old order the number was released 5 of 5 times. In the
+instrumented runs this window never fired: no target exited between its proof and its
+kill in 70 `taskkill` calls. So it is **a** producer, and not shown to be row 13's.
+
+**Still open.** Candidates outside the suite are not verified. The strongest is another
+process on this machine tree-killing a number it recorded earlier. An agent session's
+own background-command stop, for example, runs `taskkill /T /F` on a shell pid that may
+have been reissued. The next person to see this should run the probe with the
+instrumentation (task-554's log describes it) *while it is happening*, because 19 runs
+here never produced it.
+
+The entry's value is still the signature: **an exit 1 with nothing on either stream is
+not a test failure, it is a killed or stillborn process**, and reading it as a defect in
+the code under test costs an afternoon.
 
 ### 1. The two timelines in `test_auth_recovery` (clock race, fixed)
 
