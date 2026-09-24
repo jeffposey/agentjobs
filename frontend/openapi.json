@@ -9049,6 +9049,17 @@
               }
             ]
           },
+          "live_run_health": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Run Health"
+          },
           "needs_cycles": {
             "items": {
               "items": {
@@ -9296,6 +9307,17 @@
                 "type": "null"
               }
             ]
+          },
+          "live_run_health": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Run Health"
           },
           "needs_cycles": {
             "items": {
@@ -10009,6 +10031,17 @@
               }
             ]
           },
+          "live_run_health": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Run Health"
+          },
           "log": {
             "items": {
               "$ref": "#/components/schemas/LogEntry"
@@ -10286,6 +10319,17 @@
               }
             ]
           },
+          "live_run_health": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Run Health"
+          },
           "log": {
             "items": {
               "$ref": "#/components/schemas/LogEntry"
@@ -10536,6 +10580,17 @@
               }
             ]
           },
+          "live_run_health": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Run Health"
+          },
           "needs_cycles": {
             "items": {
               "items": {
@@ -10773,6 +10828,17 @@
                 "type": "null"
               }
             ]
+          },
+          "live_run_health": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Run Health"
           },
           "needs_cycles": {
             "items": {
