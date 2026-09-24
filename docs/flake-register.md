@@ -85,6 +85,7 @@ reconciliation). A row's `status` cell is what the epic's close condition reads.
 | 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix | test premise | **fixed** (task-515) -- see below |
 | 17 | `test_dispatch_atomic_yaml.py::TestTheDocumentIsNeverHalfWritten::test_a_reader_never_sees_a_partial_document` | `461 of 1153 reads saw a document without run_id` | a refusal to open the file that outlasted the reader's 40ms retry budget answered *absent*: `read_yaml_resiliently` returned `None`, and `read_meta` turned that into `{}`. Reproduced by holding the file exclusively, as a real-time scanner would; the organic load did not reproduce it | production defect | **fixed** (task-550) -- see below |
 | 18 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | `PermissionError: [Errno 13]` reading its own `grandchild.pid`, then `Cannot operate on a closed database` | the read landed after `os.replace` made the name visible but before `MoveFileExW` closed its DELETE-access handle; a plain `open` does not share delete, so it hit a sharing violation. One writer is enough | test premise | **fixed** (task-553) -- see below |
+| 19 | `dispatch/test_durable_replay.py::TestRegressions::test_grounding_outlives_two_real_supervisor_deaths` | `WalkStop.ALREADY_SUPERVISED ... already being walked by pid 224680` at line 1662 -- a fresh walk refused by a supervisor that had exited 9 | the walk lease judged its holder alive by `process_created_after(holder_pid, updated_at)`, which allows a second of slack. The supervisor writes its walk and dies inside a second; a pid reissued inside that second (0.35 s is this machine's measured minimum) left a stranger the check took for the holder. The opposite skew let a live holder be taken over. Seen 2 of 20 in task-553's probe (`-n 13`) | production defect | **fixed (task-558)**: `supervision.holder_identity` (revision 9) records the holder's `process_identity`, and `open_walk` and the pull pass's `flying_walks` compare receipts, with the timestamp kept only for older rows -- see below |
 
 **14-16 observed** 2026-09-23 about 21:50 UTC in task-526's finish `fin_8f638f51` on
 `b6be1fd9`, a branch touching only the finisher's classification, the failure rollup and
@@ -545,6 +546,44 @@ it used to merge onto `{}` and replace the file, erasing every field it had not 
 handed. The same probe on the branch: **0 of 20 runs failed**, 19533 complete reads,
 nothing raised. `test_an_exclusive_hold_is_waited_out_then_named` pins both halves with a
 real exclusive handle.
+
+### 19. A walk refused by a supervisor that had already died (fixed, task-558)
+
+One supervisor per epic is a lease on the `supervision` row. `open_walk` refused to take
+it over while the process at `holder_pid` was alive and **not** created more than a second
+after the row's `updated_at`. That is task-549's two-clock comparison, and it fails in both
+directions.
+
+**A stranger read as the holder.** The test's first supervisor takes off two children,
+writes the walk, and dies at its first wait. Those events can land inside the same second.
+If Windows reissues its pid inside that second too, the stranger's creation time is within
+`REUSE_SLACK` of the stamp and the check keeps it as the holder. The walk subprocess
+installs no clock, so the stamp is wall time and skew is not needed. A clock that reads
+ahead only widens the window. **Reduced deterministically** on `main` 6b3d8046, with no
+code changed. A live stranger is recorded as holder `gone:1` in a row stamped 0.5 s
+before its creation. The second `open_walk` then refused with this row's message.
+
+**A live holder read as recycled.** A stamp from a clock behind the holder's own start
+made a live supervisor look like a reissued pid. `open_walk` handed its epic to a second
+supervisor. Nothing had reported this, and the fix pins it.
+
+**The fix** follows task-549's. `supervision.holder_identity` is an additive nullable
+column, revision 9. It holds the holder's `process_identity`, written when a walk is opened
+or taken over. Where a row has a receipt, the receipt decides. A mismatch means the pid
+was reissued. A match, or a receipt that cannot be read now, keeps the holder, because a
+refusal can be recovered from and two supervisors cannot. The pull pass's `flying_walks`
+reads the same lease and applies the same rule. Rows from an earlier build keep the
+timestamp fallback. The four `TestAWalkIsNotRefusedByAStrangerOnItsDeadSupervisorsPid`
+tests in `tests/dispatch/test_pid_reuse.py` pin each case with a real stranger process: a
+stranger does not block, a live holder refuses whatever its stamp says, and an old row
+falls back.
+
+**The rate** on the branch, 2026-09-24: `scripts/flake_probe.py runs --times 20 --slots 2
+--files` over the eight files task-553 probed, at `-n 13` with two gate slots held, gave
+**0 of 20 red**, 36 to 41 s a run. The same command on `main` had been 2 of 20, and both
+reds were this row. On its own, 0 of 20 against 2 of 20 is weak evidence. The deterministic
+reduction is what proves the mechanism, and the probe shows nothing else in those files
+took its place.
 
 ### 16. A reload asked for once, and lost (fixed, task-515)
 
