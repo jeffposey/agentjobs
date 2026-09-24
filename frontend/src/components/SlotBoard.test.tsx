@@ -393,6 +393,27 @@ describe("the board a person reads", () => {
     expect(within(first).getByText("Because it is first in the high band.")).toBeVisible();
   });
 
+  it("fills an occupied cell and leaves a free one see-through (task-581)", () => {
+    // What says "empty" is that the panel shows through the cell. A free cell painted
+    // with the card fill read as a filled card with a different border.
+    renderBoard(
+      <SlotBoard
+        body={body({ occupied: 1, runs: [run()] })}
+        queue={[task("task-one")]}
+        projectId="alpha"
+      />,
+    );
+
+    const card = (state: string) =>
+      screen.getAllByTestId("slot-cell").find((cell) => cell.dataset.slotState === state)!
+        .firstElementChild!;
+    expect(card("run")).toHaveClass("bg-dark-bg");
+    for (const state of ["queued", "empty"]) {
+      expect(card(state)).toHaveClass("border-dashed", "bg-transparent");
+      expect(card(state).className).not.toMatch(/\bbg-dark-bg/);
+    }
+  });
+
   it("draws a finish as a card, without taking a free cell from the board", () => {
     // task-352: a finish was a footnote under three free cells, and the footnote was
     // read as nothing happening. It is a card now -- and an *extra* one, because it
