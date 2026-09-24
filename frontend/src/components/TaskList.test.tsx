@@ -1798,6 +1798,22 @@ describe("TaskList band headers", () => {
     ]);
   });
 
+  it("carries each header's colour down the left edge of every row in its band", () => {
+    renderTree(bands());
+
+    const edge = (selector: string) =>
+      (document.querySelector(selector) as HTMLElement).style.borderLeftColor;
+    const critical = edge('[data-band-header="critical"]');
+    const high = edge('[data-band-header="high"]');
+    expect(critical).not.toBe("");
+    expect(critical).not.toBe(high);
+    expect(edge('[data-task="task-crit"]')).toBe(critical);
+    // The medium child sits in the critical band, so it takes the critical edge.
+    expect(edge('[data-task="task-crit-child"]')).toBe(critical);
+    expect(edge('[data-task="task-high-a"]')).toBe(high);
+    expect(edge('[data-task="task-high-b"]')).toBe(high);
+  });
+
   it("puts the status chip on the id line and gives the title its own clamped line", () => {
     renderTree([queued("task-one", 100, "high")]);
 

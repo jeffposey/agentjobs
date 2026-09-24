@@ -925,11 +925,16 @@ export function TaskList({
   // Priority is where a row sits, not a chip on it (task-563): the list is already in
   // band order, so a header opens each band and governs every row until the next one.
   const headers = bandHeaders(visibleRows);
+  // The band a row is drawn under, so its left edge carries the header's colour down
+  // the whole group (owner's revision, task-563). A child inherits its root's band.
+  let rowBand = "medium";
   const treeBody = (
     <ul className="divide-y divide-dark-border">
       {visibleRows.flatMap((row) => {
         const task = row.task;
         const header = headers.get(task.id);
+        if (header) rowBand = header.band;
+        else if (row.depth === 0) rowBand = priorityName(task.priority);
         // A divider, not a task: no link, no grip, no drag handlers and no key handler,
         // and it is not in `visibleRows`, so arrow keys and the count never see it.
         const headerRow = header ? (
@@ -966,8 +971,12 @@ export function TaskList({
             {...dragProps(task)}
             // The indent stops growing at four levels: past that it is eating the title
             // in a 320px column to draw a depth nobody is counting.
-            style={{ paddingLeft: `${0.25 + Math.min(row.depth, 4) * 1.1}rem` }}
-            className={`flex gap-1 py-1 pr-2 ${selected ? "bg-blue-950/60" : "hover:bg-dark-bg/60"}`}
+            data-band={rowBand}
+            style={{
+              paddingLeft: `${0.25 + Math.min(row.depth, 4) * 1.1}rem`,
+              borderLeftColor: PRIORITY_COLOURS[priorityName(rowBand)],
+            }}
+            className={`flex gap-1 border-l-4 py-1 pr-2 ${selected ? "bg-blue-950/60" : "hover:bg-dark-bg/60"}`}
           >
             <div className="flex shrink-0 items-start">
               {movableRow(task) ? renderGrip(task) : <span className="inline-block w-5" />}
@@ -1010,7 +1019,13 @@ export function TaskList({
                     here -- the band header above says it. */}
                 <span className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden" data-field="id-line">
                   <span className="shrink-0 font-mono text-xs text-blue-400">{task.id}</span>
-                  <span className="flex min-w-0 shrink items-center gap-1 overflow-hidden" data-field="status">
+                  {/* The chip is about 20% smaller here than elsewhere (owner's revision):
+                      at full size it outweighed the id and title it sits between. Scoped
+                      to this row so StatusChip itself is unchanged. */}
+                  <span
+                    className="flex min-w-0 shrink items-center gap-1 overflow-hidden [&>[data-status-category]]:px-1.5 [&>[data-status-category]]:py-0 [&>[data-status-category]]:text-[0.6rem] [&>[data-status-category]]:leading-4"
+                    data-field="status"
+                  >
                     <StatusChip category={state.category} label={state.label} motion={state.motion} />
                     {task.archived && <ArchivedTag />}
                   </span>
