@@ -306,15 +306,21 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   }
 }
 
-/* Waiting on a person (task-577): a glow that catches and dies, uneven so it reads as a
-   flash rather than a metronome. The audition task-570 cut for Starting, unchanged. A
-   shadow, so it takes no room; the chip draws no ring. */
+/* Waiting on a person (task-577): a double blink and a rest, like a hazard light. Each
+   blink floods the chip with its own tint and throws a wide glow, so it outshouts the
+   orbit's thin arc -- the first cut, task-570's ignite glow alone, lost to the orbit (owner
+   review, 2026-09-24). The flood is the pseudo-element behind the text and the glow is a
+   shadow, so neither takes room. */
 .chip-motion-flash {
-  animation: chip-flash 1.2s ease-out infinite;
+  animation: chip-flash 1.4s ease-out infinite;
 }
 
 .chip-motion-flash::before {
-  display: none;
+  inset: -1px;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  animation: chip-flash-fill 1.4s ease-out infinite;
 }
 
 @keyframes chip-flash {
@@ -322,17 +328,28 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   100% {
     box-shadow: 0 0 0 0 transparent;
   }
-  12% {
-    box-shadow: 0 0 5px 1px color-mix(in srgb, currentColor 70%, transparent);
+  6%,
+  32% {
+    box-shadow: 0 0 10px 3px color-mix(in srgb, currentColor 85%, transparent);
   }
-  24% {
-    box-shadow: 0 0 2px 0 color-mix(in srgb, currentColor 30%, transparent);
+  18%,
+  48% {
+    box-shadow: 0 0 2px 0 color-mix(in srgb, currentColor 20%, transparent);
   }
-  38% {
-    box-shadow: 0 0 7px 2px color-mix(in srgb, currentColor 80%, transparent);
+}
+
+@keyframes chip-flash-fill {
+  0%,
+  48%,
+  100% {
+    opacity: 0;
   }
-  60% {
-    box-shadow: 0 0 1px 0 color-mix(in srgb, currentColor 20%, transparent);
+  6%,
+  32% {
+    opacity: 0.35;
+  }
+  18% {
+    opacity: 0.05;
   }
 }
 
