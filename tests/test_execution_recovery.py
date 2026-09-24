@@ -105,6 +105,7 @@ class TestTheAdditiveRevision:
         try:
             assert upgraded.compatible and upgraded.schema_version == SCHEMA_VERSION
             assert must(upgraded.attempt("run_old")).operation_id is None
+            assert must(upgraded.attempt("run_old")).holder_identity is None
         finally:
             upgraded.close()
         raw = sqlite3.connect(str(path))
@@ -162,6 +163,19 @@ class TestTheAdditiveRevision:
 
 
 # ----- an execution between attempts -------------------------------------------------
+
+
+class TestTheHoldersReceipt:
+    def test_an_admission_records_its_holders_os_receipt(self, store: ExecutionStore) -> None:
+        """What proves the holder is still the holder without comparing two clocks (task-549)."""
+        import os
+
+        from agentjobs.dispatch.pids import process_identity
+
+        attempt = admit(store, "run_receipt")
+        assert attempt.holder_identity is not None
+        assert attempt.holder_identity == process_identity(os.getpid())
+        assert must(store.attempt("run_receipt")).holder_identity == attempt.holder_identity
 
 
 class TestRetryOwed:

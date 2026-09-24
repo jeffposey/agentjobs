@@ -1511,10 +1511,23 @@ class TestRegressions:
                     env=env,
                 )
             )
-        for child in children:
-            child.communicate(timeout=300)
-        assert len(world.calls("launches.log")) == 2, "exactly one remaining slot was awarded"
+        outputs = [child.communicate(timeout=300) for child in children]
         store = journal(world.home)
+        attempts = store.read(
+            "SELECT run_id, project_id, task_id, state, takes_slot, slot_released_at, "
+            "slot_released_reason, admitted_at, holder_pid, outcome, status, concluded_by, session_id "
+            "FROM run_attempt ORDER BY admitted_at"
+        )
+        evidence = "\n".join(
+            [repr(dict(row)) for row in attempts]
+            + [
+                f"child {i} exit {c.returncode}:\n{o}\n{e}"
+                for i, (c, (o, e)) in enumerate(zip(children, outputs))
+            ]
+        )
+        assert (
+            len(world.calls("launches.log")) == 2
+        ), f"exactly one remaining slot was awarded\n{evidence}"
         live = sorted((a.project_id, a.task_id) for a in store.live_attempts())
         assert len(live) == 2 and ("sandbox", occupant) in live
 

@@ -57,7 +57,7 @@ from typing import (
 )
 
 from agentjobs import clock as _clock
-from agentjobs.dispatch.pids import process_created_after
+from agentjobs.dispatch.pids import process_created_after, process_identity
 from agentjobs.execution.errors import (
     ActivityConflict,
     AlreadyQueued,
@@ -257,7 +257,7 @@ CREATE TABLE child_wait (
 );
 """
 
-SCHEMA_REVISION = 7
+SCHEMA_REVISION = 8
 """Additive revisions applied on top of physical schema version 1 (task-416).
 
 Revision 3 (task-417) adds the auth-recovery incident, waiter and probe tables, which no
@@ -274,6 +274,9 @@ Revision 7 (task-482) adds ``run_attempt.slot_released_at`` and ``slot_released_
 when an attempt gave its machine slot back while still live. The previous build does not
 read them and so keeps counting such an attempt -- it refuses a dispatch it could have
 allowed, which is the safe direction for an old process to be wrong in.
+
+Revision 8 (task-549) adds ``run_attempt.holder_identity``, the admitting process's OS
+receipt. The previous build neither writes nor reads it and keeps its timestamp check.
 
 **Deliberately not a ``user_version`` bump.** Processes running the previous build share
 this file with the new one -- an epic walk started before an upgrade keeps dispatching
@@ -444,6 +447,7 @@ _ADDED_COLUMNS = (
     ("execution", "controlled_by", "TEXT"),
     ("run_attempt", "slot_released_at", "TEXT"),
     ("run_attempt", "slot_released_reason", "TEXT"),
+    ("run_attempt", "holder_identity", "TEXT"),
 )
 """``run_attempt.operation_id`` is the admission's stable operation id, so a supervisor
 that died between a child's admission and its own bookkeeping finds the same attempt
@@ -452,7 +456,8 @@ execution the durable controller drives and ``NULL`` for everything else -- incl
 every row the previous build writes, which is what keeps the legacy poller in charge of
 them. ``run_attempt.slot_released_at`` and ``slot_released_reason`` are task-482's: when
 and why a live attempt stopped counting against the machine ceiling, ``NULL`` for every
-attempt that still counts."""
+attempt that still counts. ``run_attempt.holder_identity`` is task-549's: the admitting
+process's OS receipt, ``NULL`` on every row the previous build writes."""
 
 CONTROLLED_BY_CONTROLLER = "controller"
 
@@ -529,6 +534,14 @@ class Attempt:
     free."""
     slot_released_reason: str = ""
     """Why, in one machine-readable word. ``task_closed`` is the only one today."""
+    holder_identity: Optional[str] = None
+    """The admitting process's OS receipt (``process_identity``), read at admission (task-549).
+
+    What proves a live pid is still the holder. The fallback -- a process created after
+    ``admitted_at`` cannot be the holder -- compares the OS's clock with the one the
+    journal writes through, and those are two clocks: a holder whose installed clock reads
+    earlier than its own start looked recycled while it was admitting. ``None`` on a row
+    from an earlier build, or when the platform would not say."""
 
     @property
     def is_live(self) -> bool:
@@ -575,6 +588,7 @@ class Attempt:
             operation_id=_column(row, "operation_id"),
             slot_released_at=_column(row, "slot_released_at"),
             slot_released_reason=_column(row, "slot_released_reason") or "",
+            holder_identity=_column(row, "holder_identity"),
         )
 
 
@@ -1726,6 +1740,8 @@ class ExecutionStore:
         legacy_slots = set(legacy_slot_holders)
         legacy_owners = set(legacy_owners)
         legacy_recent = set(legacy_recent_starts)
+        # Read before the transaction: an OS call has no business holding the write lock.
+        identity = process_identity(pid)
         with self.transaction("admit") as connection:
             if attempt_operation_id is not None:
                 already = connection.execute(
@@ -1839,7 +1855,7 @@ class ExecutionStore:
                 connection.execute(
                     "INSERT INTO run_attempt(run_id, execution_id, project_id, task_id, mode, "
                     "takes_slot, holder, holder_pid, state, reservation_json, admitted_at, "
-                    "operation_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "operation_id, holder_identity) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         run_id,
                         execution_id,
@@ -1853,6 +1869,7 @@ class ExecutionStore:
                         _dumps(dict(reservation or {})),
                         now,
                         attempt_operation_id,
+                        identity,
                     ),
                 )
             except sqlite3.IntegrityError as exc:
