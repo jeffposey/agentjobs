@@ -82,7 +82,7 @@ reconciliation). A row's `status` cell is what the epic's close condition reads.
 | 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone | environment, or entry 3's cause not fully removed | open -- **task-554**; see below |
 | 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | a skipping clock's stamp (up to 7190 fake seconds) left in the process-global sweep throttle read as the future against real uptime within two hours of a reboot, and the throttle skipped on a future stamp | production defect, surfaced by test state leaking between tests | **fixed** (task-546) |
 | 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | a reconcile judged a live launcher's never-launched attempt abandoned by comparing the OS creation time of `holder_pid` with an `admitted_at` written through the installed clock; under the durable-replay suite's frozen clock that clock read earlier than the holder's own start, so a live holder looked like a recycled pid and a second dispatch took its slot | production defect | **fixed** (task-549, `faed64f2`: admission records the holder's `process_identity` and both holder checks compare receipts, with the timestamp kept only as a fallback for older rows) |
-| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | not named. The same spec timed out on 2026-09-21 (finish `fin_419905b6`, then `:234`), so it repeats | unknown | open -- **task-515**; seen by finishes `fin_419905b6` and `fin_8f638f51` |
+| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix | test premise | **fixed** (task-515) -- see below |
 | 17 | `test_dispatch_atomic_yaml.py::TestTheDocumentIsNeverHalfWritten::test_a_reader_never_sees_a_partial_document` | `461 of 1153 reads saw a document without run_id` | a refusal to open the file that outlasted the reader's 40ms retry budget answered *absent*: `read_yaml_resiliently` returned `None`, and `read_meta` turned that into `{}`. Reproduced by holding the file exclusively, as a real-time scanner would; the organic load did not reproduce it | production defect | **fixed** (task-550) -- see below |
 | 18 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | `PermissionError: [Errno 13]` reading the test's own `grandchild.pid`, then `Cannot operate on a closed database` -- not a timeout | not named. The writer closes the file before renaming it, so something else held it or was replacing it: a second parent, or a scanner. Seen 1 of 20 in task-546's probe (`-n 13`, 2 slots held), on the cold first run | unknown | open -- **task-553** |
 
@@ -505,6 +505,39 @@ it used to merge onto `{}` and replace the file, erasing every field it had not 
 handed. The same probe on the branch: **0 of 20 runs failed**, 19533 complete reads,
 nothing raised. `test_an_exclusive_hold_is_waited_out_then_named` pins both halves with a
 real exclusive handle.
+
+### 16. A reload asked for once, and lost (fixed, task-515)
+
+**It repeats, and the ledger undercounts it.** `agentjobs execution failures --since 14`
+names this test once. It filed that one as `browser_death`, and most finish verdicts
+record `flaky_test` with no test named at all. The finish gate logs are the full count:
+red in **seven finishes in four days** (2026-09-21 to 09-23, on branches for task-179,
+369, 370, 454, 505, 526 and 536). Every one timed out at exactly 20 seconds.
+
+**Twenty seconds was not covering a rebuild.** `rebuildFrontend` is two file writes and
+one fire-and-forget `registration.update()`. A probe timed the whole path at 1.2-1.4
+seconds on every run. A 20-second red therefore means the reload never came, not that it
+came slowly. What loses it: an update check the browser already has in flight absorbs a
+second one. If that check fetched `sw.js` before the write, it finds nothing new and the
+tab is never taken over. Starting a check just before the write reproduced it in 3 of 48
+runs, each timing out at 20 seconds.
+
+**The fix.** `untilTakenOver` asks again on every poll until the takeover shows. With the
+same injected race: **0 of 48 failed**, and 5 needed the second ask. The neighbouring
+typing-tab test now counts `controllerchange` events. It used to wait on `controller`,
+which was already set before the rebuild, so a rebuild the browser never noticed passed
+there silently.
+
+**Its sibling in the same finish: a server that outlived its stage.** This is not a flaky
+test, but it made the next e2e run fail for a reason unrelated to the branch. A Playwright
+runner killed from outside never stops its `webServer` processes. On Windows they do not
+die with it, because the `poetry run` between them outlives the runner. `taskkill /F` on
+the runner left all four servers listening. Fixed: the config passes the runner's pid,
+and `run_server.py` stops once `agentjobs.dispatch.pids` proves that process gone. The
+same kill then left every port free within 3 seconds on 3 of 3 runs.
+`tests/test_e2e_server_owner.py` pins the pieces. That includes the first version's own
+defect: it printed before stopping, the print raised on a stdout piped to the dead
+runner, and the watcher thread died before it could stop anything.
 
 ### 10, 11 and 12, filed before this page existed (all resolved since -- see the table)
 
