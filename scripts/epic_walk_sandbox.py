@@ -7,7 +7,7 @@ a *comparison*, and neither half can be constructed by hand on a real machine: y
 make three agents take off to order, and you certainly cannot make one of them park on a
 human at the moment you are watching.
 
-    python scripts/epic_walk_sandbox.py [port] [--grounded]
+    python scripts/epic_walk_sandbox.py [port] [--grounded] [--queued]
 
 Two states, and the comparison is the point:
 
@@ -23,6 +23,10 @@ Two states, and the comparison is the point:
                  which is the honest shape: that one has a live session somebody has to
                  answer, and nothing else of the epic is running. There is still no card
                  for the epic itself, which is the whole point of comparing the two.
+
+`--queued` adds, to either state, a dispatch of an unrelated task waiting for a slot
+while the children hold every one. That puts the Queued rail and the walk rail on one
+board, in the order they get the next free slot: queue first, then the walk (task-557).
 
 Run both at once to see them side by side:
 
@@ -88,8 +92,11 @@ CHILD_DESCRIPTION = (
 )
 
 
+QUEUED_TASK = ("task-210", "Put the retry budget where the caller can see it")
+
+
 def build_project(root: Path) -> Path:
-    """One throwaway project holding one epic and three independent children."""
+    """One throwaway project holding one epic, three independent children, and a loner."""
     from agentjobs.manager import TaskManager
     from agentjobs.models_v2 import Lifecycle, LogEntryType
     from agentjobs.project_setup import build_project_config
@@ -126,6 +133,16 @@ def build_project(root: Path) -> Path:
             actor="claude",
             parent="task-200",
         )
+    # Not a child: what `--queued` puts in the dispatch queue, so it has to be a task the
+    # walk would never take off itself.
+    manager.create_task(
+        id=QUEUED_TASK[0],
+        title=QUEUED_TASK[1],
+        summary=f"{QUEUED_TASK[1]}. Queued by hand while the walk holds every slot.",
+        description=CHILD_DESCRIPTION,
+        lifecycle=Lifecycle.READY,
+        actor="claude",
+    )
     # Through the verbs: an epic has to be active before it can be walked, and the note
     # is the human act every child's dispatch is authorised by. Seeding either any other
     # way would skip the log entries the walk actually reads.
@@ -196,6 +213,7 @@ def dispatch_epic(home: Path, project_id: str) -> str:
 def main() -> None:
     argv = sys.argv[1:]
     grounded = "--grounded" in argv
+    queued = "--queued" in argv
     argv = [item for item in argv if not item.startswith("--")]
     port = int(argv[0]) if argv else DEFAULT_PORT
 
@@ -297,6 +315,28 @@ def main() -> None:
                     # the walk having left things running.
                     DispatchLedger(home).cancel(landed_run, actor="claude")
             tick(4)
+        if queued:
+            # Seeded after the children are up, because a queue whose machine was not
+            # yet full would simply start. The journal's own verb, as a click writes it.
+            from agentjobs.execution.factory import execution_db_path
+            from agentjobs.execution.store import ExecutionStore
+
+            store = ExecutionStore(execution_db_path(home))
+            try:
+                store.enqueue_dispatch(
+                    PROJECT_ID,
+                    QUEUED_TASK[0],
+                    request={
+                        "task_id": QUEUED_TASK[0],
+                        "trigger": "manual",
+                        "authorized_by": "Jeff Posey",
+                    },
+                    queued_by="Jeff Posey",
+                    limit=20,
+                )
+            finally:
+                store.close()
+            print(f"[epic] queued a dispatch of {QUEUED_TASK[0]} behind the walk", flush=True)
         parent = manager_now().get_task("task-200")
         if parent is not None and parent.ball is not None:
             reason = parent.ball_reason.value if parent.ball_reason else "-"
