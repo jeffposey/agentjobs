@@ -1036,7 +1036,8 @@ class Supervision:
     Read back so a reader outside the walk can tell a live supervisor from a pid the
     operating system has since handed to something else -- the same question
     :meth:`open_walk` settles with :func:`process_created_after`, asked by anything that
-    has to know whether a walk is still flying."""
+    has to know whether a walk is still flying. Only the fallback since task-558: a row
+    with ``holder_identity`` is settled by that receipt instead."""
 
     created_at: str = ""
     """When this walk was authorised, UTC.
