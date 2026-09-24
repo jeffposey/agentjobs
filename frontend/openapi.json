@@ -3556,6 +3556,42 @@
             ],
             "title": "Finished At"
           },
+          "free_mb_low": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The lowest available memory, MB, the gate saw.",
+            "title": "Free Mb Low"
+          },
+          "free_mb_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Available physical memory, MB, when the gate started.",
+            "title": "Free Mb Start"
+          },
+          "low_memory": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether the gate ran below its memory floor (task-548).",
+            "title": "Low Memory"
+          },
           "origin": {
             "enum": [
               "finish",
@@ -3688,6 +3724,50 @@
               }
             ],
             "title": "Finished At"
+          },
+          "free_mb_end": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Mb End"
+          },
+          "free_mb_low": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Mb Low"
+          },
+          "free_mb_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Mb Start"
+          },
+          "low_memory": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Memory"
           },
           "passed": {
             "anyOf": [

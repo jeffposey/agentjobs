@@ -303,7 +303,16 @@ def _wind_back_to_version_six(path: Path) -> None:
             "PRAGMA foreign_keys = OFF;\n"
             "BEGIN;\n"
             "ALTER TABLE task_acceptance DROP COLUMN check_argv;\n"
-            "PRAGMA user_version = 6;\n"
+            # 009's columns (task-548), for the same reason as 007's.
+            + "".join(
+                f"ALTER TABLE {table} DROP COLUMN {column};\n"
+                for table, columns in (
+                    ("gate_run", ("free_mb_start", "free_mb_low", "low_memory")),
+                    ("gate_stage", ("free_mb_start", "free_mb_end", "free_mb_low", "low_memory")),
+                )
+                for column in columns
+            )
+            + "PRAGMA user_version = 6;\n"
             "DELETE FROM schema_migration WHERE version > 6;\n"
             "COMMIT;\n"
         )

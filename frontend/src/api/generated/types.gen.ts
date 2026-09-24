@@ -2656,6 +2656,24 @@ export type GateRunWrite = {
      */
     finished_at?: string | null;
     /**
+     * Free Mb Low
+     *
+     * The lowest available memory, MB, the gate saw.
+     */
+    free_mb_low?: number | null;
+    /**
+     * Free Mb Start
+     *
+     * Available physical memory, MB, when the gate started.
+     */
+    free_mb_start?: number | null;
+    /**
+     * Low Memory
+     *
+     * Whether the gate ran below its memory floor (task-548).
+     */
+    low_memory?: boolean | null;
+    /**
      * Origin
      */
     origin: 'finish' | 'run' | 'manual';
@@ -2711,6 +2729,22 @@ export type GateStageWrite = {
      * Finished At
      */
     finished_at?: string | null;
+    /**
+     * Free Mb End
+     */
+    free_mb_end?: number | null;
+    /**
+     * Free Mb Low
+     */
+    free_mb_low?: number | null;
+    /**
+     * Free Mb Start
+     */
+    free_mb_start?: number | null;
+    /**
+     * Low Memory
+     */
+    low_memory?: boolean | null;
     /**
      * Passed
      */

@@ -112,6 +112,24 @@ def the_production_run_credential_verifier() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def never_reads_the_machines_processes(monkeypatch) -> None:
+    """No session stop reads the real process table, and no census fires (task-548).
+
+    A cancel now reads the session's process tree and ends what outlives the stop. A test
+    cancelling a fake session must never reach a real one -- the dispatched agent running
+    this suite has a session tree too -- so the reader is an empty table unless a test
+    installs its own. The automatic census is off for the same reason, and so that a
+    machine short of memory does not change what a poller test observes.
+    """
+    from agentjobs.dispatch import ledger
+
+    monkeypatch.setattr(ledger, "SESSION_TREE_READER", lambda: [])
+    monkeypatch.setattr(ledger, "SESSION_FINDER", lambda: [])
+    monkeypatch.setenv("AGENTJOBS_MEMORY_WATCH", "off")
+    monkeypatch.delenv("AGENTJOBS_MEMORY_FLOOR_MB", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def never_inside_a_dispatched_run(monkeypatch) -> None:
     """Detach every test from any dispatched run this process happens to belong to.
 

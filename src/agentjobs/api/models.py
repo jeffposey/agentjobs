@@ -1813,6 +1813,15 @@ class GateRunWrite(BaseModel):
     stages_run: Optional[int] = None
     stages_total: Optional[int] = None
     source: Literal["native", "imported"] = "native"
+    free_mb_start: Optional[int] = Field(
+        default=None, description="Available physical memory, MB, when the gate started."
+    )
+    free_mb_low: Optional[int] = Field(
+        default=None, description="The lowest available memory, MB, the gate saw."
+    )
+    low_memory: Optional[bool] = Field(
+        default=None, description="Whether the gate ran below its memory floor (task-548)."
+    )
 
 
 class GateStageWrite(BaseModel):
@@ -1826,6 +1835,10 @@ class GateStageWrite(BaseModel):
     passed: Optional[bool] = None
     started_at: str
     finished_at: Optional[str] = None
+    free_mb_start: Optional[int] = None
+    free_mb_end: Optional[int] = None
+    free_mb_low: Optional[int] = None
+    low_memory: Optional[bool] = None
 
 
 class GateHistoryWrite(BaseModel):

@@ -62,6 +62,8 @@ GATE_HISTORY_ENV = "AGENTJOBS_GATE_HISTORY"
 # that have no business knowing whether the store is listening.
 HISTORY: object | None = None
 
+MEMORY: "GateMemory | None" = None
+
 
 def same_environment(active: str) -> bool:
     """Is `active` the virtualenv this interpreter is already running in?"""
@@ -642,6 +644,191 @@ def run_stage_captured(stage: Stage, commands: list[list[str]], npm: str) -> tup
     return code, "".join(chunks)
 
 
+@dataclass
+class StageMemory:
+    """Available physical memory, in MB, around one stage: at its start and end, and the
+    lowest the sampler saw while it ran."""
+
+    start_mb: int | None = None
+    end_mb: int | None = None
+    low_mb: int | None = None
+    low: bool = False
+
+
+class GateMemory:
+    """Free memory at the gate's start and around every stage, and what it means (task-548).
+
+    On 2026-09-23 pytest went from about 180s a gate to 1,000-1,900s on a machine that
+    had lost about 30 GB, and nothing on any gate's output pointed at memory until the
+    owner rebooted. A stage that ran below the floor is now named, in words, in the
+    output a reader and the finisher both see -- beside the cost it is the likely cause
+    of. Built only when `agentjobs.memory` imports; a checkout that cannot import it
+    still gets to report that Black failed.
+    """
+
+    PREFIX = "LOW MEMORY"
+
+    def __init__(self, memory: object, home: Path | None) -> None:
+        self.memory = memory
+        self.home = home
+        self.floor: int = memory.floor_mb()  # type: ignore[attr-defined]
+        self.sampler = memory.Sampler().start()  # type: ignore[attr-defined]
+        self.start = self.sampler.read()
+        self.stages: dict[str, StageMemory] = {}
+        self.census: Path | None = None
+
+    def gb(self, mb: int | None) -> str:
+        return str(self.memory.gb(mb))  # type: ignore[attr-defined]
+
+    @property
+    def start_mb(self) -> int | None:
+        return None if self.start is None else int(self.start.available_mb)
+
+    @property
+    def started_low(self) -> bool:
+        return self.start is not None and bool(self.start.low(self.floor))
+
+    def opening(self) -> str:
+        if self.start is None:
+            return "Memory at start: could not be read."
+        line = f"Memory at start: {self.start.describe()} (floor {self.gb(self.floor)})."
+        if self.started_low:
+            line += f"{NL}{self.start_note()}"
+            self.take_census(self.start, "gate: started below the floor")
+            if self.census is not None:
+                line += f"{NL}{self.PREFIX}: a census of where it went is in {self.census}."
+        return line
+
+    def start_note(self) -> str:
+        return (
+            f"{self.PREFIX}: this gate started with {self.gb(self.start_mb)} available, "
+            f"below the floor of {self.gb(self.floor)}, so its stages are likely to run slow "
+            "and a slow stage is more likely the machine than the branch. "
+            "`agentjobs memory census` says where the memory is."
+        )
+
+    def take_census(self, state: object, reason: str) -> None:
+        if self.census is not None or self.home is None:
+            return
+        self.census = self.memory.capture_if_low(  # type: ignore[attr-defined]
+            self.home, state=state, reason=reason
+        )
+
+    def begin(self, stage: str) -> int | None:
+        state = self.sampler.open(stage)
+        self.stages[stage] = StageMemory(
+            start_mb=None if state is None else int(state.available_mb)
+        )
+        return self.stages[stage].start_mb
+
+    def end(self, stage: str) -> StageMemory:
+        state, lowest = self.sampler.close(stage)
+        record = self.stages.setdefault(stage, StageMemory())
+        record.end_mb = None if state is None else int(state.available_mb)
+        record.low_mb = None if lowest is None else int(lowest.available_mb)
+        record.low = lowest is not None and bool(lowest.low(self.floor))
+        if record.low:
+            self.take_census(lowest, f"gate: `{stage}` ran below the floor")
+        return record
+
+    def table(self, timings: list[tuple[str, float]]) -> str:
+        """Free memory per stage, printed under the timings and in the same stage order.
+
+        A block of its own rather than a column on the timing lines, because those lines
+        are a format other things read (`^  <stage> +<seconds>s$`).
+        """
+        names = [name for name, _ in timings if name in self.stages]
+        if not names:
+            return ""
+        width = max(len(name) for name in [*names, "free GB"])
+
+        def gbs(mb: int | None) -> str:
+            return "    ?" if mb is None else f"{mb / 1024:5.1f}"
+
+        lines = [
+            f"  {'free GB'.ljust(width)}  start    end    low   (floor {self.gb(self.floor)}, "
+            f"{self.gb(self.start_mb)} at the gate's start)"
+        ]
+        for name in names:
+            record = self.stages[name]
+            flag = "  LOW" if record.low else ""
+            lines.append(
+                f"  {name.ljust(width)}  {gbs(record.start_mb)}  {gbs(record.end_mb)}  "
+                f"{gbs(record.low_mb)}{flag}"
+            )
+        return NL.join(lines)
+
+    def notes(self, timings: list[tuple[str, float]], *, census: bool = True) -> list[str]:
+        """One sentence per stage that ran below the floor, naming it as the likely cause."""
+        lines = []
+        for name, seconds in timings:
+            record = self.stages.get(name)
+            if record is None or not record.low:
+                continue
+            lines.append(
+                f"{self.PREFIX}: `{name}` took {seconds:.1f}s and ran with as little as "
+                f"{self.gb(record.low_mb)} available (floor {self.gb(self.floor)}). Low "
+                "memory is the likely cause if that is slower than usual."
+            )
+        if lines and census and self.census is not None:
+            lines.append(f"{self.PREFIX}: a census of where it went is in {self.census}.")
+        return lines
+
+    def lowest_mb(self) -> int | None:
+        values = [r.low_mb for r in self.stages.values() if r.low_mb is not None]
+        if self.start_mb is not None:
+            values.append(self.start_mb)
+        return min(values) if values else None
+
+    def close(self) -> None:
+        self.sampler.stop()
+
+
+NL = chr(10)
+
+
+def open_gate_memory() -> GateMemory | None:
+    """The gate's memory watch, or None when `agentjobs.memory` will not import."""
+    try:
+        from agentjobs import memory
+        from agentjobs.projects import default_home
+
+        try:
+            home: Path | None = default_home()
+        except Exception:  # noqa: BLE001 - no home means no census, not no readings
+            home = None
+        return GateMemory(memory, home)
+    except Exception:  # noqa: BLE001 - see the docstring
+        return None
+
+
+def memory_fields(stage: str | None = None, *, finished: bool = False) -> dict[str, object]:
+    """The free-memory fields a phase record carries, empty when nothing is watching."""
+    if MEMORY is None:
+        return {}
+    if stage is None:
+        return {"free_mb": MEMORY.start_mb}
+    record = MEMORY.stages.get(stage)
+    if record is None:
+        return {}
+    if not finished:
+        return {"free_mb": record.start_mb}
+    return {"free_mb": record.end_mb, "free_mb_low": record.low_mb, "low_memory": record.low}
+
+
+def end_stage_memory(stage: str, seconds: float) -> None:
+    """Close the stage's memory window, and say so at once if it ran below the floor --
+    right under the stage's own output, rather than only in the table at the end."""
+    if MEMORY is None:
+        return
+    try:
+        MEMORY.end(stage)
+        for line in MEMORY.notes([(stage, seconds)]):
+            print(f"{NL}{line}", flush=True)
+    except Exception:  # noqa: BLE001 - instrumentation never fails the gate
+        pass
+
+
 def format_timings(timings: list[tuple[str, float]], wall: float | None = None) -> str:
     """A per-stage cost table, printed by every run so nobody has to instrument one.
 
@@ -682,7 +869,15 @@ def run_serially(selected: list[Stage], npm: str) -> tuple[list[tuple[str, float
         # "running". The gate is the better part of three minutes of a scripted finish
         # and was, until task-321, one silent block from the outside: the only records
         # were the two around the whole of it.
-        record_phase("gate_stage_started", stage=stage.name, index=position, total=len(selected))
+        if MEMORY is not None:
+            MEMORY.begin(stage.name)
+        record_phase(
+            "gate_stage_started",
+            stage=stage.name,
+            index=position,
+            total=len(selected),
+            **memory_fields(stage.name),
+        )
         commands, budget = commands_for(stage, npm)
         if budget is not None:
             print(f"\n{budget}", flush=True)
@@ -697,14 +892,17 @@ def run_serially(selected: list[Stage], npm: str) -> tuple[list[tuple[str, float
                 and retry_browser_deaths(npm, emit=emit, execute=partial(status_of, cwd=stage.cwd))
             ):
                 timings.append((stage.name, time.perf_counter() - started))
+                end_stage_memory(stage.name, timings[-1][1])
                 return timings, (stage.name, exc.returncode)
         timings.append((stage.name, time.perf_counter() - started))
+        end_stage_memory(stage.name, timings[-1][1])
         record_phase(
             "gate_stage_finished",
             stage=stage.name,
             index=position,
             total=len(selected),
             seconds=round(timings[-1][1], 1),
+            **memory_fields(stage.name, finished=True),
         )
     return timings, None
 
@@ -743,11 +941,14 @@ def run_concurrently(selected: list[Stage], npm: str) -> tuple[list[tuple[str, f
             if failure is None:
                 for stage in ready(pending, passed, wanted):
                     pending.remove(stage)
+                    if MEMORY is not None:
+                        MEMORY.begin(stage.name)
                     record_phase(
                         "gate_stage_started",
                         stage=stage.name,
                         index=positions[stage.name],
                         total=len(selected),
+                        **memory_fields(stage.name),
                     )
                     commands, budget = commands_for(stage, npm, reserve=reserve)
                     opening = f"\n>>> {stage.name} started ({stage.what})"
@@ -770,6 +971,7 @@ def run_concurrently(selected: list[Stage], npm: str) -> tuple[list[tuple[str, f
                     printable(f"\n=== {stage.name} {verdict} in {seconds:.1f}s ==={output}"),
                     flush=True,
                 )
+                end_stage_memory(stage.name, seconds)
                 if code != 0:
                     failure = failure or (stage.name, code)
                     continue
@@ -780,6 +982,7 @@ def run_concurrently(selected: list[Stage], npm: str) -> tuple[list[tuple[str, f
                     index=positions[stage.name],
                     total=len(selected),
                     seconds=round(seconds, 1),
+                    **memory_fields(stage.name, finished=True),
                 )
 
     # Reported in the table's order rather than the order they happened to finish in, so
@@ -1119,14 +1322,18 @@ def main(argv: list[str] | None = None) -> int:
         if repeat is not None:
             print(f"\n{repeat}", flush=True)
 
-    global HISTORY
+    global HISTORY, MEMORY
     HISTORY = open_gate_history()
+    MEMORY = open_gate_memory()
+    if MEMORY is not None:
+        print(f"{NL}{MEMORY.opening()}", flush=True)
     record_phase(
         "gate_started",
         scope=kind,
         stages=[stage.name for stage in selected],
         stages_total=len(all_stages),
         tree=fingerprint,
+        **memory_fields(),
     )
     began = time.perf_counter()
 
@@ -1148,6 +1355,26 @@ def main(argv: list[str] | None = None) -> int:
 
     wall = time.perf_counter() - began
     table = format_timings(timings, wall=wall if args.concurrent else None)
+    # Repeated under the table: the sentence under the stage is thousands of lines up.
+    if MEMORY is not None:
+        memory_lines = [MEMORY.table(timings)] if MEMORY.table(timings) else []
+        if MEMORY.started_low:
+            memory_lines.append(MEMORY.start_note())
+        memory_lines.extend(MEMORY.notes(timings))
+        if memory_lines:
+            table = f"{table}{NL}{NL}" + NL.join(memory_lines)
+    gate_memory = (
+        {
+            "free_mb": MEMORY.start_mb,
+            "free_mb_low": MEMORY.lowest_mb(),
+            "low_memory": [n for n, r in MEMORY.stages.items() if r.low]
+            or (["start"] if MEMORY.started_low else []),
+        }
+        if MEMORY is not None
+        else {}
+    )
+    if MEMORY is not None:
+        MEMORY.close()
 
     if failure is not None:
         name, code = failure
@@ -1160,6 +1387,7 @@ def main(argv: list[str] | None = None) -> int:
             stages_total=len(all_stages),
             failed_stage=name,
             tree=fingerprint,
+            **gate_memory,
         )
         print(f"\nFailed at stage '{name}'.", file=sys.stderr)
         if len(timings) > 1:
@@ -1180,6 +1408,7 @@ def main(argv: list[str] | None = None) -> int:
         stages_run=len(timings),
         stages_total=len(all_stages),
         tree=fingerprint,
+        **gate_memory,
     )
 
     # A receipt is earned by a run that skipped nothing it was not entitled to skip: a
