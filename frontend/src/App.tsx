@@ -100,6 +100,7 @@ import { MobilePush } from "./components/attention/MobilePush";
 import { PrimaryNav } from "./components/PrimaryNav";
 import { QueueBroken } from "./components/QueueBroken";
 import { QueueDispatch, QueueDispatchGate } from "./components/QueueDispatch";
+import { ListDetailSplit } from "./components/ListDetailSplit";
 import { useWideShell } from "./components/shellLayout";
 import { SlotBoard } from "./components/SlotBoard";
 import { VersionSkew } from "./components/VersionSkew";
@@ -560,31 +561,24 @@ function TasksSurface({ projectId }: { projectId: string }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-shell="two-region">
       {banners}
-      {/* A share of the width rather than a fixed column: 20rem is the floor a task row
-          needs, and a third of a 2560px monitor is a readable list where a fixed 24rem
-          would leave the same margin this epic exists to reclaim. Capped so the list
-          stops growing at the point where it has stopped helping. */}
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(20rem,min(34%,36rem))_minmax(0,1fr)] gap-6">
-        <aside
-          aria-label="Task list"
-          data-region="list"
-          className="min-h-0 overflow-y-auto pr-1"
-        >
-          <TaskListPage projectId={projectId} variant="tree" />
-        </aside>
-        <section aria-label="Task detail" data-region="detail" className="min-h-0 overflow-y-auto">
-          {/* The region is the width the list leaves, and the reading measure is not
-              here (task-239). It was, for one commit: a single `max-w-5xl` around the
-              whole record, which fixed the 200-character line and took the same width
-              back from the dependency graph, the log and the run transcript -- the
-              parts of a record that are *better* wide. `TaskDetail` now caps its own
-              prose and lets the wide blocks run, so this wrapper only has to be full
-              width and let it. */}
+      {/* The list's default share, its floors and the draggable boundary between the
+          regions all live in `ListDetailSplit` and `listSplit.ts` (task-368); the
+          default ratio is `DEFAULT_LIST_SPLIT` there. */}
+      <ListDetailSplit
+        list={<TaskListPage projectId={projectId} variant="tree" />}
+        detail={
+          // The region is the width the list leaves, and the reading measure is not
+          // here (task-239). It was, for one commit: a single `max-w-5xl` around the
+          // whole record, which fixed the 200-character line and took the same width
+          // back from the dependency graph, the log and the run transcript -- the
+          // parts of a record that are *better* wide. `TaskDetail` now caps its own
+          // prose and lets the wide blocks run, so this wrapper only has to be full
+          // width and let it.
           <div className="w-full">
             {outlet ?? <NoTaskSelected projectId={projectId} />}
           </div>
-        </section>
-      </div>
+        }
+      />
     </div>
   );
 }
