@@ -64,23 +64,95 @@ export function chipCase(label: string | null | undefined): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
+/**
+ * The three kinds of activity a chip can show by moving (task-570), and the class each
+ * one draws with. The keyframes are in `styles.css`; this is the only place a state is
+ * mapped to one.
+ *
+ * **Motion means one thing: something is happening to this task right now, and a live
+ * fact says so.** Never the lifecycle alone -- "Working" is derived from the record, and
+ * a task whose session died still reads it -- so every function below asks for the fact
+ * that backs the word: the run's own health, the queue's `starting`, a live finish.
+ *
+ * - `orbit`: a comet running round the border. A run is producing output.
+ * - `ignite`: the border's glow catching, fast and uneven. A start is going through the
+ *   dispatch gates -- a brief transition.
+ * - `sweep`: a highlight crossing the fill, like a bar landing. A finish is a sequence
+ *   that ends.
+ *
+ * All of it is on a pseudo-element or a shadow, so a chip never changes size, and
+ * `prefers-reduced-motion` stills it to a static outer ring.
+ */
+export type ChipMotion = "orbit" | "ignite" | "sweep";
+
+export const MOTION_CLASSES: Record<ChipMotion, string> = {
+  orbit: "chip-motion chip-motion-orbit",
+  ignite: "chip-motion chip-motion-ignite",
+  sweep: "chip-motion chip-motion-sweep",
+};
+
+/** Run-board health words that are activity. `handback` is a wait, not work, so it is absent. */
+const HEALTH_MOTION: Record<string, ChipMotion> = {
+  working: "orbit",
+  starting: "ignite",
+  finishing: "sweep",
+};
+
+/** A run's chip: its health word is itself the live fact. */
+export function runMotion(health: string): ChipMotion | null {
+  return HEALTH_MOTION[health] ?? null;
+}
+
+/** The facts a task read carries that can back a moving chip. Every task read model has them. */
+type MotionFacts = {
+  status_category: StatusCategory;
+  live_finish?: unknown;
+  queued_dispatch?: { status?: string | null } | null;
+  live_run_health?: string | null;
+};
+
+/**
+ * A task's chip. The category must agree with the fact as well as the fact being there:
+ * a task handed to review while its session is still open has a working run and a red
+ * chip, and a red chip does not move.
+ */
+export function taskMotion(task: MotionFacts): ChipMotion | null {
+  if (task.status_category === "finishing" && task.live_finish) return "sweep";
+  if (task.status_category === "queued" && task.queued_dispatch?.status === "starting") return "ignite";
+  if (
+    task.status_category === "working" &&
+    (task.live_run_health === "working" || task.live_run_health === "starting")
+  ) {
+    return "orbit";
+  }
+  return null;
+}
+
+/** The chip's classes, with its motion when it has one. */
+export function chipClasses(motion?: ChipMotion | null): string {
+  return motion ? `${CHIP_SHAPE} ${MOTION_CLASSES[motion]}` : CHIP_SHAPE;
+}
+
 export function StatusChip({
   category,
   label,
   title,
   testId,
+  motion,
 }: {
   category: StatusCategory;
   label: string;
   title?: string;
   testId?: string;
+  motion?: ChipMotion | null;
 }) {
   return (
     <span
       data-status-category={category}
+      data-motion={motion ?? undefined}
       data-testid={testId}
       title={title}
-      className={CHIP_SHAPE}
+      className={chipClasses(motion)}
       style={categoryStyle(category)}
     >
       {chipCase(label)}

@@ -398,3 +398,28 @@ describe("a run's badge in the task status colours (task-562)", () => {
     expect(screen.getByText("No output")).not.toHaveAttribute("data-status-category");
   });
 });
+
+describe("a run's badge moves only while the run is doing something (task-570)", () => {
+  it.each([
+    ["working", "Working", "orbit"],
+    ["starting", "Starting", "ignite"],
+    ["finishing", "Finishing", "sweep"],
+  ])("moves %s", (health, label, motion) => {
+    render(<HealthBadge health={health} />);
+
+    expect(screen.getByText(label)).toHaveAttribute("data-motion", motion);
+    expect(screen.getByText(label)).toHaveClass(`chip-motion-${motion}`);
+  });
+
+  it.each([
+    ["handback", "Feedback"],
+    ["parked", "Waiting on you"],
+    ["silent", "No output"],
+    ["idle", "Idle"],
+  ])("keeps %s still", (health, label) => {
+    render(<HealthBadge health={health} />);
+
+    expect(screen.getByText(label)).not.toHaveAttribute("data-motion");
+    expect(screen.getByText(label).className).not.toContain("chip-motion");
+  });
+});

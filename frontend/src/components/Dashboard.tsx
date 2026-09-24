@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import type { DashboardResponse } from "../api/types";
 import { stallBadge, stallExplanation, stallsByTask } from "./attention/stalled";
 import { BrokenFiles } from "./BrokenFiles";
-import { StatusChip } from "./StatusChip";
+import { StatusChip, taskMotion } from "./StatusChip";
 import { QueueBroken } from "./QueueBroken";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
@@ -171,7 +171,7 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
                       {stall ? (
                         <Badge className="bg-red-900 text-red-200">{stallBadge(stall)}</Badge>
                       ) : (
-                        <StatusChip category={task.status_category} label={task.display_status} />
+                        <StatusChip category={task.status_category} label={task.display_status} motion={taskMotion(task)} />
                       )}
                     </div>
                   </Link>

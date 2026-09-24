@@ -22,7 +22,7 @@ import {
 } from "./QuestionForm";
 import { DependencyGraph } from "./DependencyGraph";
 import { ArchivedTag, DependencyState } from "./DependencyState";
-import { StatusChip } from "./StatusChip";
+import { StatusChip, taskMotion } from "./StatusChip";
 import { ChainPanel } from "./ChainPanel";
 import { DispatchPanel, type DispatchPanelProps, type DispatchRefusal } from "./DispatchPanel";
 import { FinishPanel } from "./FinishPanel";
@@ -722,7 +722,7 @@ function Relationships({ detail, projectId }: { detail: TaskDetailResponse; proj
           <h2 className="border-b border-dark-border p-4 font-semibold">Task hierarchy</h2>
           <div className="divide-y divide-dark-border">
             {detail.task.parent && <div className="p-4 text-sm">Parent: <Link className="touch-target inline-flex text-blue-300 hover:underline" to={taskPath(projectId, detail.task.parent)}>{detail.parent_task?.title ?? detail.task.parent} <span className="font-mono text-xs">({detail.task.parent})</span></Link></div>}
-            {detail.children.map((child) => <div className="flex flex-col gap-1 p-4 @min-[768px]:flex-row @min-[768px]:items-center @min-[768px]:justify-between" key={child.id}><Link className="touch-target block text-blue-300 hover:underline" to={taskPath(projectId, child.id)}><span className="block font-medium">{child.title}</span><span className="font-mono text-xs text-dark-muted">{child.id}</span></Link><StatusChip category={child.status_category} label={child.display_status} /></div>)}
+            {detail.children.map((child) => <div className="flex flex-col gap-1 p-4 @min-[768px]:flex-row @min-[768px]:items-center @min-[768px]:justify-between" key={child.id}><Link className="touch-target block text-blue-300 hover:underline" to={taskPath(projectId, child.id)}><span className="block font-medium">{child.title}</span><span className="font-mono text-xs text-dark-muted">{child.id}</span></Link><StatusChip category={child.status_category} label={child.display_status} motion={taskMotion(child)} /></div>)}
           </div>
         </div>
       )}
@@ -948,7 +948,7 @@ export function TaskDetail(props: TaskDetailProps) {
         }`}
         data-pinned={pinned ? "yes" : "no"}
       >
-        <div className="min-w-0"><div className="select-all font-mono text-sm text-blue-300">{task.id}</div><h1 className="break-words text-2xl font-bold @min-[768px]:text-3xl">{task.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2"><StatusChip category={task.status_category} label={task.display_status} />{task.archived && <ArchivedTag />}<span className={`rounded px-2 py-1 text-xs ${PRIORITY_CLASSES[task.priority ?? "medium"]}`}>{task.priority ?? "medium"}</span><span className="text-sm text-dark-muted">{task.category}</span>{task.tags?.map((tag) => <span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 text-xs" key={tag}>{tag}</span>)}</div></div>
+        <div className="min-w-0"><div className="select-all font-mono text-sm text-blue-300">{task.id}</div><h1 className="break-words text-2xl font-bold @min-[768px]:text-3xl">{task.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2"><StatusChip category={task.status_category} label={task.display_status} motion={taskMotion(task)} />{task.archived && <ArchivedTag />}<span className={`rounded px-2 py-1 text-xs ${PRIORITY_CLASSES[task.priority ?? "medium"]}`}>{task.priority ?? "medium"}</span><span className="text-sm text-dark-muted">{task.category}</span>{task.tags?.map((tag) => <span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 text-xs" key={tag}>{tag}</span>)}</div></div>
         <Link to={`/p/${encodeURIComponent(projectId)}/tasks`} className="touch-target shrink-0 rounded-lg border border-dark-border bg-dark-surface px-4 text-sm hover:bg-dark-border">← Back to Tasks</Link>
       </header>
 

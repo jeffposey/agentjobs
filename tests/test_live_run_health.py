@@ -30,7 +30,9 @@ from test_execution_controller import Machine, machine
 __all__ = ["machine"]  # a fixture, imported by name -- the harness is task-416's
 
 
-def a_run(home: Path, run_id: str, *, task_id: str, status: str, project_id: str = "sandbox") -> None:
+def a_run(
+    home: Path, run_id: str, *, task_id: str, status: str, project_id: str = "sandbox"
+) -> None:
     """A dispatched session's run directory and the task lock that names it."""
     directory = home / "runs" / run_id
     directory.mkdir(parents=True)
