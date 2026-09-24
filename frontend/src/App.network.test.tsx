@@ -50,7 +50,7 @@ describe("generated client at the HTTP boundary", () => {
           ball: received.lifecycle === "ready" ? "agent" : "human",
           ball_reason: received.lifecycle === "ready" ? "available" : "spec",
           ball_prompt: received.lifecycle === "ready" ? null : "Finish specifying this task.",
-          display_status: received.lifecycle === "ready" ? "Ready" : "Draft",
+          display_status: received.lifecycle === "ready" ? "Ready" : "Needs spec",
           priority: received.priority ?? "medium",
           category: received.category ?? "general",
           assignment: { eligible: [] },
@@ -59,7 +59,10 @@ describe("generated client at the HTTP boundary", () => {
             description: received.description,
           },
         };
-        created = { ...task, actionable: true, unmet_needs: [], needs_cycles: [], unblocks_count: 0, open_children_count: 0 };
+        created = {
+          ...task,
+          status_category: received.lifecycle === "ready" ? "ready" : "needs_you",
+          actionable: true, unmet_needs: [], needs_cycles: [], unblocks_count: 0, open_children_count: 0 };
         return HttpResponse.json(task, { status: 201 });
       }),
     );
@@ -76,7 +79,7 @@ describe("generated client at the HTTP boundary", () => {
 
     const tasks = await screen.findByRole("region", { name: "Tasks" });
     expect(within(tasks).getByText("Created through HTTP")).toBeVisible();
-    expect(within(tasks).getByText("Actionable now")).toBeVisible();
+    expect(within(tasks).getByText("Ready")).toBeVisible();
     await waitFor(() => expect(received).toEqual(expect.objectContaining({
       title: "Created through HTTP",
       lifecycle: "ready",

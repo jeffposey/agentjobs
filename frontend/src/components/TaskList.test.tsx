@@ -17,6 +17,7 @@ function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
     ball: "agent",
     ball_reason: "available",
     display_status: "Ready",
+    status_category: "ready",
     priority: "medium",
     category: "general",
     tags: [],
@@ -65,7 +66,7 @@ describe("TaskList filtering", () => {
   it("defaults to Open and excludes closed tasks", () => {
     renderList([
       task("task-open"),
-      task("task-closed", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "completed", display_status: "Completed" }),
+      task("task-closed", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "completed", display_status: "Completed", status_category: "closed" }),
     ]);
 
     expect(within(openFilters()).getByRole("combobox", { name: "Status" })).toHaveValue("open");
@@ -135,7 +136,8 @@ describe("TaskList filtering", () => {
         ball: "external",
         ball_reason: "service",
         ball_prompt: "The limit resets at 2026-09-18T21:30:00Z. Nothing to do.",
-        display_status: "Waiting on quota reset (21:30 UTC)",
+        display_status: "Quota reset",
+        status_category: "not_now",
         assignment: { owner: "claude", eligible: [] },
         self_clearing_wait: { kind: "usage_limit", resets_at: "2026-09-18T21:30:00Z" },
       });
@@ -145,7 +147,8 @@ describe("TaskList filtering", () => {
         ball: "external",
         ball_reason: "service",
         ball_prompt: "Their API has been 503 since this morning.",
-        display_status: "Blocked on a service",
+        display_status: "Blocked",
+        status_category: "not_now",
         assignment: { owner: "claude", eligible: [] },
         self_clearing_wait: null,
       });
@@ -174,7 +177,7 @@ describe("TaskList filtering", () => {
 
       expect(screen.getByTestId("location")).toHaveTextContent("status=reset");
       const table = screen.getByRole("region", { name: "Tasks" });
-      expect(within(table).getByText("Waiting on quota reset (21:30 UTC)")).toBeVisible();
+      expect(within(table).getByText("Quota reset")).toBeVisible();
       expect(within(table).queryByText("task-on-a-vendor")).not.toBeInTheDocument();
     });
 
@@ -313,7 +316,7 @@ describe("TaskList filtering", () => {
 
   it("keeps a superseded task distinguishable from a completed one on the list", () => {
     renderList([
-      task("task-058-superseded", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "superseded", display_status: "Superseded" }),
+      task("task-058-superseded", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "superseded", display_status: "Superseded", status_category: "closed_unfinished" }),
       task("task-059-completed", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "completed", display_status: "Completed" }),
     ], "/p/inbox/tasks?status=closed");
 
@@ -327,6 +330,8 @@ describe("TaskList filtering", () => {
     renderList([task("task-blocked", {
       actionable: false,
       unmet_needs: ["task-prerequisite (still open)"],
+      display_status: "Blocked",
+      status_category: "not_now",
     })]);
 
     const rows = screen.getByRole("region", { name: "Tasks" });
@@ -338,9 +343,11 @@ describe("TaskList filtering", () => {
     renderList([task("task-umbrella", {
       actionable: false,
       open_children_count: 2,
+      display_status: "Sub-tasks",
+      status_category: "not_now",
     })]);
 
-    expect(screen.getByText("Waiting on sub-tasks")).toBeVisible();
+    expect(screen.getByText("Sub-tasks")).toBeVisible();
     // task-164: an epic is claimable now, and the claim is for supervision. The old
     // copy said the children "must finish first", which the claim no longer requires.
     expect(screen.getByText(/2 open sub-tasks to finish\./)).toBeVisible();

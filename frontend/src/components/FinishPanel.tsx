@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { FinishStepView, TaskFinishView } from "../api/types";
-import { FINISHING_FILL } from "./DependencyState";
+import { CATEGORY_CLASSES } from "./StatusChip";
 
 /**
  * What is happening to this task's branch, on the page that started it.
@@ -177,10 +177,12 @@ export function finishBadge(finish: TaskFinishView): string {
   }
 }
 
-// A live finish in the finishing colour every other surface uses for it (task-533).
+// A live finish in the finishing colour every other surface uses for it (task-533), from
+// the one status colour map (task-562). The terminal states describe the finish process
+// rather than a task, so they keep colours of their own.
 const STATE_CLASSES: Record<string, string> = {
-  starting: FINISHING_FILL,
-  running: FINISHING_FILL,
+  starting: CATEGORY_CLASSES.finishing,
+  running: CATEGORY_CLASSES.finishing,
   finished: "bg-emerald-900 text-emerald-200",
   escalated: "bg-orange-900 text-orange-100",
   declined: "bg-slate-700 text-slate-200",

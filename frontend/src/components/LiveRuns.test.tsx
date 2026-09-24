@@ -10,6 +10,7 @@ import type {
 } from "../api/types";
 import {
   BUSY_POLL_MS,
+  HealthBadge,
   IDLE_POLL_MS,
   LiveRunCount,
   LiveRunsPage,
@@ -369,5 +370,27 @@ describe("the Runs tab", () => {
     // Read-only is a decision, not an omission (task-328 out_of_scope, task-312).
     renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run()] })} />);
     expect(screen.queryByRole("button", { name: /cancel/i })).toBeNull();
+  });
+});
+
+describe("a run's badge in the task status colours (task-562)", () => {
+  it.each([
+    ["working", "Working", "bg-blue-900"],
+    ["starting", "Starting", "bg-amber-900"],
+    ["finishing", "Finishing", "bg-violet-900"],
+    ["parked", "Waiting on you", "bg-red-900"],
+  ])("draws %s as the task status it names", (health, label, colour) => {
+    render(<HealthBadge health={health} />);
+
+    const badge = screen.getByText(label);
+    expect(badge).toHaveAttribute("data-health", health);
+    expect(badge).toHaveClass(colour);
+  });
+
+  it("leaves a process-only state its own colour", () => {
+    render(<HealthBadge health="silent" />);
+
+    expect(screen.getByText("No output")).toHaveClass("bg-orange-900");
+    expect(screen.getByText("No output")).not.toHaveAttribute("data-status-category");
   });
 });

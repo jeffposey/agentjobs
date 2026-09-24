@@ -647,7 +647,7 @@ export function RunsChart({
       <SeriesTable
         testId="runs-series"
         caption="Runs, agent-hours and paused run-hours per bucket"
-        columns={["Bucket", "Runs", "Agent-hours", "Paused run-hours", "Run p50", "In flight"]}
+        columns={["Bucket", "Runs", "Agent-hours", "Paused run-hours", "Run p50", "Still running"]}
         rows={points.map((point, index) => [
           formatBucket(point.bucket, bucket),
           String(point.runs ?? 0),
@@ -762,7 +762,7 @@ export function RunOutcomeChart({
       <SeriesTable
         testId="run-outcomes-series"
         caption="Runs by outcome per bucket"
-        columns={["Bucket", ...keys.map((key) => key.replace(/_/g, " ")), "In flight"]}
+        columns={["Bucket", ...keys.map((key) => key.replace(/_/g, " ")), "Still running"]}
         rows={points.map((point) => [
           formatBucket(point.bucket, bucket),
           ...keys.map((key) => String(point.outcomes?.[key] ?? 0)),

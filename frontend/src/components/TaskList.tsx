@@ -7,7 +7,8 @@ import type {
   QueueProblemRead,
   TaskSummaryRead,
 } from "../api/types";
-import { DependencyState, dependencyState, STATE_CLASSES } from "./DependencyState";
+import { ArchivedTag, DependencyState, dependencyState } from "./DependencyState";
+import { StatusChip } from "./StatusChip";
 import { startDragAutoScroll } from "./dragAutoScroll";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 import {
@@ -978,11 +979,8 @@ export function TaskList({
                 </span>
               </Link>
               <div className="mt-1 flex flex-wrap items-center gap-1" data-field="status">
-                <span
-                  className={`inline-flex rounded border px-1.5 text-xs font-medium ${STATE_CLASSES[state.kind]}`}
-                >
-                  {state.label}
-                </span>
+                <StatusChip category={state.category} label={state.label} />
+                {task.archived && <ArchivedTag />}
                 <span className={`rounded px-1.5 text-xs ${PRIORITY_CLASSES[task.priority ?? "medium"]}`}>
                   {task.priority ?? "medium"}
                 </span>
@@ -1125,7 +1123,7 @@ export function TaskList({
               >
                 <label className="sr-only" htmlFor="status-filter">Status</label>
                 <select ref={firstFilterRef} id="status-filter" aria-label="Status" value={status} onChange={(event) => updateParam("status", event.target.value, "open")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
-                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="attention">Waiting on you</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Active</option><option value="finishing">Finishing</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="reset">Waiting on a reset</option><option value="closed">Closed</option>
+                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="attention">Waiting on you</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Working</option><option value="finishing">Finishing</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="reset">Quota reset</option><option value="closed">Closed</option>
                 </select>
                 <label className="sr-only" htmlFor="priority-filter">Priority</label>
                 <select id="priority-filter" aria-label="Priority" value={priority} onChange={(event) => updateParam("priority", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">

@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { listLiveRunsApiRunsLiveGetOptions } from "../api/generated/@tanstack/react-query.gen";
-import type { LiveRunView, LiveRunsView, MachineHolderView } from "../api/types";
-import { FINISHING_FILL } from "./DependencyState";
+import type { LiveRunView, LiveRunsView, MachineHolderView, StatusCategory } from "../api/types";
+import { CHIP_SHAPE, statusChipClasses } from "./StatusChip";
 import { formatElapsed } from "./DispatchPanel";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
@@ -108,17 +108,30 @@ export const HEALTH_LABELS: Record<string, string> = {
   finishing: "Finishing",
 };
 
+/**
+ * Run-health states that name the same thing as a task status take that status's
+ * category, so a run and its task are drawn in one colour (task-562): Working is blue,
+ * Starting is the queued brown, Finishing is purple, and a run parked on a person is
+ * the red a task that needs you is.
+ */
+const HEALTH_CATEGORY: Record<string, StatusCategory> = {
+  working: "working",
+  starting: "queued",
+  parked: "needs_you",
+  finishing: "finishing",
+};
+
+/**
+ * The rest describe the process rather than the task, and keep colours of their own.
+ * Same chip shape as a status, so the board does not mix filled and outlined badges.
+ */
 const HEALTH_CLASSES: Record<string, string> = {
-  working: "bg-green-900 text-green-200",
-  starting: "bg-slate-700 text-slate-200",
-  parked: "bg-orange-900 text-orange-200",
-  silent: "bg-orange-900 text-orange-200",
-  orphaned: "bg-red-900 text-red-200",
-  unknown: "bg-red-900 text-red-200",
-  idle: "bg-slate-700 text-slate-200",
-  handback: "bg-sky-900 text-sky-200",
-  work_done: "bg-slate-700 text-slate-200",
-  finishing: FINISHING_FILL,
+  silent: "border-orange-700 bg-orange-900 text-orange-200",
+  orphaned: "border-red-700 bg-red-900 text-red-200",
+  unknown: "border-red-700 bg-red-900 text-red-200",
+  idle: "border-slate-600 bg-slate-700 text-slate-200",
+  handback: "border-sky-700 bg-sky-900 text-sky-200",
+  work_done: "border-slate-600 bg-slate-700 text-slate-200",
 };
 
 /**
@@ -143,12 +156,16 @@ export function healthLabel(health: string): string {
 }
 
 export function HealthBadge({ health }: { health: string }) {
+  const category = HEALTH_CATEGORY[health];
   return (
     <span
       data-health={health}
-      className={`whitespace-nowrap rounded px-2 py-1 text-xs ${
-        HEALTH_CLASSES[health] ?? HEALTH_CLASSES.unknown
-      }`}
+      data-status-category={category}
+      className={
+        category
+          ? statusChipClasses(category)
+          : `${CHIP_SHAPE} ${HEALTH_CLASSES[health] ?? HEALTH_CLASSES.unknown}`
+      }
     >
       {healthLabel(health)}
     </span>
@@ -260,10 +277,13 @@ export function FinishBadge({ finish }: { finish: MachineHolderView }) {
   return (
     <span
       data-finish-step={finish.detail}
+      data-status-category={finish.overtaken ? undefined : "finishing"}
       className={
         finish.overtaken
-          ? "whitespace-nowrap rounded bg-amber-900 px-2 py-1 text-xs text-amber-200"
-          : `whitespace-nowrap rounded px-2 py-1 text-xs ${FINISHING_FILL}`
+          ? // A lock state rather than a task status, so it keeps a colour of its own --
+            // orange, not the amber brown that now means Queued (task-562).
+            `${CHIP_SHAPE} border-orange-700 bg-orange-900 text-orange-200`
+          : statusChipClasses("finishing")
       }
     >
       {finish.overtaken ? "Overtaken" : "Finishing"}

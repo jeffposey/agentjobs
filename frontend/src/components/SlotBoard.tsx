@@ -8,9 +8,11 @@ import type {
   MachineHolderView,
   QueuedDispatchView,
   StartPauseView,
+  StatusCategory,
   TaskCardRead,
 } from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
+import { StatusChip } from "./StatusChip";
 import {
   FinishBadge,
   HealthBadge,
@@ -597,12 +599,13 @@ function WaitingRail({
       className="mt-3 border-t border-dark-border pt-3"
     >
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-dark-muted">
-          Waiting for a slot
-        </h3>
+        {/* "Queued", the word a task in this state carries on its own chip (task-562).
+            The sentence is the owner's, and true of the controller today: a free slot
+            goes to the queue before a walk's next child (task-477). */}
+        <h3 className="text-xs font-medium uppercase tracking-wide text-dark-muted">Queued</h3>
         <span className="text-xs text-dark-muted">
-          {queued.length} of {limit || queued.length} — each starts on its own, with every
-          dispatch gate checked then
+          {queued.length} of {limit || queued.length} · Queued tasks are taken before epic
+          walk tasks.
         </span>
       </div>
       <PausedNotice pauses={pauses} scope="queue" />
@@ -714,10 +717,18 @@ export function walkCountsSentence(walk: EpicWalkView): string {
  * same way makes a reader either chase a walk that needs nothing or ignore one that has
  * stopped for good, and the board is the only place either mistake gets made.
  */
-export function walkState(walk: EpicWalkView): { badge: string; sentence: string } {
+export function walkState(walk: EpicWalkView): {
+  badge: string;
+  category: StatusCategory;
+  sentence: string;
+} {
   if (!walk.grounded) {
     return {
       badge: "walking",
+      // The categories are the task chips' (task-562), because the owner reads these
+      // on the same board: walking is running (blue), waiting clears by itself (pink,
+      // "not now, not because of you"), and grounded needs a person (red).
+      category: "working",
       sentence: "starting each child as its dependencies close",
     };
   }
@@ -726,11 +737,13 @@ export function walkState(walk: EpicWalkView): { badge: string; sentence: string
     const on = walk.waiting_on_task_id ? ` on ${walk.waiting_on_task_id}` : "";
     return {
       badge: "waiting",
+      category: "not_now",
       sentence: `waiting${on}: ${because}. It takes off again on its own when that clears.`,
     };
   }
   return {
     badge: "grounded",
+    category: "needs_you",
     sentence: `grounded: ${because}. Nothing more takes off until a person acts.`,
   };
 }
@@ -778,7 +791,8 @@ function WalkRail({ walks }: { walks: EpicWalkView[] }) {
               data-testid="epic-walk"
               data-walk-id={walk.walk_id}
               data-grounded={walk.grounded ? "true" : "false"}
-              className="rounded-lg border border-dashed border-violet-800/70 bg-dark-bg p-3"
+              // Neutral, not violet: purple is Finishing's and nothing else's (task-562).
+              className="rounded-lg border border-dashed border-dark-border bg-dark-bg p-3"
             >
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 <Link
@@ -792,18 +806,11 @@ function WalkRail({ walks }: { walks: EpicWalkView[] }) {
                   <span className="font-mono text-xs text-blue-400">{walk.parent_task_id}</span>
                   <span className="ml-2 text-sm text-dark-text">{walk.parent_task_title}</span>
                 </Link>
-                <span
-                  data-testid="epic-walk-badge"
-                  className={`rounded px-2 py-0.5 text-xs ${
-                    walk.grounded
-                      ? walk.resumes_by_itself
-                        ? "bg-sky-900/40 text-sky-200"
-                        : "bg-orange-900 text-orange-200"
-                      : "bg-violet-900/50 text-violet-200"
-                  }`}
-                >
-                  {state.badge}
-                </span>
+                <StatusChip
+                  testId="epic-walk-badge"
+                  category={state.category}
+                  label={state.badge}
+                />
               </div>
               <p data-testid="epic-walk-counts" className="mt-1 text-xs text-dark-muted">
                 {walkCountsSentence(walk)}
