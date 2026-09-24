@@ -110,6 +110,7 @@ from agentjobs.dispatch.wake import (
     build_wake_prompt,
     find_wake_target,
     resume_refusal,
+    session_uuids,
     wake_argv,
     wake_in_place,
     newest_session_run,
@@ -156,6 +157,22 @@ RUNS_DIRNAME = "runs"
 META_FILENAME = "meta.yaml"
 
 TERMINAL_STATUSES = frozenset({"finished", "cancelled", "failed"})
+
+HANDBACK_DELIVERED_ENTRY = "handback_delivered_entry"
+"""The human handoff a live run was given in place, after it had handed off (task-574).
+
+The run keeps going under the same record, so its dispatch entry is no longer the point
+its work is measured from: the ball it moved before this delivery was the handoff the
+feedback answers. ``_ball_moved`` measures from whichever is newer."""
+
+HANDBACK_DELIVERED_AT = "handback_delivered_at"
+"""When that delivery landed, so the staleness window restarts from it."""
+
+RELEASE_CONFIRM_SECONDS = 10.0
+"""How long a handback waits for a stopped, handed-off session to read stopped.
+
+Short, because a handback runs inside the request that clicked it. A session that has
+not stopped by then is reported to a person rather than waited on."""
 """Statuses meaning nothing is executing. Everything else counts as live."""
 
 STDOUT_FILENAME = "stdout.log"
@@ -2977,6 +2994,73 @@ class DispatchRunner:
         except Exception as exc:  # noqa: BLE001 - see the docstring
             return InPlaceWake(False, f"the in-place wake could not be attempted: {exc}")
 
+    def deliver_to_live_session(self, session_id: str, message: str) -> InPlaceWake:
+        """Send ``message`` to a session of this runner that is still running (task-574).
+
+        The handback's use of task-451's peer channel: a session that handed its task off
+        and is kept busy by a background job (a review sandbox) never reads ``idle``, so
+        the poller never settles it and a wake never finds it resumable. It is waiting,
+        though, not working -- so the message goes to it where it stands.
+
+        The full uuid is read from the session ledger when it can be, because the roster
+        is keyed by it and a run records the short id; the short id is still tried as a
+        prefix when the ledger cannot say. Every doubt is a miss with a reason, never an
+        exception: the caller's fallback is to stand the run down.
+        """
+        uuid = session_id
+        try:
+            uuid = session_uuids(self.ledger()).get(session_id) or session_id
+        except Exception:  # noqa: BLE001 - the short id is still a usable lookup
+            pass
+        target = WakeTarget(previous_run_id="", session_id=session_id, session_uuid=uuid)
+        attempt = self._wake_in_place(target, message)
+        if attempt is None:
+            return InPlaceWake(False, "this runner has no peer channel to deliver on")
+        return attempt
+
+    def release_handed_off_session(
+        self,
+        handle: RunHandle,
+        *,
+        body: str,
+        confirm_seconds: float = RELEASE_CONFIRM_SECONDS,
+        poll_seconds: float = 1.0,
+    ) -> bool:
+        """Stop a session that handed its task off, and conclude its run ``completed``.
+
+        The fallback when feedback could not be delivered in place (task-574). The run's
+        work reached its handoff, so this is not a cancellation and is not recorded as
+        one; and it is concluded only once the session reads stopped or gone, so nothing
+        started afterwards can run beside it. ``False`` means the session could not be
+        shown to have stopped, and the run is left live and holding the task.
+        """
+        if not handle.session_id or not self.stop_session(handle.session_id):
+            return False
+        deadline = dispatch_clock.monotonic() + confirm_seconds
+        while True:
+            row: Optional[Dict[str, object]]
+            try:
+                row = self._ledger_row(handle.session_id)
+            except DispatchRunError:
+                # An unreadable ledger is not a stopped session: keep asking until the
+                # deadline, then report it as unconfirmed.
+                row = {"status": "unknown"}
+            phase = (
+                SessionPhase.GONE
+                if row is None
+                else classify_session(
+                    str(row.get("status")) if row.get("status") is not None else None,
+                    str(row.get("state")) if row.get("state") is not None else None,
+                )
+            )
+            if phase in {SessionPhase.GONE, SessionPhase.STOPPED}:
+                break
+            if dispatch_clock.monotonic() >= deadline:
+                return False
+            dispatch_clock.sleep(poll_seconds)
+        self._finish_session(handle, DispatchOutcome.COMPLETED, body=body, reap=False)
+        return str(handle.directory.read_meta().get("status") or "") in TERMINAL_STATUSES
+
     def _adopt_woken_session(
         self,
         task: Task,
@@ -4316,6 +4400,15 @@ class DispatchRunner:
             return
 
         started = self._started_at(handle)
+        delivered_at = handle.directory.read_meta().get(HANDBACK_DELIVERED_AT)
+        if isinstance(delivered_at, str):
+            try:
+                woken = datetime.fromisoformat(delivered_at)
+            except ValueError:
+                woken = None
+            if woken is not None:
+                woken = woken if woken.tzinfo else woken.replace(tzinfo=timezone.utc)
+                started = woken if started is None or woken > started else started
         stale_after = timedelta(seconds=self.resolution.limits.session_stale_seconds)
         if started is not None and self.clock() - started < stale_after:
             return
@@ -4341,8 +4434,15 @@ class DispatchRunner:
         """True when the task's ball moved after the dispatch entry was written."""
         if handle.dispatch_entry_id is None:
             return False
+        baseline = handle.dispatch_entry_id
+        delivered = handle.directory.read_meta().get(HANDBACK_DELIVERED_ENTRY)
+        if isinstance(delivered, int) and delivered > baseline:
+            # Feedback reached this run in place (task-574). The handoff it made before
+            # that is what the feedback answered, so it is not evidence the revision was
+            # handed off; only a move after the delivery is.
+            baseline = delivered
         return any(
-            entry.id > handle.dispatch_entry_id and entry.type.value in {"handoff", "transition"}
+            entry.id > baseline and entry.type.value in {"handoff", "transition"}
             for entry in task.log
         )
 
