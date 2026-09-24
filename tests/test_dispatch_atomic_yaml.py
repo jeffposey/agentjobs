@@ -285,3 +285,43 @@ class TestTheDocumentIsNeverHalfWritten:
         holder.join(timeout=10)
 
         assert yaml.safe_load(target.read_text(encoding="utf-8"))["generation"] == 2
+
+
+_DELETE = 0x00010000
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="share modes are a Windows lock")
+def test_a_file_a_rename_has_not_yet_let_go_of_is_readable_shared_and_not_plainly(
+    tmp_path: Path,
+) -> None:
+    """The handle ``os.replace`` holds for a moment after the new name is visible.
+
+    ``MoveFileExW`` renames through a handle it opened with DELETE access and full sharing,
+    and closes it only *after* the file is at its new name. So ``exists()`` can be true
+    while that handle is open. An ordinary ``open`` does not share delete, so it collides
+    with that handle: ERROR_SHARING_VIOLATION, which Python reports as errno 13.
+    ``read_shared`` asks for FILE_SHARE_DELETE and reads through it. That is task-553,
+    where ``test_the_timeout_kills_the_grandchild_too`` read its marker straight after
+    ``exists()`` and died with ``PermissionError``. The handle is held here rather than
+    raced, so neither assertion depends on timing.
+    """
+    import ctypes
+
+    target = tmp_path / "grandchild.pid"
+    target.write_text("4242", encoding="utf-8")
+    handle = atomic_yaml._CreateFileW(
+        str(target),
+        _DELETE,
+        atomic_yaml._SHARE_READ_WRITE_DELETE,
+        None,
+        atomic_yaml._OPEN_EXISTING,
+        atomic_yaml._FILE_ATTRIBUTE_NORMAL,
+        None,
+    )
+    assert handle != atomic_yaml._INVALID_HANDLE_VALUE, ctypes.get_last_error()
+    try:
+        with pytest.raises(PermissionError):
+            target.read_text(encoding="utf-8")
+        assert atomic_yaml.read_shared(target) == "4242"
+    finally:
+        ctypes.WinDLL("kernel32").CloseHandle(handle)

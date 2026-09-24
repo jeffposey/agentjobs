@@ -43,6 +43,7 @@ from agentjobs.dispatch.config import (
     SelectionSource,
     SkipReason,
 )
+from agentjobs.dispatch.atomic_yaml import read_shared
 from agentjobs.dispatch.pids import process_identity, recorded_process_alive
 from agentjobs.dispatch.runner import (
     CHILDREN_NAMED,
@@ -2576,7 +2577,16 @@ class TestProcessGroup:
             f"{'still going' if handle.supervisor.is_alive() else 'already over'}), "
             "so this proves nothing"
         )
-        grandchild_pid = int(marker.read_text())
+        # Read with FILE_SHARE_DELETE, not `read_text` (task-553). `os.replace` is
+        # `MoveFileExW`, which renames through a handle it holds with DELETE access and
+        # closes a moment *after* the new name is visible. So `exists()` can be true while
+        # that handle is still open, and an ordinary `open` -- which does not share delete
+        # -- fails against it with ERROR_SHARING_VIOLATION, errno 13. Reduced on
+        # 2026-09-24 with one writer, no second launch: a read straight after `exists()`
+        # failed 2826 times in 3000, and `read_shared` 0 in 6000. The window is under a
+        # millisecond, which this loop's 50ms poll hits only when the parent is preempted
+        # between the rename and the close, as on a cold, loaded first run.
+        grandchild_pid = int(read_shared(marker))
         # Taken now, while the grandchild is almost certainly running: the number alone
         # is not a name for it. Measured for task-325 on 2026-09-23 under load, the
         # grandchild was gone the instant `join` returned, and `tasklist` still called
