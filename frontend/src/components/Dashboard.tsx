@@ -1,9 +1,8 @@
 import { Link } from "react-router-dom";
 
-import type { DashboardResponse, TaskCardRead } from "../api/types";
+import type { DashboardResponse } from "../api/types";
 import { stallBadge, stallExplanation, stallsByTask } from "./attention/stalled";
 import { BrokenFiles } from "./BrokenFiles";
-import { DependencyState } from "./DependencyState";
 import { QueueBroken } from "./QueueBroken";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
@@ -58,13 +57,6 @@ type DashboardProps = {
   renderNotificationDelivery?: () => React.ReactNode;
 };
 
-const priorityClasses: Record<string, string> = {
-  critical: "bg-red-900 text-red-200",
-  high: "bg-orange-900 text-orange-200",
-  medium: "bg-yellow-900 text-yellow-200",
-  low: "bg-slate-700 text-slate-200",
-};
-
 function projectPath(projectId: string, path = "") {
   return `/p/${encodeURIComponent(projectId)}${path}`;
 }
@@ -83,15 +75,6 @@ function Badge({ children, className = "" }: { children: React.ReactNode; classN
 }
 
 /**
- * How many active tasks the Dashboard lists before it stops and links to the rest.
- *
- * `active_tasks` is uncapped by the server -- it is every open task in the project --
- * and it used to be rendered in full. On this project that was forty cards, four
- * thousand pixels of them, under a board that had already answered the question the
- * page exists to answer (task-294). The count in the heading and the link beside it
- * say what the four rows are a sample of.
- */
-/**
  * The floor under the tail region, so it cannot be squeezed out of existence.
  *
  * The glance takes the space it needs first, and on a phone at six slots it needs more
@@ -102,47 +85,15 @@ function Badge({ children, className = "" }: { children: React.ReactNode; classN
  */
 const TAIL_MIN = "min-h-[6rem]";
 
-const ACTIVE_PREVIEW = 3;
-
 /**
  * How many of the ten log entries the server sends the Dashboard prints.
  *
  * Four, one line each. The feed is the least glance-like thing on the page and the
  * furthest from a decision; nothing in it is a link, so a shorter list makes nothing
- * unreachable -- every task it names is on the board, in the list above it, or a search
- * away on the Tasks surface.
+ * unreachable -- every task it names is on the board or a search away on the Tasks
+ * surface.
  */
 const UPDATES_PREVIEW = 3;
-
-/**
- * One active task, at the density a bounded frame can afford (task-294).
- *
- * `text-lg` over a full-width summary and `p-4` around it made each of these 100px
- * tall, which is a seventh of a phone screen for one row of a list that is a sample.
- * Everything a reader picks a row by is still here -- title, summary, priority and
- * whether it is blocked -- on one line each.
- */
-function TaskCard({ task, projectId }: { task: TaskCardRead; projectId: string }) {
-  return (
-    <Link
-      to={projectPath(projectId, `/tasks/${encodeURIComponent(task.id)}`)}
-      className="touch-target block overflow-hidden rounded-lg border border-dark-border bg-dark-surface px-3 py-2 transition hover:border-blue-500"
-    >
-      <div className="flex flex-col items-start justify-between gap-1 min-[820px]:flex-row min-[820px]:items-center min-[820px]:gap-4">
-        <div className="min-w-0">
-          <h3 className="truncate text-sm font-medium">{task.title}</h3>
-          <p className="truncate text-xs text-dark-muted">{truncate(task.summary, 120)}</p>
-        </div>
-        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-          <Badge className={priorityClasses[task.priority ?? "medium"] ?? priorityClasses.medium}>
-            {task.priority ?? "medium"}
-          </Badge>
-          <DependencyState task={task} compact />
-        </div>
-      </div>
-    </Link>
-  );
-}
 
 function CreateTaskLink({ projectId }: { projectId: string }) {
   return (
@@ -368,9 +319,11 @@ export function Dashboard({
    * - **The glance** -- the slot board and the one call to action. This is what the
    *   page is *for* (task-092, task-081), so it is sized to its content and takes the
    *   space it needs before anything else gets any.
-   * - **The tail** -- active tasks and recent updates. Whatever is left, with its own
-   *   scroll, never less than `TAIL_MIN` so it cannot vanish and take its content with
-   *   it. Both sections are samples that link to the surface holding the whole.
+   * - **The tail** -- recently finished and recent updates. Whatever is left, with its
+   *   own scroll, never less than `TAIL_MIN` so it cannot vanish and take its content
+   *   with it. Task-557 took the "Active tasks" preview out of it: a priority-sorted
+   *   slice of every ready or active task duplicated the Tasks page under a label that
+   *   collides with the `active` lifecycle, and the board already shows what is running.
    *
    * `min-h-0` on the column and on the glance is the load-bearing half: a flex child's
    * default `min-height: auto` refuses to shrink below its content, so without it a
@@ -422,35 +375,8 @@ export function Dashboard({
         className={`flex ${TAIL_MIN} flex-1 flex-col gap-3 overflow-y-auto`}
       >
         {renderNotificationDelivery?.()}
-        <section className="shrink-0 rounded-lg border border-dark-border bg-dark-surface">
-          <div className="flex items-baseline justify-between gap-4 border-b border-dark-border px-4 py-2">
-            <h2 className="text-sm font-medium text-dark-text">
-              Active tasks{" "}
-              <span className="font-normal text-dark-muted">({dashboard.active_tasks.length})</span>
-            </h2>
-            {/*
-              Only `View all` here. Task-374 put the analytics page's entry point on this
-              row too; task-465 moved it to the primary nav, where a reader looks for a
-              surface. `whitespace-nowrap` stays: `View all 40 →` breaking after `40`
-              leaves the arrow alone on the next line, which reads as a broken glyph.
-            */}
-            <Link to={projectPath(projectId, "/tasks")} className="touch-target whitespace-nowrap text-xs text-blue-400 hover:text-blue-300">
-              {dashboard.active_tasks.length > ACTIVE_PREVIEW
-                ? `View all ${dashboard.active_tasks.length} →`
-                : "View all →"}
-            </Link>
-          </div>
-          <div className="space-y-2 p-2">
-            {dashboard.active_tasks.length > 0 ? dashboard.active_tasks.slice(0, ACTIVE_PREVIEW).map((task) => (
-              <TaskCard key={task.id} task={task} projectId={projectId} />
-            )) : (
-              <div className="rounded-lg border border-dashed border-dark-border bg-dark-bg/40 p-4 text-center text-sm text-dark-muted">No active tasks right now. Enjoy the calm!</div>
-            )}
-          </div>
-        </section>
         {/*
-          Above "Recent updates" and below "Active tasks": the tail reads newest-question
-          first. What is open is the thing a reader might still do something about; what
+          Above "Recent updates": the tail reads newest-question first. What is open is the thing a reader might still do something about; what
           just closed is the thing they missed; the log feed is neither and is the least
           glance-like thing on the page, which is why it stays last.
         */}

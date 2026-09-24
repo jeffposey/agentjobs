@@ -657,7 +657,6 @@ class DashboardResponse(BaseModel):
     """
 
     stats: DashboardStats
-    active_tasks: List[TaskCardRead]
     recent_updates: List[DashboardRecentUpdate]
     waiting_tasks: List[TaskCardRead]
     backlog_tasks: List[TaskCardRead]

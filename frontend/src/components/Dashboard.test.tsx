@@ -50,7 +50,6 @@ function dashboard(overrides: Partial<DashboardResponse>): DashboardResponse {
       awaiting_input: 0,
       completed: 0,
     },
-    active_tasks: [],
     recent_updates: [],
     waiting_tasks: [],
     backlog_tasks: [],
@@ -136,7 +135,7 @@ describe("Dashboard next-action ladder", () => {
   it("no longer carries the count strip's backlog link, and does not leave a dead one", () => {
     // The five-tile strip and the `+N in backlog` link under it came off the Dashboard
     // in task-294. What replaces the link is the Tasks surface's own Status filter,
-    // which has a Draft option -- one click on from the "View all" link that stayed.
+    // which has a Draft option, one click away in the primary nav.
     renderDashboard(cases[0]!.response);
 
     expect(screen.queryByRole("link", { name: /in backlog/ })).not.toBeInTheDocument();
@@ -144,24 +143,6 @@ describe("Dashboard next-action ladder", () => {
       expect(link.getAttribute("href")).not.toBe("/p/inbox/tasks?status=draft");
     }
     expect(within(screen.getByTestId("next-action")).queryByText(/Backlog awaiting your input/)).not.toBeInTheDocument();
-  });
-
-  it("explains a dependency block on an active task card", () => {
-    renderDashboard(dashboard({
-      active_tasks: [task("task-waiting", {
-        actionable: false,
-        unmet_needs: ["task-first (still open)"],
-      })],
-    }));
-
-    expect(screen.getByText("Waiting for task-first (still open)")).toBeVisible();
-  });
-
-  it("keeps a human-held active card in review instead of calling it in flight", () => {
-    renderDashboard(dashboard({ active_tasks: [blocked] }));
-
-    expect(screen.getByText("Waiting for review")).toBeVisible();
-    expect(screen.queryByText("In flight")).not.toBeInTheDocument();
   });
 
   it.each(["nothing_claimable", "empty_project"] as const)(
@@ -262,34 +243,13 @@ describe("Dashboard supporting sections", () => {
     }
   });
 
-  it("lists a sample of the active tasks and says what it is a sample of", () => {
-    // `active_tasks` is uncapped by the server. Rendering it whole is what made this
-    // page five thousand pixels tall; the heading carries the real count and the link
-    // beside it goes to the surface that holds them all.
-    renderDashboard(dashboard({
-      active_tasks: Array.from({ length: 9 }, (_, index) => task(`task-active-${index}`)),
-    }));
-
-    const heading = screen.getByRole("heading", { name: /Active tasks/ });
-    expect(heading).toHaveTextContent("Active tasks (9)");
-    expect(screen.getByRole("link", { name: "View all 9 →" })).toHaveAttribute(
-      "href",
-      "/p/inbox/tasks",
-    );
-    for (const index of [0, 1, 2]) {
-      expect(screen.getByText(`Title of task-active-${index}`)).toBeVisible();
-    }
-    expect(screen.queryByText("Title of task-active-3")).not.toBeInTheDocument();
-  });
-
   it("carries no analytics link: that entry point is the primary nav (task-465)", () => {
     // Task-374 put `Analytics →` on this row and the owner could not find the page.
     // The nav is asserted in PrimaryNav.test.tsx; this guards against the link coming
     // back here and the page having two entry points that disagree.
-    renderDashboard(dashboard({ active_tasks: [claimable] }));
+    renderDashboard(dashboard({}));
 
     expect(screen.queryByRole("link", { name: "Analytics →" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View all →" })).toHaveAttribute("href", "/p/inbox/tasks");
   });
 
   it("splits the page into a pinned glance and a tail that takes what is left", () => {
@@ -299,7 +259,6 @@ describe("Dashboard supporting sections", () => {
     // and their contents -- jsdom does not lay out, so the geometry that matters is
     // measured in `frontend/e2e/dashboard-one-screen.spec.ts` instead.
     renderDashboard(dashboard({
-      active_tasks: [claimable],
       recent_updates: [
         {
           task_id: "task-next",
@@ -314,8 +273,10 @@ describe("Dashboard supporting sections", () => {
     const glance = screen.getByTestId("dashboard-glance");
     const tail = screen.getByTestId("dashboard-tail");
     expect(within(glance).getByTestId("next-action")).toBeVisible();
-    expect(within(tail).getByRole("heading", { name: /Active tasks/ })).toBeVisible();
     expect(within(tail).getByRole("heading", { name: "Recent updates" })).toBeVisible();
+    // Task-557 took the "Active tasks" preview off the page: it duplicated the Tasks
+    // surface under a label that collides with the `active` lifecycle.
+    expect(screen.queryByRole("heading", { name: /Active tasks/ })).not.toBeInTheDocument();
     expect(within(tail).getByText("Claimed by claude.")).toBeVisible();
   });
 
@@ -506,14 +467,14 @@ describe("Dashboard placement of the recently-finished region", () => {
     expect(screen.getByTestId("dashboard-glance")).not.toContainElement(region);
   });
 
-  it("keeps it below the active tasks and above the log feed", () => {
+  it("keeps it at the head of the tail, above the log feed", () => {
     renderWithRegion(dashboard({ next_action: "nothing_claimable" }));
 
     const tail = screen.getByTestId("dashboard-tail");
     const order = Array.from(tail.children).map((child) =>
       child.getAttribute("data-testid") ?? child.textContent?.slice(0, 13),
     );
-    expect(order).toEqual(["Active tasks ", "finished", "Recent update"]);
+    expect(order).toEqual(["finished", "Recent update"]);
   });
 
   it("still renders the tail when the page supplies no region", () => {

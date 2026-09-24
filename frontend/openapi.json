@@ -1747,13 +1747,6 @@
       "DashboardResponse": {
         "description": "The complete Python-computed dashboard contract.\n\nEvery task list here is a :class:`TaskCardRead`, not a whole record. It answered\nwith whole ``TaskRead`` records until task-495 -- spec prose, acceptance criteria and\nthe complete log of every task on the page -- which measured 10,888 bytes per record\nand 5.2 MB in total against a generated corpus of 480, to draw cards showing a title,\na summary line, a priority chip and a dependency badge.",
         "properties": {
-          "active_tasks": {
-            "items": {
-              "$ref": "#/components/schemas/TaskCardRead-Output"
-            },
-            "title": "Active Tasks",
-            "type": "array"
-          },
           "backlog_tasks": {
             "items": {
               "$ref": "#/components/schemas/TaskCardRead-Output"
@@ -1839,7 +1832,6 @@
         },
         "required": [
           "stats",
-          "active_tasks",
           "recent_updates",
           "waiting_tasks",
           "backlog_tasks",

@@ -53,9 +53,10 @@ DEFAULT_CEILING = 3
 
 #: How many open tasks the project carries.
 #:
-#: Forty, because `active_tasks` is uncapped by the server -- it is every open task --
-#: and the Dashboard used to render all of them. On this repository's own corpus that
-#: was the four thousand pixels that made the page eight screens tall on a phone.
+#: Forty, because the Dashboard's old "Active tasks" list was every open task and used
+#: to render all of them. On this repository's own corpus that was the four thousand
+#: pixels that made the page eight screens tall on a phone. The list is gone since
+#: task-557; the crowd stays so the frame is measured against a realistic backlog.
 CROWD = 40
 
 TITLES = [

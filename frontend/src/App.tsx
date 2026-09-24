@@ -153,7 +153,6 @@ function DashboardPage({ projectId }: { projectId: string }) {
     }),
     select: (dashboard) => {
       requireSupportedTaskSchemas([
-        ...dashboard.active_tasks,
         ...dashboard.waiting_tasks,
         ...dashboard.backlog_tasks,
         ...(dashboard.next_task ? [dashboard.next_task] : []),

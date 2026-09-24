@@ -1355,10 +1355,6 @@ export type DashboardRecentUpdate = {
  */
 export type DashboardResponse = {
     /**
-     * Active Tasks
-     */
-    active_tasks: Array<TaskCardReadOutput>;
-    /**
      * Backlog Tasks
      */
     backlog_tasks: Array<TaskCardReadOutput>;
@@ -8132,10 +8128,6 @@ export type WhoAmIResponse = {
  * a summary line, a priority chip and a dependency badge.
  */
 export type DashboardResponseWritable = {
-    /**
-     * Active Tasks
-     */
-    active_tasks: Array<TaskCardReadOutputWritable>;
     /**
      * Backlog Tasks
      */
