@@ -511,7 +511,8 @@ the runner lazily to keep the two modules from importing each other."""
 
 
 def failing_tests(output: str, limit: int = SALIENT_LIMIT) -> List[str]:
-    """pytest's short-summary lines, in order, without repeats.
+    """pytest's short-summary lines, and Playwright's failures in the same shape, in order,
+    without repeats.
 
     Deduplicated because a rerun or a second reporting section prints the same line
     again, and a list that names one test twice reads as two failures.
@@ -521,15 +522,49 @@ def failing_tests(output: str, limit: int = SALIENT_LIMIT) -> List[str]:
     recorded ``flaky_test`` named no test at all (task-419).
     """
     seen: List[str] = []
-    for raw in (output or "").splitlines():
-        line = _COLOUR.sub("", raw).strip()
-        if not line.startswith(FAILURE_PREFIXES):
+    lines = [_COLOUR.sub("", raw).strip() for raw in (output or "").splitlines()]
+    for index, line in enumerate(lines):
+        if line.startswith(FAILURE_PREFIXES):
+            found: Optional[str] = line
+        else:
+            found = _playwright_failure(lines, index)
+        if found is None:
             continue
-        if line not in seen:
-            seen.append(line)
+        if found not in seen:
+            seen.append(found)
         if len(seen) >= limit:
             break
     return seen
+
+
+PLAYWRIGHT_HEADER = re.compile(r"^\d+\) (\S+\.spec\.ts:\d+:\d+ › .*?)[\s─]*$")
+"""Playwright's list reporter heading one failure: ``1) e2e/x.spec.ts:291:1 › title ───``.
+
+The `e2e` stage prints no pytest summary, so until task-368 a red `e2e` named no test at
+all: both attempts of fin_8cf34319 recorded ``tests: []``, the same spec failing the same
+way twice was called a flake, and the escalation quoted thirty lines of web-server noise.
+"""
+
+PLAYWRIGHT_ERROR_WINDOW = 8
+"""How far below its heading a failure's ``Error:`` line may sit. It is the first
+non-blank line in practice; the slack is for a ``Retry #1`` banner."""
+
+
+def _playwright_failure(lines: Sequence[str], index: int) -> Optional[str]:
+    """One Playwright failure as a pytest-shaped line: ``FAILED <id> - <first error>``.
+
+    Shaped like pytest's short summary so that everything downstream -- ``_test_ids``,
+    ``repeated_failures``' verbatim comparison, the rollup -- reads both suites alike.
+    The path is written with forward slashes whatever the platform printed.
+    """
+    matched = PLAYWRIGHT_HEADER.match(lines[index])
+    if not matched:
+        return None
+    identity = matched.group(1).replace(chr(92), "/")
+    for following in lines[index + 1 : index + 1 + PLAYWRIGHT_ERROR_WINDOW]:
+        if following.startswith("Error:"):
+            return f"FAILED {identity} - {following}"
+    return f"FAILED {identity}"
 
 
 def _without_memory(output: str) -> str:

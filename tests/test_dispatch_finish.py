@@ -37,17 +37,21 @@ from agentjobs.actors import FINISHER, reserved_actors
 from agentjobs.dispatch.config import FinishSettings
 from agentjobs.dispatch.finish import (
     DECLINED,
+    DETERMINISTIC_IN_CONTEXT,
     ESCALATED,
     FINISHED,
+    FLAKY_TEST,
     POSTURE,
     SALIENT_LIMIT,
     Escalate,
+    GateAttempt,
     Plan,
     active_branches,
     delete_branch,
     failing_stage,
     failing_tests,
     finish_task,
+    judge_second_red,
     lead_with_the_cause,
     reachable_stages,
     verify_live,
@@ -2654,6 +2658,55 @@ class TestLeadingWithTheCause:
             "\x1b[31mFAILED\x1b[0m tests/test_x.py::\x1b[1mTestY::test_z\x1b[0m - AssertionError"
         )
         assert failing_tests(coloured) == ["FAILED tests/test_x.py::TestY::test_z - AssertionError"]
+
+    def test_a_playwright_failure_is_named_and_a_repeat_of_one_is_caught(self) -> None:
+        """fin_8cf34319 (task-368): the same spec red on both attempts was called a flake.
+
+        The `e2e` stage prints Playwright's list reporter, not a pytest summary, so both
+        attempts recorded no failing test and nothing could repeat. These are the lines
+        its logs really had, backslashed path, colour, box-drawing tail and summary alike.
+        """
+        backslash = chr(92)
+        spec = f"e2e{backslash}capture-draft.spec.ts:291:1 › a rebuild reloads an idle tab"
+        first_log = "\n".join(
+            [
+                "[WebServer] ConnectionResetError: [WinError 10054] noise",
+                f"\x1b[31m  1) {spec} ────────\x1b[39m",
+                "",
+                "    Error: expect(received).toBe(expected) // Object.is equality",
+                "",
+                "  1 failed",
+                f"    {spec} ────",
+            ]
+        )
+        second_log = "\n".join(
+            [
+                f"  1) e2e{backslash}dictation.spec.ts:34:1 › a microphone per field ───",
+                "",
+                "    Error: browser.newContext: Target page, context or browser has been closed",
+                f"  2) {spec} ────────",
+                "",
+                "    Error: expect(received).toBe(expected) // Object.is equality",
+            ]
+        )
+        repeated = (
+            "FAILED e2e/capture-draft.spec.ts:291:1 › a rebuild reloads an idle tab"
+            " - Error: expect(received).toBe(expected) // Object.is equality"
+        )
+        assert failing_tests(first_log) == [repeated]
+        assert failing_tests(second_log)[1] == repeated
+
+        first = GateAttempt(1, [], "aecd6010", "7feef610", None)
+        second = GateAttempt(2, ["--from", "e2e"], "aecd6010", "7feef610", None)
+        first.tests = failing_tests(first_log)
+        second.tests = failing_tests(second_log)
+        verdict, _ = judge_second_red(
+            first, second, moved=False, classification=FLAKY_TEST, explanation=""
+        )
+        assert verdict == DETERMINISTIC_IN_CONTEXT
+        assert "e2e/capture-draft.spec.ts:291:1" in lead_with_the_cause(
+            first_log, log=Path("gate.log")
+        )
 
     def test_a_flood_of_failures_is_capped_and_says_it_was(self, tmp_path: Path) -> None:
         output = "\n".join(f"FAILED tests/t.py::test_{i}" for i in range(40))
