@@ -9,7 +9,6 @@ ranking ``run_health`` states, and the word each side draws.
 
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -26,7 +25,7 @@ from agentjobs.dispatch.ledger import (
     run_health,
 )
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import LiveFinishState, derived_display_status
+from agentjobs.models_v2 import STATUS_VOCABULARY, LiveFinishState, derived_display_status
 from support import task_store
 
 LIVE_RUNS_TSX = Path(__file__).resolve().parents[1] / "frontend/src/components/LiveRuns.tsx"
@@ -80,8 +79,8 @@ class TestOneWord:
         )
         task_word = derived_display_status(task, None, finish)
 
-        match = re.search(
-            r'^\s*finishing:\s*"([^"]+)"', LIVE_RUNS_TSX.read_text(encoding="utf-8"), re.M
-        )
-        assert match is not None, "HEALTH_LABELS in LiveRuns.tsx has no `finishing` entry"
-        assert match.group(1) == task_word == "Finishing"
+        # Since task-562 the run's word comes from the status data file, which LiveRuns.tsx
+        # imports; the file is what this reads, and LiveRuns must still import it.
+        run_word = STATUS_VOCABULARY["run_health"]["finishing"]["label"]
+        assert run_word == task_word == "Finishing"
+        assert "RUN_HEALTH" in LIVE_RUNS_TSX.read_text(encoding="utf-8")

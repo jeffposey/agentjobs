@@ -8675,7 +8675,7 @@
         "type": "object"
       },
       "StatusCategory": {
-        "description": "Which colour a status chip is drawn in: one colour per category (task-562).\n\nDerived on read beside ``display_status`` and by the same function, so the word and\nthe colour cannot disagree. Every label belongs to exactly one category:\n\n- ``ready`` (green) -- can start: Ready.\n- ``queued`` (brown) -- will start: Queued, Starting.\n- ``working`` (blue) -- running: Working.\n- ``finishing`` (purple) -- merging: Finishing.\n- ``needs_you`` (red) -- a person has to act: the five \"Needs ...\" labels and\n  Dependency data error.\n- ``not_now`` (pink) -- will not start, and not because of you: Blocked, On hold,\n  Sub-tasks, Quota reset, Draft.\n- ``closed`` and ``closed_unfinished`` (grey) -- the one grey category, with the\n  marker a surface strikes the word through for: Completed is ``closed``; Superseded,\n  Cancelled and Duplicate are ``closed_unfinished``.\n\nA plain ``Enum`` rather than a tolerant ``ValueEnum``: nothing ever writes one, so\nthere is no older writer whose value a reader has to survive.",
+        "description": "Which colour a status chip is drawn in: one colour per category (task-562).\n\nDerived on read beside ``display_status`` and by the same function, so the word and\nthe colour cannot disagree. Which label belongs to which category, and each\ncategory's colours, are in ``status_vocabulary.json`` -- the one file both the\nserver and the React app read. ``closed`` and ``closed_unfinished`` are both grey:\nCompleted is drawn solid, and Superseded, Cancelled and Duplicate hollow.\n\nA plain ``Enum`` rather than a tolerant ``ValueEnum``: nothing ever writes one, so\nthere is no older writer whose value a reader has to survive. Its members must be\nexactly the file's categories, which tests/test_status_vocabulary.py holds.",
         "enum": [
           "ready",
           "queued",
@@ -8683,6 +8683,7 @@
           "finishing",
           "needs_you",
           "not_now",
+          "draft",
           "closed",
           "closed_unfinished"
         ],

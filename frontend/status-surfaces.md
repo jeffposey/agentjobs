@@ -21,24 +21,26 @@ remember to update is how the sixth surface was missed, so the list is now check
 
 ## The one colour source
 
-**Every status chip's colour is `CATEGORY_CLASSES` in `StatusChip.tsx`**, keyed by the
-server's `status_category`, which is derived beside `display_status` by the same function
-(task-562). One colour per category, every status in exactly one category, and grey for
-closed tasks and nothing else. The design table is in `docs/task-schema.md`. Render a
-task status with `<StatusChip>` or `statusChipClasses()`; never pick a colour for one.
+**Every status chip's word and colour is in `src/agentjobs/status_vocabulary.json`**
+(task-562). The server reads it for `display_status` and `status_category`; the React app
+reads the same file, in `StatusChip.tsx`, for the colours. One colour per category, every
+status in exactly one category, and grey for closed tasks and nothing else. The design
+table is in `docs/task-schema.md`. Render a task status with `<StatusChip>` or
+`categoryStyle()`; never pick a colour for one.
 
-A run-health state that names the same thing as a task status takes that status's
-category in `LiveRuns.tsx` (`HEALTH_CATEGORY`); the process-only states keep their own.
+The run-health words that name a task status, and the epic-walk badges, come from the
+same file (`RUN_HEALTH`, `WALK_STATES`); the process-only health states keep their own
+colours in `LiveRuns.tsx`.
 
-The check fails when the finishing fill is spelled outside `StatusChip.tsx`, and when a
-word the chip used to be rewritten to ("Actionable now", "In flight", "Waiting on
-sub-tasks") appears anywhere in the source.
+The check fails when a component defines its own `Record<StatusCategory, string>` colour
+map, and when a word the chip used to be rewritten to ("Actionable now", "In flight",
+"Waiting on sub-tasks") appears anywhere in the source.
 
 ## The surfaces
 
 | File | What it renders | Source |
 | --- | --- | --- |
-| `components/StatusChip.tsx` | The one status chip and the category-to-colour map | `display_status` |
+| `components/StatusChip.tsx` | The one status chip, drawn from the status data file | `display_status` |
 | `components/DependencyState.tsx` | The task status chip and its reason line | `display_status` |
 | `components/RecentlyFinished.tsx` | The dashboard's Recently finished rows | `display_status` |
 | `components/TaskList.tsx` | The status column, the tree row chip, the Finishing filter | `dependencyState` |

@@ -56,7 +56,6 @@ def _facts_of(row: "TaskRead | TaskSummaryRead") -> StatusFacts:
     return StatusFacts(
         needs_cycle=bool(row.needs_cycles),
         unmet_needs=bool(row.unmet_needs),
-        open_children=row.open_children_count > 0,
     )
 
 

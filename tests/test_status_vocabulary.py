@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional
 import pytest
 
 from agentjobs.models_v2 import (
+    STATUS_VOCABULARY,
     LiveFinishState,
     Outcome,
     QueuedDispatchState,
@@ -21,6 +22,7 @@ from agentjobs.models_v2 import (
     StatusFacts,
     Task,
     closed_status,
+    status_named,
     task_status,
 )
 
@@ -132,7 +134,7 @@ CASES = [
         None,
         None,
         StatusFacts(needs_cycle=True),
-        "Dependency data error",
+        "Error",
         C.NEEDS_YOU,
     ),
     (
@@ -179,16 +181,7 @@ CASES = [
         "On hold",
         C.NOT_NOW,
     ),
-    (
-        "sub-tasks",
-        lambda: _task(),
-        None,
-        None,
-        StatusFacts(open_children=True),
-        "Sub-tasks",
-        C.NOT_NOW,
-    ),
-    ("quota-reset", _quota_park, None, None, StatusFacts(), "Quota reset", C.NOT_NOW),
+    ("quota", _quota_park, None, None, StatusFacts(), "Quota", C.NOT_NOW),
     (
         "draft",
         lambda: _task(lifecycle="draft"),
@@ -196,7 +189,7 @@ CASES = [
         None,
         StatusFacts(),
         "Draft",
-        C.NOT_NOW,
+        C.DRAFT,
     ),
     (
         "draft-handed-to-an-agent",
@@ -205,7 +198,7 @@ CASES = [
         None,
         StatusFacts(),
         "Draft",
-        C.NOT_NOW,
+        C.DRAFT,
     ),
     (
         "draft-waiting-on-its-spec",
@@ -265,10 +258,9 @@ def test_a_label_belongs_to_exactly_one_category() -> None:
     "facts",
     [
         StatusFacts(unmet_needs=True),
-        StatusFacts(open_children=True),
         StatusFacts(needs_cycle=True),
     ],
-    ids=["unmet-needs", "open-children", "cycle"],
+    ids=["unmet-needs", "cycle"],
 )
 def test_a_task_that_cannot_start_never_reads_ready(facts: StatusFacts) -> None:
     """Before task-562 the list drew a non-actionable fallback as a grey "Ready"."""
@@ -307,3 +299,41 @@ def test_a_closure_row_and_a_task_read_say_the_same_thing(outcome: Outcome) -> N
     """Recently finished draws from closed_status; a task read must agree with it."""
     task = _task(lifecycle="closed", ball=None, ball_reason=None, outcome=outcome.value)
     assert closed_status(outcome) == task_status(task)
+
+
+def test_the_categories_are_exactly_the_data_file_s() -> None:
+    """The enum and status_vocabulary.json must name the same categories."""
+    assert set(STATUS_VOCABULARY["categories"]) == {category.value for category in StatusCategory}
+
+
+def test_every_label_comes_from_the_data_file() -> None:
+    """No word in CASES is spelled only in this module: the file is where they live."""
+    labels = {entry["label"] for entry in STATUS_VOCABULARY["statuses"].values()}
+    assert {case[-2] for case in CASES} <= labels
+
+
+@pytest.mark.parametrize("section", ["statuses", "run_health", "walk"])
+def test_every_entry_names_a_real_category(section: str) -> None:
+    for key, entry in STATUS_VOCABULARY[section].items():
+        assert entry["category"] in STATUS_VOCABULARY["categories"], (section, key)
+        assert entry["label"] and entry["label"][0].isupper(), (section, key)
+
+
+def test_every_category_has_a_colour_of_its_own() -> None:
+    """One colour per category: no two categories share a fill and border."""
+    looks = [
+        (colours["fill"], colours["border"], colours.get("border_style", "solid"))
+        for colours in STATUS_VOCABULARY["categories"].values()
+    ]
+    assert len(set(looks)) == len(looks)
+
+
+def test_an_epic_nobody_holds_reads_ready() -> None:
+    """The owner's decision (2026-09-24): no "Sub-tasks" chip; an epic is claimable."""
+    status = task_status(_task(), None, None, StatusFacts())
+    assert (status.label, status.category) == ("Ready", StatusCategory.READY)
+
+
+def test_a_finishing_run_and_a_finishing_task_say_the_same_word() -> None:
+    assert STATUS_VOCABULARY["run_health"]["finishing"]["label"] == status_named("finishing").label
+    assert STATUS_VOCABULARY["run_health"]["working"]["label"] == status_named("working").label

@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { FinishStepView, TaskFinishView } from "../api/types";
-import { CATEGORY_CLASSES } from "./StatusChip";
+import { CHIP_SHAPE, categoryStyle } from "./StatusChip";
 
 /**
  * What is happening to this task's branch, on the page that started it.
@@ -180,9 +180,9 @@ export function finishBadge(finish: TaskFinishView): string {
 // A live finish in the finishing colour every other surface uses for it (task-533), from
 // the one status colour map (task-562). The terminal states describe the finish process
 // rather than a task, so they keep colours of their own.
+const LIVE_STATES = new Set(["starting", "running"]);
+
 const STATE_CLASSES: Record<string, string> = {
-  starting: CATEGORY_CLASSES.finishing,
-  running: CATEGORY_CLASSES.finishing,
   finished: "bg-emerald-900 text-emerald-200",
   escalated: "bg-orange-900 text-orange-100",
   declined: "bg-slate-700 text-slate-200",
@@ -270,9 +270,15 @@ export function FinishPanel({ finish }: FinishPanelProps) {
       data-finish-live={finish.live ? "yes" : "no"}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${badge}`}>
-          {finishBadge(finish)}
-        </span>
+        {LIVE_STATES.has(finish.state) ? (
+          <span data-status-category="finishing" className={CHIP_SHAPE} style={categoryStyle("finishing")}>
+            {finishBadge(finish)}
+          </span>
+        ) : (
+          <span className={`rounded px-2 py-0.5 text-xs font-semibold ${badge}`}>
+            {finishBadge(finish)}
+          </span>
+        )}
         <h2 className="text-lg font-semibold text-indigo-200">
           {finishHeadline(finish)}
         </h2>

@@ -61,8 +61,8 @@ describe("a row", () => {
     // The server's word and colour for the closure (task-562), not the raw outcome.
     const chip = within(row).getByText("Completed");
     expect(chip).toHaveAttribute("data-status-category", "closed");
-    expect(chip).toHaveClass("bg-slate-800");
-    expect(chip).not.toHaveClass("line-through");
+    expect(chip.style.backgroundColor).not.toBe("transparent");
+    expect(chip.style.borderStyle).toBe("solid");
     expect(within(row).getByText("2h ago")).toBeTruthy();
   });
 
@@ -80,7 +80,10 @@ describe("a row", () => {
     );
 
     const chip = screen.getByText("Superseded");
-    expect(chip).toHaveClass("bg-slate-800", "line-through");
+    // Hollow rather than struck through (owner, 2026-09-24).
+    expect(chip).toHaveAttribute("data-status-category", "closed_unfinished");
+    expect(chip.style.backgroundColor).toBe("transparent");
+    expect(chip.style.borderStyle).toBe("dashed");
     expect(screen.queryByText("Completed")).toBeNull();
   });
 

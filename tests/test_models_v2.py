@@ -682,14 +682,14 @@ class TestSelfClearingWait:
 
         wait = self_clearing_wait(task)
         assert wait is not None and wait.resets_at is None
-        assert task.display_status == "Quota reset"
+        assert task.display_status == "Quota"
 
     def test_a_naive_reset_time_is_read_as_utc(self) -> None:
         task = self._parked(
             {"action": "park", "kind": "usage_limit", "resets_at": "2026-09-18T21:30:00"}
         )
 
-        assert task.display_status == "Quota reset"
+        assert task.display_status == "Quota"
         wait = self_clearing_wait(task)
         # The time moved to the reason line under the chip (task-562); the wait carries it.
         assert wait is not None and wait.resets_at == datetime(
@@ -703,7 +703,7 @@ class TestSelfClearingWait:
             {"action": "park", "kind": "usage_limit", "resets_at": "2026-09-18T16:30:00-05:00"}
         )
 
-        assert task.display_status == "Quota reset"
+        assert task.display_status == "Quota"
         wait = self_clearing_wait(task)
         # The time moved to the reason line under the chip (task-562); the wait carries it.
         assert wait is not None and wait.resets_at == datetime(
@@ -715,7 +715,7 @@ class TestSelfClearingWait:
             {"action": "notify", "kind": "usage_limit", "resets_at": "2026-09-18T21:30:00Z"}
         )
 
-        assert task.display_status == "Quota reset"
+        assert task.display_status == "Quota"
         wait = self_clearing_wait(task)
         # The time moved to the reason line under the chip (task-562); the wait carries it.
         assert wait is not None and wait.resets_at == datetime(

@@ -15,8 +15,10 @@ and the two are checked against each other by loading
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Union
 
 from pydantic import (
@@ -312,22 +314,14 @@ class StatusCategory(str, Enum):
     """Which colour a status chip is drawn in: one colour per category (task-562).
 
     Derived on read beside ``display_status`` and by the same function, so the word and
-    the colour cannot disagree. Every label belongs to exactly one category:
-
-    - ``ready`` (green) -- can start: Ready.
-    - ``queued`` (brown) -- will start: Queued, Starting.
-    - ``working`` (blue) -- running: Working.
-    - ``finishing`` (purple) -- merging: Finishing.
-    - ``needs_you`` (red) -- a person has to act: the five "Needs ..." labels and
-      Dependency data error.
-    - ``not_now`` (pink) -- will not start, and not because of you: Blocked, On hold,
-      Sub-tasks, Quota reset, Draft.
-    - ``closed`` and ``closed_unfinished`` (grey) -- the one grey category, with the
-      marker a surface strikes the word through for: Completed is ``closed``; Superseded,
-      Cancelled and Duplicate are ``closed_unfinished``.
+    the colour cannot disagree. Which label belongs to which category, and each
+    category's colours, are in ``status_vocabulary.json`` -- the one file both the
+    server and the React app read. ``closed`` and ``closed_unfinished`` are both grey:
+    Completed is drawn solid, and Superseded, Cancelled and Duplicate hollow.
 
     A plain ``Enum`` rather than a tolerant ``ValueEnum``: nothing ever writes one, so
-    there is no older writer whose value a reader has to survive.
+    there is no older writer whose value a reader has to survive. Its members must be
+    exactly the file's categories, which tests/test_status_vocabulary.py holds.
     """
 
     READY = "ready"
@@ -336,8 +330,15 @@ class StatusCategory(str, Enum):
     FINISHING = "finishing"
     NEEDS_YOU = "needs_you"
     NOT_NOW = "not_now"
+    DRAFT = "draft"
     CLOSED = "closed"
     CLOSED_UNFINISHED = "closed_unfinished"
+
+
+STATUS_VOCABULARY_PATH = Path(__file__).with_name("status_vocabulary.json")
+"""Every status chip's word and colour. Read once, at import; see ``StatusCategory``."""
+
+STATUS_VOCABULARY: Dict[str, Any] = json.loads(STATUS_VOCABULARY_PATH.read_text(encoding="utf-8"))
 
 
 class Priority(ValueEnum):
@@ -2159,16 +2160,19 @@ def wait_of(task: "LabelledTask") -> Optional[SelfClearingWait]:
 class StatusFacts(NamedTuple):
     """The corpus-wide facts a read surface knows about a task and the record does not.
 
-    Every one of them is computed over the whole project (``TaskManager.dependency_facts``),
-    so a bare ``Task`` cannot supply them and the CLI's labels are drawn without them. A
-    read model passes them in, which is what lets the server -- and nobody else -- say
-    "Blocked", "Sub-tasks" and "Dependency data error" (task-562). Before that, the task
-    list's chip rewrote the server's word in five branches to say what only it knew.
+    Both are computed over the whole project (``TaskManager.dependency_facts``), so a bare
+    ``Task`` cannot supply them and the CLI's labels are drawn without them. A read model
+    passes them in, which is what lets the server -- and nobody else -- say "Blocked" and
+    "Error" (task-562). Before that, the task list's chip rewrote the server's word to say
+    what only it knew.
+
+    Open sub-tasks are deliberately not a fact here. An epic nobody holds reads "Ready":
+    since task-164 it is claimable as the supervisor's seat, and the owner decided on
+    2026-09-24 that "Sub-tasks" was not a status worth a chip.
     """
 
     needs_cycle: bool = False
     unmet_needs: bool = False
-    open_children: bool = False
 
 
 class TaskStatus(NamedTuple):
@@ -2183,12 +2187,22 @@ class TaskStatus(NamedTuple):
     category: StatusCategory
 
 
-_HUMAN_LABELS: Dict[BallReason, str] = {
-    BallReason.SPEC: "Needs spec",
-    BallReason.REVIEW: "Needs review",
-    BallReason.DECISION: "Needs decision",
-    BallReason.APPROVAL: "Needs approval",
-    BallReason.INPUT: "Needs input",
+def status_named(key: str) -> TaskStatus:
+    """The chip ``status_vocabulary.json`` gives the status called ``key``.
+
+    The one place a label is turned from a key into words, so the words live in the data
+    file and nowhere in this module.
+    """
+    entry = STATUS_VOCABULARY["statuses"][key]
+    return TaskStatus(str(entry["label"]), StatusCategory(entry["category"]))
+
+
+_HUMAN_STATUS: Dict[BallReason, str] = {
+    BallReason.SPEC: "needs_spec",
+    BallReason.REVIEW: "needs_review",
+    BallReason.DECISION: "needs_decision",
+    BallReason.APPROVAL: "needs_approval",
+    BallReason.INPUT: "needs_input",
 }
 
 
@@ -2201,12 +2215,13 @@ def closed_status(outcome: Optional[Outcome]) -> TaskStatus:
 
     **No "(archived)" suffix.** Archived is a separate flag and is drawn separately; in a
     one-word chip it was a qualifier read as noise, and it made one outcome five labels.
+    An outcome this reader does not know is drawn as an unfinished ending in its own word.
     """
     ended = outcome or Outcome.COMPLETED
-    category = (
-        StatusCategory.CLOSED if ended is Outcome.COMPLETED else StatusCategory.CLOSED_UNFINISHED
-    )
-    return TaskStatus(str(ended.value).capitalize(), category)
+    key = str(ended.value)
+    if key in STATUS_VOCABULARY["statuses"]:
+        return status_named(key)
+    return TaskStatus(key.capitalize(), StatusCategory.CLOSED_UNFINISHED)
 
 
 def task_status(
@@ -2217,11 +2232,11 @@ def task_status(
 ) -> TaskStatus:
     """``task``'s chip, with every fact the caller can see folded in.
 
-    **The one place the order between those facts is decided** (task-562). The labels
-    are the design table in docs/task-schema.md, and the rule behind it is one colour
-    per category and every status in exactly one category: grey means closed and
-    nothing else, red is what a person has to act on, and pink is "not now, and not
-    because of you".
+    **The one place the order between those facts is decided** (task-562). The words and
+    categories are in ``status_vocabulary.json``; the rule behind them is one colour per
+    category and every status in exactly one category: grey means closed and nothing
+    else, red is what will not continue until a person acts, and pink is "not now, and
+    not because of you".
 
     The order, and why:
 
@@ -2230,22 +2245,22 @@ def task_status(
       process.
     - **Finishing** outranks everything an open task could otherwise say. A finish holds
       the task's run lock for its whole attempt, so nothing else can be happening.
-    - **A ``needs`` cycle** is red: only a person can fix the data, and until then no
-      task in the cycle can start.
+    - **A ``needs`` cycle** is "Error", red: only a person can fix the data, and until
+      then no task in the cycle can start.
     - **A human ball** says what the person has to do. It sits above an unmet ``needs``
       edge on purpose: a task waiting on its spec can have the spec written whatever it
       is blocked on, and red is the colour for what a reader would otherwise miss.
     - **Hold, unmet needs and an external ball** are pink. Most blocks clear with nobody
       acting, and drawing them red sends somebody to investigate a handled condition.
-    - **A draft** not waiting on a person is "Draft", pink, whoever holds the ball: a
+    - **A draft** not waiting on a person is "Draft", yellow, whoever holds the ball: a
       draft cannot be claimed, so nothing is being done to it as work.
     - **An agent on it** is "Working". The owner is not in the chip (the one-word rule
-      from 2026-09-19); the task page names it.
-    - **Open sub-tasks, then a queued dispatch** each explain why a task nobody holds
-      is not "Ready".
-    - **"Ready" is reached only by a ready task nothing above applies to**, so given the
-      facts it is exactly the claim gate's ``actionable``: a task that cannot be started
-      never reads "Ready", and "Ready" is never drawn in anything but green.
+      from 2026-09-19); the task page names it. A walked epic is claimed, so it reads
+      "Working" too.
+    - **A queued dispatch** is "Queued", or "Starting" while a tick puts it through the
+      dispatch gates.
+    - **Otherwise "Ready"** -- including an epic nobody holds, which since task-164 can
+      be claimed as the supervisor's seat.
 
     ``facts`` is ``None`` for a caller without the corpus -- the CLI -- which then
     cannot say "Blocked" for an unmet edge nobody has handed off on. That is a narrower
@@ -2254,51 +2269,41 @@ def task_status(
     if task.lifecycle is Lifecycle.CLOSED:
         return closed_status(task.outcome)
     if finish is not None:
-        return TaskStatus("Finishing", StatusCategory.FINISHING)
+        return status_named("finishing")
     facts = facts or StatusFacts()
     if facts.needs_cycle:
-        return TaskStatus("Dependency data error", StatusCategory.NEEDS_YOU)
+        return status_named("error")
     if task.ball is Ball.HUMAN:
-        # "Needs input" rather than a sixth wording for a reason this reader does not
-        # know: every human ball is something for a person to do.
-        label = _HUMAN_LABELS.get(task.ball_reason or BallReason.INPUT, "Needs input")
-        return TaskStatus(label, StatusCategory.NEEDS_YOU)
+        # "Needs input" for a reason this reader does not know: every human ball is
+        # something for a person to do.
+        return status_named(_HUMAN_STATUS.get(task.ball_reason or BallReason.INPUT, "needs_input"))
     if task.ball is Ball.AGENT and task.ball_reason is BallReason.HOLD:
-        return TaskStatus("On hold", StatusCategory.NOT_NOW)
+        return status_named("on_hold")
     if facts.unmet_needs:
-        return TaskStatus("Blocked", StatusCategory.NOT_NOW)
+        return status_named("blocked")
     if task.ball is Ball.EXTERNAL:
         # The blocker, and a quota wait's reset time, are for the reason line under the
         # chip: the label has one word's room, and a time derived on the server would
         # have to be UTC where the reader's own zone is the useful one.
-        if wait_of(task) is not None:
-            return TaskStatus("Quota reset", StatusCategory.NOT_NOW)
-        return TaskStatus("Blocked", StatusCategory.NOT_NOW)
+        return status_named("quota" if wait_of(task) is not None else "blocked")
     if task.lifecycle is Lifecycle.DRAFT:
-        # A draft nobody is asking a person to specify. Drafts are born human/spec and
-        # read "Needs spec" above; this is one handed elsewhere. It is not "Working"
-        # even with an agent holding the ball: a draft cannot be claimed, so nothing is
-        # being done to it as work, and blue would say otherwise.
-        return TaskStatus("Draft", StatusCategory.NOT_NOW)
+        return status_named("draft")
     if task.ball is Ball.AGENT and (
         task.ball_reason is not BallReason.AVAILABLE or task.lifecycle is Lifecycle.ACTIVE
     ):
-        return TaskStatus("Working", StatusCategory.WORKING)
+        return status_named("working")
     if task.ball is not Ball.AGENT:
         # A ball this reader has never heard of (a tolerant client, task-024). It has no
         # word for it, so it says the lifecycle rather than inventing one -- and never
         # "Ready", which would invite a start the service may not permit.
         return TaskStatus(str(task.lifecycle.value).capitalize(), StatusCategory.NOT_NOW)
-    if facts.open_children:
-        return TaskStatus("Sub-tasks", StatusCategory.NOT_NOW)
     if queued is not None:
         # One word, as the chip requires: the place in line and a paused credential are
         # fields on `queued_dispatch`, drawn in prose where there is room (2026-09-19).
         # "Starting" is kept because it is a different answer to "is anything going to
         # happen": a tick is putting the entry through the dispatch gates right now.
-        label = "Starting" if queued.status == "starting" else "Queued"
-        return TaskStatus(label, StatusCategory.QUEUED)
-    return TaskStatus("Ready", StatusCategory.READY)
+        return status_named("starting" if queued.status == "starting" else "queued")
+    return status_named("ready")
 
 
 def display_status(task: "LabelledTask") -> str:

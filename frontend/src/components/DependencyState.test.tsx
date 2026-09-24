@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { StatusCategory, TaskRead } from "../api/types";
 import { DependencyState, dependencyState } from "./DependencyState";
-import { CATEGORY_CLASSES } from "./StatusChip";
+import vocabulary from "../../../src/agentjobs/status_vocabulary.json";
 
 function task(overrides: Partial<TaskRead> = {}): TaskRead {
   return {
@@ -27,17 +27,35 @@ function task(overrides: Partial<TaskRead> = {}): TaskRead {
   };
 }
 
-/** The chip a browser receives: its text and the classes on it. */
+/** The chip a browser receives: its text, its category and its computed colours. */
 function chip(): HTMLElement {
   const element = document.querySelector<HTMLElement>("[data-status-category]");
   if (!element) throw new Error("no status chip rendered");
   return element;
 }
 
+type Colours = { fill: string; border: string; text: string; border_style?: string };
+const CATEGORIES = vocabulary.categories as Record<StatusCategory, Colours>;
+
 /**
- * The design table (task-562), one row per state. The server sends the word and the
- * category; what is asserted is what the browser renders from them -- the text, the
- * category attribute, and the exact colour classes -- per the rendered-value rule.
+ * What the data file says a category looks like, normalised the way the browser
+ * normalises the chip's own inline style, so the two compare as rendered values.
+ */
+function expectedStyle(category: StatusCategory): string {
+  const colours = CATEGORIES[category];
+  const probe = document.createElement("span");
+  probe.style.backgroundColor = colours.fill;
+  probe.style.borderColor = colours.border;
+  probe.style.borderStyle = colours.border_style ?? "solid";
+  probe.style.color = colours.text;
+  return probe.style.cssText;
+}
+
+/**
+ * The design table (task-562, as revised by the owner on 2026-09-24), one row per state.
+ * The server sends the word and the category; what is asserted is what the browser
+ * renders from them -- the text, the category, and the exact colours -- per the
+ * rendered-value rule.
  */
 const TABLE: Array<[string, StatusCategory, Partial<TaskRead>]> = [
   ["Ready", "ready", {}],
@@ -50,28 +68,16 @@ const TABLE: Array<[string, StatusCategory, Partial<TaskRead>]> = [
   ["Needs decision", "needs_you", { ball: "human", ball_reason: "decision", ball_prompt: "Pick." }],
   ["Needs approval", "needs_you", { ball: "human", ball_reason: "approval", ball_prompt: "OK?" }],
   ["Needs input", "needs_you", { ball: "human", ball_reason: "input", ball_prompt: "Say." }],
-  ["Dependency data error", "needs_you", { needs_cycles: [["task-1", "task-2", "task-1"]] }],
+  ["Error", "needs_you", { needs_cycles: [["task-1", "task-2", "task-1"]] }],
   ["Blocked", "not_now", { unmet_needs: ["task-042"] }],
   ["On hold", "not_now", { lifecycle: "active", ball_reason: "hold", ball_prompt: "Held." }],
-  ["Sub-tasks", "not_now", { open_children_count: 2 }],
-  ["Quota reset", "not_now", { lifecycle: "active", ball: "external", ball_reason: "service", ball_prompt: "Limit." }],
-  ["Draft", "not_now", { lifecycle: "draft" }],
+  ["Quota", "not_now", { lifecycle: "active", ball: "external", ball_reason: "service", ball_prompt: "Limit." }],
+  ["Draft", "draft", { lifecycle: "draft" }],
   ["Completed", "closed", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "completed" }],
   ["Superseded", "closed_unfinished", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "superseded" }],
   ["Cancelled", "closed_unfinished", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "cancelled" }],
   ["Duplicate", "closed_unfinished", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "duplicate" }],
 ];
-
-const EXPECTED_COLOUR: Record<StatusCategory, string> = {
-  ready: "bg-emerald-900",
-  queued: "bg-amber-900",
-  working: "bg-blue-900",
-  finishing: "bg-violet-900",
-  needs_you: "bg-red-900",
-  not_now: "bg-pink-900",
-  closed: "bg-slate-800",
-  closed_unfinished: "bg-slate-800",
-};
 
 describe("the status chip renders the design table", () => {
   it.each(TABLE)("%s is drawn as %s", (label, category, overrides) => {
@@ -79,42 +85,38 @@ describe("the status chip renders the design table", () => {
 
     expect(chip()).toHaveTextContent(label);
     expect(chip()).toHaveAttribute("data-status-category", category);
-    expect(chip()).toHaveClass(EXPECTED_COLOUR[category]);
+    expect(chip().style.cssText).toBe(expectedStyle(category));
   });
 
-  it("covers every category the server can send", () => {
-    expect(new Set(TABLE.map(([, category]) => category))).toEqual(
-      new Set(Object.keys(CATEGORY_CLASSES)),
-    );
+  it("covers every category the data file defines", () => {
+    expect(new Set(TABLE.map(([, category]) => category))).toEqual(new Set(Object.keys(CATEGORIES)));
   });
 
-  it("gives no two categories the same colour, closed aside", () => {
-    // closed and closed_unfinished are one category, grey, told apart by the strike.
-    const colours = Object.entries(EXPECTED_COLOUR)
-      .filter(([category]) => category !== "closed_unfinished")
-      .map(([, colour]) => colour);
-    expect(new Set(colours).size).toBe(colours.length);
+  it("uses every label the data file gives a task", () => {
+    const labels = Object.values(vocabulary.statuses).map((entry) => entry.label);
+    expect(new Set(TABLE.map(([label]) => label))).toEqual(new Set(labels));
   });
 
-  it("uses grey for closed tasks and nothing else", () => {
-    for (const [label, category] of TABLE) {
-      const grey = CATEGORY_CLASSES[category].includes("slate");
-      expect(grey, label).toBe(category === "closed" || category === "closed_unfinished");
+  it("never strikes a word through", () => {
+    // The owner rejected the strikethrough (2026-09-24); an unfinished ending is hollow.
+    for (const [label, category, overrides] of TABLE) {
+      const { unmount } = render(
+        <DependencyState task={task({ ...overrides, display_status: label, status_category: category })} />,
+      );
+      expect(chip().className, label).not.toMatch(/line-through/);
+      unmount();
     }
   });
 
-  it.each(["Superseded", "Cancelled", "Duplicate"])("strikes %s through, on the text", (label) => {
-    const row = TABLE.find(([name]) => name === label)!;
-    render(<DependencyState task={task({ ...row[2], display_status: label, status_category: row[1] })} />);
+  it("draws Completed solid and the unfinished endings hollow", () => {
+    render(<DependencyState task={task({ ...TABLE[15]![2], display_status: "Completed", status_category: "closed" })} />);
+    const completed = chip().style.backgroundColor;
+    expect(completed).not.toBe("transparent");
+    document.body.innerHTML = "";
 
-    expect(chip()).toHaveClass("line-through");
-  });
-
-  it("does not strike Completed through", () => {
-    const row = TABLE.find(([name]) => name === "Completed")!;
-    render(<DependencyState task={task({ ...row[2], display_status: "Completed", status_category: "closed" })} />);
-
-    expect(chip()).not.toHaveClass("line-through");
+    render(<DependencyState task={task({ ...TABLE[16]![2], display_status: "Superseded", status_category: "closed_unfinished" })} />);
+    expect(chip().style.backgroundColor).toBe("transparent");
+    expect(chip().style.borderStyle).toBe("dashed");
   });
 });
 
@@ -124,7 +126,6 @@ describe("the chip says the server's word and never its own", () => {
   it.each([
     [{ actionable: true }, "Ready"],
     [{ lifecycle: "active" as const, ball_reason: "work" as const, ball_prompt: "Go." }, "Working"],
-    [{ open_children_count: 3 }, "Sub-tasks"],
     [{ unmet_needs: ["task-9"] }, "Blocked"],
   ])("renders display_status as sent", (overrides, label) => {
     render(<DependencyState task={task({ ...overrides, display_status: label })} />);
@@ -145,7 +146,7 @@ describe("the chip says the server's word and never its own", () => {
     );
 
     expect(chip()).not.toHaveTextContent("Ready");
-    expect(chip()).not.toHaveClass("bg-emerald-900");
+    expect(chip()).not.toHaveAttribute("data-status-category", "ready");
   });
 
   it("capitalises whatever it is given", () => {
@@ -180,13 +181,13 @@ describe("the reason line", () => {
       ball: "external",
       ball_reason: "service",
       ball_prompt: "The limit resets at 2026-09-18T21:30:00+00:00.",
-      display_status: "Quota reset",
+      display_status: "Quota",
       status_category: "not_now",
       self_clearing_wait: { kind: "usage_limit", resets_at: "2026-09-18T21:30:00Z" },
     });
     const state = dependencyState(parked);
 
-    expect(state.label).toBe("Quota reset");
+    expect(state.label).toBe("Quota");
     expect(state.reasons[0]).toMatch(/^Resumes by itself when the quota resets at /);
   });
 
@@ -229,7 +230,8 @@ describe("the reason line", () => {
   });
 
   it("says what supervising a parent means", () => {
-    const parent = task({ open_children_count: 2, display_status: "Sub-tasks", status_category: "not_now" });
+    // An epic nobody holds reads Ready (owner, 2026-09-24); the line says what claiming it gets.
+    const parent = task({ open_children_count: 2, display_status: "Ready", status_category: "ready" });
 
     expect(dependencyState(parent).reasons[0]).toMatch(/^2 open sub-tasks to finish\./);
   });

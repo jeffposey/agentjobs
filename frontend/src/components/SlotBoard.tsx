@@ -12,7 +12,7 @@ import type {
   TaskCardRead,
 } from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
-import { StatusChip } from "./StatusChip";
+import { StatusChip, WALK_STATES } from "./StatusChip";
 import {
   FinishBadge,
   HealthBadge,
@@ -722,13 +722,13 @@ export function walkState(walk: EpicWalkView): {
   category: StatusCategory;
   sentence: string;
 } {
+  // The words and categories are the status data file's (task-562), because the owner
+  // reads these on the same board as the task chips: walking is running (blue), waiting
+  // clears by itself (pink), and grounded will not continue until a person acts (red).
   if (!walk.grounded) {
     return {
-      badge: "walking",
-      // The categories are the task chips' (task-562), because the owner reads these
-      // on the same board: walking is running (blue), waiting clears by itself (pink,
-      // "not now, not because of you"), and grounded needs a person (red).
-      category: "working",
+      badge: WALK_STATES.walking.label,
+      category: WALK_STATES.walking.category,
       sentence: "starting each child as its dependencies close",
     };
   }
@@ -736,14 +736,14 @@ export function walkState(walk: EpicWalkView): {
   if (walk.resumes_by_itself) {
     const on = walk.waiting_on_task_id ? ` on ${walk.waiting_on_task_id}` : "";
     return {
-      badge: "waiting",
-      category: "not_now",
+      badge: WALK_STATES.waiting.label,
+      category: WALK_STATES.waiting.category,
       sentence: `waiting${on}: ${because}. It takes off again on its own when that clears.`,
     };
   }
   return {
-    badge: "grounded",
-    category: "needs_you",
+    badge: WALK_STATES.grounded.label,
+    category: WALK_STATES.grounded.category,
     sentence: `grounded: ${because}. Nothing more takes off until a person acts.`,
   };
 }

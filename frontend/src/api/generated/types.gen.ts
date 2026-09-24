@@ -6361,24 +6361,16 @@ export type StartPauseView = {
  * Which colour a status chip is drawn in: one colour per category (task-562).
  *
  * Derived on read beside ``display_status`` and by the same function, so the word and
- * the colour cannot disagree. Every label belongs to exactly one category:
- *
- * - ``ready`` (green) -- can start: Ready.
- * - ``queued`` (brown) -- will start: Queued, Starting.
- * - ``working`` (blue) -- running: Working.
- * - ``finishing`` (purple) -- merging: Finishing.
- * - ``needs_you`` (red) -- a person has to act: the five "Needs ..." labels and
- * Dependency data error.
- * - ``not_now`` (pink) -- will not start, and not because of you: Blocked, On hold,
- * Sub-tasks, Quota reset, Draft.
- * - ``closed`` and ``closed_unfinished`` (grey) -- the one grey category, with the
- * marker a surface strikes the word through for: Completed is ``closed``; Superseded,
- * Cancelled and Duplicate are ``closed_unfinished``.
+ * the colour cannot disagree. Which label belongs to which category, and each
+ * category's colours, are in ``status_vocabulary.json`` -- the one file both the
+ * server and the React app read. ``closed`` and ``closed_unfinished`` are both grey:
+ * Completed is drawn solid, and Superseded, Cancelled and Duplicate hollow.
  *
  * A plain ``Enum`` rather than a tolerant ``ValueEnum``: nothing ever writes one, so
- * there is no older writer whose value a reader has to survive.
+ * there is no older writer whose value a reader has to survive. Its members must be
+ * exactly the file's categories, which tests/test_status_vocabulary.py holds.
  */
-export type StatusCategory = 'ready' | 'queued' | 'working' | 'finishing' | 'needs_you' | 'not_now' | 'closed' | 'closed_unfinished';
+export type StatusCategory = 'ready' | 'queued' | 'working' | 'finishing' | 'needs_you' | 'not_now' | 'draft' | 'closed' | 'closed_unfinished';
 
 /**
  * StuckGroup

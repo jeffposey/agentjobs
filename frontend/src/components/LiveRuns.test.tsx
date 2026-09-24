@@ -282,7 +282,9 @@ describe("the Runs tab", () => {
     // the question the reader has, so `run_health` renders this one and this asserts it
     // reaches the badge rather than falling through to the raw value.
     renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run({ health: "handback" })] })} />);
-    expect(screen.getByText("Feedback waiting")).toHaveAttribute("data-health", "handback");
+    // "Feedback", in the working blue: it continues with nobody acting (owner, 2026-09-24).
+    expect(screen.getByText("Feedback")).toHaveAttribute("data-health", "handback");
+    expect(screen.getByText("Feedback")).toHaveAttribute("data-status-category", "working");
     expect(screen.queryByText("Working")).toBeNull();
   });
 
@@ -375,16 +377,18 @@ describe("the Runs tab", () => {
 
 describe("a run's badge in the task status colours (task-562)", () => {
   it.each([
-    ["working", "Working", "bg-blue-900"],
-    ["starting", "Starting", "bg-amber-900"],
-    ["finishing", "Finishing", "bg-violet-900"],
-    ["parked", "Waiting on you", "bg-red-900"],
-  ])("draws %s as the task status it names", (health, label, colour) => {
+    ["working", "Working", "working"],
+    ["starting", "Starting", "queued"],
+    ["finishing", "Finishing", "finishing"],
+    ["parked", "Waiting on you", "needs_you"],
+    ["handback", "Feedback", "working"],
+  ])("draws %s as the task status it names", (health, label, category) => {
     render(<HealthBadge health={health} />);
 
     const badge = screen.getByText(label);
     expect(badge).toHaveAttribute("data-health", health);
-    expect(badge).toHaveClass(colour);
+    expect(badge).toHaveAttribute("data-status-category", category);
+    expect(badge.style.backgroundColor).not.toBe("");
   });
 
   it("leaves a process-only state its own colour", () => {

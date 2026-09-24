@@ -649,8 +649,12 @@ when writing, and a file that contains it is rejected by name (`extra="forbid"`)
 
 **Every read model carries `status_category` beside `display_status`**, derived by the
 same call to `models_v2.task_status()`, so the word and its colour cannot disagree
-(task-562). The rule is **one colour per category, and every label in exactly one
-category.** Grey means closed and nothing else, so any coloured chip is a live task.
+(task-562). **Every word and every colour is in one data file,
+[`src/agentjobs/status_vocabulary.json`](../src/agentjobs/status_vocabulary.json)**: the
+server reads it for the labels and categories it sends, and the React app reads the same
+file for the colours. Change a label or a colour there and both follow. The rule is **one
+colour per category, and every label in exactly one category.** Grey means closed and
+nothing else, so any coloured chip is a live task.
 
 | `status_category` | Colour | Labels — the chip's exact words |
 |---|---|---|
@@ -658,46 +662,53 @@ category.** Grey means closed and nothing else, so any coloured chip is a live t
 | `queued` | brown | `Queued`, `Starting` |
 | `working` | blue | `Working` |
 | `finishing` | purple | `Finishing` |
-| `needs_you` | red | `Needs spec`, `Needs review`, `Needs decision`, `Needs approval`, `Needs input`, `Dependency data error` |
-| `not_now` | pink | `Blocked`, `On hold`, `Sub-tasks`, `Quota reset`, `Draft` |
-| `closed` | grey | `Completed` |
-| `closed_unfinished` | grey, struck through | `Superseded`, `Cancelled`, `Duplicate` |
+| `needs_you` | red | `Needs spec`, `Needs review`, `Needs decision`, `Needs approval`, `Needs input`, `Error` (a `needs` cycle) |
+| `not_now` | pink | `Blocked`, `On hold`, `Quota` |
+| `draft` | yellow | `Draft` |
+| `closed` | grey, solid | `Completed` |
+| `closed_unfinished` | grey, hollow with a dashed border | `Superseded`, `Cancelled`, `Duplicate` |
 
-`closed_unfinished` is not a second grey category but the marker a surface strikes the
-word through for: a task that ended without being finished.
+`closed` and `closed_unfinished` are the one grey, drawn two ways: a task that ended with
+the work done is solid, and one that ended without it is hollow.
+
+The same file maps the run-health words that name a task status (Working, Starting,
+Waiting on you, Finishing, and Feedback, meaning the owner's feedback is queued for the
+running session) and the three epic-walk badges (Walking, Waiting, Grounded) to these
+categories.
 
 **What the chip does not say.** The owner, the blocker, a quota wait's reset time and the
 archived flag are each on the record and drawn beside the chip, never in it — a chip is
 read at a glance in a narrow column, and a qualifier there is read as noise. Before
 task-562 the same task read `In progress (claude)` in the API, `In flight` in the task
 list and `Working` on the live runs board; `Blocked on task-044`, `Waiting on quota
-reset (21:30 UTC)` and `Completed (archived)` are retired the same way.
+reset (21:30 UTC)`, `Waiting on sub-tasks` and `Completed (archived)` are retired the same
+way.
 
-**Why red is "needs you" and pink is "blocked".** Red marks what a person is most likely
-to miss and has to act on. Most blocks — a dependency on another task, a quota wait —
+**Why red is "needs you" and pink is "blocked".** Red marks what is waiting and will not
+continue until a person acts. Most blocks — a dependency on another task, a quota wait —
 clear with nobody acting, and red on them sends somebody to investigate a handled
 condition. A `needs` cycle is red because only a person can fix the data.
 
 **The order the facts are weighed in** is in `task_status()`'s docstring, and it is the
 one place it is decided. Three rules are worth stating here: a closed task keeps its
 outcome even while a finish is still cleaning up; a human ball outranks an unmet `needs`
-edge, because a spec can be written whatever the task is blocked on; and `Ready` is
-reached only by a ready task nothing else applies to, so a task that cannot be started
-never reads `Ready`.
+edge, because a spec can be written whatever the task is blocked on; and an epic nobody
+holds reads `Ready`, because since task-164 it can be claimed as the supervisor's seat. A
+walked epic is claimed, so it reads `Working`.
 
 **Which facts a surface can see decides how precise its word is.** A read model
 (`TaskRead`, the listing row, the dashboard card) folds in the corpus's dependency facts,
 the machine's dispatch queue and its live finishes. The CLI's list knows the queue but
 not the corpus, so it cannot say `Blocked` for an unmet edge nobody handed off on, or
-`Sub-tasks` for an epic; a bare `Task.display_status` knows neither. That is a narrower
+`Error` for a cycle; a bare `Task.display_status` knows neither. That is a narrower
 answer, never a contradictory one.
 
-### `Quota reset`
+### `Quota`
 
 One label is derived from more than the axes. An `external`/`service` park reads
 `Blocked` — except where the newest handoff is auth recovery's own, its action still
 means waiting, and the incident kind is one that lifts with nobody acting. Today that is
-`usage_limit` alone, and the label is then `Quota reset`. The reset time is not in the
+`usage_limit` alone, and the label is then `Quota`. The reset time is not in the
 label: the React app writes it under the chip in the reader's own zone, from
 `self_clearing_wait.resets_at`, and the full timestamp stays in `ball_prompt`.
 

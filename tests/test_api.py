@@ -237,7 +237,7 @@ def test_a_quota_park_reaches_a_client_as_both_a_label_and_a_structure(api_clien
     detail = client.get(f"/api/tasks/{task_id}/detail").json()["task"]
 
     for served in (row, detail):
-        assert served["display_status"] == "Quota reset"
+        assert served["display_status"] == "Quota"
         assert served["status_category"] == "not_now"
         assert served["self_clearing_wait"] == {
             "kind": "usage_limit",
@@ -257,7 +257,7 @@ def test_a_service_park_nobody_marked_carries_no_wait(api_client) -> None:
 
 
 def test_the_corpus_facts_decide_the_label_on_both_read_surfaces(api_client) -> None:
-    """task-562: "Blocked" and "Sub-tasks" are the server's words, not the list's.
+    """task-562: "Blocked" is the server's word, not the list's, and an epic reads Ready.
 
     Before, the frontend rewrote a ready task's "Ready" to "Blocked" or "Waiting on
     sub-tasks" from facts only it read. Now the server folds those facts in, so the
@@ -282,7 +282,8 @@ def test_the_corpus_facts_decide_the_label_on_both_read_surfaces(api_client) -> 
     for task_id, label, category in (
         (blocker.id, "Ready", "ready"),
         (blocked.id, "Blocked", "not_now"),
-        (epic.id, "Sub-tasks", "not_now"),
+        # An epic nobody holds is claimable as the supervisor's seat (task-164).
+        (epic.id, "Ready", "ready"),
     ):
         detail = client.get(f"/api/tasks/{task_id}/detail").json()["task"]
         for served in (rows[task_id], detail):

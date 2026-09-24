@@ -11,15 +11,16 @@ What to look at:
 
   * **The task list** (`?status=all`), sorted into the seven colours:
     green Ready · brown Queued, Starting · blue Working · purple Finishing ·
-    red Needs spec / review / decision / approval / input, Dependency data error ·
-    pink Blocked, On hold, Sub-tasks, Quota reset, Draft ·
-    grey Completed, and Superseded / Cancelled / Duplicate struck through.
+    red Needs spec / review / decision / approval / input, Error ·
+    pink Blocked, On hold, Quota · yellow Draft ·
+    grey: Completed solid, and Superseded / Cancelled / Duplicate hollow.
+    Every word and colour comes from src/agentjobs/status_vocabulary.json.
     Each task's title names the state it was seeded into.
   * **Any task page**: the header chip and the "Work state" card say the same word in the
     same colour as the list, and the reason line carries what left the chip (the
     blocker, the quota reset time in your zone, the finish step).
   * **The dashboard**: Recently finished shows the four closed tasks in grey, three
-    struck through. The slot board's queued rail is headed "Queued". The "Epics being
+    hollow. The slot board's queued rail is headed "Queued". The "Epics being
     walked" rail has one walk each Walking (blue), Waiting (pink) and Grounded (red),
     with no violet on the cards.
   * **The Runs tab**: Working blue, Starting brown, Waiting on you red, Finishing purple.
@@ -141,8 +142,8 @@ def seed(manager: Any) -> Dict[str, int]:
             ball_prompt=f"Seeded: this one needs your {reason}.",
         )
 
-    task("task-011", "Dependency data error — red, half of a needs cycle")
-    task("task-012", "Dependency data error — red, the other half of the cycle")
+    task("task-011", "Error — red, half of a needs cycle")
+    task("task-012", "Error — red, the other half of the cycle")
     manager.update_task(
         "task-011", dependencies=[{"task": "task-012", "type": "needs"}], actor="claude"
     )
@@ -165,10 +166,10 @@ def seed(manager: Any) -> Dict[str, int]:
         ball_prompt="Held until the design question is answered.",
     )
 
-    task("task-015", "Sub-tasks — pink, an epic whose children are open")
+    task("task-015", "Ready — an epic nobody holds, whose children are open")
     task("task-016", "Ready — a child of task-015", parent="task-015")
 
-    task("task-017", "Quota reset — pink, parked on a usage limit that clears by itself")
+    task("task-017", "Quota — pink, parked on a usage limit that clears by itself")
     manager.claim_task("task-017", agent="claude")
     resets = (datetime.now(timezone.utc) + timedelta(hours=2)).replace(second=0, microsecond=0)
     manager.handoff(
@@ -200,7 +201,7 @@ def seed(manager: Any) -> Dict[str, int]:
 
     # Drafts are born human/spec and read "Needs spec" (task-006's state). "Draft" is a
     # draft handed somewhere other than a person, here to an agent to write the spec.
-    task("task-019", "Draft — pink, handed to an agent to specify", lifecycle=Lifecycle.DRAFT)
+    task("task-019", "Draft — yellow, handed to an agent to specify", lifecycle=Lifecycle.DRAFT)
     manager.handoff(
         "task-019",
         actor=USER,
@@ -212,16 +213,28 @@ def seed(manager: Any) -> Dict[str, int]:
     for number, outcome in enumerate(Outcome, start=20):
         task_id = f"task-{number:03d}"
         word = outcome.value.capitalize()
-        struck = "" if outcome is Outcome.COMPLETED else ", struck through"
-        task(task_id, f"{word} — grey{struck}")
+        look = "solid" if outcome is Outcome.COMPLETED else "hollow"
+        task(task_id, f"{word} — grey, {look}")
         manager.close_task(
             task_id, actor="claude", outcome=outcome, archive=outcome is Outcome.DUPLICATE
         )
 
     # Three epics for the walk rail, each with a child so the counts read sensibly.
+    # A walk runs on a claimed parent, so a walked epic reads Working; a grounded walk
+    # hands its parent to a person, so that one reads Needs decision.
     for number, state in ((30, "walking"), (32, "waiting"), (34, "grounded")):
-        task(f"task-{number:03d}", f"Epic being walked — {state}")
-        task(f"task-{number + 1:03d}", f"A child of the {state} epic", parent=f"task-{number:03d}")
+        epic = f"task-{number:03d}"
+        task(epic, f"Epic being walked — {state}")
+        task(f"task-{number + 1:03d}", f"A child of the {state} epic", parent=epic)
+        manager.claim_task(epic, agent="claude")
+        if state == "grounded":
+            manager.handoff(
+                epic,
+                actor="dispatcher",
+                ball=Ball.HUMAN,
+                ball_reason=BallReason.DECISION,
+                ball_prompt="The walk grounded: a child is parked on a person.",
+            )
     return authorised
 
 

@@ -192,7 +192,7 @@ class TestTheQuotaWait:
         assert row.self_clearing_wait.kind == "usage_limit"
         assert row.self_clearing_wait.resets_at is not None
         assert abs((row.self_clearing_wait.resets_at - resets_at).total_seconds()) < 1
-        assert row.display_status == "Quota reset"
+        assert row.display_status == "Quota"
 
     def test_an_ordinary_block_carries_none(self, manager: TaskManager) -> None:
         """A genuine third-party outage must not be dressed up as a wait that clears."""

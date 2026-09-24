@@ -1196,7 +1196,6 @@ describe("the epics this machine is walking (task-523)", () => {
     // Capitalised by the chip, and in the task chips' colour for the same situation (task-562).
     expect(within(row).getByTestId("epic-walk-badge").textContent).toBe("Walking");
     expect(within(row).getByTestId("epic-walk-badge")).toHaveAttribute("data-status-category", "working");
-    expect(within(row).getByTestId("epic-walk-badge")).toHaveClass("bg-blue-900");
     expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
       "starting each child as its dependencies close",
     );
@@ -1230,7 +1229,6 @@ describe("the epics this machine is walking (task-523)", () => {
     // Capitalised by the chip, and in the task chips' colour for the same situation (task-562).
     expect(within(row).getByTestId("epic-walk-badge").textContent).toBe("Grounded");
     expect(within(row).getByTestId("epic-walk-badge")).toHaveAttribute("data-status-category", "needs_you");
-    expect(within(row).getByTestId("epic-walk-badge")).toHaveClass("bg-red-900");
     expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
       "grounded: a child used both of its attempts. Nothing more takes off until a person acts.",
     );
@@ -1264,7 +1262,6 @@ describe("the epics this machine is walking (task-523)", () => {
     // Capitalised by the chip, and in the task chips' colour for the same situation (task-562).
     expect(within(row).getByTestId("epic-walk-badge").textContent).toBe("Waiting");
     expect(within(row).getByTestId("epic-walk-badge")).toHaveAttribute("data-status-category", "not_now");
-    expect(within(row).getByTestId("epic-walk-badge")).toHaveClass("bg-pink-900");
     expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
       "waiting on task-147: a child needs a person. It takes off again on its own when that clears.",
     );
@@ -1379,7 +1376,7 @@ describe("a run whose task is being merged (task-533)", () => {
 
     const cell = screen.getAllByTestId("slot-cell")[0]!;
     const badge = within(cell).getByText("Finishing");
-    expect(badge.className).toMatch(/\bbg-violet-900\b/);
+    expect(badge).toHaveAttribute("data-status-category", "finishing");
     expect(cell).not.toHaveTextContent("Working");
     expect(cell).toHaveTextContent("Queued for the merge runway, behind task-526");
   });
