@@ -194,6 +194,7 @@ this page would go stale.
 | `task_close` | End the task with an outcome. |
 | `task_log_append` | Append progress, a decision, a question, an answer. |
 | `task_authorize_dispatch` | Record that a person authorised a dispatch, when they told you rather than clicking it. You sign the entry; they are named inside it. It starts nothing, and a dispatched run may not call it at all. |
+| `task_finish_retry` | After you repaired a stopped scripted finish, ask AgentJobs to retry it on the approval a person already gave. The server judges the repair and runs the finish itself, or hands the task to review; you never merge. |
 | `task_update_content` | Edit authoring content only. |
 | `task_queue_move` | Change where a task stands in its band. The only way the order changes. |
 

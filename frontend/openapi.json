@@ -3313,6 +3313,90 @@
         "title": "FinishRecordWrite",
         "type": "object"
       },
+      "FinishRetryRequest": {
+        "additionalProperties": false,
+        "description": "Ask AgentJobs to retry a stopped finish on the approval already given (task-575).\n\nSent by the agent that repaired whatever stopped the finish. The server judges the\nrepair against the head the approver saw and either starts the finish itself or hands\nthe task to review; the caller never runs the merge.",
+        "properties": {
+          "actor": {
+            "description": "Actor id of the agent asking for the retry.",
+            "title": "Actor",
+            "type": "string"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.",
+            "title": "Operation Id"
+          },
+          "summary": {
+            "default": "",
+            "description": "What the repair was, in the agent's words. Quoted on the record.",
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor"
+        ],
+        "title": "FinishRetryRequest",
+        "type": "object"
+      },
+      "FinishRetryResult": {
+        "description": "What a retry request did.",
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "description": "The facts recorded: approval, heads, bases and each path's verdict.",
+            "title": "Data",
+            "type": "object"
+          },
+          "detail": {
+            "description": "The outcome in a sentence or two, for the agent.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "outcome": {
+            "description": "`retrying`: the finish was started. `handed_back`: the repair changed reviewed work or the bound was reached, so the task went to human/review. `declined`: nothing was written, and `reason` says why. `replayed`: already acted on.",
+            "title": "Outcome",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Project the request addressed.",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "reason": {
+            "description": "A stable code for the outcome.",
+            "title": "Reason",
+            "type": "string"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskRead-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The task as it now stands."
+          }
+        },
+        "required": [
+          "project_id",
+          "outcome",
+          "reason",
+          "detail"
+        ],
+        "title": "FinishRetryResult",
+        "type": "object"
+      },
       "FinishStepView": {
         "description": "One step of a scripted finish, as the task page renders it.",
         "properties": {
@@ -16185,6 +16269,68 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/finish-retry": {
+      "post": {
+        "description": "Retry a stopped scripted finish on the approval already given (task-575).\n\nThe repairing agent calls this instead of running ``agentjobs finish`` from its own\nshell, which the auto-mode classifier rightly refuses as a merge nobody reviewed.\nThe server judges the repair against the head the approver saw: when nothing they\nreviewed changed, it starts the finish itself in a detached process; otherwise it\nhands the task to human/review with each offending path stated. See\n``dispatch/finish_retry.py``.\n\n``task.verb`` rather than ``task.review``, because a run must be able to ask. What\nkeeps the approval meaningful is the judgement and the bound, not who may call.",
+        "operationId": "request_finish_retry_api_projects__project_id__tasks__task_id__finish_retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinishRetryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinishRetryResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Finish Retry",
+        "tags": [
+          "status"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/handoff": {
       "post": {
         "description": "Move the ball, with its ask.",
@@ -19395,6 +19541,59 @@
           }
         },
         "summary": "Dispatch Task Endpoint",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/finish-retry": {
+      "post": {
+        "description": "Retry a stopped scripted finish on the approval already given (task-575).\n\nThe repairing agent calls this instead of running ``agentjobs finish`` from its own\nshell, which the auto-mode classifier rightly refuses as a merge nobody reviewed.\nThe server judges the repair against the head the approver saw: when nothing they\nreviewed changed, it starts the finish itself in a detached process; otherwise it\nhands the task to human/review with each offending path stated. See\n``dispatch/finish_retry.py``.\n\n``task.verb`` rather than ``task.review``, because a run must be able to ask. What\nkeeps the approval meaningful is the judgement and the bound, not who may call.",
+        "operationId": "request_finish_retry_api_tasks__task_id__finish_retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinishRetryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinishRetryResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Finish Retry",
         "tags": [
           "status"
         ]

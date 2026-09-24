@@ -56,6 +56,7 @@ context can pick the work up:
 | pass it on | `task_handoff` |
 | give it back | `task_release` |
 | finish it | `task_close` |
+| retry a stopped finish you repaired | `task_finish_retry` (never `agentjobs finish` yourself) |
 | edit the spec | `task_update_content` |
 | add new work you found | `task_create_ready`, with a spec and acceptance criteria written now |
 | add work only a person can specify | `task_create_draft` (it lands in their Needs-spec queue) |

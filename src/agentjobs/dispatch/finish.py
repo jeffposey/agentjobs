@@ -2754,6 +2754,16 @@ def where_the_work_is(task: Task, root: Path) -> str:
     return "The work is on " + ", ".join(described) + ". Use it; do not take a new one."
 
 
+RETRY_INSTRUCTION = (
+    "\n\nOnce the repair is committed to the branch, ask AgentJobs to retry: call the "
+    "`task_finish_retry` MCP tool (or `agentjobs finish-retry <task> --actor <you>`). "
+    "Never run `agentjobs finish` or `git merge` yourself. If only tests, generated "
+    "files, the rebase, or conflict resolutions that keep both sides changed, the retry "
+    "rides the approval already given; anything else goes back to review (task-575)."
+)
+"""What an escalated approval's prompt adds, so a repair does not cost a second click."""
+
+
 def escalate_on_record(
     manager: TaskManagerLike,
     task_id: str,
@@ -2761,8 +2771,13 @@ def escalate_on_record(
     steps: Sequence[StepResult],
     merge_commit: Optional[str],
     root: Optional[Path] = None,
+    retry_on_approval: bool = False,
 ) -> None:
     """Say exactly how far the finish got, then hand the ball to the agent.
+
+    ``retry_on_approval`` says a person's approval authorised this finish, so the
+    repairing agent is told how to retry on it without a second click and without
+    running the merge from its own shell (task-575).
 
     The prompt is written for a session that may be *resumed* -- it remembers its branch
     and its worktree and is confident about both -- so it leads with what changed
@@ -2818,6 +2833,7 @@ def escalate_on_record(
             "before acting on anything you remember: if your worktree, your branch or "
             "your account of this task no longer matches what is on disk, say so on the "
             "record and hand the ball back rather than improvising a recovery."
+            f"{RETRY_INSTRUCTION if retry_on_approval and not merge_commit else ''}"
             f"{whereabouts}"
         ),
     )
@@ -3639,7 +3655,15 @@ def finish_task(
             finished_at=dispatch_clock.utcnow().isoformat(),
             seconds=round(time.monotonic() - started, 2),
         )
-        escalate_on_record(manager, task_id, exc, steps, merge_commit, root=project.root)
+        escalate_on_record(
+            manager,
+            task_id,
+            exc,
+            steps,
+            merge_commit,
+            root=project.root,
+            retry_on_approval=receipt is not None,
+        )
         commit_task_record(
             manager,
             task_id,

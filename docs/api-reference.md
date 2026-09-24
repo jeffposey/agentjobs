@@ -138,6 +138,7 @@ preconditions are enforced and transition history is appended.
 | `POST` | `/api/tasks/{task_id}/log` | Append a typed note, progress, decision, question, answer, or instruction |
 | `POST` | `/api/tasks/{task_id}/progress` | Append a structured progress entry |
 | `POST` | `/api/tasks/{task_id}/authorization` | Record that a person authorised a dispatch, as the agent they told. `actor` is the agent, `authorized_by` the human. Starts no run; refused for a `run` credential |
+| `POST` | `/api/tasks/{task_id}/finish-retry` | Retry a stopped scripted finish on the approval already given, after the agent repaired it (task-575). The server judges the repair against the approved head and starts the finish itself, or hands the task to human/review; `outcome` is `retrying`, `handed_back`, `declined` or `replayed` |
 | `POST` | `/api/tasks/{task_id}/redact` | Replace one prose region with a stated redaction, recording that it happened |
 
 ### Human review actions

@@ -516,6 +516,7 @@ class TestPackagedCommand:
             "task_close",
             "task_log_append",
             "task_authorize_dispatch",
+            "task_finish_retry",
             "task_update_content",
             "task_queue_move",
         ]

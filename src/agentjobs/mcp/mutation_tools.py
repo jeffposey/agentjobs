@@ -1,4 +1,4 @@
-"""The ten mutation MCP tools.
+"""The eleven mutation MCP tools.
 
 Every one is a thin, typed domain verb over ``TaskClient``. None of them reimplements
 a lifecycle rule: the manager owns those, and a second copy here would eventually
@@ -851,6 +851,63 @@ def _build_relay_authorization(client: TaskClient) -> Any:
     return handler
 
 
+FINISH_RETRY_RESULT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["project_id", "outcome", "reason", "detail", "data"],
+    "properties": {
+        "project_id": {"type": "string"},
+        "outcome": {
+            "type": "string",
+            "enum": ["retrying", "handed_back", "declined", "replayed"],
+            "description": (
+                "retrying: AgentJobs started the finish; end your turn. handed_back: the "
+                "repair changed reviewed work or the bound was reached, so the task is "
+                "with a human for review. declined: nothing was written; `detail` says why."
+            ),
+        },
+        "reason": {"type": "string"},
+        "detail": {"type": "string"},
+        "data": {"type": "object"},
+        "task": {"anyOf": [TASK_DOCUMENT_SCHEMA, {"type": "null"}]},
+    },
+}
+
+
+def _build_finish_retry(client: TaskClient) -> Any:
+    async def handler(arguments: Mapping[str, Any]) -> Union[ToolOutput, types.CallToolResult]:
+        project_id = require_project_id(arguments)
+        project = resolve_project(client, project_id)
+        actor = require_actor(arguments, project)
+        task_id = _require(arguments, "task_id")
+        operation_id = _require(arguments, "operation_id")
+        try:
+            result = client.for_project(project_id).operations.finish_retry(
+                task_id,
+                actor=actor,
+                operation_id=operation_id,
+                summary=str(arguments.get("summary") or ""),
+            )
+        except TaskClientError as exc:
+            raise _service_error(exc, project_id=project_id, task_id=task_id) from exc
+        task = result.get("task")
+        payload = {
+            "project_id": project_id,
+            "outcome": str(result.get("outcome") or ""),
+            "reason": str(result.get("reason") or ""),
+            "detail": str(result.get("detail") or ""),
+            "data": dict(result.get("data") or {}),
+            "task": (
+                task_document(task.model_dump(mode="json", by_alias=True, exclude_none=True))
+                if isinstance(task, Task)
+                else None
+            ),
+        }
+        return success(payload, f"{payload['outcome']}: {payload['detail']}")
+
+    return handler
+
+
 def _build_update_content(client: TaskClient) -> Any:
     async def handler(arguments: Mapping[str, Any]) -> Union[ToolOutput, types.CallToolResult]:
         project_id = require_project_id(arguments)
@@ -1181,6 +1238,25 @@ def mutation_tool_definitions(client: TaskClient) -> List[ToolDefinition]:
                 also_required=["authorized_by", "ask"],
             ),
             _build_relay_authorization(client),
+        ),
+        ToolDefinition(
+            name="task_finish_retry",
+            title="Retry a stopped finish",
+            description=(
+                "After a scripted finish stopped (red gate, conflicting rebase) and you "
+                "repaired it, ask AgentJobs to retry the finish on the approval a person "
+                "already gave. Never run `agentjobs finish` or `git merge` yourself. "
+                "Commit your repair to the task's branch first. The server compares the "
+                "branch with the head the approver saw: if only tests, generated files, "
+                "the rebase itself, or conflict resolutions that keep both sides changed, "
+                "it starts the finish, which stands your session down, so end your turn. "
+                "Otherwise it hands the task to human/review with the reason. At most two "
+                "retries ride on one approval. `summary` is your account of the repair."
+            ),
+            input_schema=_verb_schema(extra={"summary": {"type": "string"}}),
+            output_schema=FINISH_RETRY_RESULT_SCHEMA,
+            annotations=mutation_annotations("Retry a stopped finish"),
+            handler=_build_finish_retry(client),
         ),
         _mutation_tool(
             "task_update_content",
