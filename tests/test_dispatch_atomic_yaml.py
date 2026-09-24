@@ -22,10 +22,12 @@ about a race has to have if it is not to become the next flake.
 
 from __future__ import annotations
 
+import contextlib
+import sys
 import threading
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, Iterator, List
 
 import pytest
 import yaml
@@ -48,6 +50,27 @@ without testing anything the pause does not.
 
 PAD = "y" * 4000
 """A document big enough that writing it is not one memory-page instant."""
+
+
+@contextlib.contextmanager
+def _held_exclusively(path: Path) -> Iterator[None]:
+    """Hold *path* open with no sharing at all, as an exclusive scanner would."""
+    import ctypes
+
+    handle = atomic_yaml._CreateFileW(
+        str(path),
+        atomic_yaml._GENERIC_READ,
+        0,
+        None,
+        atomic_yaml._OPEN_EXISTING,
+        atomic_yaml._FILE_ATTRIBUTE_NORMAL,
+        None,
+    )
+    assert handle != atomic_yaml._INVALID_HANDLE_VALUE, ctypes.get_last_error()
+    try:
+        yield
+    finally:
+        ctypes.WinDLL("kernel32").CloseHandle(handle)
 
 
 class TestTheDocumentIsNeverHalfWritten:
@@ -125,6 +148,83 @@ class TestTheDocumentIsNeverHalfWritten:
 
         assert attempts["n"] == 2, "the refusal must be retried, not believed"
         assert loaded == {"present": True}
+
+    def test_a_file_refused_past_the_budget_raises_rather_than_reading_as_absent(
+        self, tmp_path: Path
+    ) -> None:
+        """Task-550: when the refusal outlasts the budget, the read must say it failed.
+
+        The budget used to be eight attempts, and running out of them answered ``None``,
+        which is *absent*. ``read_meta`` turned that into ``{}``, which every guard reads
+        as *the flag is not set*. Under a ``-n 26`` gate, 461 of 1153 reads in the test
+        above got that answer for a file that held ``run_id`` throughout.
+        """
+        directory = RunDirectory(tmp_path)
+        directory.write_meta({"run_id": "run_x", "cancel_requested": True})
+
+        def refuse(path: Path) -> str:
+            raise PermissionError("held by somebody else")
+
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(atomic_yaml, "read_shared", refuse)
+            patch.setattr(atomic_yaml, "READ_BUDGET_SECONDS", 0.05)
+            with pytest.raises(atomic_yaml.DocumentUnreadable):
+                directory.read_meta()
+
+    def test_an_unreadable_document_is_not_merged_over(self, tmp_path: Path) -> None:
+        """Merging onto a read that failed would start from ``{}`` and erase the rest."""
+        target = tmp_path / "meta.yaml"
+        write_yaml_atomically(target, {"run_id": "run_x", "status": "running"})
+
+        def refuse(path: Path) -> str:
+            raise PermissionError("held by somebody else")
+
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(atomic_yaml, "read_shared", refuse)
+            patch.setattr(atomic_yaml, "READ_BUDGET_SECONDS", 0.05)
+            with pytest.raises(atomic_yaml.DocumentUnreadable):
+                atomic_yaml.merge_yaml_atomically(
+                    target, {"status": "stalled"}, merge=lambda old, new: {**old, **new}
+                )
+
+        assert yaml.safe_load(target.read_text(encoding="utf-8")) == {
+            "run_id": "run_x",
+            "status": "running",
+        }
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="an exclusive open is a Windows lock")
+    def test_an_exclusive_hold_is_waited_out_then_named(self, tmp_path: Path) -> None:
+        """The mechanism itself, with a real exclusive handle rather than a patch.
+
+        A handle opened with no sharing makes every other open fail with a sharing
+        violation. A real-time scanner that opens a freshly replaced file this way is the
+        likely source here. A hold longer than the old 40ms budget is waited out, and a
+        hold longer than the budget is reported as unreadable, never as absent.
+        """
+        directory = RunDirectory(tmp_path)
+        directory.write_meta({"run_id": "run_x"})
+        target = tmp_path / "meta.yaml"
+
+        with _held_exclusively(target):
+            with pytest.MonkeyPatch.context() as patch:
+                patch.setattr(atomic_yaml, "READ_BUDGET_SECONDS", 0.1)
+                with pytest.raises(atomic_yaml.DocumentUnreadable):
+                    directory.read_meta()
+
+        release = threading.Event()
+        opened = threading.Event()
+
+        def hold() -> None:
+            with _held_exclusively(target):
+                opened.set()
+                release.wait(timeout=10)
+
+        holder = threading.Thread(target=hold, daemon=True)
+        holder.start()
+        assert opened.wait(timeout=10)
+        threading.Timer(0.2, release.set).start()
+        assert directory.read_meta() == {"run_id": "run_x"}
+        holder.join(timeout=10)
 
     def test_a_file_that_is_genuinely_missing_answers_at_once(self, tmp_path: Path) -> None:
         """Absence is not transient, and paying the retry budget for it would be a tax.

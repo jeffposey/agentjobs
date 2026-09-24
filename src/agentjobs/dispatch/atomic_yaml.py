@@ -56,6 +56,7 @@ from typing import Any, Callable, Dict, Mapping
 import yaml
 
 __all__ = [
+    "DocumentUnreadable",
     "merge_yaml_atomically",
     "read_shared",
     "read_yaml_resiliently",
@@ -220,57 +221,88 @@ def write_yaml_atomically(
             pass
 
 
-READ_ATTEMPTS = 8
+READ_BUDGET_SECONDS = 2.0
 READ_POLL_SECONDS = 0.005
-"""Retry budget for a read: about 40ms, and it exists because of the *other* half.
+"""Retry budget for a read: two seconds of polling, measured in time, then a raise.
 
-Replacing the file removed torn content and left one window behind: on Windows, while
-``MoveFileExW`` swaps the target, a process opening it can be refused with
-``ERROR_ACCESS_DENIED``. Python raises ``PermissionError``, which is an ``OSError`` --
-and every reader in this subsystem was written to answer ``{}`` when the read fails.
+**Why a read retries at all** (task-390). Replacing the file removed torn content and left
+one window behind: on Windows, while ``MoveFileExW`` swaps the target, a process opening
+it can be refused with ``ERROR_ACCESS_DENIED``. Measured after the write fix, six readers
+against two writers for six seconds: 1 to 3 reads in ~3700 were refused, none of them a
+file that was actually empty. That condition clears in microseconds.
 
-So a transient refusal still arrives at a guard as *the flag is not set*, which is the
-original defect wearing different clothes. Measured after the write fix, six readers
-against two writers for six seconds: **1 to 3 reads in ~3700 still came back empty**, and
-none of them was a file that was actually empty. Retrying removes them, because the
-condition clears in microseconds.
+**Why the budget is time, and why running out of it raises** (task-550). The budget used
+to be eight attempts, about 40ms, after which the read answered ``None`` -- *absent* --
+for a file that was there. Something that holds the file for longer than that (a
+real-time scanner opening a freshly replaced file exclusively is the likely candidate
+here, since Defender's real-time protection is on) turned every read in the hold into
+*the flag is not set*. Under a ``-n 26`` gate that was 461 of 1153 reads in one run of
+``test_a_reader_never_sees_a_partial_document``. That is task-390's defect again, only
+delayed by 40ms.
+
+Two seconds is fifty times the old budget and still a bound, not a wait anyone should
+see: a read refused for that long is a file nobody can read, and the honest answer then is
+:class:`DocumentUnreadable`, not an empty document. Where the budget is spent it only
+replaces an answer that was wrong. The write path is unchanged.
 """
+
+
+class DocumentUnreadable(RuntimeError):
+    """A file that exists could not be opened within :data:`READ_BUDGET_SECONDS`.
+
+    **Deliberately not an** ``OSError``. The callers that catch ``OSError`` catch it
+    to answer *missing*, and this is exactly the case that must not be reported as
+    missing. A caller that has a safe answer for *unknown* catches this by name, or
+    catches ``Exception``. ``controller._meta`` and ``journal._launch_marker`` already do.
+    Otherwise it propagates, and the read fails loudly instead of reporting a flag as
+    absent.
+    """
+
+    def __init__(self, path: Path, cause: OSError) -> None:
+        super().__init__(
+            f"{path} exists but could not be opened for {READ_BUDGET_SECONDS}s: {cause}"
+        )
+        self.path = path
 
 
 def read_yaml_resiliently(path: Path, *, loader: Any = None) -> Any:
     """The document at *path*, or ``None`` when it is genuinely not there.
 
-    ``None`` is reserved for *absence*, and the whole point is that it now means only
-    that. A file that exists but cannot be opened this instant is retried rather than
-    reported as missing, and a caller that maps the result to ``{}`` is therefore mapping
-    a real answer.
+    ``None`` is reserved for *absence*, and the whole point is that it means only that. A
+    file that exists but cannot be opened this instant is retried rather than reported as
+    missing. If it still cannot be opened after :data:`READ_BUDGET_SECONDS`, this raises
+    :class:`DocumentUnreadable` rather than answer ``None`` (task-550). So a caller
+    that maps the result to ``{}`` is mapping a real answer, however long the reader was
+    starved.
 
     A ``yaml`` parse failure is **not** retried and returns ``None``: with the write side
     replacing rather than rewriting, unparseable content is genuinely corrupt rather than
-    half-written, and spending 40ms per call to re-read it would only slow down the one
-    case where the answer will not change.
+    half-written, and re-reading it would only slow down the one case where the answer
+    will not change.
 
     ``loader`` selects the parser -- callers on a hot path pass ``storage.load_yaml``,
     which uses libyaml and is an order of magnitude faster on a run's argv blob.
     """
     parse = loader or yaml.safe_load
-    for attempt in range(READ_ATTEMPTS):
+    deadline = time.monotonic() + READ_BUDGET_SECONDS
+    while True:
         try:
             raw = read_shared(path)
         except FileNotFoundError:
             # Genuinely absent, and absence is not transient. Answer at once: a run
             # directory with no meta is a real state and every caller handles it.
+            # `os.replace` is one rename on both platforms, and there is no instant at
+            # which the name is unbound, so a replace does not look like this.
             return None
-        except OSError:
-            if attempt == READ_ATTEMPTS - 1:
-                return None
+        except OSError as exc:
+            if time.monotonic() >= deadline:
+                raise DocumentUnreadable(path, exc) from exc
             time.sleep(READ_POLL_SECONDS)
             continue
         try:
             return parse(raw)
         except yaml.YAMLError:
             return None
-    return None  # pragma: no cover - the loop returns on every path
 
 
 # ----- merging without losing a concurrent write -------------------------------
@@ -306,6 +338,10 @@ def merge_yaml_atomically(
     Exhausting the budget raises ``TimeoutError`` rather than merging unlocked: a merge
     that silently skipped the lock would reintroduce the lost update under exactly the
     contention that makes it likely.
+
+    An unreadable current document raises :class:`DocumentUnreadable` and writes nothing,
+    for the same reason (task-550). When the read answered ``None`` instead, the merge
+    started from ``{}``, and the replace then erased every field it had not been handed.
     """
     lock = path.with_name(path.name + MERGE_LOCK_SUFFIX)
     deadline = time.monotonic() + MERGE_LOCK_BUDGET_SECONDS
