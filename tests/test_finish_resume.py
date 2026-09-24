@@ -544,7 +544,9 @@ class TestTheSpawn:
 
         assert "--resumed-from" not in seen["argv"]
         assert "--posture-release" not in seen["argv"]
-        assert seen["env"] is None
+        # Not None any more (task-538): None handed the child the server's environment,
+        # including whatever run identity the server's last restart had left in it.
+        assert seen["env"] is not None and RUN_ID_ENV not in seen["env"]
 
     def test_the_command_passes_the_attempt_it_resumes(
         self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch

@@ -79,6 +79,7 @@ from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Seque
 from agentjobs import clock as dispatch_clock
 from agentjobs.actors import FINISHER
 from agentjobs.dispatch.approval import consuming_finish
+from agentjobs.dispatch.credentials import without_run_identity
 from agentjobs.dispatch.atomic_yaml import write_yaml_atomically
 from agentjobs.dispatch.config import (
     DispatchError,
@@ -2171,6 +2172,9 @@ def restart_server(
         settings.restart,
         cwd=plan.root,
         timeout=RESTART_TIMEOUT_SECONDS,
+        # The server it starts must not become this finish's run (task-538); ``serve``
+        # drops them too, and this keeps the launcher chain above it clean as well.
+        env=without_run_identity(detached_environment()),
         log=directory.path / "restart.log",
     )
     seconds = time.monotonic() - started
@@ -3507,7 +3511,7 @@ def finish_task(
         check=authority_withdrawn,
     )
     lock: Optional[RunLock] = None
-    if not _own_run_holds_lock(resolved_home, task_id, project_id=project.id):
+    if not _own_run_holds_lock(resolved_home, task_id, project_id=project.id, authority=authority):
         try:
             lock = acquire_run_lock(resolved_home, task_id, project_id=project.id, kind=KIND_FINISH)
         except RunLockTimeout as exc:
@@ -4010,7 +4014,7 @@ def own_run_id(
     return holder.run_id
 
 
-def _own_run_holds_lock(home: Path, task_id: str, *, project_id: str) -> bool:
+def _own_run_holds_lock(home: Path, task_id: str, *, project_id: str, authority: str) -> bool:
     """Whether the lock on this task is held by *the run calling this* (task-022).
 
     The autonomous merge path is a run being told, in its own prompt, to run
@@ -4032,7 +4036,18 @@ def _own_run_holds_lock(home: Path, task_id: str, *, project_id: str) -> bool:
     the run's own supervisor releases it when the run ends. A finish that released it
     would free the task while its agent was still executing, which is the state the lock
     exists to make impossible.
+
+    **Only a posture finish can be its own run** (task-538). An approval finish is spawned
+    by the server, and the server's environment is whatever the last restart left in it:
+    on 2026-09-22 it carried the identity of a run that had finished task-523, and
+    ``own_run_id`` duly repaired that "leak" to the live session holding task-536's lock.
+    The finish then took no lock, the session concluded, its lock was swept as stale, and
+    the merge ran for thirteen minutes with nothing holding the task. A person's approval
+    is never a run finishing itself, so it always takes -- or takes over -- a lock of its
+    own, whatever the environment says.
     """
+    if authority != POSTURE:
+        return False
     own_run = own_run_id(home, task_id, project_id=project_id)
     if not own_run:
         return False
@@ -4985,10 +5000,13 @@ def spawn_finish(
         argv += ["--resumed-from", resumed_from]
     if speculative:
         argv.append("--speculative")
-    environment: Optional[Dict[str, str]] = None
+    # Granted, never inherited (task-538), as ``runner`` does for a dispatch. The server
+    # this is usually called from carries whatever run identity its last restart left in
+    # it, and a finisher that inherited one would treat that run's lock as its own.
+    environment = without_run_identity(os.environ)
     if posture_run_id:
         argv.append("--posture-release")
-        environment = {**os.environ, RUN_ID_ENV: posture_run_id}
+        environment[RUN_ID_ENV] = posture_run_id
     try:
         if os.name == "nt":
             subprocess.Popen(

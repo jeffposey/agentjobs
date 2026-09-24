@@ -429,6 +429,29 @@ def init(
     )
 
 
+def _drop_inherited_run_identity() -> None:
+    """Remove any dispatched run's identity from this process before it serves (task-538).
+
+    A server is never a run. It inherits one when a run's finish restarts it: on
+    2026-09-22 the dashboard carried ``AGENTJOBS_RUN_ID``, ``_DIR`` and ``_CREDENTIAL``
+    of a run that had finished task-523, and every finish it spawned afterwards believed
+    it was that run. Dropped here rather than only in the finish's restart step because
+    this is the one layer every restart path reaches -- a finish, ``agentjobs restart``,
+    the launcher by hand -- and it is removed from ``os.environ``, so reloaders, spawned
+    finishers and the process's own environment block are all clean, not just one child.
+    """
+    from agentjobs.dispatch.credentials import RUN_IDENTITY_VARS
+
+    dropped = [name for name in RUN_IDENTITY_VARS if name in os.environ]
+    for name in dropped:
+        os.environ.pop(name, None)
+    if dropped:
+        typer.echo(
+            f"Dropped an inherited run identity ({', '.join(dropped)}): a server is "
+            "never a dispatched run."
+        )
+
+
 @app.command()
 def serve(
     host: str = typer.Option("localhost"),
@@ -442,6 +465,7 @@ def serve(
 ) -> None:
     """Start web server."""
     host = _validated_bind_host(host)
+    _drop_inherited_run_identity()
     typer.echo(f"🚀 Starting AgentJobs server at http://{host}:{port}")
     _warn_if_bundle_missing()
     import uvicorn
@@ -842,6 +866,7 @@ def restart(
             typer.echo("Warning: Failed to stop existing server.", err=True)
 
     # Start new server
+    _drop_inherited_run_identity()
     typer.echo(f"🚀 Starting AgentJobs server at http://{host}:{port}")
     _warn_if_bundle_missing()
     import uvicorn
