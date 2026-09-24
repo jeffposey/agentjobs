@@ -80,13 +80,23 @@ async function seed(request: APIRequestContext) {
  */
 const HEADER_BUDGET_PX = 90;
 
-/** How far below the top of the list region the first row starts. */
+/**
+ * How far below the top of the list region the list's content starts.
+ *
+ * The content starts at the first row, or at the band header directly above it. Since
+ * task-563 the first row sits under a "CRITICAL TASKS"-style header. That header is part
+ * of the list, not controls above it, so it is not charged to this budget: what the
+ * budget measures is the controls. With the band header counted it read 94px on
+ * 2026-09-24; without it the figure is the controls alone, as before.
+ */
 async function headerCost(page: Page, taskId: string) {
   return page.evaluate((id) => {
     const region = document.querySelector('[data-region="list"]');
     const row = document.querySelector(`[data-task="${id}"]`);
     if (!region || !row) throw new Error("No list region, or no first row in it.");
-    return Math.round(row.getBoundingClientRect().top - region.getBoundingClientRect().top);
+    const above = row.previousElementSibling;
+    const start = above?.hasAttribute("data-band-header") ? above : row;
+    return Math.round(start.getBoundingClientRect().top - region.getBoundingClientRect().top);
   }, taskId);
 }
 
