@@ -324,7 +324,7 @@ describe("the Runs tab", () => {
       "href",
       "/p/alpha/tasks/task-002",
     );
-    expect(within(row as HTMLElement).getByText("Finishing")).toHaveAttribute(
+    expect(within(row as HTMLElement).getByText("Landing")).toHaveAttribute(
       "data-finish-step",
       "gate",
     );
@@ -338,7 +338,7 @@ describe("the Runs tab", () => {
     expect(screen.queryByRole("heading", { name: "Also on this machine" })).toBeNull();
   });
 
-  it("does not badge a finish against an already-closed task as Finishing", () => {
+  it("does not badge a finish against an already-closed task as Landing", () => {
     // task-514. The board renders from the lock, so it went on saying Finishing about a
     // task whose page said Completed. The lock is real and stays listed; the word is not.
     renderIn(
@@ -348,7 +348,7 @@ describe("the Runs tab", () => {
     );
 
     const row = screen.getByRole("link", { name: /task-002/ }).closest("tr");
-    expect(within(row as HTMLElement).queryByText("Finishing")).toBeNull();
+    expect(within(row as HTMLElement).queryByText("Landing")).toBeNull();
     expect(within(row as HTMLElement).getByText("Overtaken")).toBeInTheDocument();
     expect(within(row as HTMLElement).getByText("Task already closed")).toBeInTheDocument();
     // ...and it is not counted as something merging, because it is not merging.
@@ -393,7 +393,7 @@ describe("a run's badge in the task status colours (task-562)", () => {
   it.each([
     ["working", "Working", "working"],
     ["starting", "Starting", "queued"],
-    ["finishing", "Finishing", "finishing"],
+    ["finishing", "Landing", "finishing"],
     ["parked", "Waiting on you", "needs_you"],
     ["handback", "Feedback", "working"],
   ])("draws %s as the task status it names", (health, label, category) => {
@@ -417,7 +417,7 @@ describe("a run's badge moves only while the run is doing something (task-570)",
   it.each([
     ["working", "Working", "orbit"],
     ["starting", "Starting", "orbit"],
-    ["finishing", "Finishing", "orbit"],
+    ["finishing", "Landing", "orbit"],
     ["parked", "Waiting on you", "flash"],
   ])("moves %s", (health, label, motion) => {
     render(<HealthBadge health={health} />);

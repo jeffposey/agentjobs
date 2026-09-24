@@ -113,7 +113,7 @@ CASES = [
         None,
         FINISH,
         StatusFacts(),
-        "Finishing",
+        "Landing",
         C.FINISHING,
     ),
     *[

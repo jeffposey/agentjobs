@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { FinishStepView, TaskFinishView } from "../api/types";
-import { categoryStyle, chipClasses, runMotion } from "./StatusChip";
+import { ChipIcon, RUN_HEALTH, categoryStyle, chipClasses, runMotion } from "./StatusChip";
 
 /**
  * What is happening to this task's branch, on the page that started it.
@@ -64,9 +64,9 @@ export function formatFinishElapsed(
 export function finishHeadline(finish: TaskFinishView): string {
   switch (finish.state) {
     case "starting":
-      return "Finishing this task — starting";
+      return `${RUN_HEALTH.finishing?.label ?? ""} this task — starting`;
     case "running":
-      return "Finishing this task";
+      return `${RUN_HEALTH.finishing?.label ?? ""} this task`;
     case "finished":
       return finish.merge_commit
         ? `Merged as ${finish.merge_commit.slice(0, 8)} and verified live`
@@ -87,7 +87,7 @@ export function finishHeadline(finish: TaskFinishView): string {
         ? `Merged as ${finish.merge_commit.slice(0, 8)}, then the finish stopped without saying how it ended`
         : "The finish stopped without saying how it ended";
     // task-514: a finish still running against a closed task it did not merge. Not
-    // "Finishing this task" -- the task is finished, and this is not what finished it.
+    // "Landing this task" -- the task is finished, and this is not what finished it.
     case "overtaken":
       return "Overtaken — this task was already finished";
     default:
@@ -271,7 +271,8 @@ export function FinishPanel({ finish }: FinishPanelProps) {
     >
       <div className="flex flex-wrap items-center gap-3">
         {LIVE_STATES.has(finish.state) ? (
-          <span data-status-category="finishing" data-motion={runMotion("finishing") ?? undefined} className={chipClasses(runMotion("finishing"))} style={categoryStyle("finishing")}>
+          <span data-status-category="finishing" data-motion={runMotion("finishing") ?? undefined} className={chipClasses(runMotion("finishing"), RUN_HEALTH.finishing?.icon)} style={categoryStyle("finishing")}>
+            <ChipIcon name={RUN_HEALTH.finishing?.icon} />
             {finishBadge(finish)}
           </span>
         ) : (

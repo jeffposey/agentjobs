@@ -401,8 +401,8 @@ class TestFinishing:
 
         task = client.get("/api/projects/alpha/tasks/task-001/detail").json()["task"]
         row = {r["id"]: r for r in client.get("/api/projects/alpha/tasks").json()}["task-001"]
-        assert row["display_status"] == "Finishing"
-        assert task["display_status"] == "Finishing"
+        assert row["display_status"] == "Landing"
+        assert task["display_status"] == "Landing"
         assert _live(client)["runs"][0]["health"] == "finishing"
 
     def test_a_run_merely_working_still_reads_working(self, two_projects):

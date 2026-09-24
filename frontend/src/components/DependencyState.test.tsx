@@ -62,7 +62,7 @@ const TABLE: Array<[string, StatusCategory, Partial<TaskRead>]> = [
   ["Queued", "queued", {}],
   ["Starting", "queued", {}],
   ["Working", "working", { lifecycle: "active", ball_reason: "work", ball_prompt: "Go." }],
-  ["Finishing", "finishing", { lifecycle: "active", ball_reason: "work", ball_prompt: "Go." }],
+  ["Landing", "finishing", { lifecycle: "active", ball_reason: "work", ball_prompt: "Go." }],
   ["Needs spec", "needs_you", { ball: "human", ball_reason: "spec", ball_prompt: "Spec it." }],
   ["Needs review", "needs_you", { ball: "human", ball_reason: "review", ball_prompt: "Look." }],
   ["Needs decision", "needs_you", { ball: "human", ball_reason: "decision", ball_prompt: "Pick." }],
@@ -209,7 +209,7 @@ describe("the reason line", () => {
       lifecycle: "active",
       ball_reason: "work",
       ball_prompt: "Go.",
-      display_status: "Finishing",
+      display_status: "Landing",
       status_category: "finishing",
       live_finish: { finish_id: "f1", state: "running", current_step: "gate", step_meaning: "Running the gate" },
     });

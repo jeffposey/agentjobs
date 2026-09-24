@@ -1,5 +1,5 @@
 {
-  "about": "Every status chip's word and colour (task-562). The server reads this for the words and categories it sends as display_status and status_category; the React app reads it for the colours. Edit a label or a colour here and both follow. A category's colours apply in every theme: they carry meaning, so a theme does not restyle them.",
+  "about": "Every status chip's word, colour and optional icon (task-562, task-578). An icon is a Lucide name, drawn only if frontend/src/components/statusIcons.ts registers it; an entry without one draws the chip with no icon. The server reads this for the words and categories it sends as display_status and status_category; the React app reads it for the colours. Edit a label or a colour here and both follow. A category's colours apply in every theme: they carry meaning, so a theme does not restyle them.",
   "categories": {
     "ready": {
       "meaning": "Can start.",
@@ -58,36 +58,36 @@
     }
   },
   "statuses": {
-    "ready": { "label": "Ready", "category": "ready" },
-    "queued": { "label": "Queued", "category": "queued" },
-    "starting": { "label": "Starting", "category": "queued" },
-    "working": { "label": "Working", "category": "working" },
-    "finishing": { "label": "Finishing", "category": "finishing" },
-    "needs_spec": { "label": "Needs spec", "category": "needs_you" },
-    "needs_review": { "label": "Needs review", "category": "needs_you" },
-    "needs_decision": { "label": "Needs decision", "category": "needs_you" },
-    "needs_approval": { "label": "Needs approval", "category": "needs_you" },
-    "needs_input": { "label": "Needs input", "category": "needs_you" },
-    "error": { "label": "Error", "category": "needs_you" },
-    "blocked": { "label": "Blocked", "category": "not_now" },
-    "on_hold": { "label": "On hold", "category": "not_now" },
-    "quota": { "label": "Quota", "category": "not_now" },
-    "draft": { "label": "Draft", "category": "draft" },
-    "completed": { "label": "Completed", "category": "closed" },
-    "superseded": { "label": "Superseded", "category": "closed_unfinished" },
-    "cancelled": { "label": "Cancelled", "category": "closed_unfinished" },
-    "duplicate": { "label": "Duplicate", "category": "closed_unfinished" }
+    "ready": { "label": "Ready", "category": "ready", "icon": "circle-play" },
+    "queued": { "label": "Queued", "category": "queued", "icon": "hourglass" },
+    "starting": { "label": "Starting", "category": "queued", "icon": "loader" },
+    "working": { "label": "Working", "category": "working", "icon": "cog" },
+    "finishing": { "label": "Landing", "category": "finishing", "icon": "plane-landing" },
+    "needs_spec": { "label": "Needs spec", "category": "needs_you", "icon": "pencil-ruler" },
+    "needs_review": { "label": "Needs review", "category": "needs_you", "icon": "eye" },
+    "needs_decision": { "label": "Needs decision", "category": "needs_you", "icon": "split" },
+    "needs_approval": { "label": "Needs approval", "category": "needs_you", "icon": "check-check" },
+    "needs_input": { "label": "Needs input", "category": "needs_you", "icon": "message-circle-question-mark" },
+    "error": { "label": "Error", "category": "needs_you", "icon": "triangle-alert" },
+    "blocked": { "label": "Blocked", "category": "not_now", "icon": "link" },
+    "on_hold": { "label": "On hold", "category": "not_now", "icon": "pause" },
+    "quota": { "label": "Quota", "category": "not_now", "icon": "battery-low" },
+    "draft": { "label": "Draft", "category": "draft", "icon": "file-pen" },
+    "completed": { "label": "Completed", "category": "closed", "icon": "check" },
+    "superseded": { "label": "Superseded", "category": "closed_unfinished", "icon": "replace" },
+    "cancelled": { "label": "Cancelled", "category": "closed_unfinished", "icon": "x" },
+    "duplicate": { "label": "Duplicate", "category": "closed_unfinished", "icon": "copy" }
   },
   "run_health": {
-    "working": { "label": "Working", "category": "working" },
-    "starting": { "label": "Starting", "category": "queued" },
-    "parked": { "label": "Waiting on you", "category": "needs_you" },
-    "finishing": { "label": "Finishing", "category": "finishing" },
-    "handback": { "label": "Feedback", "category": "working" }
+    "working": { "label": "Working", "category": "working", "icon": "cog" },
+    "starting": { "label": "Starting", "category": "queued", "icon": "loader" },
+    "parked": { "label": "Waiting on you", "category": "needs_you", "icon": "hand" },
+    "finishing": { "label": "Landing", "category": "finishing", "icon": "plane-landing" },
+    "handback": { "label": "Feedback", "category": "working", "icon": "message-square" }
   },
   "walk": {
-    "walking": { "label": "Walking", "category": "working" },
-    "waiting": { "label": "Waiting", "category": "not_now" },
+    "walking": { "label": "Walking", "category": "working", "icon": "footprints" },
+    "waiting": { "label": "Waiting", "category": "not_now", "icon": "clock" },
     "grounded": { "label": "Grounded", "category": "needs_you" }
   }
 }

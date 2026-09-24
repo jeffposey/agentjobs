@@ -188,7 +188,7 @@ class TestTheLabel:
 
         rows = listing(served)
 
-        assert rows[finishing]["display_status"] == "Finishing"
+        assert rows[finishing]["display_status"] == "Landing"
         assert rows[working]["display_status"] == "Working"
 
     def test_the_listing_row_carries_the_structure_and_not_only_the_word(
@@ -221,7 +221,7 @@ class TestTheLabel:
 
         page = detail(served, task_id)
 
-        assert page["display_status"] == "Finishing"
+        assert page["display_status"] == "Landing"
         assert page["live_finish"]["finish_id"] == "fin_live"
 
     def test_a_task_with_no_finish_carries_nothing(
@@ -376,7 +376,7 @@ class TestTheDerivation:
         task = self.working(machine)
 
         assert derived_display_status(task, None, None) == "Working"
-        assert derived_display_status(task, None, LiveFinishState(state="running")) == "Finishing"
+        assert derived_display_status(task, None, LiveFinishState(state="running")) == "Landing"
 
     def test_finishing_outranks_a_queued_dispatch(self, machine: Machine) -> None:
         """Both are facts only a read surface can see, so which wins is decided in one
@@ -385,7 +385,7 @@ class TestTheDerivation:
         task = self.working(machine)
         queued = QueuedDispatchState(queue_id="q1", position=1, queued_at="2026-09-20T00:00:00Z")
 
-        assert derived_display_status(task, queued, LiveFinishState(state="running")) == "Finishing"
+        assert derived_display_status(task, queued, LiveFinishState(state="running")) == "Landing"
 
     def test_a_closed_task_keeps_its_outcome(self, machine: Machine) -> None:
         task_id = machine.task()
@@ -546,7 +546,7 @@ class TestWhatItCosts:
         long = listing(served)
 
         assert len(short) == 1 and len(long) == 40
-        assert long[finishing]["display_status"] == "Finishing"
+        assert long[finishing]["display_status"] == "Landing"
         assert counts["scans"] == 1, "the finishes are read once per request, not once per row"
         # Without this the comparison below would pass on two zeroes -- which is what it
         # would read if the label stopped being derived at all.

@@ -661,7 +661,7 @@ nothing else, so any coloured chip is a live task.
 | `ready` | green | `Ready` |
 | `queued` | brown | `Queued`, `Starting` |
 | `working` | blue | `Working` |
-| `finishing` | purple | `Finishing` |
+| `finishing` | purple | `Landing` |
 | `needs_you` | red | `Needs spec`, `Needs review`, `Needs decision`, `Needs approval`, `Needs input`, `Error` (a `needs` cycle) |
 | `not_now` | pink | `Blocked`, `On hold`, `Quota` |
 | `draft` | yellow | `Draft` |
@@ -672,9 +672,17 @@ nothing else, so any coloured chip is a live task.
 the work done is solid, and one that ended without it is hollow.
 
 The same file maps the run-health words that name a task status (Working, Starting,
-Waiting on you, Finishing, and Feedback, meaning the owner's feedback is queued for the
+Waiting on you, Landing, and Feedback, meaning the owner's feedback is queued for the
 running session) and the three epic-walk badges (Walking, Waiting, Grounded) to these
 categories.
+
+**Each entry may also name an `icon`** (task-578): a [Lucide](https://lucide.dev/icons/)
+name, drawn at the chip's text size before its word and hidden from screen readers, since
+the word is the chip's accessible name. The icon is optional, and an entry without one
+draws the chip exactly as it was before icons existed, so choosing one is an edit to this
+file at leisure. The React app draws only the icons listed in
+`frontend/src/components/statusIcons.ts`, so a new name is one line there too;
+`statusIcons.test.tsx` fails when the two disagree.
 
 **What the chip does not say.** The owner, the blocker, a quota wait's reset time and the
 archived flag are each on the record and drawn beside the chip, never in it — a chip is
@@ -726,10 +734,17 @@ derived from the record on every read, like `display_status`, and is not a store
 Both the label and the field come from `models_v2.self_clearing_wait()`, so they cannot
 disagree.
 
-### `Finishing`
+### `Landing`
+
+The word was `Finishing` until task-578, and only the word changed: the status key and
+category are still `finishing`, as are the `agentjobs finish` verb, `finish.enabled` and
+the `live_finish` field. `Landing` names the operation, integrating onto `main`, in the
+flight words the system already used for it (the merge runway; takeoff and landing are
+different resources). `Finishing` read as "the agent is finishing its work", which is
+`Working`.
 
 Two labels are derived from something that is not on the record at all: `Queued`, when a
-dispatch of the task is waiting for a slot on this machine (task-459), and `Finishing`,
+dispatch of the task is waiting for a slot on this machine (task-459), and `Landing`,
 while a scripted finish is rebasing, gating and merging its branch (task-509). Neither is
 a state the axes could carry. A queued dispatch deliberately does not claim the task, and
 a finish moves nothing on the record it is finishing — approving hands the ball to
@@ -740,7 +755,7 @@ a finish moves nothing on the record it is finishing — approving hands the bal
 the label a task an agent is editing gets, and before task-509 nothing anywhere but the
 task page's finish panel could tell the two apart.
 
-`Finishing` replaces whatever label an open task would otherwise have, and nothing on a
+`Landing` replaces whatever label an open task would otherwise have, and nothing on a
 closed one. A finish holds the task's run lock for its whole attempt, so while one is
 live nothing else can be happening to the task; but the finish closes the task at its
 `close` step and then spends a second or two removing the worktree, and `Completed` is

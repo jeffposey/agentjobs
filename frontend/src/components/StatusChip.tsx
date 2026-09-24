@@ -4,6 +4,7 @@ import type { StatusCategory } from "../api/types";
 // The one data file every status word and colour comes from (task-562). The server reads
 // it for the words it sends as `display_status`; this reads it for the colours.
 import vocabulary from "../../../src/agentjobs/status_vocabulary.json";
+import { STATUS_ICONS } from "./statusIcons";
 
 /**
  * The status colours: one per category, and every status in exactly one category.
@@ -39,7 +40,7 @@ export function categoryStyle(category: StatusCategory): CSSProperties {
   };
 }
 
-type Entry = { label: string; category: StatusCategory };
+type Entry = { label: string; category: StatusCategory; icon?: string };
 
 /** A run's health word and category, where the health names a task status. */
 export const RUN_HEALTH = vocabulary.run_health as Record<string, Entry>;
@@ -47,8 +48,47 @@ export const RUN_HEALTH = vocabulary.run_health as Record<string, Entry>;
 /** An epic walk's badge word and category. */
 export const WALK_STATES = vocabulary.walk as Record<"walking" | "waiting" | "grounded", Entry>;
 
+/** Every task status's word, category and icon, for a surface naming one by key. */
+export const STATUSES = vocabulary.statuses as Record<string, Entry>;
+
 /** The shape every status chip has, so no surface draws a filled one beside an outlined one. */
 export const CHIP_SHAPE = "inline-flex whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium";
+
+/** Added to a chip only when it draws an icon, so an icon-less chip is exactly as it was. */
+const WITH_ICON = "items-center gap-1";
+
+/**
+ * Each status word's icon, from the data file (task-578).
+ *
+ * Keyed by the word because the word is what every surface already holds: the server
+ * sends `display_status`, not the key it chose it by. The same word appears in more than
+ * one section -- Working is a task status and a run's health -- and `statusIcons.test.ts`
+ * holds that it names one icon wherever it appears, so the key is never ambiguous.
+ */
+export const LABEL_ICONS: Record<string, string> = Object.fromEntries(
+  [STATUSES, RUN_HEALTH, WALK_STATES as Record<string, Entry>]
+    .flatMap((section) => Object.values(section))
+    .filter((entry) => entry.icon)
+    .map((entry) => [entry.label, entry.icon as string]),
+);
+
+/** The icon name for a chip's word, or undefined: most process words have none. */
+export function statusIconName(label: string | null | undefined): string | undefined {
+  return label ? LABEL_ICONS[label] : undefined;
+}
+
+/**
+ * A status's icon at the chip's text size, before its word.
+ *
+ * `aria-hidden` because the word is the chip's accessible name and the glyph adds
+ * nothing a screen reader should say. A name the registry lacks draws nothing rather than
+ * throwing: the test suite is where that is an error, not the page.
+ */
+export function ChipIcon({ name }: { name: string | null | undefined }) {
+  const Icon = name ? STATUS_ICONS[name] : undefined;
+  if (!Icon) return null;
+  return <Icon data-status-icon={name} aria-hidden="true" focusable="false" className="h-3 w-3 shrink-0" strokeWidth={2.25} />;
+}
 
 /**
  * Capitalise the first letter and leave the rest alone.
@@ -133,9 +173,10 @@ export function taskMotion(task: MotionFacts): ChipMotion | null {
   return live ? "orbit" : categoryMotion(task.status_category);
 }
 
-/** The chip's classes, with its motion when it has one. */
-export function chipClasses(motion?: ChipMotion | null): string {
-  return motion ? `${CHIP_SHAPE} ${MOTION_CLASSES[motion]}` : CHIP_SHAPE;
+/** The chip's classes, with its motion when it has one and icon spacing when it draws one. */
+export function chipClasses(motion?: ChipMotion | null, icon?: string | null): string {
+  const shape = icon && STATUS_ICONS[icon] ? `${CHIP_SHAPE} ${WITH_ICON}` : CHIP_SHAPE;
+  return motion ? `${shape} ${MOTION_CLASSES[motion]}` : shape;
 }
 
 export function StatusChip({
@@ -144,22 +185,27 @@ export function StatusChip({
   title,
   testId,
   motion,
+  icon,
 }: {
   category: StatusCategory;
   label: string;
   title?: string;
   testId?: string;
   motion?: ChipMotion | null;
+  /** Overrides the icon the word would draw. `null` draws none. */
+  icon?: string | null;
 }) {
+  const iconName = icon === undefined ? statusIconName(label) : icon;
   return (
     <span
       data-status-category={category}
       data-motion={motion ?? undefined}
       data-testid={testId}
       title={title}
-      className={chipClasses(motion)}
+      className={chipClasses(motion, iconName)}
       style={categoryStyle(category)}
     >
+      <ChipIcon name={iconName} />
       {chipCase(label)}
     </span>
   );

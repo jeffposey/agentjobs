@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { listLiveRunsApiRunsLiveGetOptions } from "../api/generated/@tanstack/react-query.gen";
 import type { LiveRunView, LiveRunsView, MachineHolderView } from "../api/types";
-import { CHIP_SHAPE, RUN_HEALTH, categoryStyle, chipClasses, runMotion } from "./StatusChip";
+import { CHIP_SHAPE, ChipIcon, RUN_HEALTH, categoryStyle, chipClasses, runMotion } from "./StatusChip";
 import { formatElapsed } from "./DispatchPanel";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
@@ -99,7 +99,7 @@ const PROCESS_HEALTH_LABELS: Record<string, string> = {
 
 /**
  * Every health word. The ones that name the same thing as a task status -- Working,
- * Starting, Waiting on you, Finishing, and Feedback (a human handed the ball back while
+ * Starting, Waiting on you, Landing, and Feedback (a human handed the ball back while
  * this run was still going, task-384) -- come with their category from the status data
  * file, so a run and its task are drawn in one word and one colour (task-562). The rest
  * describe the process rather than the task and are spelled here.
@@ -168,9 +168,10 @@ export function HealthBadge({ health, task }: { health: string; task?: ClosedTas
         data-health={health}
         data-status-category={status.category}
         data-motion={runMotion(health) ?? undefined}
-        className={chipClasses(runMotion(health))}
+        className={chipClasses(runMotion(health), status.icon)}
         style={categoryStyle(status.category)}
       >
+        <ChipIcon name={status.icon} />
         {status.label}
       </span>
     );
@@ -290,9 +291,10 @@ export function FinishBadge({ finish }: { finish: MachineHolderView }) {
       data-status-category={finish.overtaken ? undefined : "finishing"}
       // A lock state rather than a task status, so Overtaken keeps a colour of its own.
       data-motion={finish.overtaken ? undefined : (runMotion("finishing") ?? undefined)}
-      className={finish.overtaken ? `${CHIP_SHAPE} border-orange-700 bg-orange-900 text-orange-200` : chipClasses(runMotion("finishing"))}
+      className={finish.overtaken ? `${CHIP_SHAPE} border-orange-700 bg-orange-900 text-orange-200` : chipClasses(runMotion("finishing"), RUN_HEALTH.finishing?.icon)}
       style={finish.overtaken ? undefined : categoryStyle("finishing")}
     >
+      {!finish.overtaken && <ChipIcon name={RUN_HEALTH.finishing?.icon} />}
       {finish.overtaken ? "Overtaken" : RUN_HEALTH.finishing?.label}
     </span>
   );

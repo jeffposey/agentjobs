@@ -13,11 +13,12 @@ remember to update is how the sixth surface was missed, so the list is now check
 ## The two agreed sources
 
 - **A task's state** is the server's `display_status`, or `dependencyState()` built on
-  it. The server decides the word, including "Finishing" (`models_v2.task_status`), so
-  no file spells a task-state word of its own.
+  it. The server decides the word, including "Landing" (`models_v2.task_status`), so
+  no file spells a task-state word of its own. "Landing" was "Finishing" until task-578;
+  the check refuses either spelling in a component.
 - **A run's state** is the server's `health`, rendered only through `HealthBadge` or
   `healthLabel`. `health` is `finishing` exactly when the task read's `live_finish` would
-  make the task say "Finishing", because both come from `finish_status.live_finishes`.
+  make the task say "Landing", because both come from `finish_status.live_finishes`.
 
 ## The one colour source
 
@@ -27,6 +28,11 @@ reads the same file, in `StatusChip.tsx`, for the colours. One colour per catego
 status in exactly one category, and grey for closed tasks and nothing else. The design
 table is in `docs/task-schema.md`. Render a task status with `<StatusChip>` or
 `categoryStyle()`; never pick a colour for one.
+
+**Icons come from the same file** (task-578): an entry's optional `icon` is a Lucide name,
+drawn by `StatusChip` (or `ChipIcon`, in the three badges that build their own span)
+from the registry in `statusIcons.ts`. An entry without one draws the chip exactly as
+before icons existed.
 
 The run-health words that name a task status, and the epic-walk badges, come from the
 same file (`RUN_HEALTH`, `WALK_STATES`); the process-only health states keep their own
@@ -43,7 +49,7 @@ map, and when a word the chip used to be rewritten to ("Actionable now", "In fli
 | `components/StatusChip.tsx` | The one status chip, drawn from the status data file | `display_status` |
 | `components/DependencyState.tsx` | The task status chip and its reason line | `display_status` |
 | `components/RecentlyFinished.tsx` | The dashboard's Recently finished rows | `display_status` |
-| `components/TaskList.tsx` | The status column, the tree row chip, the Finishing filter | `dependencyState` |
+| `components/TaskList.tsx` | The status column, the tree row chip, the Landing filter | `dependencyState` |
 | `components/DependencyGraph.tsx` | The chip on each node of the dependency tree | `dependencyState` |
 | `components/Dashboard.tsx` | The waiting-on-you cards and the active task chips | `display_status` |
 | `components/TaskDetail.tsx` | The task page's header chip, work state and children | `display_status` |

@@ -242,7 +242,7 @@ describe("rendering", () => {
       "data-finish-state",
       "running",
     );
-    expect(screen.getByText("Finishing this task")).toBeInTheDocument();
+    expect(screen.getByText("Landing this task")).toBeInTheDocument();
     const gate = document.querySelector('[data-finish-step="gate"]');
     expect(gate).toHaveAttribute("data-step-state", "running");
     expect(gate?.textContent).toContain("Gate: pytest — 6 of 10");
@@ -257,7 +257,7 @@ describe("rendering", () => {
       />,
     );
 
-    expect(screen.queryByText("Finishing this task")).toBeNull();
+    expect(screen.queryByText("Landing this task")).toBeNull();
     expect(
       screen.getByText("Overtaken — this task was already finished"),
     ).toBeInTheDocument();
