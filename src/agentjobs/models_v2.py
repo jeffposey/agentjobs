@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Union
 
 from pydantic import (
     BaseModel,
@@ -306,6 +306,38 @@ class Outcome(ValueEnum):
     CANCELLED = "cancelled"
     SUPERSEDED = "superseded"
     DUPLICATE = "duplicate"
+
+
+class StatusCategory(str, Enum):
+    """Which colour a status chip is drawn in: one colour per category (task-562).
+
+    Derived on read beside ``display_status`` and by the same function, so the word and
+    the colour cannot disagree. Every label belongs to exactly one category:
+
+    - ``ready`` (green) -- can start: Ready.
+    - ``queued`` (brown) -- will start: Queued, Starting.
+    - ``working`` (blue) -- running: Working.
+    - ``finishing`` (purple) -- merging: Finishing.
+    - ``needs_you`` (red) -- a person has to act: the five "Needs ..." labels and
+      Dependency data error.
+    - ``not_now`` (pink) -- will not start, and not because of you: Blocked, On hold,
+      Sub-tasks, Quota reset, Draft.
+    - ``closed`` and ``closed_unfinished`` (grey) -- the one grey category, with the
+      marker a surface strikes the word through for: Completed is ``closed``; Superseded,
+      Cancelled and Duplicate are ``closed_unfinished``.
+
+    A plain ``Enum`` rather than a tolerant ``ValueEnum``: nothing ever writes one, so
+    there is no older writer whose value a reader has to survive.
+    """
+
+    READY = "ready"
+    QUEUED = "queued"
+    WORKING = "working"
+    FINISHING = "finishing"
+    NEEDS_YOU = "needs_you"
+    NOT_NOW = "not_now"
+    CLOSED = "closed"
+    CLOSED_UNFINISHED = "closed_unfinished"
 
 
 class Priority(ValueEnum):
@@ -2124,131 +2156,178 @@ def wait_of(task: "LabelledTask") -> Optional[SelfClearingWait]:
     return self_clearing_wait(task)
 
 
+class StatusFacts(NamedTuple):
+    """The corpus-wide facts a read surface knows about a task and the record does not.
+
+    Every one of them is computed over the whole project (``TaskManager.dependency_facts``),
+    so a bare ``Task`` cannot supply them and the CLI's labels are drawn without them. A
+    read model passes them in, which is what lets the server -- and nobody else -- say
+    "Blocked", "Sub-tasks" and "Dependency data error" (task-562). Before that, the task
+    list's chip rewrote the server's word in five branches to say what only it knew.
+    """
+
+    needs_cycle: bool = False
+    unmet_needs: bool = False
+    open_children: bool = False
+
+
+class TaskStatus(NamedTuple):
+    """A task's chip: the one word a reader sees and the category its colour comes from.
+
+    One value rather than two functions, so the word and the colour cannot be derived by
+    different rules and disagree -- the failure task-562 exists to remove, where the same
+    task read "In flight" in blue on one panel and "Working" in green on another.
+    """
+
+    label: str
+    category: StatusCategory
+
+
+_HUMAN_LABELS: Dict[BallReason, str] = {
+    BallReason.SPEC: "Needs spec",
+    BallReason.REVIEW: "Needs review",
+    BallReason.DECISION: "Needs decision",
+    BallReason.APPROVAL: "Needs approval",
+    BallReason.INPUT: "Needs input",
+}
+
+
+def closed_status(outcome: Optional[Outcome]) -> TaskStatus:
+    """The chip for a task that ended with ``outcome``.
+
+    Its own function because a surface can know how a task ended without holding the
+    task: Recently finished is built from close entries, and it has to say exactly what
+    the task list says about the same task (task-562).
+
+    **No "(archived)" suffix.** Archived is a separate flag and is drawn separately; in a
+    one-word chip it was a qualifier read as noise, and it made one outcome five labels.
+    """
+    ended = outcome or Outcome.COMPLETED
+    category = (
+        StatusCategory.CLOSED if ended is Outcome.COMPLETED else StatusCategory.CLOSED_UNFINISHED
+    )
+    return TaskStatus(str(ended.value).capitalize(), category)
+
+
+def task_status(
+    task: "LabelledTask",
+    queued: Optional[QueuedDispatchState] = None,
+    finish: Optional[LiveFinishState] = None,
+    facts: Optional[StatusFacts] = None,
+) -> TaskStatus:
+    """``task``'s chip, with every fact the caller can see folded in.
+
+    **The one place the order between those facts is decided** (task-562). The labels
+    are the design table in docs/task-schema.md, and the rule behind it is one colour
+    per category and every status in exactly one category: grey means closed and
+    nothing else, red is what a person has to act on, and pink is "not now, and not
+    because of you".
+
+    The order, and why:
+
+    - **Closed** keeps its outcome, even while a finish is still removing the worktree:
+      "Completed" is the answer a reader wants, and "Finishing" would replace it with a
+      process.
+    - **Finishing** outranks everything an open task could otherwise say. A finish holds
+      the task's run lock for its whole attempt, so nothing else can be happening.
+    - **A ``needs`` cycle** is red: only a person can fix the data, and until then no
+      task in the cycle can start.
+    - **A human ball** says what the person has to do. It sits above an unmet ``needs``
+      edge on purpose: a task waiting on its spec can have the spec written whatever it
+      is blocked on, and red is the colour for what a reader would otherwise miss.
+    - **Hold, unmet needs and an external ball** are pink. Most blocks clear with nobody
+      acting, and drawing them red sends somebody to investigate a handled condition.
+    - **An agent on it** is "Working". The owner is not in the chip (the one-word rule
+      from 2026-09-19); the task page names it.
+    - **Open sub-tasks, a draft, a queued dispatch** -- in that order -- each explain
+      why a task nobody holds is not "Ready".
+    - **"Ready" is reached only by a ready task nothing above applies to**, so given the
+      facts it is exactly the claim gate's ``actionable``: a task that cannot be started
+      never reads "Ready", and "Ready" is never drawn in anything but green.
+
+    ``facts`` is ``None`` for a caller without the corpus -- the CLI -- which then
+    cannot say "Blocked" for an unmet edge nobody has handed off on. That is a narrower
+    answer than a read surface gives, never a contradictory one.
+    """
+    if task.lifecycle is Lifecycle.CLOSED:
+        return closed_status(task.outcome)
+    if finish is not None:
+        return TaskStatus("Finishing", StatusCategory.FINISHING)
+    facts = facts or StatusFacts()
+    if facts.needs_cycle:
+        return TaskStatus("Dependency data error", StatusCategory.NEEDS_YOU)
+    if task.ball is Ball.HUMAN:
+        # "Needs input" rather than a sixth wording for a reason this reader does not
+        # know: every human ball is something for a person to do.
+        label = _HUMAN_LABELS.get(task.ball_reason or BallReason.INPUT, "Needs input")
+        return TaskStatus(label, StatusCategory.NEEDS_YOU)
+    if task.ball is Ball.AGENT and task.ball_reason is BallReason.HOLD:
+        return TaskStatus("On hold", StatusCategory.NOT_NOW)
+    if facts.unmet_needs:
+        return TaskStatus("Blocked", StatusCategory.NOT_NOW)
+    if task.ball is Ball.EXTERNAL:
+        # The blocker, and a quota wait's reset time, are for the reason line under the
+        # chip: the label has one word's room, and a time derived on the server would
+        # have to be UTC where the reader's own zone is the useful one.
+        if wait_of(task) is not None:
+            return TaskStatus("Quota reset", StatusCategory.NOT_NOW)
+        return TaskStatus("Blocked", StatusCategory.NOT_NOW)
+    if task.ball is Ball.AGENT and (
+        task.ball_reason is not BallReason.AVAILABLE or task.lifecycle is Lifecycle.ACTIVE
+    ):
+        return TaskStatus("Working", StatusCategory.WORKING)
+    if task.ball is not Ball.AGENT:
+        # A ball this reader has never heard of (a tolerant client, task-024). It has no
+        # word for it, so it says the lifecycle rather than inventing one -- and never
+        # "Ready", which would invite a start the service may not permit.
+        return TaskStatus(str(task.lifecycle.value).capitalize(), StatusCategory.NOT_NOW)
+    if facts.open_children:
+        return TaskStatus("Sub-tasks", StatusCategory.NOT_NOW)
+    if task.lifecycle is Lifecycle.DRAFT:
+        return TaskStatus("Draft", StatusCategory.NOT_NOW)
+    if queued is not None:
+        # One word, as the chip requires: the place in line and a paused credential are
+        # fields on `queued_dispatch`, drawn in prose where there is room (2026-09-19).
+        # "Starting" is kept because it is a different answer to "is anything going to
+        # happen": a tick is putting the entry through the dispatch gates right now.
+        label = "Starting" if queued.status == "starting" else "Queued"
+        return TaskStatus(label, StatusCategory.QUEUED)
+    return TaskStatus("Ready", StatusCategory.READY)
+
+
 def display_status(task: "LabelledTask") -> str:
-    """``task``'s one human-readable label.
+    """``task``'s label from the record alone -- what ``Task.display_status`` carries.
 
     A module function with the property delegating to it, rather than the other way
-    round, because ``TaskRead`` overrides the label for a fact only a read surface can
-    see -- a dispatch of the task waiting for a machine slot -- and has to be able to
-    fall back to this. Reaching a parent model's ``computed_field`` from a subclass
-    override goes through a Pydantic descriptor proxy; a function does not.
+    round, because the read models override the label for facts only a read surface
+    can see and fall back to this. Reaching a parent model's ``computed_field`` from a
+    subclass override goes through a Pydantic descriptor proxy; a function does not.
     """
-    wait = wait_of(task)
-    if task.lifecycle is Lifecycle.CLOSED:
-        label = (task.outcome or Outcome.COMPLETED).value.capitalize()
-        return f"{label} (archived)" if task.archived else label
-    if task.ball is Ball.HUMAN:
-        human_labels: Dict[BallReason, str] = {
-            BallReason.SPEC: "Needs spec",
-            BallReason.REVIEW: "Needs review",
-            BallReason.DECISION: "Needs decision",
-            BallReason.APPROVAL: "Needs approval",
-            BallReason.INPUT: "Needs input",
-        }
-        return human_labels.get(task.ball_reason or BallReason.REVIEW, "Waiting on human")
-    if task.ball is Ball.EXTERNAL:
-        if task.ball_reason is BallReason.DEPENDENCY:
-            blockers = [d.task for d in task.dependencies if d.type is DependencyType.NEEDS]
-            return f"Blocked on {blockers[0]}" if blockers else "Blocked"
-        if wait is not None:
-            # UTC because a label derived on the server cannot know the reader's
-            # zone, and an unmarked local-looking time is the worse failure: the
-            # question this answers is whether to do anything, and an hour's
-            # ambiguity either way changes that answer. The full timestamp is in
-            # `ball_prompt`, which every surface draws beside this.
-            if wait.resets_at is not None:
-                return (
-                    f"Waiting on quota reset ({wait.resets_at.astimezone(timezone.utc):%H:%M} UTC)"
-                )
-            return "Waiting on quota reset"
-        return "Blocked on a service"
-    if task.ball is Ball.AGENT:
-        if task.ball_reason is BallReason.AVAILABLE:
-            return "Ready"
-        owner = task.assignment.owner
-        # `hold` is the one agent-side reason that does not mean "an agent is on
-        # this", so it reads as a stop rather than as a flavour of progress. The
-        # owner is still named: a held task is still somebody's, and knowing whose
-        # is the first thing a reader wants when deciding whether to release it.
-        agent_verbs: Dict[BallReason, str] = {
-            BallReason.REVISE: "Revising",
-            BallReason.ANSWER: "In progress",
-            BallReason.REDIRECT: "In progress",
-            BallReason.HOLD: "On hold",
-        }
-        verb = agent_verbs.get(task.ball_reason or BallReason.WORK, "In progress")
-        return f"{verb} ({owner})" if owner else verb
-    # str() because mypy types Enum.value as Any, and this returns str.
-    return str(task.lifecycle.value).capitalize()
+    return task_status(task).label
 
 
 def queued_display_status(task: "LabelledTask", queued: Optional[QueuedDispatchState]) -> str:
     """``task``'s label, saying so when a dispatch of it is waiting for a slot.
 
-    The one place the queued label is decided, so the prose a reader sees and the
-    ``queued_dispatch`` structure a client filters on cannot disagree -- the same rule
-    ``self_clearing_wait`` follows, for the same reason.
-
-    **It replaces "Ready" and nothing else.** A queued dispatch is a promise to start an
-    agent, which is a fact about a task nobody is holding; a task parked on a review or
-    blocked on a dependency has something more urgent to say, and saying "Queued" there
-    would hide it. Those tasks still carry the structure, so a surface that wants to draw
-    the entry can -- it just does not get to overwrite the sentence.
-
-    **One word, deliberately.** This first shipped as four labels -- ``Queued (place 2)``
-    and ``Queued (start paused)`` among them -- and the owner rejected the parentheses on
-    sight (2026-09-19): a status chip is read at a glance in a 194px column, and a
-    qualifier there is read as noise rather than as detail. The qualifiers were never
-    lost, only moved: ``position`` and ``paused_by`` are fields on ``queued_dispatch``,
-    and the task page's dispatch panel says the place in line and names the incident in
-    prose, where there is room to read it.
-
-    ``Starting`` is the one distinction kept in the label, because it is a different
-    answer to "is anything going to happen": a tick is putting the entry through the
-    dispatch gates right now. It is one word, so it costs the chip nothing.
+    Kept for the CLI, which knows the machine's queue and not the corpus's facts. The
+    rule is :func:`task_status`'s: a queued dispatch replaces "Ready" and nothing else,
+    because a task parked on a review has something more urgent to say.
     """
-    label = display_status(task)
-    if queued is None or label != "Ready":
-        return label
-    return "Starting" if queued.status == "starting" else "Queued"
+    return task_status(task, queued).label
 
 
 def derived_display_status(
     task: "LabelledTask",
     queued: Optional[QueuedDispatchState],
     finish: Optional[LiveFinishState],
+    facts: Optional[StatusFacts] = None,
 ) -> str:
-    """``task``'s label with every fact only a read surface can see folded in.
+    """``task``'s label with every fact a read surface can see folded in.
 
-    The one place the order between those facts is decided, so the two read models
-    cannot disagree about which of them wins -- the same reason
-    :func:`queued_display_status` exists, applied to the pair of them rather than to one.
-
-    **"Finishing" outranks everything an open task could otherwise say.** A finish holds
-    the task's run lock for its whole attempt (``dispatch.finish.run_finish``), so while
-    one is live there is nothing else that could be happening to the task: no dispatch
-    can start, no second finish can begin, and the agent the label used to name has
-    already handed the work over. That is what makes this different from
-    ``queued_display_status``, which replaces only "Ready": a queued dispatch is a
-    promise about a task nobody holds, and a task parked on a review still has something
-    more urgent to say. A live finish *is* the more urgent thing.
-
-    **A closed task keeps its outcome.** The finish closes the task at its ``close``
-    step and then spends a second or two removing the worktree and deleting the branch,
-    so there is a window where the task is ``completed`` and the finish is still live.
-    "Completed" is the useful truth there -- the merge has landed, which is the whole
-    question a reader is asking -- and "Finishing" would replace an answer with a
-    process. It is also what keeps acceptance criterion a3 honest from both ends: a
-    finish that ended does not reach here at all, and one that has done its job stops
-    speaking for the task the moment the task has its own answer.
-
-    One word, as the chip requires; the step in flight is on ``live_finish`` for a
-    surface with room to draw it.
+    The label half of :func:`task_status`; the read models carry the category half
+    beside it as ``status_category``, from the same call.
     """
-    label = queued_display_status(task, queued)
-    if finish is None or task.lifecycle is Lifecycle.CLOSED:
-        return label
-    return "Finishing"
+    return task_status(task, queued, finish, facts).label
 
 
 def self_clearing_wait(task: "Task") -> Optional[SelfClearingWait]:

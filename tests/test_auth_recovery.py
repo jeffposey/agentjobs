@@ -1355,7 +1355,7 @@ class TestTheParkSaysWhatItIs:
         assert task.ball is Ball.EXTERNAL and task.ball_reason is BallReason.SERVICE
         # The whole point of the task: the string a reader sees says nobody is needed and
         # when it ends, rather than "Blocked on a service".
-        assert task.display_status == f"Waiting on quota reset ({resets:%H:%M} UTC)"
+        assert task.display_status == "Quota reset"
         wait = self_clearing_wait(task)
         assert wait is not None and wait.kind == "usage_limit"
         assert wait.resets_at == resets
@@ -1375,7 +1375,7 @@ class TestTheParkSaysWhatItIs:
         assert machine.poll()[run_id].phase is SessionPhase.AUTH_STALLED
 
         task = machine.task(task_id)
-        assert task.display_status == "Waiting on quota reset"
+        assert task.display_status == "Quota reset"
         wait = self_clearing_wait(task)
         assert wait is not None and wait.resets_at is None
 
@@ -1435,7 +1435,7 @@ class TestTheParkSaysWhatItIs:
             ball_prompt="The vendor's API has been 503 since this morning.",
         )
 
-        assert task.display_status == "Blocked on a service"
+        assert task.display_status == "Blocked"
         assert self_clearing_wait(task) is None
 
 

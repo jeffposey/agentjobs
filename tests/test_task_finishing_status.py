@@ -172,7 +172,7 @@ def listing(client: TestClient) -> Dict[str, Dict[str, Any]]:
 
 
 class TestTheLabel:
-    def test_a_finishing_task_reads_finishing_and_a_worked_one_still_reads_in_progress(
+    def test_a_finishing_task_reads_finishing_and_a_worked_one_still_reads_working(
         self, machine: Machine, served: TestClient
     ) -> None:
         """The two states side by side, which is the comparison the report was about.
@@ -189,7 +189,7 @@ class TestTheLabel:
         rows = listing(served)
 
         assert rows[finishing]["display_status"] == "Finishing"
-        assert rows[working]["display_status"] == "In progress (claude)"
+        assert rows[working]["display_status"] == "Working"
 
     def test_the_listing_row_carries_the_structure_and_not_only_the_word(
         self, machine: Machine, served: TestClient
@@ -257,7 +257,7 @@ class TestOnlyALiveFinishGetsTheLabel:
         row = listing(served)[task_id]
 
         assert row["live_finish"] is None
-        assert row["display_status"] == "In progress (claude)"
+        assert row["display_status"] == "Working"
 
     def test_a_finish_whose_process_is_gone_does_not_read_finishing(
         self, machine: Machine, served: TestClient
@@ -375,7 +375,7 @@ class TestTheDerivation:
     ) -> None:
         task = self.working(machine)
 
-        assert derived_display_status(task, None, None) == "In progress (claude)"
+        assert derived_display_status(task, None, None) == "Working"
         assert derived_display_status(task, None, LiveFinishState(state="running")) == "Finishing"
 
     def test_finishing_outranks_a_queued_dispatch(self, machine: Machine) -> None:

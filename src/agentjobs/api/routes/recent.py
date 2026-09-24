@@ -36,6 +36,7 @@ from agentjobs.closures import (
     recent_closures,
     window_start,
 )
+from agentjobs.models_v2 import Outcome, StatusCategory, closed_status
 from agentjobs.principals import Principal
 from agentjobs.projects import Project
 
@@ -89,6 +90,21 @@ class ClosureView(BaseModel):
             "the row is actually read for."
         ),
     )
+    display_status: str = Field(
+        ...,
+        description=(
+            "The chip's word, from the function every task read draws its label from "
+            "(`models_v2.closed_status`), so this row says exactly what the task list "
+            "says about the same task."
+        ),
+    )
+    status_category: StatusCategory = Field(
+        ...,
+        description=(
+            "The chip's colour: `closed`, or `closed_unfinished` for an outcome that "
+            "was not a finish -- drawn struck through. Same derivation as the label."
+        ),
+    )
     task_url: str = Field(..., description="Where this task is, in this app.")
 
 
@@ -120,6 +136,7 @@ def _task_url(project_id: str, task_id: str) -> str:
 
 def _view(closure: Closure, project: Project, now: datetime) -> ClosureView:
     """Render one closure for the browser."""
+    status = closed_status(Outcome(closure.outcome))
     return ClosureView(
         task_id=closure.task_id,
         task_title=closure.title,
@@ -128,6 +145,8 @@ def _view(closure: Closure, project: Project, now: datetime) -> ClosureView:
         outcome=closure.outcome,
         closed_at=closure.closed_at.isoformat(),
         age_seconds=max(0.0, (now - closure.closed_at).total_seconds()),
+        display_status=status.label,
+        status_category=status.category,
         task_url=_task_url(closure.project_id, closure.task_id),
     )
 

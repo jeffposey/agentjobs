@@ -423,7 +423,7 @@ def test_holding_stops_the_task_and_keeps_the_release_condition(
     assert condition in task["ball_prompt"]
     assert "Put on hold by jeff" in (task["log"][-1]["body"] or "")
     # The list has to say stopped, not "in progress" -- see models_v2.display_status.
-    assert task["display_status"] == "On hold (test-agent)"
+    assert task["display_status"] == "On hold"
 
 
 def test_resume_releases_a_hold_and_puts_the_task_back_to_work(

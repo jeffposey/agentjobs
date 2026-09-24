@@ -353,7 +353,7 @@ class TestRuleTwoBallReasonScoping:
             )
         )
 
-        assert held.display_status == "On hold (claude)"
+        assert held.display_status == "On hold"
 
     def test_ball_without_a_reason_is_rejected(self) -> None:
         with pytest.raises(ValidationError, match="ball_reason is required"):
@@ -537,7 +537,7 @@ class TestDisplayStatus:
 
         assert task.display_status == "Ready"
 
-    def test_in_progress_names_the_owner(self) -> None:
+    def test_a_worked_task_reads_working_and_leaves_the_owner_out(self) -> None:
         task = Task.model_validate(
             task_data(
                 lifecycle="active",
@@ -548,9 +548,9 @@ class TestDisplayStatus:
             )
         )
 
-        assert task.display_status == "In progress (claude)"
+        assert task.display_status == "Working"
 
-    def test_blocked_names_the_dependency(self) -> None:
+    def test_blocked_leaves_the_blocker_for_the_reason_line(self) -> None:
         task = Task.model_validate(
             task_data(
                 lifecycle="active",
@@ -562,7 +562,7 @@ class TestDisplayStatus:
             )
         )
 
-        assert task.display_status == "Blocked on task-044-docs"
+        assert task.display_status == "Blocked"
 
     def test_closed_shows_its_outcome(self) -> None:
         task = Task.model_validate(
@@ -589,7 +589,7 @@ class TestDisplayStatus:
             )
         )
 
-        assert task.display_status == "Completed (archived)"
+        assert task.display_status == "Completed"
 
 
 class TestSelfClearingWait:
@@ -667,7 +667,7 @@ class TestSelfClearingWait:
         task = self._parked(marker)
 
         assert self_clearing_wait(task) is None
-        assert task.display_status == "Blocked on a service"
+        assert task.display_status == "Blocked"
 
     @pytest.mark.parametrize(
         "raw",
@@ -682,14 +682,19 @@ class TestSelfClearingWait:
 
         wait = self_clearing_wait(task)
         assert wait is not None and wait.resets_at is None
-        assert task.display_status == "Waiting on quota reset"
+        assert task.display_status == "Quota reset"
 
     def test_a_naive_reset_time_is_read_as_utc(self) -> None:
         task = self._parked(
             {"action": "park", "kind": "usage_limit", "resets_at": "2026-09-18T21:30:00"}
         )
 
-        assert task.display_status == "Waiting on quota reset (21:30 UTC)"
+        assert task.display_status == "Quota reset"
+        wait = self_clearing_wait(task)
+        # The time moved to the reason line under the chip (task-562); the wait carries it.
+        assert wait is not None and wait.resets_at == datetime(
+            2026, 9, 18, 21, 30, tzinfo=timezone.utc
+        )
 
     def test_a_reset_time_in_another_zone_is_rendered_in_utc(self) -> None:
         # Recovery writes UTC, but the field is free-form, and a local-looking time in a
@@ -698,14 +703,24 @@ class TestSelfClearingWait:
             {"action": "park", "kind": "usage_limit", "resets_at": "2026-09-18T16:30:00-05:00"}
         )
 
-        assert task.display_status == "Waiting on quota reset (21:30 UTC)"
+        assert task.display_status == "Quota reset"
+        wait = self_clearing_wait(task)
+        # The time moved to the reason line under the chip (task-562); the wait carries it.
+        assert wait is not None and wait.resets_at == datetime(
+            2026, 9, 18, 21, 30, tzinfo=timezone.utc
+        )
 
     def test_a_notify_handoff_is_a_wait_too(self) -> None:
         task = self._parked(
             {"action": "notify", "kind": "usage_limit", "resets_at": "2026-09-18T21:30:00Z"}
         )
 
-        assert task.display_status == "Waiting on quota reset (21:30 UTC)"
+        assert task.display_status == "Quota reset"
+        wait = self_clearing_wait(task)
+        # The time moved to the reason line under the chip (task-562); the wait carries it.
+        assert wait is not None and wait.resets_at == datetime(
+            2026, 9, 18, 21, 30, tzinfo=timezone.utc
+        )
 
     def test_only_the_newest_handoff_is_read(self) -> None:
         """The ball moved on; an older park must not keep speaking for the task."""
@@ -738,7 +753,7 @@ class TestSelfClearingWait:
         )
 
         assert self_clearing_wait(task) is None
-        assert task.display_status == "Blocked on a service"
+        assert task.display_status == "Blocked"
 
     def test_a_dependency_park_is_untouched(self) -> None:
         task = Task.model_validate(
@@ -763,7 +778,7 @@ class TestSelfClearingWait:
         )
 
         assert self_clearing_wait(task) is None
-        assert task.display_status == "Blocked on task-044-docs"
+        assert task.display_status == "Blocked"
 
 
 class TestValueObjects:

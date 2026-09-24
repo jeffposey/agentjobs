@@ -1560,6 +1560,11 @@
             "title": "Closed At",
             "type": "string"
           },
+          "display_status": {
+            "description": "The chip's word, from the function every task read draws its label from (`models_v2.closed_status`), so this row says exactly what the task list says about the same task.",
+            "title": "Display Status",
+            "type": "string"
+          },
           "outcome": {
             "description": "How it ended: `completed`, `cancelled`, `superseded` or `duplicate`. Shown as written -- a region that printed every row as *done* would be hiding the difference the reader is scanning for.",
             "title": "Outcome",
@@ -1574,6 +1579,10 @@
             "description": "The project's display name, falling back to its id.",
             "title": "Project Name",
             "type": "string"
+          },
+          "status_category": {
+            "$ref": "#/components/schemas/StatusCategory",
+            "description": "The chip's colour: `closed`, or `closed_unfinished` for an outcome that was not a finish -- drawn struck through. Same derivation as the label."
           },
           "task_id": {
             "title": "Task Id",
@@ -1596,6 +1605,8 @@
           "outcome",
           "closed_at",
           "age_seconds",
+          "display_status",
+          "status_category",
           "task_url"
         ],
         "title": "ClosureView",
@@ -8663,6 +8674,21 @@
         "title": "StartPauseView",
         "type": "object"
       },
+      "StatusCategory": {
+        "description": "Which colour a status chip is drawn in: one colour per category (task-562).\n\nDerived on read beside ``display_status`` and by the same function, so the word and\nthe colour cannot disagree. Every label belongs to exactly one category:\n\n- ``ready`` (green) -- can start: Ready.\n- ``queued`` (brown) -- will start: Queued, Starting.\n- ``working`` (blue) -- running: Working.\n- ``finishing`` (purple) -- merging: Finishing.\n- ``needs_you`` (red) -- a person has to act: the five \"Needs ...\" labels and\n  Dependency data error.\n- ``not_now`` (pink) -- will not start, and not because of you: Blocked, On hold,\n  Sub-tasks, Quota reset, Draft.\n- ``closed`` and ``closed_unfinished`` (grey) -- the one grey category, with the\n  marker a surface strikes the word through for: Completed is ``closed``; Superseded,\n  Cancelled and Duplicate are ``closed_unfinished``.\n\nA plain ``Enum`` rather than a tolerant ``ValueEnum``: nothing ever writes one, so\nthere is no older writer whose value a reader has to survive.",
+        "enum": [
+          "ready",
+          "queued",
+          "working",
+          "finishing",
+          "needs_you",
+          "not_now",
+          "closed",
+          "closed_unfinished"
+        ],
+        "title": "StatusCategory",
+        "type": "string"
+      },
       "StuckGroup": {
         "description": "Open work grouped by who holds it and why, with how long they have held it.",
         "properties": {
@@ -9234,7 +9260,7 @@
             "type": "array"
           },
           "display_status": {
-            "description": "The record's label, with a waiting dispatch or a running finish named.",
+            "description": "The chip's word: the one label every surface shows for this task.",
             "readOnly": true,
             "title": "Display Status",
             "type": "string"
@@ -9362,6 +9388,11 @@
               }
             ]
           },
+          "status_category": {
+            "$ref": "#/components/schemas/StatusCategory",
+            "description": "The chip's colour, from the same derivation as ``display_status``.",
+            "readOnly": true
+          },
           "summary": {
             "title": "Summary",
             "type": "string"
@@ -9404,7 +9435,8 @@
           "category",
           "summary",
           "can_brief",
-          "display_status"
+          "display_status",
+          "status_category"
         ],
         "title": "TaskCardRead",
         "type": "object"
@@ -10210,7 +10242,7 @@
             "type": "array"
           },
           "display_status": {
-            "description": "The record's label, with a waiting dispatch named where there is one.\n\nOverridden here rather than on `Task`, which cannot see the machine's queue or\nits finishes. The derivation itself stays in `models_v2` beside the one it falls\nback to, so the label and the structures it is drawn from cannot disagree about\nwhat is happening.",
+            "description": "The chip's word: the one label every surface shows for this task.",
             "readOnly": true,
             "title": "Display Status",
             "type": "string"
@@ -10355,6 +10387,11 @@
           "spec": {
             "$ref": "#/components/schemas/Spec"
           },
+          "status_category": {
+            "$ref": "#/components/schemas/StatusCategory",
+            "description": "The chip's colour, from the same derivation as ``display_status``.",
+            "readOnly": true
+          },
           "tags": {
             "items": {
               "type": "string"
@@ -10392,7 +10429,8 @@
           "updated",
           "category",
           "spec",
-          "display_status"
+          "display_status",
+          "status_category"
         ],
         "title": "TaskRead",
         "type": "object"
@@ -10699,7 +10737,7 @@
             "type": "array"
           },
           "display_status": {
-            "description": "The record's label, with a waiting dispatch or a running finish named.",
+            "description": "The chip's word: the one label every surface shows for this task.",
             "readOnly": true,
             "title": "Display Status",
             "type": "string"
@@ -10827,6 +10865,11 @@
               }
             ]
           },
+          "status_category": {
+            "$ref": "#/components/schemas/StatusCategory",
+            "description": "The chip's colour, from the same derivation as ``display_status``.",
+            "readOnly": true
+          },
           "tags": {
             "items": {
               "type": "string"
@@ -10863,7 +10906,8 @@
           "created",
           "updated",
           "category",
-          "display_status"
+          "display_status",
+          "status_category"
         ],
         "title": "TaskSummaryRead",
         "type": "object"

@@ -242,7 +242,7 @@ class TestAnOlderClientReads:
         # The record survives whole: the unknown value is carried verbatim rather than
         # guessed at, and nothing else about the task is lost.
         assert task.log[-1].data["posture"] == UNKNOWN_POSTURE
-        assert task.display_status == "In progress (bot)"
+        assert task.display_status == "Working"
         assert task.dispatch_count == 1
 
     def test_a_listing_still_contains_the_task(self, skewed) -> None:

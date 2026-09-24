@@ -192,7 +192,7 @@ class TestTheQuotaWait:
         assert row.self_clearing_wait.kind == "usage_limit"
         assert row.self_clearing_wait.resets_at is not None
         assert abs((row.self_clearing_wait.resets_at - resets_at).total_seconds()) < 1
-        assert "Waiting on quota reset" in row.display_status
+        assert row.display_status == "Quota reset"
 
     def test_an_ordinary_block_carries_none(self, manager: TaskManager) -> None:
         """A genuine third-party outage must not be dressed up as a wait that clears."""
@@ -213,7 +213,7 @@ class TestTheQuotaWait:
         row = next(r for r in manager.storage.list_task_summaries() if r.id == task.id)
 
         assert row.self_clearing_wait is None
-        assert row.display_status == "Blocked on a service"
+        assert row.display_status == "Blocked"
 
     def test_the_newest_handoff_wins(self, manager: TaskManager) -> None:
         """A wait that was superseded by a later handoff is gone, not remembered.
@@ -245,7 +245,7 @@ class TestTheQuotaWait:
 
         assert whole is not None
         assert row.self_clearing_wait is None
-        assert row.display_status == whole.display_status == "Blocked on a service"
+        assert row.display_status == whole.display_status == "Blocked"
 
 
 class TestTheListingIsCheaper:

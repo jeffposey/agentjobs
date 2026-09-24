@@ -1213,6 +1213,12 @@ export type ClosureView = {
      */
     closed_at: string;
     /**
+     * Display Status
+     *
+     * The chip's word, from the function every task read draws its label from (`models_v2.closed_status`), so this row says exactly what the task list says about the same task.
+     */
+    display_status: string;
+    /**
      * Outcome
      *
      * How it ended: `completed`, `cancelled`, `superseded` or `duplicate`. Shown as written -- a region that printed every row as *done* would be hiding the difference the reader is scanning for.
@@ -1228,6 +1234,10 @@ export type ClosureView = {
      * The project's display name, falling back to its id.
      */
     project_name?: string;
+    /**
+     * The chip's colour: `closed`, or `closed_unfinished` for an outcome that was not a finish -- drawn struck through. Same derivation as the label.
+     */
+    status_category: StatusCategory;
     /**
      * Task Id
      */
@@ -6346,6 +6356,31 @@ export type StartPauseView = {
 };
 
 /**
+ * StatusCategory
+ *
+ * Which colour a status chip is drawn in: one colour per category (task-562).
+ *
+ * Derived on read beside ``display_status`` and by the same function, so the word and
+ * the colour cannot disagree. Every label belongs to exactly one category:
+ *
+ * - ``ready`` (green) -- can start: Ready.
+ * - ``queued`` (brown) -- will start: Queued, Starting.
+ * - ``working`` (blue) -- running: Working.
+ * - ``finishing`` (purple) -- merging: Finishing.
+ * - ``needs_you`` (red) -- a person has to act: the five "Needs ..." labels and
+ * Dependency data error.
+ * - ``not_now`` (pink) -- will not start, and not because of you: Blocked, On hold,
+ * Sub-tasks, Quota reset, Draft.
+ * - ``closed`` and ``closed_unfinished`` (grey) -- the one grey category, with the
+ * marker a surface strikes the word through for: Completed is ``closed``; Superseded,
+ * Cancelled and Duplicate are ``closed_unfinished``.
+ *
+ * A plain ``Enum`` rather than a tolerant ``ValueEnum``: nothing ever writes one, so
+ * there is no older writer whose value a reader has to survive.
+ */
+export type StatusCategory = 'ready' | 'queued' | 'working' | 'finishing' | 'needs_you' | 'not_now' | 'closed' | 'closed_unfinished';
+
+/**
  * StuckGroup
  *
  * Open work grouped by who holds it and why, with how long they have held it.
@@ -6727,7 +6762,7 @@ export type TaskCardReadOutput = {
     /**
      * Display Status
      *
-     * The record's label, with a waiting dispatch or a running finish named.
+     * The chip's word: the one label every surface shows for this task.
      */
     readonly display_status: string;
     /**
@@ -6781,6 +6816,10 @@ export type TaskCardReadOutput = {
      */
     schema?: number;
     self_clearing_wait?: SelfClearingWait | null;
+    /**
+     * The chip's colour, from the same derivation as ``display_status``.
+     */
+    readonly status_category: StatusCategory;
     /**
      * Summary
      */
@@ -7306,12 +7345,7 @@ export type TaskReadOutput = {
     /**
      * Display Status
      *
-     * The record's label, with a waiting dispatch named where there is one.
-     *
-     * Overridden here rather than on `Task`, which cannot see the machine's queue or
-     * its finishes. The derivation itself stays in `models_v2` beside the one it falls
-     * back to, so the label and the structures it is drawn from cannot disagree about
-     * what is happening.
+     * The chip's word: the one label every surface shows for this task.
      */
     readonly display_status: string;
     /**
@@ -7374,6 +7408,10 @@ export type TaskReadOutput = {
     schema?: number;
     self_clearing_wait?: SelfClearingWait | null;
     spec: Spec;
+    /**
+     * The chip's colour, from the same derivation as ``display_status``.
+     */
+    readonly status_category: StatusCategory;
     /**
      * Tags
      */
@@ -7580,7 +7618,7 @@ export type TaskSummaryReadOutput = {
     /**
      * Display Status
      *
-     * The record's label, with a waiting dispatch or a running finish named.
+     * The chip's word: the one label every surface shows for this task.
      */
     readonly display_status: string;
     /**
@@ -7634,6 +7672,10 @@ export type TaskSummaryReadOutput = {
      */
     schema?: number;
     self_clearing_wait?: SelfClearingWait | null;
+    /**
+     * The chip's colour, from the same derivation as ``display_status``.
+     */
+    readonly status_category: StatusCategory;
     /**
      * Tags
      */

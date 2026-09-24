@@ -191,6 +191,9 @@ class TestWhatARowSays:
         assert first["project_id"] == OPEN_PROJECT
         assert first["project_name"] == "Alpha Project"
         assert first["outcome"] == "completed"
+        # The chip's word and colour, from the function a task read uses (task-562).
+        assert first["display_status"] == "Completed"
+        assert first["status_category"] == "closed"
         assert first["task_url"] == f"/p/{OPEN_PROJECT}/tasks/task-001"
         # An hour ago, give or take however long this test took to run.
         assert 3000 < first["age_seconds"] < 4200
@@ -202,6 +205,8 @@ class TestWhatARowSays:
         superseded = next(row for row in rows if row["task_id"] == "task-002")
 
         assert superseded["outcome"] == "superseded"
+        assert superseded["display_status"] == "Superseded"
+        assert superseded["status_category"] == "closed_unfinished"
 
     def test_the_link_points_into_the_row_s_own_project(self, machine) -> None:
         """The rows belong to other projects by design, so the client cannot build these."""
