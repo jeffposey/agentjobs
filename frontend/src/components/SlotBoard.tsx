@@ -12,6 +12,7 @@ import type {
   TaskCardRead,
 } from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
+import { PriorityMark } from "./PriorityMark";
 import { StatusChip, WALK_STATES } from "./StatusChip";
 import {
   FinishBadge,
@@ -431,7 +432,7 @@ function QueuedCell({
       <div className="min-w-0">
         <div className="mb-1 flex items-center justify-between gap-2">
           <span className="text-xs uppercase tracking-wide text-dark-muted">{label}</span>
-          <span className="shrink-0 text-xs text-dark-muted">{task.priority ?? "medium"}</span>
+          <PriorityMark priority={task.priority} className="shrink-0" />
         </div>
         <Link
           to={projectPath(projectId, `/tasks/${encodeURIComponent(task.id)}`)}

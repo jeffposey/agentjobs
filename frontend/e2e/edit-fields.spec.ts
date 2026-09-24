@@ -96,7 +96,8 @@ test("edits every tier-one field from a phone, and the record shows who did it",
   await expect(page.getByRole("heading", { name: "Groomed from a phone" })).toBeVisible();
   // The record's own header, not the app's pinned nav above it.
   const heading = page.locator("header[data-pinned]");
-  await expect(heading).toContainText("critical");
+  // The priority mark writes its word in capitals (task-563), so that is what is read.
+  await expect(heading).toContainText("CRITICAL");
   await expect(heading).toContainText("chore");
   await expect(heading).toContainText("phone");
   await expect(heading).not.toContainText("grooming");
@@ -195,7 +196,7 @@ test("editing a task parked at review leaves it parked at review", async ({ page
 
   // The priority moved and nothing else did. The review panel is still on screen with
   // the same ask, because an edit is not a workflow move.
-  await expect(page.locator("header[data-pinned]")).toContainText("high");
+  await expect(page.locator("header[data-pinned]")).toContainText("HIGH");
   await expect(page.getByRole("region", { name: "Review actions" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Review actions" })).toContainText(prompt);
 
