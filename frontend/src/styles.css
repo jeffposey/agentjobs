@@ -277,8 +277,9 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   z-index: -1;
 }
 
-/* A short bright arc running round the border, one lap every 2.4s. A ring the
-   width of the border, masked out of a conic gradient whose start angle turns. */
+/* A short arc running round the border, one lap every 2.4s. A ring the width of the
+   border, masked out of a conic gradient whose start angle turns. Half-strength
+   (task-577 review, 2026-09-24): visible if you look, not something that pulls the eye. */
 .chip-motion-orbit::before {
   inset: -1px;
   padding: 1px;
@@ -286,8 +287,8 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   background: conic-gradient(
     from var(--orbit-angle),
     transparent 0deg 250deg,
-    color-mix(in srgb, currentColor 35%, transparent) 300deg,
-    currentColor 350deg,
+    color-mix(in srgb, currentColor 18%, transparent) 300deg,
+    color-mix(in srgb, currentColor 50%, transparent) 350deg,
     transparent 360deg
   );
   -webkit-mask:
@@ -306,13 +307,15 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   }
 }
 
-/* Waiting on a person (task-577): a double blink and a rest, like a hazard light. Each
-   blink floods the chip with its own tint and throws a wide glow, so it outshouts the
-   orbit's thin arc -- the first cut, task-570's ignite glow alone, lost to the orbit (owner
-   review, 2026-09-24). The flood is the pseudo-element behind the text and the glow is a
-   shadow, so neither takes room. */
+/* Waiting on a person (task-577): a quick double blink, then a long rest -- one blink
+   pair every 7s. Each blink tints the chip faintly and throws a soft glow in its own
+   colour. Tuned across two owner reviews on 2026-09-24: a glow alone was too subtle, and
+   a strong flood every 1.4s was far too much, so this is that flood at a quarter of the
+   strength and a fifth of the rate. The blinks keep their 0.7s shape so each one still
+   reads as a flash rather than a slow breath. The tint is the pseudo-element behind the
+   text and the glow is a shadow, so neither takes room. */
 .chip-motion-flash {
-  animation: chip-flash 1.4s ease-out infinite;
+  animation: chip-flash 7s ease-out infinite;
 }
 
 .chip-motion-flash::before {
@@ -320,7 +323,7 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   border-radius: inherit;
   background: currentColor;
   opacity: 0;
-  animation: chip-flash-fill 1.4s ease-out infinite;
+  animation: chip-flash-fill 7s ease-out infinite;
 }
 
 @keyframes chip-flash {
@@ -328,28 +331,28 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   100% {
     box-shadow: 0 0 0 0 transparent;
   }
-  6%,
-  32% {
-    box-shadow: 0 0 10px 3px color-mix(in srgb, currentColor 85%, transparent);
+  1.2%,
+  6.4% {
+    box-shadow: 0 0 10px 3px color-mix(in srgb, currentColor 21%, transparent);
   }
-  18%,
-  48% {
-    box-shadow: 0 0 2px 0 color-mix(in srgb, currentColor 20%, transparent);
+  3.6%,
+  9.6% {
+    box-shadow: 0 0 2px 0 color-mix(in srgb, currentColor 5%, transparent);
   }
 }
 
 @keyframes chip-flash-fill {
   0%,
-  48%,
+  9.6%,
   100% {
     opacity: 0;
   }
-  6%,
-  32% {
-    opacity: 0.35;
+  1.2%,
+  6.4% {
+    opacity: 0.09;
   }
-  18% {
-    opacity: 0.05;
+  3.6% {
+    opacity: 0.01;
   }
 }
 
