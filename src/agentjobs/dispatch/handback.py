@@ -35,6 +35,13 @@ live run once, immediately, instead of waiting for the poller's next tick. A ses
 poller would settle is settled by the same code on the same evidence; a session it would
 leave alone is left alone. One decision, one place.
 
+**A run that has already handed off is not waited for** (task-574). A session that
+handed its work to review with a sandbox still running as a background job never reads
+``idle``, so it never settles, and waiting for it delivered nothing, ever. It is waiting,
+not working, so the feedback goes to it in place on the peer channel; failing that it is
+stood down and a fresh run carries the feedback; failing that a person is told why. See
+``_deliver_to_handed_off_run``.
+
 **And every outcome writes exactly one log entry.** That is the half that turns a future
 occurrence from a mystery into a sentence, and it is why ``HandbackOutcome`` carries
 ``recorded``: ``dispatch_task`` writes its own dispatch entry and a tripped budget cap
@@ -267,6 +274,255 @@ def _blocked_body(task: Task, records: List[RunRecord]) -> str:
     )
 
 
+# ----- a run that handed off and is still up (task-574) ------------------------
+
+IN_PLACE_STUB = (
+    "You handed task `{task_id}` off, and it has come back to you. This message reached "
+    "your running session directly: it is the same run (`{run_id}`), and the worktree, "
+    "the branch and everything you verified are still yours. Do not start the task over "
+    "and do not take a second worktree.\n\n"
+    "{payload_frame}\n\n"
+    "{feedback}\n\n"
+    "Act on it, then hand the task off again the way you did before. Anything you left "
+    "running for the review, such as a sandbox, is still running: restart it if your "
+    "change needs it, and say so in the handoff. The task record at {api_base} has the "
+    "full entry.\n\n"
+    "**If you cannot account for the state you left behind** -- your worktree is gone, "
+    "your branch is not where you left it, or your own account of this task no longer "
+    "matches what is on disk -- do not guess and do not improvise a recovery. Say so on "
+    "the task and hand the ball back."
+)
+"""What a handed-off session is told when feedback reaches it where it stands.
+
+Not ``wake.WAKE_STUB``: that one announces a resumed session under a new run id, and
+this is neither -- the process and the run are the ones that asked for the review."""
+
+UNDELIVERABLE_REASON = "handback_undeliverable"
+
+
+def _handed_off_at(task: Task, baseline: int, before: int) -> Optional[LogEntry]:
+    """The handoff to a person this run made before ``before``, or ``None``.
+
+    Only the newest handoff counts, and only if it is newer than the run's baseline: a
+    run whose last move of the ball was not to a person is working, not waiting.
+    """
+    for entry in reversed(task.log):
+        if entry.id >= before:
+            continue
+        if entry.id <= baseline:
+            return None
+        if entry.type is LogEntryType.HANDOFF:
+            return entry if (entry.data or {}).get("ball") == Ball.HUMAN.value else None
+    return None
+
+
+def _in_place_message(
+    task: Task,
+    project_config: Dict[str, object],
+    run_id: str,
+    baseline: int,
+    waiting: LogEntry,
+    api_base: str,
+) -> str:
+    """The handback as the running session will read it: every message since, newest last."""
+    from agentjobs.dispatch.approval import (
+        author_is_human,
+        ball_prompt_author,
+        human_handoffs_since,
+    )
+    from agentjobs.dispatch.wake import BALL_PROMPT_LIMIT, payload_frame
+
+    author = ball_prompt_author(task)
+    frame = payload_frame(author, is_human=bool(author) and author_is_human(project_config, author))
+    newest = (task.ball_prompt or "").strip() or (
+        "(The task record carries no ball prompt. Read the newest handoff entry before "
+        "doing anything.)"
+    )
+    if len(newest) > BALL_PROMPT_LIMIT:
+        newest = newest[:BALL_PROMPT_LIMIT].rstrip() + (
+            "\n\n(truncated -- the whole entry is on the task record)"
+        )
+    earlier = [
+        f"From {entry.actor} (entry {entry.id}):\n\n{(entry.body or '').strip()}"
+        for entry in human_handoffs_since(task, project_config, after_entry=baseline)
+        if entry.id < waiting.id and (entry.body or "").strip()
+    ]
+    if earlier:
+        newest = (
+            "Earlier messages since you handed off, oldest first -- all of them still "
+            "apply:\n\n" + "\n\n---\n\n".join(earlier) + "\n\n---\n\nAnd the newest:\n\n" + newest
+        )
+    return IN_PLACE_STUB.format(
+        task_id=task.id,
+        run_id=run_id,
+        payload_frame=frame,
+        feedback=newest,
+        api_base=api_base,
+    )
+
+
+def _deliver_to_handed_off_run(
+    manager: TaskManagerLike,
+    project: Project,
+    project_config: Dict[str, object],
+    task: Task,
+    waiting: LogEntry,
+    record: RunRecord,
+    home: Path,
+    resolution: DispatchResolution,
+    api_base: Optional[str] = None,
+) -> Optional[HandbackOutcome]:
+    """Get feedback to a live run that had already handed off, or say why it cannot go.
+
+    **The occurrence** (task-563, run_220c2439): the session handed off for review with
+    its review sandbox running as a background job. Claude Code does not report a session
+    with work in flight as ``idle``, so ``poll_session`` read it ``RUNNING`` for as long as
+    the sandbox ran, and the handback waited for a settle that never came.
+
+    The session handed off, so it is waiting rather than working. In order:
+
+    1. **Deliver in place**, on task-451's peer channel. The run continues under the same
+       record, and the record says the message landed.
+    2. **Otherwise stand it down**: stop the session and conclude its run ``completed``
+       once it reads stopped, then return ``None`` so the ordinary path dispatches a
+       fresh run -- which resumes a copy of the conversation when one can be resumed.
+    3. **Otherwise the ball goes to a person**, with the reason. A task at
+       ``agent``/``revise`` with nobody acting on it is the one outcome this refuses.
+
+    ``None`` without a note also means "not this case": an interactive run, a batch run,
+    a run that has not handed off, or one whose record cannot be followed.
+    """
+    from agentjobs.dispatch.address import resolve_api_base
+    from agentjobs.dispatch.ledger import write_status
+    from agentjobs.dispatch.poller import handle_from_record  # local: poller imports guards
+    from agentjobs.dispatch.runner import (
+        HANDBACK_DELIVERED_AT,
+        HANDBACK_DELIVERED_ENTRY,
+        DispatchRunner,
+    )
+    from agentjobs.dispatch.config import RunnerDriver
+
+    if not record.is_session or record.is_interactive:
+        return None
+    handle = handle_from_record(home, record)
+    if handle is None or handle.dispatch_entry_id is None or not handle.session_id:
+        return None
+    meta = handle.directory.read_meta()
+    baseline = handle.dispatch_entry_id
+    delivered_before = meta.get(HANDBACK_DELIVERED_ENTRY)
+    if isinstance(delivered_before, int) and delivered_before > baseline:
+        baseline = delivered_before
+    handed = _handed_off_at(task, baseline, waiting.id)
+    if handed is None:
+        return None
+    runner = DispatchRunner(
+        manager=manager,
+        resolution=resolution,
+        project_root=project.root,
+        home=home,
+    )
+    if runner.runner.driver is not RunnerDriver.CLAUDE:
+        return None
+
+    receipt = _DeliveryReceipt.open(home, project.id, task, waiting)
+    if receipt is not None:
+        uncertain = receipt.refuse_if_uncertain()
+        if uncertain is not None:
+            return uncertain
+        receipt.intend()
+
+    message = _in_place_message(
+        task,
+        project_config,
+        record.run_id,
+        baseline,
+        waiting,
+        resolve_api_base(api_base, home=home),
+    )
+    attempt = runner.deliver_to_live_session(handle.session_id, message)
+    if attempt.delivered:
+        write_status(
+            record,
+            **{
+                HANDBACK_DELIVERED_ENTRY: waiting.id,
+                HANDBACK_DELIVERED_AT: runner.clock().isoformat(),
+                # The poller's own marker for "these messages have been given to this
+                # run", so settling it later never delivers them a second time.
+                "delivered_through_entry": waiting.id,
+                "handback_pending": None,
+            },
+        )
+        manager.add_log_entry(
+            task.id,
+            actor=DISPATCHER_ACTOR,
+            type=LogEntryType.NOTE,
+            body=(
+                f"Delivered entry {waiting.id} **in place** to run `{record.run_id}`, "
+                f"session `{handle.session_id}`, which handed off in entry {handed.id} and "
+                "was still running -- kept busy by a background job, so it never read "
+                "idle. Same session, same worktree, same branch; nothing new was "
+                f"started. The peer channel reported: {attempt.detail}"
+            ),
+            data={
+                "handback_delivered": "in_place",
+                "handback_run_id": record.run_id,
+                "handback_entry": waiting.id,
+            },
+        )
+        outcome = HandbackOutcome(
+            delivered=True,
+            reason="delivered_in_place",
+            detail=attempt.detail,
+            run_id=record.run_id,
+            recorded=True,
+        )
+        if receipt is not None:
+            receipt.settle(outcome, manager)
+        return outcome
+
+    if receipt is not None:
+        receipt.settle(_outcome("in_place_missed", attempt.detail, run_id=record.run_id), manager)
+    released = runner.release_handed_off_session(
+        handle,
+        body=(
+            f"Stood down so feedback in entry {waiting.id} could reach a fresh run: the "
+            f"session had handed off (entry {handed.id}) and was still running, and the "
+            f"message could not be delivered to it in place ({attempt.detail}). Not a "
+            "cancellation -- its work reached the handoff, and nothing it built was "
+            "discarded."
+        ),
+    )
+    if released:
+        manager.add_log_entry(
+            task.id,
+            actor=DISPATCHER_ACTOR,
+            type=LogEntryType.NOTE,
+            body=(
+                f"Entry {waiting.id} could not be delivered in place to run "
+                f"`{record.run_id}` ({attempt.detail}), so that session was stopped and its "
+                "run concluded. A fresh run is dispatched next and carries the feedback."
+            ),
+            data={
+                "handback_delivered": "stood_down",
+                "handback_run_id": record.run_id,
+                "handback_entry": waiting.id,
+            },
+        )
+        return None
+    return _outcome(
+        UNDELIVERABLE_REASON,
+        (
+            f"Your feedback in entry {waiting.id} did not reach an agent. Run "
+            f"`{record.run_id}` (session `{handle.session_id}`) handed off in entry "
+            f"{handed.id} and is still running, so nothing new could start beside it; "
+            f"the message could not be delivered to it in place ({attempt.detail}), and "
+            "the session could not be confirmed stopped. Attach to it or stop it, then "
+            "request changes again."
+        ),
+        run_id=record.run_id,
+    )
+
+
 # ----- the trigger ------------------------------------------------------------
 
 
@@ -321,6 +577,19 @@ def deliver_handback(
     # but the question here is the ledger's answer to "is anything still live", and that
     # is a directory scan whose result a phase only predicts.
     running = _task_runs(root, task.id, project_id=project.id)
+    for record in running:
+        handed = _deliver_to_handed_off_run(
+            manager, project, project_config, task, waiting, record, root, resolution, api_base
+        )
+        if handed is not None:
+            return handed
+    still_running = _task_runs(root, task.id, project_id=project.id)
+    if len(still_running) < len(running) and caused_by is None:
+        # A run was stood down, and its conclusion and the note saying so are now newer
+        # than the human's handoff. The fresh dispatch is still that handoff's, so it is
+        # named rather than resolved from the newest entry -- the poller's reasoning above.
+        caused_by = waiting.id
+    running = still_running
     if running:
         for record in running:
             _mark_pending(record, waiting.id)
@@ -572,8 +841,13 @@ def record_handback(
       ``external``/``dependency``.
     * ``delivery_uncertain`` -- already moved the ball to a person, for this exact reason
       (task-340). Unchanged.
-    * ``live_run_exists`` -- the ball is with an agent and an agent really is there; the
-      poller delivers the message when that run settles. Correct as it stands.
+    * ``live_run_exists`` -- the ball is with an agent and an agent really is there, and
+      it has *not* handed off, so it is working; the poller delivers the message when that
+      run settles. A live run that **had** handed off is not this case since task-574: it
+      is delivered to in place, or stood down, or it is ``handback_undeliverable``.
+    * ``handback_undeliverable`` -- a handed-off run that could neither be reached in
+      place nor stopped. Nobody will act, so the ball goes to a person, as
+      ``delivery_uncertain`` does.
     * ``on_hold`` -- ``agent``/``hold`` is a person saying stop, which is a state they
       chose and will leave themselves. Moving it would undo the click.
     * the budget caps -- ``record_cap_refusal`` already parks a count cap on a person and
@@ -594,7 +868,7 @@ def record_handback(
         return
     if outcome.delivered:  # pragma: no cover - a delivery always records its dispatch
         return
-    if outcome.reason == "delivery_uncertain":
+    if outcome.reason in {"delivery_uncertain", UNDELIVERABLE_REASON}:
         # Nobody is working the task and nobody will be until a person looks, so the ball
         # names a person rather than an agent that does not exist (task-340's invariant).
         manager.handoff(
