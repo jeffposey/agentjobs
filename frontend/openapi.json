@@ -4635,9 +4635,26 @@
             "title": "Status",
             "type": "string"
           },
+          "task_display_status": {
+            "default": "",
+            "description": "When `health` is `work_done`: the closed task's own status word -- Completed, Cancelled, Superseded or Duplicate -- so the run's chip says what the task's chip says rather than a word of its own (task-577). Empty when the task cannot be read, or the run's task is still open.",
+            "title": "Task Display Status",
+            "type": "string"
+          },
           "task_id": {
             "title": "Task Id",
             "type": "string"
+          },
+          "task_status_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StatusCategory"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The category `task_display_status` is drawn in, beside it."
           },
           "task_title": {
             "default": "",

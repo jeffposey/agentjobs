@@ -30,6 +30,8 @@ day, and density is the thing to judge.
 The Runs tab shows the run side: Finishing, Working and Starting orbit; Waiting on you
 (task-007's parked run) flashes; Feedback stays still. task-009's session is still
 producing output, so its run chip orbits while its task chip, Needs review, flashes.
+task-012's session outlived its task: its run chip reads "Completed" in closed grey, the
+task's own word, where it used to read a private "Work done" (task-577).
 
 task-004 and task-006 are the comparison that matters for the orbit. Their records are
 identical -- active, agent, work, same owner -- and only one has a live run behind it.
@@ -116,6 +118,7 @@ def write_run(
     status: str,
     lock: bool = True,
     handback_pending: Optional[int] = None,
+    slot_released: bool = False,
 ) -> None:
     """A dispatched session's run directory, as the ledger writes one."""
     directory = home / "runs" / run_id
@@ -134,6 +137,8 @@ def write_run(
     }
     if handback_pending is not None:
         meta["handback_pending"] = handback_pending
+    if slot_released:
+        meta["slot_released_at"] = _ago(2)
     (directory / "meta.yaml").write_text(yaml.safe_dump(meta), encoding="utf-8")
     if lock:
         hold_lock(home, task_id, run_id=run_id)
@@ -308,6 +313,7 @@ def runs(home: Path) -> None:
     write_run(home, "run_parked01", task_id="task-007", status="parked")
     write_run(home, "run_handbk01", task_id="task-008", status="running", handback_pending=3)
     write_run(home, "run_review01", task_id="task-009", status="running")
+    write_run(home, "run_closed01", task_id="task-012", status="running", slot_released=True)
 
 
 def build(root: Path) -> tuple[Path, Any]:

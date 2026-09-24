@@ -203,6 +203,42 @@ class TestHealth:
         )
         assert _live(client)["runs"][0]["health"] == "working"
 
+    @pytest.mark.parametrize(
+        ("outcome", "word", "category"),
+        [
+            (Outcome.COMPLETED, "Completed", "closed"),
+            (Outcome.CANCELLED, "Cancelled", "closed_unfinished"),
+        ],
+    )
+    def test_a_run_whose_task_closed_carries_the_task_s_own_word(
+        self, two_projects, outcome, word, category
+    ):
+        """task-577: the tile says what the task's chip says, not a word of its own."""
+        client, home, alpha, _ = two_projects
+        TaskManager(task_store(alpha / "tasks")).close_task(
+            "task-001", outcome=outcome, actor="claude"
+        )
+        _write_run(
+            home,
+            "run_a",
+            task_id="task-001",
+            project_id="alpha",
+            mode="session",
+            status="running",
+            slot_released_at=_ago(5),
+        )
+        row = _live(client)["runs"][0]
+        assert row["health"] == "work_done"
+        assert (row["task_display_status"], row["task_status_category"]) == (word, category)
+
+    def test_an_open_task_s_run_carries_no_task_word(self, two_projects):
+        client, home, _, _ = two_projects
+        _write_run(
+            home, "run_a", task_id="task-001", project_id="alpha", mode="session", status="running"
+        )
+        row = _live(client)["runs"][0]
+        assert (row["task_display_status"], row["task_status_category"]) == ("", None)
+
     def test_a_parked_session_is_not_rendered_as_working(self, two_projects):
         client, home, _, _ = two_projects
         _write_run(

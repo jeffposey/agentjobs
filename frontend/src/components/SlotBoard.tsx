@@ -314,7 +314,7 @@ function RunCell({ run, projectId }: { run: LiveRunView; projectId: string }) {
     >
       <div className="min-w-0">
         <div className="mb-1 flex items-center justify-between gap-2">
-          <HealthBadge health={run.health} />
+          <HealthBadge health={run.health} task={run} />
           <span className="shrink-0 text-xs text-dark-muted">
             {formatElapsed(run.elapsed_seconds)}
           </span>

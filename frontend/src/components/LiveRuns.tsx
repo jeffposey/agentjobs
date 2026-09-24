@@ -92,9 +92,9 @@ const PROCESS_HEALTH_LABELS: Record<string, string> = {
   // Not an alarm: a chat window left open is the most ordinary state there is.
   idle: "Idle",
   // The task this run was dispatched for is closed, and the session is still open
-  // (task-482). It holds no slot from here on, so a board that draws this badge is
-  // drawing a run outside the slot cells.
-  work_done: "Work done",
+  // (task-482). The badge draws the task's own word instead (task-577), so this is only
+  // the fallback for a task that could not be read.
+  work_done: "Task closed",
 };
 
 /**
@@ -142,7 +142,25 @@ export function healthLabel(health: string): string {
   return HEALTH_LABELS[health] ?? health;
 }
 
-export function HealthBadge({ health }: { health: string }) {
+/** The closed task's own chip, which a `work_done` run carries so it can say the same word. */
+type ClosedTask = Pick<LiveRunView, "task_display_status" | "task_status_category">;
+
+export function HealthBadge({ health, task }: { health: string; task?: ClosedTask }) {
+  // A run whose task has closed says what its task says -- "Completed", in closed grey --
+  // rather than a word of its own beside it (task-577). The server sends the word only
+  // for that health, so a stale or open task never reaches this branch.
+  if (health === "work_done" && task?.task_display_status && task.task_status_category) {
+    return (
+      <span
+        data-health={health}
+        data-status-category={task.task_status_category}
+        className={CHIP_SHAPE}
+        style={categoryStyle(task.task_status_category)}
+      >
+        {task.task_display_status}
+      </span>
+    );
+  }
   const status = RUN_HEALTH[health];
   if (status) {
     return (
@@ -484,7 +502,7 @@ export function LiveRunsPage({ body }: { body: LiveRunsView | null }) {
                     </ResponsiveCell>
                     <ResponsiveCell label="State">
                       <span className="inline-flex flex-wrap items-center gap-2">
-                        <HealthBadge health={run.health} />
+                        <HealthBadge health={run.health} task={run} />
                         {run.health === "finishing" && (
                           <span className="text-xs text-dark-muted">
                             {finishDetail(run.finish_step, run.runway_behind)}

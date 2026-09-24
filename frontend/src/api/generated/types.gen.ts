@@ -3363,9 +3363,19 @@ export type LiveRunView = {
      */
     status: string;
     /**
+     * Task Display Status
+     *
+     * When `health` is `work_done`: the closed task's own status word -- Completed, Cancelled, Superseded or Duplicate -- so the run's chip says what the task's chip says rather than a word of its own (task-577). Empty when the task cannot be read, or the run's task is still open.
+     */
+    task_display_status?: string;
+    /**
      * Task Id
      */
     task_id: string;
+    /**
+     * The category `task_display_status` is drawn in, beside it.
+     */
+    task_status_category?: StatusCategory | null;
     /**
      * Task Title
      *
