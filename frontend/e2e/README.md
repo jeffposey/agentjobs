@@ -65,6 +65,7 @@ disagree, so a new spec cannot be added without classifying it.
 | `draft-spec.spec.ts` | project | Drafts against the stub provider, then files the result. |
 | `edit-fields.spec.ts` | project | Files a task and edits its fields in place. |
 | `filter-popover.spec.ts` | project | Files a tagged corpus and filters it. |
+| `list-divider.spec.ts` | read-only | Drags the list/record divider; its only write is the browser's own `localStorage`. |
 | `live-runs.spec.ts` | machine | Asserts the machine's live-run count and slot board, against a real run. |
 | `nav-current.spec.ts` | read-only | Walks the nav at several widths; files nothing. |
 | `perf-budget.spec.ts` | project | Files a corpus large enough to measure the list against a budget. |
