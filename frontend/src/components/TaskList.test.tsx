@@ -1694,3 +1694,124 @@ describe("TaskList keyboard help and filter icon", () => {
     expect(screen.queryByRole("button", { name: "Keyboard shortcuts" })).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Priority is where a row sits, not a chip on it (task-563).
+ *
+ * Every assertion reads what a browser receives -- the header's text, the order of the
+ * list items, which element the status chip is inside -- rather than the presence of a
+ * class or an attribute.
+ */
+describe("TaskList band headers", () => {
+  const closed = {
+    lifecycle: "closed" as const,
+    ball: null,
+    ball_reason: null,
+    outcome: "completed" as const,
+    display_status: "Completed",
+    status_category: "closed" as const,
+  };
+
+  function bands() {
+    return [
+      queued("task-crit", 100, "critical"),
+      task("task-crit-child", { parent: "task-crit", priority: "medium", queue_position: 300 }),
+      queued("task-high-a", 100, "high"),
+      queued("task-high-b", 200, "high"),
+      queued("task-low", 100, "low"),
+    ];
+  }
+
+  /** Every list item in the sidebar, in order, as a reader meets it. */
+  function items() {
+    return Array.from(document.querySelectorAll("ul > li")).map((item) =>
+      item.hasAttribute("data-band-header")
+        ? `# ${item.textContent}`
+        : (item.getAttribute("data-task") ?? "?"),
+    );
+  }
+
+  it("opens each band with a header and skips a band with no tasks", () => {
+    renderTree(bands());
+
+    expect(items()).toEqual([
+      "# CRITICAL TASKS",
+      "task-crit",
+      "task-crit-child",
+      "# HIGH TASKS",
+      "task-high-a",
+      "task-high-b",
+      "# LOW TASKS",
+      "task-low",
+    ]);
+    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual([
+      "CRITICAL TASKS",
+      "HIGH TASKS",
+      "LOW TASKS",
+    ]);
+  });
+
+  it("keeps a child of another priority under its parent, with no priority on any row", () => {
+    renderTree(bands());
+
+    const child = document.querySelector('[data-task="task-crit-child"]') as HTMLElement;
+    expect(child).toHaveAttribute("data-depth", "1");
+    for (const row of document.querySelectorAll("li[data-task]")) {
+      // What the row says besides its own id and title, which here contain band words.
+      const id = row.getAttribute("data-task") ?? "";
+      const rest = (row.textContent ?? "").replace(`Title of ${id}`, "").replace(id, "");
+      expect(rest).not.toMatch(/critical|high|medium|low/i);
+      expect(row.querySelector("[data-priority]")).toBeNull();
+    }
+  });
+
+  it("gives a header no link, no grip and no place in arrow-key navigation", () => {
+    renderTree(bands(), { entry: "/p/inbox/tasks/task-crit-child" });
+
+    for (const header of document.querySelectorAll("li[data-band-header]")) {
+      expect(header.querySelector("a, button")).toBeNull();
+      expect(header).not.toHaveAttribute("draggable");
+    }
+    // Down from the last critical row lands on the first high task, not on the header.
+    fireEvent.keyDown(rowLink("task-crit-child"), { key: "ArrowDown" });
+    expect(currentPath()).toBe("/p/inbox/tasks/task-high-a");
+  });
+
+  it("keeps the headers in a filtered view, and never adds a priority chip there", () => {
+    renderTree(bands(), { entry: "/p/inbox/tasks?q=high" });
+
+    expect(items()).toEqual(["# HIGH TASKS", "task-high-a", "task-high-b"]);
+    expect(document.querySelector("li[data-task] [data-priority]")).toBeNull();
+  });
+
+  it("separates closed work from the open band of the same priority", () => {
+    renderTree(
+      [queued("task-open-high", 100, "high"), task("task-done-high", { ...closed, priority: "high" })],
+      { entry: "/p/inbox/tasks?status=all" },
+    );
+
+    expect(items()).toEqual([
+      "# HIGH TASKS",
+      "task-open-high",
+      "# HIGH TASKS · CLOSED",
+      "task-done-high",
+    ]);
+  });
+
+  it("puts the status chip on the id line and gives the title its own clamped line", () => {
+    renderTree([queued("task-one", 100, "high")]);
+
+    const idLine = rowLink("task-one").querySelector('[data-field="id-line"]') as HTMLElement;
+    expect(idLine.firstElementChild).toHaveTextContent(/^task-one$/);
+    const chip = within(idLine).getByText("Ready");
+    expect(chip).toHaveAttribute("data-status-category", "ready");
+    // The chip follows the id inside the same line.
+    expect(idLine.firstElementChild!.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const title = rowLink("task-one").querySelector('[data-field="title"]') as HTMLElement;
+    expect(idLine.contains(title)).toBe(false);
+    expect(title).toHaveTextContent("Title of task-one");
+    expect(title).toHaveAttribute("title", "Title of task-one");
+    expect(title.className).toContain("line-clamp-2");
+  });
+});

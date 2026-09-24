@@ -8,6 +8,7 @@ import type {
   TaskSummaryRead,
 } from "../api/types";
 import { ArchivedTag, DependencyState, dependencyState } from "./DependencyState";
+import { PriorityMark, PRIORITY_COLOURS, priorityName } from "./PriorityMark";
 import { StatusChip } from "./StatusChip";
 import { startDragAutoScroll } from "./dragAutoScroll";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
@@ -76,17 +77,32 @@ export function undoMove(placement: QueueMovePlacement | null): QueueMove | null
 const STATUS_FILTERS = new Set(["all", "open", "attention", "draft", "ready", "active", "finishing", "human", "external", "reset", "closed"]);
 const PRIORITY_FILTERS = new Set(["all", "critical", "high", "medium", "low"]);
 const SCOPE_FILTERS = new Set(["all", "project", "test"]);
-const PRIORITY_CLASSES: Record<string, string> = {
-  critical: "bg-red-900 text-red-200",
-  high: "bg-orange-900 text-orange-200",
-  medium: "bg-yellow-900 text-yellow-200",
-  low: "bg-slate-700 text-slate-200",
-};
+/**
+ * The band header a sidebar row sits under, or null when it continues the group above.
+ *
+ * Only a root row can open a group: a child stays under its parent whatever its own
+ * priority (task-563), so it is governed by its root's header. Open and closed work
+ * are separate groups because the server lists every open band before any closed one
+ * (`listing_key`), so a filter showing both would otherwise draw CRITICAL TASKS twice.
+ */
+export function bandHeaders(rows: Array<TaskRow>): Map<string, { band: string; closed: boolean }> {
+  const headers = new Map<string, { band: string; closed: boolean }>();
+  let previous: string | null = null;
+  for (const row of rows) {
+    if (row.depth !== 0) continue;
+    const closed = row.task.lifecycle === "closed";
+    const band = priorityName(row.task.priority);
+    const key = `${closed}:${band}`;
+    if (key !== previous) headers.set(row.task.id, { band, closed });
+    previous = key;
+  }
+  return headers;
+}
 /**
  * Queue, Task, Status, Priority, Assigned, Updated.
  *
  * Five of the six are as wide as the widest thing they will ever hold and no wider: a
- * two-digit position and a grip, a state badge, a priority pill, an owner id, and a
+ * two-digit position and a grip, a state badge, a priority mark, an owner id, and a
  * timestamp that has to stay on one line to be one line tall. Task takes the rest,
  * which is the only column whose content has no natural width. 39.5rem is spoken for,
  * so Task still gets 176px at the 820px floor of this layout -- narrow, and truncating
@@ -906,10 +922,32 @@ export function TaskList({
     "data-drop-side": dropTarget?.id === task.id ? dropTarget.side : undefined,
   });
 
+  // Priority is where a row sits, not a chip on it (task-563): the list is already in
+  // band order, so a header opens each band and governs every row until the next one.
+  const headers = bandHeaders(visibleRows);
   const treeBody = (
     <ul className="divide-y divide-dark-border">
-      {visibleRows.map((row) => {
+      {visibleRows.flatMap((row) => {
         const task = row.task;
+        const header = headers.get(task.id);
+        // A divider, not a task: no link, no grip, no drag handlers and no key handler,
+        // and it is not in `visibleRows`, so arrow keys and the count never see it.
+        const headerRow = header ? (
+          <li
+            key={`band-${header.closed ? "closed" : "open"}-${header.band}-${task.id}`}
+            data-band-header={header.band}
+            className="border-l-4 bg-dark-bg px-2 pb-1 pt-3"
+            style={{ borderLeftColor: PRIORITY_COLOURS[priorityName(header.band)] }}
+          >
+            <h3 className="m-0 text-xs">
+              <PriorityMark
+                priority={header.band}
+                suffix={header.closed ? " TASKS · CLOSED" : " TASKS"}
+                style={header.closed ? { opacity: 0.7 } : undefined}
+              />
+            </h3>
+          </li>
+        ) : null;
         const state = dependencyState(task);
         const counts = hidden.get(task.id) ?? { total: 0, open: 0 };
         const folded = isFolded(task.id);
@@ -917,7 +955,7 @@ export function TaskList({
         // A child whose parent did not survive the filter is drawn at the root, so the
         // row says where it came from rather than silently losing its place.
         const orphanedFrom = row.depth === 0 && task.parent ? task.parent : null;
-        return (
+        const taskRow = (
           <li
             key={task.id}
             data-task={task.id}
@@ -966,36 +1004,43 @@ export function TaskList({
                     "position X of the Y" in a sentence that explains it. This
                     partially reverses task-207, which shipped the ordering (kept) and
                     the coordinate behind it (removed). */}
-                <span className="flex items-baseline gap-2">
-                  <span className="font-mono text-xs text-blue-400">{task.id}</span>
+                {/* The id line carries the status chip beside the id (task-563), and
+                    never wraps: at phone width the chip and the tags after it are
+                    clipped before the line is allowed to break. There is no priority
+                    here -- the band header above says it. */}
+                <span className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden" data-field="id-line">
+                  <span className="shrink-0 font-mono text-xs text-blue-400">{task.id}</span>
+                  <span className="flex min-w-0 shrink items-center gap-1 overflow-hidden" data-field="status">
+                    <StatusChip category={state.category} label={state.label} motion={state.motion} />
+                    {task.archived && <ArchivedTag />}
+                  </span>
+                  {/* A fold must not hide work silently. The count is on the row
+                      itself, not only inside the control's accessible name, so a reader
+                      scanning a folded backlog can see that nine open tasks are under
+                      this one. */}
+                  {folded && counts.total > 0 && (
+                    <span className="min-w-0 truncate rounded border border-dark-border px-1.5 text-xs text-dark-muted">
+                      {counts.total} folded, {counts.open} open
+                    </span>
+                  )}
                   {orphanedFrom && (
-                    <span className="truncate text-xs text-dark-muted">part of {orphanedFrom}</span>
+                    <span className="min-w-0 truncate text-xs text-dark-muted">part of {orphanedFrom}</span>
                   )}
                 </span>
-                {/* The title is the one line that gets cut, and the full text stays in
-                    the tooltip and on the record this row opens. */}
-                <span className="block truncate font-medium text-dark-text" title={task.title}>
+                {/* Two lines of title, then an ellipsis -- the line the chips used to
+                    take. The full text stays in the tooltip and on the record. */}
+                <span
+                  className="mt-0.5 line-clamp-2 break-words font-medium leading-snug text-dark-text"
+                  data-field="title"
+                  title={task.title}
+                >
                   {task.title}
                 </span>
               </Link>
-              <div className="mt-1 flex flex-wrap items-center gap-1" data-field="status">
-                <StatusChip category={state.category} label={state.label} motion={state.motion} />
-                {task.archived && <ArchivedTag />}
-                <span className={`rounded px-1.5 text-xs ${PRIORITY_CLASSES[task.priority ?? "medium"]}`}>
-                  {task.priority ?? "medium"}
-                </span>
-                {/* A fold must not hide work silently. The count is on the row itself,
-                    not only inside the control's accessible name, so a reader scanning
-                    a folded backlog can see that nine open tasks are under this one. */}
-                {folded && counts.total > 0 && (
-                  <span className="rounded border border-dark-border px-1.5 text-xs text-dark-muted">
-                    {counts.total} folded, {counts.open} open
-                  </span>
-                )}
-              </div>
             </div>
           </li>
         );
+        return headerRow ? [headerRow, taskRow] : [taskRow];
       })}
     </ul>
   );
@@ -1038,7 +1083,7 @@ export function TaskList({
               )}
             </ResponsiveCell>
             <ResponsiveCell label="Status" data-field="status"><DependencyState task={row.task} compact /></ResponsiveCell>
-            <ResponsiveCell label="Priority"><span className={`rounded px-2 py-1 text-xs ${PRIORITY_CLASSES[row.task.priority ?? "medium"]}`}>{row.task.priority ?? "medium"}</span></ResponsiveCell>
+            <ResponsiveCell label="Priority"><PriorityMark priority={row.task.priority} /></ResponsiveCell>
             <ResponsiveCell label="Assigned" className="text-sm">{row.task.assignment?.owner ?? "—"}</ResponsiveCell>
             <ResponsiveCell label="Updated" className="whitespace-nowrap text-sm text-dark-muted"><time dateTime={row.task.updated}>{new Date(row.task.updated).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time></ResponsiveCell>
           </ResponsiveTableRow>
