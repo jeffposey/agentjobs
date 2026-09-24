@@ -251,10 +251,11 @@ tr[data-drop-side="after"] > .responsive-table-cell {
 
 /* ----- Status chips that move (task-570) ---------------------------------------------
    The classes are mapped to states in one place, `MOTION_CLASSES` in StatusChip.tsx; a
-   chip moves only when a live fact backs it. Every effect below is a pseudo-element or a
-   shadow, never a size or a margin, so a moving chip is exactly as wide and as tall as a
-   still one and nothing beside it shifts. Everything is tinted with `currentColor`,
-   which is the chip's own text colour -- the light tint of its category's hue. */
+   chip moves only when a live fact backs it, and every live chip moves the same way (owner
+   decision, 2026-09-24). The motion is a pseudo-element, never a size or a margin, so a
+   moving chip is exactly as wide and as tall as a still one and nothing beside it shifts.
+   It is tinted with `currentColor`, the chip's own text colour -- the light tint of its
+   category's hue. */
 
 @property --orbit-angle {
   syntax: "<angle>";
@@ -264,20 +265,19 @@ tr[data-drop-side="after"] > .responsive-table-cell {
 
 .chip-motion {
   position: relative;
-  /* Its own stacking context, so a z-index of -1 on the pseudo-elements paints above the
-     chip's fill and border and below its text. */
+  /* Its own stacking context, so a z-index of -1 on the ring paints above the chip's
+     fill and border and below its text. */
   isolation: isolate;
 }
 
-.chip-motion::before,
-.chip-motion::after {
+.chip-motion::before {
   content: "";
   position: absolute;
   pointer-events: none;
   z-index: -1;
 }
 
-/* Working: a short bright arc running round the border, one lap every 2.4s. A ring the
+/* A short bright arc running round the border, one lap every 2.4s. A ring the
    width of the border, masked out of a conic gradient whose start angle turns. */
 .chip-motion-orbit::before {
   inset: -1px;
@@ -306,66 +306,11 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   }
 }
 
-/* Starting: the glow catches and dies, faster and less even than the orbit, like an
-   engine turning over. A shadow, so it takes no room. */
-.chip-motion-ignite {
-  animation: chip-ignite 1.2s ease-out infinite;
-}
-
-@keyframes chip-ignite {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
-  12% {
-    box-shadow: 0 0 5px 1px color-mix(in srgb, currentColor 70%, transparent);
-  }
-  24% {
-    box-shadow: 0 0 2px 0 color-mix(in srgb, currentColor 30%, transparent);
-  }
-  38% {
-    box-shadow: 0 0 7px 2px color-mix(in srgb, currentColor 80%, transparent);
-  }
-  60% {
-    box-shadow: 0 0 1px 0 color-mix(in srgb, currentColor 20%, transparent);
-  }
-}
-
-/* Finishing: a soft highlight crossing the violet fill from left to right, like a
-   progress bar landing. On top of the fill, under the word. */
-.chip-motion-sweep::after {
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(
-      100deg,
-      transparent 30%,
-      color-mix(in srgb, currentColor 22%, transparent) 50%,
-      transparent 70%
-    )
-    no-repeat;
-  background-size: 250% 100%;
-  animation: chip-sweep 1.8s ease-in-out infinite;
-}
-
-@keyframes chip-sweep {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0% 0;
-  }
-}
-
 /* Reduced motion: nothing moves, and a live chip keeps one still cue -- an outer ring in
    its own tint -- so it can still be told apart from a chip that is not live. */
 @media (prefers-reduced-motion: reduce) {
-  .chip-motion,
-  .chip-motion::before,
-  .chip-motion::after {
+  .chip-motion::before {
     animation: none;
-  }
-  .chip-motion::before,
-  .chip-motion::after {
     display: none;
   }
   .chip-motion {

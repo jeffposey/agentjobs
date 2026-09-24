@@ -65,37 +65,33 @@ export function chipCase(label: string | null | undefined): string {
 }
 
 /**
- * The three kinds of activity a chip can show by moving (task-570), and the class each
- * one draws with. The keyframes are in `styles.css`; this is the only place a state is
- * mapped to one.
+ * The one motion a status chip can have (task-570), and the class it draws with. The
+ * keyframes are in `styles.css`; this is the only place a state is mapped to it.
  *
  * **Motion means one thing: something is happening to this task right now, and a live
  * fact says so.** Never the lifecycle alone -- "Working" is derived from the record, and
  * a task whose session died still reads it -- so every function below asks for the fact
  * that backs the word: the run's own health, the queue's `starting`, a live finish.
  *
- * - `orbit`: a comet running round the border. A run is producing output.
- * - `ignite`: the border's glow catching, fast and uneven. A start is going through the
- *   dispatch gates -- a brief transition.
- * - `sweep`: a highlight crossing the fill, like a bar landing. A finish is a sequence
- *   that ends.
+ * **One motion for every live state** (owner decision, 2026-09-24): a comet running round
+ * the border. The first cut gave Working, Starting and Finishing a motion each, and three
+ * motions on one page read as three things to learn rather than one signal. The chip's
+ * colour already says which kind of activity it is.
  *
- * All of it is on a pseudo-element or a shadow, so a chip never changes size, and
- * `prefers-reduced-motion` stills it to a static outer ring.
+ * It is a pseudo-element, so a chip never changes size, and `prefers-reduced-motion`
+ * stills it to a static outer ring.
  */
-export type ChipMotion = "orbit" | "ignite" | "sweep";
+export type ChipMotion = "orbit";
 
 export const MOTION_CLASSES: Record<ChipMotion, string> = {
   orbit: "chip-motion chip-motion-orbit",
-  ignite: "chip-motion chip-motion-ignite",
-  sweep: "chip-motion chip-motion-sweep",
 };
 
 /** Run-board health words that are activity. `handback` is a wait, not work, so it is absent. */
 const HEALTH_MOTION: Record<string, ChipMotion> = {
   working: "orbit",
-  starting: "ignite",
-  finishing: "sweep",
+  starting: "orbit",
+  finishing: "orbit",
 };
 
 /** A run's chip: its health word is itself the live fact. */
@@ -117,15 +113,12 @@ type MotionFacts = {
  * chip, and a red chip does not move.
  */
 export function taskMotion(task: MotionFacts): ChipMotion | null {
-  if (task.status_category === "finishing" && task.live_finish) return "sweep";
-  if (task.status_category === "queued" && task.queued_dispatch?.status === "starting") return "ignite";
-  if (
-    task.status_category === "working" &&
-    (task.live_run_health === "working" || task.live_run_health === "starting")
-  ) {
-    return "orbit";
-  }
-  return null;
+  const live =
+    (task.status_category === "finishing" && Boolean(task.live_finish)) ||
+    (task.status_category === "queued" && task.queued_dispatch?.status === "starting") ||
+    (task.status_category === "working" &&
+      (task.live_run_health === "working" || task.live_run_health === "starting"));
+  return live ? "orbit" : null;
 }
 
 /** The chip's classes, with its motion when it has one. */

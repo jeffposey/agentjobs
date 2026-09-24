@@ -1,12 +1,12 @@
 """Stand up a task list and a run board where only the live chips move (task-570).
 
-Three motions, one per kind of activity, and each must appear only where a live fact
-backs it. So this seeds **both sides of every row** of the task's table in one project:
+One motion -- a comet running round the border -- and it must appear only where a live
+fact backs it. So this seeds **both sides of every row** of the task's table in one project:
 
     python scripts/chip_motion_sandbox.py [port]
 
-    task-001  a finish in the gate                    Finishing        sweep
-    task-002  a dispatch going through the gates      Starting         ignite
+    task-001  a finish in the gate                    Finishing        orbit
+    task-002  a dispatch going through the gates      Starting         orbit
     task-003  a dispatch waiting for a slot           Queued           still
     task-004  a run producing output                  Working          orbit
     task-005  a run whose session is starting         Working          orbit
@@ -18,8 +18,9 @@ backs it. So this seeds **both sides of every row** of the task's table in one p
     task-011  waiting on another task                 Blocked          still
     task-012  merged                                  Completed        still
 
-The Runs tab shows the run side: Finishing (sweep), Working (orbit), Starting (ignite),
-and Waiting on you, Feedback and a still-open review session, none of which move.
+The Runs tab shows the run side: Finishing, Working and Starting orbit; Waiting on you
+and Feedback do not. task-009's session is still producing output, so its run chip
+orbits while its task chip, Needs review, stays still.
 
 task-004 and task-006 are the comparison that matters. Their records are identical --
 active, agent, work, same owner -- and only one has a live run behind it. Before this
@@ -156,11 +157,11 @@ def live_finish(home: Path, task_id: str) -> None:
 
 
 ROWS = [
-    ("task-001", "A finish is merging this one", "Finishing: the sweep across the violet fill."),
+    ("task-001", "A finish is merging this one", "Finishing, backed by a live finish: the orbit."),
     (
         "task-002",
         "A dispatch of this one is going through the gates",
-        "Starting: the ignition glow.",
+        "Starting, backed by the queue: the orbit.",
     ),
     (
         "task-003",

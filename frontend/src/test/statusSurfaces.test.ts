@@ -131,7 +131,7 @@ describe("the chips that move (task-570)", () => {
     for (const [path, text] of Object.entries(sources)) {
       if (path === "components/StatusChip.tsx") continue;
       expect(code(text), `${path} names a chip motion itself`).not.toMatch(
-        /chip-motion|["'](?:orbit|ignite|sweep)["']/,
+        /chip-motion|["']orbit["']/,
       );
     }
   });
@@ -144,10 +144,11 @@ describe("the chips that move (task-570)", () => {
     }
   });
 
-  it("gives each kind of activity its own motion", () => {
+  it("moves every kind of activity the same way", () => {
+    // Owner decision, 2026-09-24: one motion for every live chip, not one per kind.
     const kinds = [runMotion("working"), runMotion("starting"), runMotion("finishing")];
-    expect(new Set(kinds).size).toBe(3);
-    expect(kinds.every((kind) => kind !== null && MOTION_CLASSES[kind] !== undefined)).toBe(true);
+    expect(new Set(kinds).size).toBe(1);
+    expect(Object.keys(MOTION_CLASSES)).toEqual([kinds[0]]);
   });
 
   it("moves no run chip that is a wait or a process state", () => {

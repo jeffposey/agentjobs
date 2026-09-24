@@ -402,8 +402,8 @@ describe("a run's badge in the task status colours (task-562)", () => {
 describe("a run's badge moves only while the run is doing something (task-570)", () => {
   it.each([
     ["working", "Working", "orbit"],
-    ["starting", "Starting", "ignite"],
-    ["finishing", "Finishing", "sweep"],
+    ["starting", "Starting", "orbit"],
+    ["finishing", "Finishing", "orbit"],
   ])("moves %s", (health, label, motion) => {
     render(<HealthBadge health={health} />);
 
