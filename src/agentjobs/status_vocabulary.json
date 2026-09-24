@@ -39,9 +39,9 @@
     },
     "draft": {
       "meaning": "Not specified yet, and not with a person.",
-      "fill": "#713f12",
-      "border": "#ca8a04",
-      "text": "#fef9c3"
+      "fill": "#facc15",
+      "border": "#fde047",
+      "text": "#422006"
     },
     "closed": {
       "meaning": "Finished: the work was done.",
