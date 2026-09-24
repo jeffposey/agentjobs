@@ -1172,6 +1172,7 @@ class GateAttempt:
     tree: str = ""
     company: str = ""
     memory: List[str] = field(default_factory=list)
+    traces: Optional["KeptTraces"] = None
 
     @property
     def command(self) -> str:
@@ -1193,6 +1194,8 @@ class GateAttempt:
             "log": str(self.log) if self.log else "",
             "company": self.company,
             "low_memory": list(self.memory),
+            "traces": str(self.traces.path) if self.traces else "",
+            "traces_truncated": self.traces.truncated if self.traces else False,
         }
 
 
@@ -1308,6 +1311,89 @@ def _test_file(identity: str) -> str:
     return identity.split("::", 1)[0].strip()
 
 
+TRACE_STAGE = "e2e"
+"""The stage whose red leaves Playwright evidence in ``frontend/test-results/``."""
+
+TRACE_LIMIT_BYTES = 200 * 1024 * 1024
+"""The most one attempt's ``test-results/`` may add to a finish directory (task-580).
+
+Traces are retain-on-failure, so only a red test has one and a normal red is a few
+megabytes. The bound is for the red that fails everything at once.
+"""
+
+
+@dataclass
+class KeptTraces:
+    """What :func:`keep_test_results` copied out of the worktree, and what it left."""
+
+    path: Path
+    files: int = 0
+    bytes: int = 0
+    skipped: int = 0
+
+    @property
+    def truncated(self) -> bool:
+        return self.skipped > 0
+
+
+def keep_test_results(
+    worktree: Path, destination: Path, *, limit: int = TRACE_LIMIT_BYTES
+) -> Optional[KeptTraces]:
+    """Copy ``frontend/test-results/`` to ``destination``, at most ``limit`` bytes of it.
+
+    Playwright empties that directory at the start of every run, so the finish's own
+    ``--from e2e`` retry deletes the first attempt's traces, and removing the worktree
+    after a later merge takes the rest (task-580, seen on task-571). A copy beside
+    ``gate.log`` is the only one that outlives both. Absent or empty, nothing is copied
+    and nothing is said. Files are taken in path order until the next would pass the
+    limit; every file left behind is counted, and ``TRUNCATED.txt`` says so in the copy.
+    """
+    source = worktree / "frontend" / "test-results"
+    if not source.is_dir():
+        return None
+    files = sorted(path for path in source.rglob("*") if path.is_file())
+    if not files:
+        return None
+    kept = KeptTraces(path=destination)
+    for path in files:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            kept.skipped += 1
+            continue
+        if kept.bytes + size > limit:
+            kept.skipped += 1
+            continue
+        target = destination / path.relative_to(source)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+        except OSError:
+            kept.skipped += 1
+            continue
+        kept.files += 1
+        kept.bytes += size
+    if kept.truncated:
+        destination.mkdir(parents=True, exist_ok=True)
+        (destination / "TRUNCATED.txt").write_text(
+            f"{kept.skipped} file(s) of {source} were not copied: the copy is capped at "
+            f"{limit} bytes, or a file could not be read.\n",
+            encoding="utf-8",
+        )
+    return kept
+
+
+def traces_clause(attempts: Sequence[GateAttempt]) -> str:
+    """Where each red e2e attempt's Playwright traces were kept, or nothing."""
+    kept = [
+        f"attempt {attempt.number}: {attempt.traces.path}"
+        + (" (truncated)" if attempt.traces.truncated else "")
+        for attempt in attempts
+        if attempt.traces
+    ]
+    return "\n\nPlaywright traces kept -- " + "; ".join(kept) if kept else ""
+
+
 def attempt_gate(
     plan: Plan,
     directory: FinishDirectory,
@@ -1368,6 +1454,10 @@ def attempt_gate(
         # first twelve failures and not the thirteenth is not proof.
         attempt.tests = failing_tests(attempt.output, limit=10_000)
         attempt.company = gate_company(attempt.output)
+        if attempt.stage == TRACE_STAGE:
+            attempt.traces = keep_test_results(
+                plan.worktree, directory.path / f"test-results-{number}"
+            )
     started_records = [
         record for record in read_phases(directory.path) if record.get("kind") == "gate_started"
     ]
@@ -1751,6 +1841,7 @@ def gate_the_branch(
             f"{second.code}. A red gate never merges, and a second red is a red: nothing is "
             "retried again, and nothing was merged.\n\n"
             f"Recorded as `{classification}`: {explanation}"
+            + traces_clause([first, second])
             + (f"\n\n{register}" if register else ""),
             data={
                 "gate_red_twice": {
