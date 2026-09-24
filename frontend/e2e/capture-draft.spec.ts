@@ -113,17 +113,85 @@ async function rebuildFrontend(page: Page, revision: string, dist: string) {
   const info = await readFile(infoPath, "utf8");
   await writeFile(swPath, `${sw}\n// rebuilt for ${revision}\n`, "utf8");
   await writeFile(infoPath, `${JSON.stringify({ bundle_id: revision }, null, 2)}\n`, "utf8");
-  // Fire and forget: the reload this may provoke destroys the page's execution context,
-  // so awaiting the update inside the page would fail for the wrong reason.
-  await page.evaluate(() => {
-    void navigator.serviceWorker.getRegistration("/app/").then((registration) => {
-      void registration?.update();
-    });
-  });
+  await requestUpdate(page);
   return async () => {
     await writeFile(swPath, sw, "utf8");
     await writeFile(infoPath, info, "utf8");
   };
+}
+
+/**
+ * Ask the browser to check for a new `sw.js`, without waiting for the answer.
+ *
+ * Fire and forget: the reload this may provoke destroys the page's execution context,
+ * so awaiting the update inside the page would fail for the wrong reason -- and so would
+ * this evaluate, if that reload is already under way when it arrives.
+ */
+async function requestUpdate(page: Page) {
+  try {
+    await page.evaluate(() => {
+      void navigator.serviceWorker
+        .getRegistration("/app/")
+        .then((registration) => registration?.update())
+        .catch(() => undefined);
+    });
+  } catch {
+    // The page is navigating, which is the outcome being asked for.
+  }
+}
+
+/**
+ * Keep asking for the update until `done` says the new worker has taken the tab.
+ *
+ * **One request is not enough, and was the flake** (task-515). An update check the
+ * browser already has in flight absorbs a second one, and if that check fetched `sw.js`
+ * before the rebuild wrote it, it finds nothing new and the tab is never taken over.
+ * The test then waited out its whole timeout for a reload nobody was going to cause:
+ * red in seven finish gates in four days, each at exactly 20 seconds, when the reload
+ * takes about 1.3 seconds whenever it happens at all. Reproduced by starting a check
+ * just before the write; measured 2026-09-24.
+ *
+ * So each poll asks again. The timeout is still a clock, but it now bounds a process
+ * that is retried rather than one event that can be lost, and a red here means the
+ * takeover failed on every one of those checks -- which is a real finding.
+ */
+async function untilTakenOver(page: Page, done: () => Promise<boolean>) {
+  await expect
+    .poll(
+      async () => {
+        if (await done()) return true;
+        await requestUpdate(page);
+        return false;
+      },
+      { timeout: 20_000, intervals: [1_000] },
+    )
+    .toBe(true);
+}
+
+/** Whether the tab is a fresh document; `false` while it is between the two. */
+async function reloaded(page: Page) {
+  try {
+    return await page.evaluate(
+      () => (window as unknown as { __survived?: string }).__survived === undefined,
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Count the times a worker takes this tab over, from now on. */
+async function countTakeovers(page: Page) {
+  await page.evaluate(() => {
+    const counter = window as unknown as { __takeovers?: number };
+    counter.__takeovers = 0;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      counter.__takeovers = (counter.__takeovers ?? 0) + 1;
+    });
+  });
+}
+
+function takeovers(page: Page) {
+  return page.evaluate(() => (window as unknown as { __takeovers?: number }).__takeovers ?? 0);
 }
 
 /** A value on `window` that only a fresh document is without. */
@@ -230,11 +298,7 @@ test("a rebuild still reloads a tab where nobody is typing", async ({ page, bund
 
   const restore = await rebuildFrontend(page, "idletab00000", bundleDir);
   try {
-    await page.waitForFunction(
-      () => (window as unknown as { __survived?: string }).__survived === undefined,
-      null,
-      { timeout: 20_000 },
-    );
+    await untilTakenOver(page, () => reloaded(page));
     expect(await marked(page)).toBe(false);
     await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
   } finally {
@@ -255,18 +319,15 @@ test("a rebuild does not take a tab that is holding unsent text; the banner offe
     .getByRole("textbox", { name: /^What happened/ })
     .fill("Half a thought, and nobody has pressed anything yet.");
   await markPage(page);
+  await countTakeovers(page);
 
   const restore = await rebuildFrontend(page, "typingtab000", bundleDir);
   try {
     // The new worker genuinely takes control -- this is not a test of a rebuild that
-    // did not happen -- and the page stays exactly where it was.
-    await page.waitForFunction(
-      () =>
-        navigator.serviceWorker.controller?.scriptURL !== undefined &&
-        (window as unknown as { __survived?: string }).__survived === "yes",
-      null,
-      { timeout: 10_000 },
-    );
+    // did not happen -- and the page stays exactly where it was. Counted rather than
+    // read off `controller`, which was already set before the rebuild: until task-515
+    // this waited on that, so a rebuild the browser never noticed passed here.
+    await untilTakenOver(page, async () => (await takeovers(page)) > 0);
     await page.waitForTimeout(2_000);
     expect(await marked(page)).toBe(true);
     await expect(page.getByRole("dialog", { name: "New task" })).toBeVisible();
