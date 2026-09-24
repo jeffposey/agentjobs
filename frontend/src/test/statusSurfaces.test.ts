@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import inventory from "../../status-surfaces.md?raw";
 import { HEALTH_LABELS } from "../components/LiveRuns";
-import { MOTION_CLASSES, runMotion, taskMotion } from "../components/StatusChip";
+import { MOTION_CLASSES, categoryMotion, runMotion, taskMotion } from "../components/StatusChip";
 
 /**
  * Every surface that renders a task's state is named, and draws it from the agreed
@@ -131,7 +131,7 @@ describe("the chips that move (task-570)", () => {
     for (const [path, text] of Object.entries(sources)) {
       if (path === "components/StatusChip.tsx") continue;
       expect(code(text), `${path} names a chip motion itself`).not.toMatch(
-        /chip-motion|["']orbit["']/,
+        /chip-motion|["'](orbit|flash)["']/,
       );
     }
   });
@@ -148,11 +148,25 @@ describe("the chips that move (task-570)", () => {
     // Owner decision, 2026-09-24: one motion for every live chip, not one per kind.
     const kinds = [runMotion("working"), runMotion("starting"), runMotion("finishing")];
     expect(new Set(kinds).size).toBe(1);
-    expect(Object.keys(MOTION_CLASSES)).toEqual([kinds[0]]);
   });
 
-  it("moves no run chip that is a wait or a process state", () => {
-    for (const health of ["handback", "parked", "silent", "idle", "orphaned", "work_done", "unknown"]) {
+  it("has two motions: one for happening now, one for waiting on a person", () => {
+    // task-577: the second motion means a different thing, so it must look different.
+    const waiting = categoryMotion("needs_you");
+    expect(waiting).not.toBeNull();
+    expect(waiting).not.toBe(runMotion("working"));
+    expect(Object.keys(MOTION_CLASSES).sort()).toEqual([runMotion("working"), waiting].sort());
+  });
+
+  it("flashes every chip waiting on a person, and no other category", () => {
+    for (const category of ["ready", "queued", "working", "finishing", "not_now", "draft", "closed", "closed_unfinished"] as const) {
+      expect(categoryMotion(category), category).toBeNull();
+    }
+    expect(runMotion("parked")).toBe(categoryMotion("needs_you"));
+  });
+
+  it("moves no run chip that is a wait on something other than a person, or a process state", () => {
+    for (const health of ["handback", "silent", "idle", "orphaned", "work_done", "unknown"]) {
       expect(runMotion(health), health).toBeNull();
     }
   });
@@ -176,9 +190,14 @@ describe("the chips that move (task-570)", () => {
     );
     expect(taskMotion({ status_category: "queued", queued_dispatch: { status: "waiting" } })).toBeNull();
 
-    // A live run under a chip that is not "Working" -- review, hold, closed -- stays still.
-    for (const category of ["needs_you", "not_now", "ready", "draft", "closed", "closed_unfinished"] as const) {
+    // A live run under a chip that is not "Working" -- hold, closed -- stays still.
+    for (const category of ["not_now", "ready", "draft", "closed", "closed_unfinished"] as const) {
       expect(taskMotion({ status_category: category, live_run_health: "working" }), category).toBeNull();
     }
+    // ...and under a chip waiting on a person it flashes rather than orbits.
+    expect(taskMotion({ status_category: "needs_you", live_run_health: "working" })).toBe(
+      categoryMotion("needs_you"),
+    );
+    expect(taskMotion({ status_category: "needs_you" })).toBe(categoryMotion("needs_you"));
   });
 });

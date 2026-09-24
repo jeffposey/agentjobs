@@ -277,8 +277,9 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   z-index: -1;
 }
 
-/* A short bright arc running round the border, one lap every 2.4s. A ring the
-   width of the border, masked out of a conic gradient whose start angle turns. */
+/* A short arc running round the border, one lap every 2.4s. A ring the width of the
+   border, masked out of a conic gradient whose start angle turns. Half-strength
+   (task-577 review, 2026-09-24): visible if you look, not something that pulls the eye. */
 .chip-motion-orbit::before {
   inset: -1px;
   padding: 1px;
@@ -286,8 +287,8 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   background: conic-gradient(
     from var(--orbit-angle),
     transparent 0deg 250deg,
-    color-mix(in srgb, currentColor 35%, transparent) 300deg,
-    currentColor 350deg,
+    color-mix(in srgb, currentColor 18%, transparent) 300deg,
+    color-mix(in srgb, currentColor 50%, transparent) 350deg,
     transparent 360deg
   );
   -webkit-mask:
@@ -306,11 +307,53 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   }
 }
 
-/* Reduced motion: nothing moves, and a live chip keeps one still cue -- an outer ring in
-   its own tint -- so it can still be told apart from a chip that is not live. */
+/* Waiting on a person (task-577): a constant slow pulse, one smooth breath in and out
+   every 3s. The chip tints faintly and throws a soft glow in its own colour, then fades
+   back, with no rest in between. Tuned across three owner reviews on 2026-09-24: a glow
+   alone was too subtle, a strong double blink every 1.4s far too much, and the same blink
+   every 7s was traded for this steady pulse. The class keeps the name "flash", which is
+   what StatusChip.tsx maps to. The tint is the pseudo-element behind the text and the
+   glow is a shadow, so neither takes room. */
+.chip-motion-flash {
+  animation: chip-flash 3s ease-in-out infinite;
+}
+
+.chip-motion-flash::before {
+  inset: -1px;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  animation: chip-flash-fill 3s ease-in-out infinite;
+}
+
+@keyframes chip-flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 8px 2px color-mix(in srgb, currentColor 30%, transparent);
+  }
+}
+
+@keyframes chip-flash-fill {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.12;
+  }
+}
+
+/* Reduced motion: nothing moves, and a moving chip keeps one still cue -- an outer ring in
+   its own tint -- so it can still be told apart from a chip that does not move. */
 @media (prefers-reduced-motion: reduce) {
+  .chip-motion,
   .chip-motion::before {
     animation: none;
+  }
+  .chip-motion::before {
     display: none;
   }
   .chip-motion {

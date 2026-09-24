@@ -263,17 +263,31 @@ describe("the Runs tab", () => {
     expect(screen.queryByText("Working")).toBeNull();
   });
 
-  it("says the work is done for a run whose task closed (task-482)", () => {
+  it("says what its closed task says for a run whose task closed (task-482, task-577)", () => {
     // The pair that made a third of the machine unavailable: a task reading Completed
     // beside a run reading `running`. The run is real and the session is open, so it is
-    // still listed -- with the word that says why it is not in the occupied count.
+    // still listed -- in its task's own word and colour, not a word of its own.
+    const done = { health: "work_done", holds_slot: false } as const;
     renderIn(
       <LiveRunsPage
-        body={body({ occupied: 0, runs: [run({ health: "work_done", holds_slot: false })] })}
+        body={body({
+          occupied: 0,
+          runs: [
+            run({ ...done, run_id: "run_a", task_display_status: "Completed", task_status_category: "closed" }),
+            run({ ...done, run_id: "run_b", task_display_status: "Cancelled", task_status_category: "closed_unfinished" }),
+          ],
+        })}
       />,
     );
-    expect(screen.getByText("Work done")).toHaveAttribute("data-health", "work_done");
+    expect(screen.getByText("Completed")).toHaveAttribute("data-status-category", "closed");
+    expect(screen.getByText("Cancelled")).toHaveAttribute("data-status-category", "closed_unfinished");
+    expect(screen.queryByText("Work done")).toBeNull();
     expect(screen.queryByText("Working")).toBeNull();
+  });
+
+  it("falls back to a plain word when a closed run's task cannot be read", () => {
+    render(<HealthBadge health="work_done" />);
+    expect(screen.getByText("Task closed")).toHaveAttribute("data-health", "work_done");
   });
 
   it("says feedback is waiting rather than that the run is working (task-384)", () => {
@@ -404,6 +418,7 @@ describe("a run's badge moves only while the run is doing something (task-570)",
     ["working", "Working", "orbit"],
     ["starting", "Starting", "orbit"],
     ["finishing", "Finishing", "orbit"],
+    ["parked", "Waiting on you", "flash"],
   ])("moves %s", (health, label, motion) => {
     render(<HealthBadge health={health} />);
 
@@ -413,7 +428,6 @@ describe("a run's badge moves only while the run is doing something (task-570)",
 
   it.each([
     ["handback", "Feedback"],
-    ["parked", "Waiting on you"],
     ["silent", "No output"],
     ["idle", "Idle"],
   ])("keeps %s still", (health, label) => {

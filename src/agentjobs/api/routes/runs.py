@@ -42,6 +42,7 @@ from agentjobs.dispatch.ledger import (
     KIND_FINISH,
     KIND_RUNWAY,
     HEALTH_FINISHING,
+    HEALTH_WORK_DONE,
     LockHolder,
     RunRecord,
     live_lock_holders,
@@ -55,6 +56,7 @@ from agentjobs.dispatch.journal import journal
 from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.execution.store import QueuedDispatch, Supervision
 from agentjobs.exposure import Visibility, readable_by
+from agentjobs.models_v2 import Outcome, StatusCategory, closed_status
 from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
 
@@ -97,6 +99,19 @@ class LiveRunView(BaseModel):
             "`finishing` comes from the same live-finish lookup as the task read's "
             "`live_finish`, so it and the task's Finishing chip cannot disagree (task-533)."
         ),
+    )
+    task_display_status: str = Field(
+        default="",
+        description=(
+            "When `health` is `work_done`: the closed task's own status word -- "
+            "Completed, Cancelled, Superseded or Duplicate -- so the run's chip says what "
+            "the task's chip says rather than a word of its own (task-577). Empty when "
+            "the task cannot be read, or the run's task is still open."
+        ),
+    )
+    task_status_category: Optional[StatusCategory] = Field(
+        default=None,
+        description="The category `task_display_status` is drawn in, beside it.",
     )
     finish_id: str = Field(
         default="",
@@ -575,20 +590,24 @@ def _projects_by_id(principal: Optional[Principal]) -> Dict[str, Project]:
     return {project.id: project for project in visible_projects(principal)}
 
 
-def _task_title(project: Optional[Project], task_id: str) -> str:
-    """One task's title, or ``""`` when it cannot be read.
+def _load_task(project: Optional[Project], task_id: str) -> Any:
+    """One task, or ``None`` when it cannot be read.
 
     Deliberately swallows every failure. This is a status page about *runs*: a run whose
     project has been unregistered, or whose task file has been renamed out from under
     it, is precisely the situation worth showing, and a traceback would hide it.
     """
     if project is None or not task_id:
-        return ""
+        return None
     try:
-        task = storage_for(project).load_task(task_id)
+        return storage_for(project).load_task(task_id)
     except Exception:  # pragma: no cover - a status page never fails over a title
-        return ""
-    return getattr(task, "title", "") or ""
+        return None
+
+
+def _task_title(project: Optional[Project], task_id: str) -> str:
+    """One task's title, or ``""`` when it cannot be read."""
+    return getattr(_load_task(project, task_id), "title", "") or ""
 
 
 def _project_owning(task_id: str, projects: Dict[str, Project]) -> str:
@@ -662,13 +681,22 @@ def _run_view(
     project = projects.get(record.project_id)
     health = run_health(record, finishing=finish is not None)
     finishing = health == HEALTH_FINISHING and finish is not None
+    task = _load_task(project, record.task_id)
+    # A run whose task has closed is drawn in its task's own word (task-577): "Completed"
+    # beside a Completed task, not a sixth word the status vocabulary does not have.
+    closed = None
+    outcome = getattr(task, "outcome", None)
+    if health == HEALTH_WORK_DONE and outcome is not None:
+        closed = closed_status(Outcome(outcome))
     return LiveRunView(
+        task_display_status=closed.label if closed else "",
+        task_status_category=closed.category if closed else None,
         finish_id=finish.finish_id if finishing and finish else "",
         finish_step=finish.current_step if finishing and finish else "",
         runway_behind=runway_behind if finishing else "",
         run_id=record.run_id,
         task_id=record.task_id,
-        task_title=_task_title(project, record.task_id),
+        task_title=getattr(task, "title", "") or "",
         project_id=record.project_id,
         project_name=project.name if project else record.project_id,
         mode=record.mode,

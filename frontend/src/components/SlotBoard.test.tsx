@@ -773,6 +773,8 @@ describe("a run whose task closed while its session stayed open (task-482)", () 
       task_id: "task-done",
       task_title: "Merged an hour ago",
       task_url: "/p/alpha/tasks/task-done",
+      task_display_status: "Completed",
+      task_status_category: "closed",
       ...overrides,
     });
 
@@ -794,7 +796,7 @@ describe("a run whose task closed while its session stayed open (task-482)", () 
     expect(screen.getByTestId("slot-board-capacity")).toHaveTextContent("0 of 3 slots busy");
   });
 
-  it("is still drawn, and says the work is done rather than that it is working", () => {
+  it("is still drawn, in its task's own word rather than that it is working (task-577)", () => {
     renderBoard(
       <SlotBoard
         body={body({ occupied: 0, runs: [finished()] })}
@@ -804,7 +806,8 @@ describe("a run whose task closed while its session stayed open (task-482)", () 
       />,
     );
 
-    expect(screen.getByText("Work done")).toHaveAttribute("data-health", "work_done");
+    expect(screen.getByText("Completed")).toHaveAttribute("data-health", "work_done");
+    expect(screen.getByText("Completed")).toHaveAttribute("data-status-category", "closed");
   });
 });
 
@@ -1217,6 +1220,7 @@ describe("the epics this machine is walking (task-523)", () => {
     // Capitalised by the chip, and in the task chips' colour for the same situation (task-562).
     expect(within(row).getByTestId("epic-walk-badge").textContent).toBe("Walking");
     expect(within(row).getByTestId("epic-walk-badge")).toHaveAttribute("data-status-category", "working");
+    expect(within(row).getByTestId("epic-walk-badge")).not.toHaveAttribute("data-motion");
     expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
       "starting each child as its dependencies close",
     );
@@ -1250,6 +1254,7 @@ describe("the epics this machine is walking (task-523)", () => {
     // Capitalised by the chip, and in the task chips' colour for the same situation (task-562).
     expect(within(row).getByTestId("epic-walk-badge").textContent).toBe("Grounded");
     expect(within(row).getByTestId("epic-walk-badge")).toHaveAttribute("data-status-category", "needs_you");
+    expect(within(row).getByTestId("epic-walk-badge")).toHaveAttribute("data-motion", "flash");
     expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
       "grounded: a child used both of its attempts. Nothing more takes off until a person acts.",
     );
@@ -1283,6 +1288,7 @@ describe("the epics this machine is walking (task-523)", () => {
     // Capitalised by the chip, and in the task chips' colour for the same situation (task-562).
     expect(within(row).getByTestId("epic-walk-badge").textContent).toBe("Waiting");
     expect(within(row).getByTestId("epic-walk-badge")).toHaveAttribute("data-status-category", "not_now");
+    expect(within(row).getByTestId("epic-walk-badge")).not.toHaveAttribute("data-motion");
     expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
       "waiting on task-147: a child needs a person. It takes off again on its own when that clears.",
     );

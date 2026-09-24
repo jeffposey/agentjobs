@@ -13,7 +13,7 @@ import type {
 } from "../api/types";
 import { formatElapsed } from "./DispatchPanel";
 import { PriorityMark } from "./PriorityMark";
-import { StatusChip, WALK_STATES } from "./StatusChip";
+import { StatusChip, WALK_STATES, categoryMotion } from "./StatusChip";
 import {
   FinishBadge,
   HealthBadge,
@@ -314,7 +314,7 @@ function RunCell({ run, projectId }: { run: LiveRunView; projectId: string }) {
     >
       <div className="min-w-0">
         <div className="mb-1 flex items-center justify-between gap-2">
-          <HealthBadge health={run.health} />
+          <HealthBadge health={run.health} task={run} />
           <span className="shrink-0 text-xs text-dark-muted">
             {formatElapsed(run.elapsed_seconds)}
           </span>
@@ -811,6 +811,7 @@ function WalkRail({ walks }: { walks: EpicWalkView[] }) {
                   testId="epic-walk-badge"
                   category={state.category}
                   label={state.badge}
+                  motion={categoryMotion(state.category)}
                 />
               </div>
               <p data-testid="epic-walk-counts" className="mt-1 text-xs text-dark-muted">
