@@ -2491,6 +2491,80 @@ export type FinishRecordWrite = {
 };
 
 /**
+ * FinishRetryRequest
+ *
+ * Ask AgentJobs to retry a stopped finish on the approval already given (task-575).
+ *
+ * Sent by the agent that repaired whatever stopped the finish. The server judges the
+ * repair against the head the approver saw and either starts the finish itself or hands
+ * the task to review; the caller never runs the merge.
+ */
+export type FinishRetryRequest = {
+    /**
+     * Actor
+     *
+     * Actor id of the agent asking for the retry.
+     */
+    actor: string;
+    /**
+     * Operation Id
+     *
+     * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
+     */
+    operation_id?: string | null;
+    /**
+     * Summary
+     *
+     * What the repair was, in the agent's words. Quoted on the record.
+     */
+    summary?: string;
+};
+
+/**
+ * FinishRetryResult
+ *
+ * What a retry request did.
+ */
+export type FinishRetryResult = {
+    /**
+     * Data
+     *
+     * The facts recorded: approval, heads, bases and each path's verdict.
+     */
+    data?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Detail
+     *
+     * The outcome in a sentence or two, for the agent.
+     */
+    detail: string;
+    /**
+     * Outcome
+     *
+     * `retrying`: the finish was started. `handed_back`: the repair changed reviewed work or the bound was reached, so the task went to human/review. `declined`: nothing was written, and `reason` says why. `replayed`: already acted on.
+     */
+    outcome: string;
+    /**
+     * Project Id
+     *
+     * Project the request addressed.
+     */
+    project_id: string;
+    /**
+     * Reason
+     *
+     * A stable code for the outcome.
+     */
+    reason: string;
+    /**
+     * The task as it now stands.
+     */
+    task?: TaskReadOutput | null;
+};
+
+/**
  * FinishStepView
  *
  * One step of a scripted finish, as the task page renders it.
@@ -8225,6 +8299,50 @@ export type DashboardResponseWritable = {
 };
 
 /**
+ * FinishRetryResult
+ *
+ * What a retry request did.
+ */
+export type FinishRetryResultWritable = {
+    /**
+     * Data
+     *
+     * The facts recorded: approval, heads, bases and each path's verdict.
+     */
+    data?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Detail
+     *
+     * The outcome in a sentence or two, for the agent.
+     */
+    detail: string;
+    /**
+     * Outcome
+     *
+     * `retrying`: the finish was started. `handed_back`: the repair changed reviewed work or the bound was reached, so the task went to human/review. `declined`: nothing was written, and `reason` says why. `replayed`: already acted on.
+     */
+    outcome: string;
+    /**
+     * Project Id
+     *
+     * Project the request addressed.
+     */
+    project_id: string;
+    /**
+     * Reason
+     *
+     * A stable code for the outcome.
+     */
+    reason: string;
+    /**
+     * The task as it now stands.
+     */
+    task?: TaskReadOutputWritable | null;
+};
+
+/**
  * HumanActionResponse
  *
  * A manager-backed human action returns the newly persisted task state.
@@ -11568,6 +11686,40 @@ export type DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostRespo
 
 export type DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponse = DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponses[keyof DispatchTaskEndpointApiProjectsProjectIdTasksTaskIdDispatchPostResponses];
 
+export type RequestFinishRetryApiProjectsProjectIdTasksTaskIdFinishRetryPostData = {
+    body: FinishRetryRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/finish-retry';
+};
+
+export type RequestFinishRetryApiProjectsProjectIdTasksTaskIdFinishRetryPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestFinishRetryApiProjectsProjectIdTasksTaskIdFinishRetryPostError = RequestFinishRetryApiProjectsProjectIdTasksTaskIdFinishRetryPostErrors[keyof RequestFinishRetryApiProjectsProjectIdTasksTaskIdFinishRetryPostErrors];
+
+export type RequestFinishRetryApiProjectsProjectIdTasksTaskIdFinishRetryPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FinishRetryResult;
+};
+
+export type RequestFinishRetryApiProjectsProjectIdTasksTaskIdFinishRetryPostResponse = RequestFinishRetryApiProjectsProjectIdTasksTaskIdFinishRetryPostResponses[keyof RequestFinishRetryApiProjectsProjectIdTasksTaskIdFinishRetryPostResponses];
+
 export type HandoffTaskApiProjectsProjectIdTasksTaskIdHandoffPostData = {
     body: HandoffRequest;
     path: {
@@ -13399,6 +13551,36 @@ export type DispatchTaskEndpointApiTasksTaskIdDispatchPostResponses = {
 };
 
 export type DispatchTaskEndpointApiTasksTaskIdDispatchPostResponse = DispatchTaskEndpointApiTasksTaskIdDispatchPostResponses[keyof DispatchTaskEndpointApiTasksTaskIdDispatchPostResponses];
+
+export type RequestFinishRetryApiTasksTaskIdFinishRetryPostData = {
+    body: FinishRetryRequest;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/finish-retry';
+};
+
+export type RequestFinishRetryApiTasksTaskIdFinishRetryPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestFinishRetryApiTasksTaskIdFinishRetryPostError = RequestFinishRetryApiTasksTaskIdFinishRetryPostErrors[keyof RequestFinishRetryApiTasksTaskIdFinishRetryPostErrors];
+
+export type RequestFinishRetryApiTasksTaskIdFinishRetryPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FinishRetryResult;
+};
+
+export type RequestFinishRetryApiTasksTaskIdFinishRetryPostResponse = RequestFinishRetryApiTasksTaskIdFinishRetryPostResponses[keyof RequestFinishRetryApiTasksTaskIdFinishRetryPostResponses];
 
 export type HandoffTaskApiTasksTaskIdHandoffPostData = {
     body: HandoffRequest;

@@ -1428,6 +1428,30 @@ class TaskOperations:
             operation_id=operation_id,
         )
 
+    def finish_retry(
+        self,
+        task_id: str,
+        *,
+        actor: str,
+        operation_id: str,
+        summary: str = "",
+    ) -> Dict[str, Any]:
+        """Ask the server to retry a stopped finish on the standing approval (task-575).
+
+        Answers with the route's own shape rather than a ``MutationResult``: the point of
+        the call is its ``outcome`` -- retrying, handed_back, declined -- and the task is
+        what that outcome left behind. ``task`` is parsed; everything else is as sent.
+        """
+        response = self._client._request(
+            "POST",
+            self._client._path(f"/tasks/{task_id}/finish-retry"),
+            json={"actor": actor, "summary": summary, "operation_id": operation_id},
+        )
+        data: Dict[str, Any] = dict(response.json())
+        raw = data.get("task")
+        data["task"] = self._client._parse_task(raw) if isinstance(raw, dict) else None
+        return data
+
     def create(
         self,
         *,

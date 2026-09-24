@@ -1458,6 +1458,41 @@ class RelayAuthorizationRequest(SafeMutationRequest):
     )
 
 
+class FinishRetryRequest(SafeMutationRequest):
+    """Ask AgentJobs to retry a stopped finish on the approval already given (task-575).
+
+    Sent by the agent that repaired whatever stopped the finish. The server judges the
+    repair against the head the approver saw and either starts the finish itself or hands
+    the task to review; the caller never runs the merge.
+    """
+
+    actor: str = Field(..., description="Actor id of the agent asking for the retry.")
+    summary: str = Field(
+        default="",
+        description="What the repair was, in the agent's words. Quoted on the record.",
+    )
+
+
+class FinishRetryResult(BaseModel):
+    """What a retry request did."""
+
+    project_id: str = Field(description="Project the request addressed.")
+    outcome: str = Field(
+        description=(
+            "`retrying`: the finish was started. `handed_back`: the repair changed reviewed "
+            "work or the bound was reached, so the task went to human/review. `declined`: "
+            "nothing was written, and `reason` says why. `replayed`: already acted on."
+        )
+    )
+    reason: str = Field(description="A stable code for the outcome.")
+    detail: str = Field(description="The outcome in a sentence or two, for the agent.")
+    data: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="The facts recorded: approval, heads, bases and each path's verdict.",
+    )
+    task: Optional[TaskRead] = Field(default=None, description="The task as it now stands.")
+
+
 class ProgressUpdateRequest(SafeMutationRequest):
     """Progress update payload appended to the task log."""
 

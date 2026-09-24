@@ -2778,6 +2778,31 @@ prohibition could not ship.
 `task_authorize_dispatch`. The whole rule:
 [Relaying a human's authorisation](authorization.md#relaying-a-humans-authorisation-task-506).
 
+### Retrying a stopped finish on the approval already given (task-575, 2026-09-24)
+
+task-563 was approved three times for one change. Its finish stopped at the gate and then at a
+rebase. The agent repaired both times without touching anything the owner had reviewed. The
+only retry an agent had was `agentjobs finish` from its own shell, and the auto-mode
+classifier correctly refused that as a merge without review.
+
+**The agent now asks, and AgentJobs decides.** `task_finish_retry` (MCP), `POST
+/api/tasks/{id}/finish-retry` and `agentjobs finish-retry` all reach
+`dispatch/finish_retry.py` in the server. The server compares the branch with the head the
+approval recorded, path by path:
+
+- The rebase's clean three-way merge qualifies.
+- Test files and generated output qualify.
+- A conflict resolution qualifies when it keeps every line both sides added and writes none of
+  its own.
+
+Anything else goes to human/review, with each offending path named. When the repair
+qualifies, the server writes a `finisher` entry. That entry carries `data.finish_retry`: the
+approval, both heads, both bases and every path's verdict. The server then starts the finish
+with the same detached `spawn_finish` that Approve uses. At most two retries ride one
+approval, and they are counted from those entries. The escalation prompt names the verb only
+when a person's approval authorised the stopped finish. The rule and the alternatives rejected
+are task-575's decision entry.
+
 ---
 
 ## 6. Safety

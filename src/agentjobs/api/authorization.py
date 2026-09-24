@@ -90,6 +90,9 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     "close_task": RouteRule(Capability.TASK_VERB, task_param=_TASK),
     "append_log_entry": RouteRule(Capability.TASK_VERB, task_param=_TASK),
     "post_progress_update": RouteRule(Capability.TASK_VERB, task_param=_TASK),
+    # A run asks; the server judges the repair and runs the finish (task-575). The
+    # guard on the merge is that judgement and the standing approval, not this row.
+    "request_finish_retry": RouteRule(Capability.TASK_VERB, task_param=_TASK),
     # ----- where a task stands ----------------------------------------------------
     "queue_move_task": RouteRule(Capability.TASK_QUEUE, task_param=_TASK),
     "queue_keep_task": RouteRule(Capability.TASK_QUEUE, task_param=_TASK),

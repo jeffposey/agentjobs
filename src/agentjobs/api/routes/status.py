@@ -63,6 +63,8 @@ from ..models import (
     DispatchRequestBody,
     DispatchStarted,
     ErrorBody,
+    FinishRetryRequest,
+    FinishRetryResult,
     ErrorDetail,
     HandoffRequest,
     LogAppendRequest,
@@ -681,6 +683,51 @@ async def relay_authorization(
         project=project,
         operation_id=payload.operation_id,
         envelope=envelope,
+    )
+
+
+@router.post(
+    "/{task_id}/finish-retry", response_model=FinishRetryResult, status_code=status.HTTP_200_OK
+)
+async def request_finish_retry(
+    task_id: str,
+    request: Request,
+    payload: FinishRetryRequest,
+    manager: TaskManager = Depends(get_task_manager),
+    project: Project = Depends(get_acting_project),
+) -> FinishRetryResult:
+    """Retry a stopped scripted finish on the approval already given (task-575).
+
+    The repairing agent calls this instead of running ``agentjobs finish`` from its own
+    shell, which the auto-mode classifier rightly refuses as a merge nobody reviewed.
+    The server judges the repair against the head the approver saw: when nothing they
+    reviewed changed, it starts the finish itself in a detached process; otherwise it
+    hands the task to human/review with each offending path stated. See
+    ``dispatch/finish_retry.py``.
+
+    ``task.verb`` rather than ``task.review``, because a run must be able to ask. What
+    keeps the approval meaningful is the judgement and the bound, not who may call.
+    """
+    from agentjobs.dispatch.finish_retry import request_finish_retry as request_retry
+
+    actor = acting_actor(request, project, payload.actor)
+    outcome = await run_in_threadpool(
+        lambda: request_retry(
+            manager=manager,
+            project=project,
+            task_id=task_id,
+            actor=actor,
+            summary=payload.summary,
+            operation_id=payload.operation_id or "",
+        )
+    )
+    return FinishRetryResult(
+        project_id=project.id,
+        outcome=outcome.outcome,
+        reason=outcome.reason,
+        detail=outcome.detail,
+        data=outcome.data,
+        task=_as_read(outcome.task) if outcome.task is not None else None,
     )
 
 

@@ -4453,6 +4453,55 @@ def finish(
     typer.secho(f"✅ {result.detail}", fg=typer.colors.GREEN)
 
 
+@app.command("finish-retry")
+def finish_retry(
+    task_id: str = typer.Argument(..., help="Task whose stopped finish you have repaired."),
+    project_id: Optional[str] = typer.Option(
+        None, "--project", help="Registered project id. Defaults to the one you are in."
+    ),
+    actor: str = typer.Option(..., "--actor", help="Your actor id, as the project names it."),
+    summary: str = typer.Option("", "--summary", help="What the repair was, in your words."),
+) -> None:
+    """Ask the server to retry a stopped finish on the standing approval (task-575).
+
+    For the agent that repaired whatever stopped a scripted finish. This process merges
+    nothing: it asks the running AgentJobs service, which judges the repair against the
+    head the approver saw and either starts the finish itself or hands the task to
+    human/review. Exit 0 means a retry started; 1 means it went to a person; 2 means
+    nothing was done and the output says why.
+    """
+    import uuid
+
+    import httpx
+
+    from agentjobs.client import TaskClient, TaskClientError
+    from agentjobs.dispatch.address import configured_api_base
+
+    registry = ProjectRegistry()
+    try:
+        project = registry.get(project_id) if project_id else registry.resolve_default()
+    except ProjectError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=2) from exc
+
+    address = (configured_api_base() or "http://127.0.0.1:8765").rstrip("/")
+    client = TaskClient(
+        address, client=httpx.Client(base_url=address, timeout=120.0), project_id=project.id
+    )
+    try:
+        result = client.operations.finish_retry(
+            task_id, actor=actor, operation_id=str(uuid.uuid4()), summary=summary
+        )
+    except TaskClientError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=2) from exc
+    outcome = str(result.get("outcome") or "")
+    typer.echo(f"{outcome}: {result.get('detail')}")
+    if outcome == "retrying":
+        return
+    raise typer.Exit(code=1 if outcome == "handed_back" else 2)
+
+
 @app.command()
 def branches(
     project_id: Optional[str] = typer.Option(
