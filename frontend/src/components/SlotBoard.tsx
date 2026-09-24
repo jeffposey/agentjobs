@@ -428,7 +428,7 @@ function QueuedCell({
   disclosure?: React.ReactNode;
 }) {
   return (
-    <div className={`${CELL_BASE} border-dashed border-sky-800/70 bg-dark-bg`}>
+    <div className={`${CELL_BASE} border-dashed border-sky-800/70 bg-transparent`}>
       <div className="min-w-0">
         <div className="mb-1 flex items-center justify-between gap-2">
           <span className="text-xs uppercase tracking-wide text-dark-muted">{label}</span>
@@ -462,7 +462,7 @@ function QueuedCell({
 function EmptyCell({ projectId, quiet }: { projectId: string; quiet: boolean }) {
   return (
     <div
-      className={`${CELL_BASE} items-start border-dashed border-dark-border bg-dark-bg/40`}
+      className={`${CELL_BASE} items-start border-dashed border-dark-border bg-transparent`}
     >
       <span className="text-xs uppercase tracking-wide text-dark-muted">Slot free</span>
       <p className="text-xs text-dark-muted">
