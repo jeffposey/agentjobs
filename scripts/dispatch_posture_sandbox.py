@@ -227,11 +227,11 @@ def serve(port: int) -> None:
 
     write_dispatch_config(home, root)
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    serve(app, port=port)
 
 
 def main() -> None:

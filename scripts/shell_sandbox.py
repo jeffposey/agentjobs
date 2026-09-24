@@ -362,7 +362,7 @@ def main() -> None:
 
     ProjectRegistry(home).add(build(root), project_id=PROJECT_ID, name=PROJECT_NAME)
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -379,7 +379,7 @@ def main() -> None:
     if trace:
         print("[review]   drag trace ON; gestures also POST to /review/trace", flush=True)
     print("[review] Data is throwaway and lives under", root, flush=True)
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    serve(app, port=port)
 
 
 if __name__ == "__main__":

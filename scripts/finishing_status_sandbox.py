@@ -303,7 +303,7 @@ def main() -> None:
     dispatch_config(home, runner_script)
     finishes(home)
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -322,7 +322,7 @@ def main() -> None:
     )
     # `lifespan="off"` for the reason every sandbox here uses it: the lifespan starts the
     # dispatch poller, and a poller would reap the "live" locks this exhibit is made of.
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", lifespan="off")
+    serve(app, port=port, lifespan="off")
 
 
 if __name__ == "__main__":

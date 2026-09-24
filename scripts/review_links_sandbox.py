@@ -328,7 +328,7 @@ def main() -> None:
         name=name,
     )
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -341,7 +341,7 @@ def main() -> None:
     print(f"[review] throwaway data under {root}", flush=True)
     print("[review] stop with Ctrl-C; the data is deleted with the process.", flush=True)
     try:
-        uvicorn.run(app, host=host, port=port, log_level="warning")
+        serve(app, port=port, host=host)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

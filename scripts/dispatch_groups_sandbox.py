@@ -232,11 +232,11 @@ def serve(port: int, *, with_groups: bool) -> None:
     write_dispatch_config(home, root, with_groups=with_groups)
     print(f"[review] machine on {port}: {label}; data under {root}", flush=True)
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    serve(app, port=port)
 
 
 def main() -> None:

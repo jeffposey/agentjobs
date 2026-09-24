@@ -8,12 +8,14 @@ a nav link used to be, whether the quick capture still feels like fifteen second
 whether the expanded form is bearable in a dialog on a phone -- and none of it survives
 a diff.
 
-    python scripts/capture_control_sandbox.py [port] [--tailnet] [--no-model]
+    python scripts/capture_control_sandbox.py [port] [--no-model]
 
-``--tailnet`` also serves this machine's Tailscale address, in the same process and over
-the same corpus, so the page opens on a phone. That is the half a resized desktop window
-cannot answer: the control replaced a floating button that was under a thumb, and whether
-the top-right corner of a phone is reachable one-handed is a thumb question.
+When Tailscale is up this also serves the machine's tailnet address, in the same process
+and over the same corpus, so the page opens on a phone -- every sandbox does, through
+``scripts/sandbox_serve.py`` (task-567). ``--tailnet`` is still accepted and changes
+nothing. The phone is the half a resized desktop window cannot answer: the control
+replaced a floating button that was under a thumb, and whether the top-right corner of a
+phone is reachable one-handed is a thumb question.
 
 **The two addresses are not equivalent, and the difference is the app's security model
 rather than a bug.** A sandbox is not behind the tailnet front door
@@ -85,13 +87,12 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Tuple
 
 import yaml
 from fastapi import Request, Response
@@ -101,33 +102,6 @@ DEFAULT_PORT = 8921
 
 #: A title holding this word is refused, so a partial batch is reviewable (task-121).
 REFUSAL_CUE = "boom"
-
-
-def tailnet_address() -> Optional[str]:
-    """This machine's Tailscale IPv4, or ``None`` when Tailscale is not up.
-
-    Asked of the CLI rather than read from an interface list, because that is the one
-    answer that is wrong for the right reason when Tailscale is installed but logged
-    out -- an address on the adapter that no peer can route to.
-    """
-    for candidate in (
-        Path("C:/Program Files/Tailscale/tailscale.exe"),
-        Path("tailscale"),
-    ):
-        try:
-            result = subprocess.run(
-                [str(candidate), "ip", "-4"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError):
-            continue
-        address = result.stdout.strip().splitlines()[0].strip() if result.stdout.strip() else ""
-        if result.returncode == 0 and address:
-            return address
-    return None
 
 
 def build_project(root: Path, *, project_id: str, name: str) -> Path:
@@ -378,42 +352,8 @@ class RefuseOnCue(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def serve(*, port: int, remote: Optional[str]) -> None:
-    """Serve loopback, and the tailnet address too when there is one.
-
-    Two uvicorn servers over one application and one store, rather than binding
-    ``0.0.0.0``. The bind surface then stays exactly the two addresses named -- a laptop
-    on a cafe network does not also start answering on its Wi-Fi address because somebody
-    wanted to look at a form on their phone.
-
-    The loopback server runs in a daemon thread and the remote one on the main thread, so
-    Ctrl-C reaches the one that owns the terminal and the process exits with it.
-    """
-    import uvicorn
-
-    from agentjobs.api.main import app
-
-    app.add_middleware(RefuseOnCue)
-
-    def server(host: str) -> uvicorn.Server:
-        return uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
-
-    if remote is None:
-        server("127.0.0.1").run()
-        return
-
-    local = server("127.0.0.1")
-    thread = threading.Thread(target=local.run, daemon=True)
-    thread.start()
-    try:
-        server(remote).run()
-    finally:
-        local.should_exit = True
-
-
 def main() -> None:
     argv = sys.argv[1:]
-    tailnet = "--tailnet" in argv
     # Both sides of task-121's drafting have to be reachable. With a model, a collected
     # finding is fleshed out on its own; without one, it is filed exactly as typed and
     # the tray says why. This machine has no model, so the *first* state is the one a
@@ -421,14 +361,6 @@ def main() -> None:
     no_model = "--no-model" in argv
     positional = [argument for argument in argv if not argument.startswith("--")]
     port = int(positional[0]) if positional else DEFAULT_PORT
-
-    # Loopback is always served, because it is the only address a write is accepted on.
-    # The tailnet address, when asked for, is served *as well* rather than instead: a
-    # review needs the phone for the layout and the desktop for the filing, and two
-    # sandboxes over two corpora would be two different things to look at.
-    remote = tailnet_address() if tailnet else None
-    if tailnet and remote is None:
-        print("[capture] Tailscale is not reporting an address; loopback only", flush=True)
 
     root = Path(tempfile.mkdtemp(prefix="agentjobs-capture-"))
     home = root / "home"
@@ -500,27 +432,15 @@ def main() -> None:
         f"http://{host}:{port}/app/not-found",
         flush=True,
     )
-    if remote is None:
-        print("[capture]   --tailnet also serves the Tailscale address, for a phone", flush=True)
-    else:
-        print(
-            f"[capture]   on a phone, to LOOK at it: "
-            f"http://{remote}:{port}/app/p/sandbox-capture",
-            flush=True,
-        )
-        print(
-            "[capture]   filing is refused there and that is correct -- a sandbox is not",
-            flush=True,
-        )
-        print(
-            "[capture]   behind the tailnet front door, so the server cannot identify the",
-            flush=True,
-        )
-        print("[capture]   caller. File from the loopback URL above.", flush=True)
     print("[capture] Ctrl-C stops it; the temporary corpus goes with it", flush=True)
 
+    from sandbox_serve import serve  # type: ignore[import-not-found]
+
+    from agentjobs.api.main import app
+
+    app.add_middleware(RefuseOnCue)
     try:
-        serve(port=port, remote=remote)
+        serve(app, port=port)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

@@ -166,7 +166,7 @@ def main() -> None:
         build(root, project_id=project_id, name=name), project_id=project_id, name=name
     )
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -176,7 +176,7 @@ def main() -> None:
     print(f"[review]   filtered to nothing   {base}?status=closed&priority=critical", flush=True)
     print(f"[review]   filtered to something {base}?priority=high", flush=True)
     print("[review] Open the button at 1400x900, then 700x800, then 390x844.", flush=True)
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    serve(app, port=port)
 
 
 if __name__ == "__main__":

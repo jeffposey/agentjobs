@@ -169,7 +169,7 @@ def main() -> None:
         yaml.safe_dump(dispatch_config(port), sort_keys=False), encoding="utf-8"
     )
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -181,7 +181,7 @@ def main() -> None:
     print("[create]   Report issue is the button at the bottom right of every page.")
     print("[create]   Mark the task Ready: a draft closes the box on purpose.", flush=True)
     try:
-        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+        serve(app, port=port)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
