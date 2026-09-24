@@ -8,6 +8,8 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -16,9 +18,15 @@ from typing import Optional
 import uvicorn
 import yaml
 
+from agentjobs.dispatch import pids
 from agentjobs.project_setup import build_project_config
 
 PORT_ENV = "AGENTJOBS_E2E_PORT"
+OWNER_ENV = "AGENTJOBS_E2E_OWNER_PID"
+"""The Playwright runner that started this server. See :func:`watch_owner`."""
+OWNER_POLL_SECONDS = 1.0
+STOP_GRACE_SECONDS = 10.0
+"""How long a graceful stop may take before the watcher ends the process outright."""
 CHECKOUT = Path(__file__).resolve().parents[2]
 DIST_PREFIX = "agentjobs-e2e-dist-"
 """Names the per-server copy of the built frontend. See :func:`private_bundle`."""
@@ -97,6 +105,103 @@ def resolve_port() -> int:
     if not 1 <= port <= 65535:
         raise SystemExit(f"{PORT_ENV} must be between 1 and 65535, got {port}.")
     return port
+
+
+@dataclass(frozen=True)
+class Owner:
+    """The runner this server belongs to: its pid, and the receipt that it is that one."""
+
+    pid: int
+    identity: Optional[str]
+
+
+def read_owner() -> Optional[Owner]:
+    """Take the owning runner from the environment, or ``None`` when run by hand.
+
+    Refuses to start for an owner that is already gone, or whose pid is now held by a
+    process created after this one -- a stranger, since the owner started this server
+    and so existed first. Serving for an owner that cannot stop it is the orphan this
+    is here to prevent. An unreadable creation time proves nothing, so it is not a
+    refusal (``pids.process_created_after`` answers no on doubt).
+    """
+    raw = os.environ.get(OWNER_ENV)
+    if raw is None or raw.strip() == "":
+        return None
+    try:
+        pid = int(raw)
+    except ValueError:
+        raise SystemExit(f"{OWNER_ENV} must be a process id, got {raw!r}.") from None
+    born = pids.process_started_at(os.getpid())
+    if not pids.process_alive(pid) or (born is not None and pids.process_created_after(pid, born)):
+        raise SystemExit(
+            f"[e2e] the runner that started this server (pid {pid}) is already gone, "
+            "so nothing would stop it; not serving."
+        )
+    return Owner(pid=pid, identity=pids.process_identity(pid))
+
+
+def owner_gone(owner: Owner) -> bool:
+    """Whether the owning runner has provably ended. Doubt answers no.
+
+    A pid is recycled in seconds on this machine (task-505), so liveness of the number
+    alone would keep an orphan serving for whichever stranger inherits it. The identity
+    recorded at startup settles that: a live pid with a different creation time is not
+    the owner. A creation time that cannot be read is not evidence either way, and the
+    cost of a wrong "gone" is a red e2e stage, so it keeps serving.
+    """
+    if not pids.process_alive(owner.pid):
+        return True
+    if owner.identity is None:
+        return False
+    now = pids.process_identity(owner.pid)
+    return now is not None and now != owner.identity
+
+
+def watch_owner(
+    owner: Owner,
+    server: uvicorn.Server,
+    *,
+    poll: float = OWNER_POLL_SECONDS,
+    grace: float = STOP_GRACE_SECONDS,
+) -> threading.Thread:
+    """Stop serving when the runner that started this server is gone (task-515).
+
+    Playwright stops its ``webServer`` processes when a run ends, failed or not -- but
+    only if the runner itself gets to the end. Killed from outside, it stops nothing,
+    and this server went on holding the checkout's port: once for fifteen minutes on
+    2026-09-21, turning every later e2e run in that checkout red with a message about
+    the port rather than the branch. Its parent is no help on Windows, because the
+    ``poetry run`` in between outlives the runner.
+
+    So the server asks after the runner itself. The stop is uvicorn's own, so the
+    temporary project and the private bundle are cleaned up the usual way; if that has
+    not finished within ``grace`` seconds the process ends outright, because a server
+    nobody owns holding the port is the one outcome this exists to rule out. Nothing is
+    killed but this process.
+    """
+
+    def run() -> None:
+        while not server.should_exit:
+            if owner_gone(owner):
+                server.should_exit = True
+                # Said after the stop, and allowed to fail: this process's stdout is a
+                # pipe to the runner that just died, and a write to it raises. Printed
+                # first, that exception ended this thread before the stop -- observed on
+                # the first version of this watcher, which left all four servers up.
+                try:
+                    print(
+                        f"[e2e] runner {owner.pid} is gone; stopping so the port is freed",
+                        flush=True,
+                    )
+                except (OSError, ValueError):
+                    pass
+                time.sleep(grace)
+                os._exit(3)
+            time.sleep(poll)
+
+    thread = threading.Thread(target=run, name="e2e-owner-watch", daemon=True)
+    thread.start()
+    return thread
 
 
 def write_dispatch_config(home: Path) -> None:
@@ -225,10 +330,15 @@ def write_model_config(home: Path, base_url: str) -> None:
 def main() -> None:
     """Pin a fresh project before importing the app, then serve until Playwright exits."""
     port = resolve_port()
+    owner = read_owner()
     # Named, not just bound: a failure here is read alongside Playwright's own line
     # about the same port, and between them they say which checkout owns it.
     print(f"[e2e] serving {CHECKOUT} on http://127.0.0.1:{port}", flush=True)
-    with TemporaryDirectory(prefix="agentjobs-e2e-") as directory:
+    # Cleanup errors ignored: a graceful stop reaches this exit with the app's SQLite
+    # files still open, which Windows will not delete, and a traceback there would
+    # report a clean stop as a failure. Until task-515 nothing ever stopped this server
+    # gracefully, so the directory was always left behind anyway.
+    with TemporaryDirectory(prefix="agentjobs-e2e-", ignore_cleanup_errors=True) as directory:
         root = Path(directory)
         os.environ["AGENTJOBS_PROJECT_ROOT"] = str(root)
         os.environ["AGENTJOBS_HOME"] = str(root / ".agentjobs-home")
@@ -250,13 +360,18 @@ def main() -> None:
         # Named so a spec that cannot find the directory, and a reader of a red run,
         # both learn where this server's bundle actually is.
         print(f"[e2e] bundle for {port}: {bundle or 'none built in this checkout'}", flush=True)
-        try:
-            uvicorn.run(
+        server = uvicorn.Server(
+            uvicorn.Config(
                 "agentjobs.api.main:app",
                 host="127.0.0.1",
                 port=port,
                 log_level="warning",
             )
+        )
+        if owner is not None:
+            watch_owner(owner, server)
+        try:
+            server.run()
         finally:
             shutil.rmtree(private_bundle_dir(port), ignore_errors=True)
 

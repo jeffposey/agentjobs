@@ -79,6 +79,15 @@ class TestTheReceipts:
         assert process_created_after(stranger.pid, before) is True
         assert process_created_after(stranger.pid, moment_now()) is False
 
+    def test_a_start_time_is_the_moment_a_younger_process_is_judged_against(
+        self, stranger: "subprocess.Popen[bytes]"
+    ) -> None:
+        """This process is older than the stranger, so the stranger reads as created after."""
+        born = pids.process_started_at(os_pid())
+        assert born is not None and born <= moment_now()
+        assert process_created_after(stranger.pid, born) is True
+        assert pids.process_started_at(0) is None
+
 
 class TestLivenessAnswersYesOnDoubtAndNoOnEvidence:
     def test_a_stranger_at_a_recorded_pid_is_not_the_recorded_process(
