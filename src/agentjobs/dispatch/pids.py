@@ -174,6 +174,17 @@ def process_identity(pid: int) -> Optional[str]:
     return times[0] if times else None
 
 
+def process_started_at(pid: int) -> Optional[datetime]:
+    """When the process now answering to ``pid`` was created, or ``None`` if unknown.
+
+    The moment a process can hand to :func:`process_created_after` about another one it
+    was told about at birth: anything that told it existed first, so a holder of that pid
+    created later is a stranger (task-515, where the e2e server checks its owner).
+    """
+    times = _times(pid)
+    return times[1] if times else None
+
+
 def process_created_after(pid: int, moment: datetime) -> bool:
     """Whether the process now answering to ``pid`` was started after ``moment``.
 

@@ -7,6 +7,9 @@ import { PORT_ENV, checkoutRoot, firstPort, portForSlot, workerCount } from "./e
 // once, here, in the process that reads this file. The first port is written back into
 // the environment so every worker Playwright forks from here inherits the answer instead
 // of re-deriving it from a working directory nobody promised would be the same.
+/** Names the Playwright runner to each server it starts. See `webServer` below. */
+const OWNER_ENV = "AGENTJOBS_E2E_OWNER_PID";
+
 const workers = workerCount();
 const first = firstPort();
 process.env[PORT_ENV] = String(first);
@@ -79,6 +82,14 @@ export default defineConfig({
     timeout: 90_000,
     // The server has no default of its own, so it cannot bind a port this config is
     // not watching -- the two halves cannot disagree about which port is in play.
-    env: { [PORT_ENV]: String(port) },
+    //
+    // The owner is this process, the runner that starts every server and is meant to
+    // stop them. A runner killed from outside -- a gate interrupted, a stage timed out --
+    // never gets to, and on Windows its servers do not die with it: `poetry run` sits
+    // between them and stays alive as long as its child does, so the server's own
+    // parent is no signal. Measured 2026-09-24 (task-515): `taskkill /F` on the runner
+    // left the server listening with its parent still running. `run_server.py` watches
+    // this pid instead and stops when it goes.
+    env: { [PORT_ENV]: String(port), [OWNER_ENV]: String(process.pid) },
   })),
 });
