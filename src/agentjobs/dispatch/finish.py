@@ -116,6 +116,13 @@ from agentjobs.dispatch.finish_receipts import (
 from agentjobs.dispatch.phases import RUN_ID_ENV, read_phases, record_phase
 from agentjobs.dispatch.slots import release_slot_for_task
 from agentjobs.dispatch.record_commit import commit_task_record
+from agentjobs.dispatch.escalation_takeover import (
+    STOOD_DOWN,
+    WOKEN,
+    Takeover,
+    idle_after_review_handoff,
+    take_over_idle_run,
+)
 from agentjobs.history import FinishHistory
 from agentjobs.models_v2 import (
     Ball,
@@ -4848,8 +4855,44 @@ def _attempt_escalation_dispatch(
     # must still not start a second run for that task -- and what changes is that the
     # conclusion is no longer final. The run is marked, and `resolve_deferred_escalation`
     # asks again when it ends, which is the moment the answer is actually knowable.
-    for run in live_runs(resolve_machine_home(home, resolution)):
+    #
+    # **And a run waiting behind its own review handoff will never act or end** (task-569).
+    # A background job -- a review sandbox -- keeps such a session alive and idle, so the
+    # re-ask above never fires either. That run is woken with the escalation, or stood
+    # down so a repair can start, or the ball goes to a person; see
+    # `dispatch.escalation_takeover`.
+    machine_home = resolve_machine_home(home, resolution)
+    stood_down: Optional[Takeover] = None
+    for run in live_runs(machine_home):
         if run.task_id == task_id and run.project_id in (project.id, ""):
+            idle = idle_after_review_handoff(
+                run,
+                task,
+                project_config,
+                machine_home,
+                own_run=own_run_id(machine_home, task_id, project_id=project.id),
+            )
+            if idle is not None:
+                taken = take_over_idle_run(
+                    manager=manager,
+                    project=project,
+                    task=task,
+                    idle=idle,
+                    home=machine_home,
+                    resolution=resolution,
+                    api_base=api_base,
+                )
+                if taken.path == WOKEN:
+                    _mark_escalation_pending(run, finish_id or task_id)
+                    return EscalationDispatch(
+                        run_id=run.run_id, reason=WOKEN, detail=taken.detail, unattended=False
+                    )
+                if taken.path != STOOD_DOWN:
+                    return EscalationDispatch(
+                        reason=taken.path, detail=taken.detail, unattended=True
+                    )
+                stood_down = taken
+                break
             _mark_escalation_pending(run, finish_id or task_id)
             return EscalationDispatch(
                 run_id=run.run_id,
@@ -4898,6 +4941,8 @@ def _attempt_escalation_dispatch(
             detail=f"Dispatch was refused: {exc}",
             unattended=True,
         )
+    if stood_down is not None:
+        return EscalationDispatch(run_id=handle.run_id, reason=STOOD_DOWN, detail=stood_down.detail)
     return EscalationDispatch(run_id=handle.run_id, reason="dispatched")
 
 

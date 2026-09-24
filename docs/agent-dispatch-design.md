@@ -2511,6 +2511,27 @@ is left alone, which is the case that stops this becoming "park every deferral".
 **One live run per task is unchanged.** The re-ask alters when the question is answered,
 never the answer while a session is up.
 
+**A run that never ends never gets re-asked** (task-569, 2026-09-24). Task-368's run handed
+off for review with its review sandbox running as a Claude Code background job, which kept
+the session alive and idle. The approval's finish went red and deferred to it, and the
+re-ask above waited for a settle the sandbox would never allow. So when the live run's
+newest move of the ball was its own handoff to a person, the escalation does not defer.
+`dispatch.escalation_takeover` takes one of three paths, the same three task-574 takes for
+Request Changes:
+
+1. **Wake it in place** on the peer channel, with the finisher's prompt. The run keeps its
+   record and `escalation_pending` is still written, so a woken run that ends without
+   acting is re-asked as above.
+2. **Otherwise stand it down** and dispatch the repair. This happens only when the session's
+   transcript shows nobody has typed into it since the handoff. An unreadable transcript
+   does not count as proof that nobody did.
+3. **Otherwise park it** with a person, in the same finish.
+
+The finish's `escalation_dispatch` records `woke_idle_run`, `stood_down_idle_run` or
+`idle_run_unreachable`, and the task log carries a finisher note for the first two. The
+run finishing itself through `--posture-release` is never treated as idle: it is mid-turn,
+and it reads the finish's answer itself.
+
 **Road two: a never-raises promise made of a list of exception types.** Running the
 documented retry — `agentjobs finish` by hand — reached `RemoteTaskManager.record_dispatch`
 and got the refusal that method exists to give: a run is recorded by the process that
