@@ -124,11 +124,16 @@ def _slots_held(count: int):
     is asking what a *worker count* does to the failure rate rather than how many gates
     the machine admits. The pytest it launches passes ``-n`` explicitly, so it resolves
     nothing of its own.
+
+    **Slots other gates already hold count against the lift** (task-554). It used to be
+    ``count + 1``, so beside any other task's gate the probe's own pytest queued for a
+    slot that never came -- silently, because its output is captured -- and a probe run
+    beside real load, which is the load a flake needs, never ran a test.
     """
     import gate_slots  # type: ignore[import-not-found]
 
     previous = os.environ.get(gate_slots.CAPACITY_ENV)
-    os.environ[gate_slots.CAPACITY_ENV] = str(count + 1)
+    os.environ[gate_slots.CAPACITY_ENV] = str(count + gate_slots.active() + 1)
     try:
         with contextlib.ExitStack() as stack:
             for _ in range(count):
