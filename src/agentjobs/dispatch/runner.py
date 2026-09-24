@@ -128,6 +128,7 @@ from agentjobs.models_v2 import (
     LogEntryType,
     Task,
 )
+from agentjobs.dispatch import kills
 from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
 from agentjobs.dispatch.pids import (
     describe_exit,
@@ -4889,15 +4890,30 @@ def _kill_tree(
 
 
 def _kill_tree_now(pid: int) -> bool:
-    """``_kill_tree``'s act, for a caller that has already made ``pid`` safe to name."""
+    """``_kill_tree``'s act, for a caller that has already made ``pid`` safe to name.
+
+    Journalled either side of the act (task-561), so a victim can find it: see
+    :mod:`agentjobs.dispatch.kills`.
+    """
+    site = "runner._kill_tree"
+    identity = process_identity(pid)
+    kills.record(site, pid, identity=identity)
     if os.name == "nt":
-        subprocess.run(
+        done = subprocess.run(
             ["taskkill", "/PID", str(pid), "/T", "/F"],
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
             check=False,
+        )
+        kills.record(
+            site,
+            pid,
+            phase="ended",
+            identity=identity,
+            output=f"{done.stdout}{done.stderr}",
+            returncode=done.returncode,
         )
         return True
     try:
