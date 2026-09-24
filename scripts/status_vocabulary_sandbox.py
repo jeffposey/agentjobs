@@ -394,7 +394,7 @@ def main() -> None:
     runs(home)
     patch_the_drawn_parts()
 
-    import uvicorn
+    from sandbox_serve import serve  # type: ignore[import-not-found]
 
     from agentjobs.api.main import app
 
@@ -408,7 +408,7 @@ def main() -> None:
     # and reap the seeded runs and finish, and those sitting where they were put is the
     # exhibit. Everything a browser touches is served by the real application.
     try:
-        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", lifespan="off")
+        serve(app, port=port, lifespan="off")
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
