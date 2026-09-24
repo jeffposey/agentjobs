@@ -1394,6 +1394,41 @@ never close enough to failing for anyone to know how much margin is left. Promot
 should also come with the reserve question above settled, since the paired case is the
 one that matters and it is the case the reserve is worst at.
 
+### A slow gate on a machine short of memory (task-548)
+
+On 2026-09-23 the dispatch machine lost about 30 GB over an afternoon. pytest went from
+about 180s a gate to 1,000-1,900s, and nothing on any gate pointed at memory until the
+owner rebooted, which cleared the evidence. So every gate now reports free memory:
+
+- `Memory at start:` near the top, with available physical memory, commit and the floor.
+- A `free GB` block under the timing table: available memory at each stage's start and
+  end, and the lowest a 5-second sampler saw while it ran.
+- A `LOW MEMORY:` sentence, under the stage and again at the end, for each stage that ran
+  below the floor (and one up front if the gate started below it). The finisher lifts
+  these into its record, before the failure on a red gate and after the verdict on a
+  green one.
+- `free_mb_start`, `free_mb_low` and `low_memory` on `gate_run`, and the per-stage
+  readings on `gate_stage` (migration 009), plus the same fields on the phase events.
+
+**The floor is 8 GB** of available memory (standby counts as available), or 8 GB of
+commit headroom. `AGENTJOBS_MEMORY_FLOOR_MB` overrides it. A fresh boot leaves about 33 GB
+with runs going, and a whole gate peaks at 5.7 GB of its own, so neither trips it.
+
+**Below the floor, a census is written** to `~/.agentjobs/memory/<UTC stamp>/`, from the
+gate or the poller, whichever sees it first. At most one is written per half hour, and the
+throttle is read off the disk. `agentjobs memory census` takes one on demand, and
+`agentjobs memory now` prints the readings. The census holds the commit, pool and
+standby counters, plus every agent process with its parent, whether that parent is
+alive, its working set and private bytes, and the run or worktree it belongs to. **Read
+it in this order:**
+
+1. A large private total on processes whose parent is dead: orphans. A cancel now ends
+   the session's tree (`dispatch/proctree.py`); a run that *died* is not yet reaped.
+2. A small process total with a large nonpaged pool: a driver, not this repository.
+   RAMMap confirms it. It is not scripted: open Sysinternals RAMMap and File > Save into
+   the same capture directory.
+3. A large standby list is cache, and the OS gives it back. It is not the leak.
+
 ### How many gates a run launches (task-339)
 
 Task-233 made one gate cost 96s and the per-task gate bill did not fall, because the
