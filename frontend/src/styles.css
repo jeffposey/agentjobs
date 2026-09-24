@@ -307,15 +307,15 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   }
 }
 
-/* Waiting on a person (task-577): a quick double blink, then a long rest -- one blink
-   pair every 7s. Each blink tints the chip faintly and throws a soft glow in its own
-   colour. Tuned across two owner reviews on 2026-09-24: a glow alone was too subtle, and
-   a strong flood every 1.4s was far too much, so this is that flood at a quarter of the
-   strength and a fifth of the rate. The blinks keep their 0.7s shape so each one still
-   reads as a flash rather than a slow breath. The tint is the pseudo-element behind the
-   text and the glow is a shadow, so neither takes room. */
+/* Waiting on a person (task-577): a constant slow pulse, one smooth breath in and out
+   every 3s. The chip tints faintly and throws a soft glow in its own colour, then fades
+   back, with no rest in between. Tuned across three owner reviews on 2026-09-24: a glow
+   alone was too subtle, a strong double blink every 1.4s far too much, and the same blink
+   every 7s was traded for this steady pulse. The class keeps the name "flash", which is
+   what StatusChip.tsx maps to. The tint is the pseudo-element behind the text and the
+   glow is a shadow, so neither takes room. */
 .chip-motion-flash {
-  animation: chip-flash 7s ease-out infinite;
+  animation: chip-flash 3s ease-in-out infinite;
 }
 
 .chip-motion-flash::before {
@@ -323,7 +323,7 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   border-radius: inherit;
   background: currentColor;
   opacity: 0;
-  animation: chip-flash-fill 7s ease-out infinite;
+  animation: chip-flash-fill 3s ease-in-out infinite;
 }
 
 @keyframes chip-flash {
@@ -331,28 +331,18 @@ tr[data-drop-side="after"] > .responsive-table-cell {
   100% {
     box-shadow: 0 0 0 0 transparent;
   }
-  1.2%,
-  6.4% {
-    box-shadow: 0 0 10px 3px color-mix(in srgb, currentColor 21%, transparent);
-  }
-  3.6%,
-  9.6% {
-    box-shadow: 0 0 2px 0 color-mix(in srgb, currentColor 5%, transparent);
+  50% {
+    box-shadow: 0 0 8px 2px color-mix(in srgb, currentColor 30%, transparent);
   }
 }
 
 @keyframes chip-flash-fill {
   0%,
-  9.6%,
   100% {
     opacity: 0;
   }
-  1.2%,
-  6.4% {
-    opacity: 0.09;
-  }
-  3.6% {
-    opacity: 0.01;
+  50% {
+    opacity: 0.12;
   }
 }
 
