@@ -40,6 +40,7 @@ import yaml
 
 from agentjobs.dispatch import program
 from agentjobs import clock as dispatch_clock
+from agentjobs.dispatch import proctree
 from agentjobs.dispatch.config import sentinel_path
 from agentjobs.dispatch.record_commit import commit_task_record
 from agentjobs.dispatch.credentials import revoke_run_credential
@@ -1369,6 +1370,15 @@ def write_status(record: RunRecord, **fields: object) -> None:
 # ----- stopping things --------------------------------------------------------
 
 
+SESSION_TREE_READER: Callable[[], List["proctree.Proc"]] = proctree.process_table
+"""How a session stop reads the machine's processes (task-548).
+
+A module attribute so the suite can replace it: ``tests/conftest.py`` points it at an
+empty table for every test, because a test cancelling a fake session must never read --
+or end -- the tree of a real one that happens to share a prefix.
+"""
+
+
 @dataclass(frozen=True)
 class StopResult:
     """What happened when a run was asked to stop."""
@@ -1621,20 +1631,42 @@ class DispatchLedger:
         return self._stop_batch(record)
 
     def _stop_session(self, record: RunRecord) -> StopResult:
-        """`claude stop <id>`, and nothing else.
+        """`claude stop <id>`, then end what the session leaves behind (task-548).
 
-        Deliberately not reimplemented with signals. The session manager owns the
-        process; going around it with a pid would leave its ledger claiming a session
+        The session itself is stopped by the session manager and not reimplemented with
+        signals: going around it with a pid would leave its ledger claiming a session
         that no longer exists, and would lose the conversation that `stop` preserves.
+
+        **But `stop` ends `claude.exe` and nothing it started.** On Windows a child
+        outlives its parent, so a gate in flight -- `check.py`, `pytest -n 26`, its
+        workers -- and both MCP servers kept running after every cancel, which is how
+        the machine lost about 30 GB on 2026-09-23. So the session's tree is read
+        *before* the stop, while every parent link is live, and whatever in it survives
+        the stop is ended afterwards, each process checked by creation time through the
+        handle that ends it. See :mod:`agentjobs.dispatch.proctree`.
         """
         if not record.session_id:
             return StopResult(record.run_id, False, "no session id recorded")
+        roots, tree, tree_error = proctree.session_tree(
+            record.session_id, table=SESSION_TREE_READER
+        )
         try:
             completed = self._session("stop", record.session_id)
         except LedgerError as exc:
             return StopResult(record.run_id, False, str(exc))
         if completed.returncode == 0:
-            return StopResult(record.run_id, True, f"stopped session {record.session_id}")
+            detail = f"stopped session {record.session_id}"
+            if tree_error:
+                return StopResult(
+                    record.run_id,
+                    True,
+                    f"{detail}; its process tree could not be read, so nothing it left "
+                    f"behind was ended: {tree_error}",
+                )
+            reaped = proctree.reap(
+                tree, roots=roots, table=SESSION_TREE_READER, end=proctree.terminate
+            )
+            return StopResult(record.run_id, True, f"{detail}; {reaped.sentence()}")
         return StopResult(
             record.run_id,
             False,
