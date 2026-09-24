@@ -943,3 +943,23 @@ def test_the_retraction_sweep_is_throttled_rather_than_run_every_tick(machine) -
     poll_live_sessions(home)
 
     assert poller._last_retraction_sweep == first, "it swept again inside the window"
+
+
+def test_a_throttle_stamp_from_another_clock_does_not_stop_the_sweep(machine) -> None:
+    """A stamp in the future of now is a clock change, not a recent sweep (task-546).
+
+    A test under a skipping clock stamped the throttle with thousands of fake seconds;
+    within two hours of a reboot that read as the future against real uptime, and the
+    sweep skipped every tick until uptime caught up. The throttle window is left at its
+    real value here on purpose: the fault was in how it read a stamp, not in the window.
+    """
+    import time as _time
+
+    from agentjobs.dispatch import poller
+
+    home, _root, _manager, _cli = machine
+    poller._last_retraction_sweep = _time.monotonic() + 10_000
+
+    poll_live_sessions(home)
+
+    assert poller._last_retraction_sweep <= _time.monotonic(), "a future stamp stopped the sweep"
