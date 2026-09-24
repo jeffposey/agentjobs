@@ -84,7 +84,7 @@ reconciliation). A row's `status` cell is what the epic's close condition reads.
 | 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | a reconcile judged a live launcher's never-launched attempt abandoned by comparing the OS creation time of `holder_pid` with an `admitted_at` written through the installed clock; under the durable-replay suite's frozen clock that clock read earlier than the holder's own start, so a live holder looked like a recycled pid and a second dispatch took its slot | production defect | **fixed** (task-549, `faed64f2`: admission records the holder's `process_identity` and both holder checks compare receipts, with the timestamp kept only as a fallback for older rows) |
 | 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix | test premise | **fixed** (task-515) -- see below |
 | 17 | `test_dispatch_atomic_yaml.py::TestTheDocumentIsNeverHalfWritten::test_a_reader_never_sees_a_partial_document` | `461 of 1153 reads saw a document without run_id` | a refusal to open the file that outlasted the reader's 40ms retry budget answered *absent*: `read_yaml_resiliently` returned `None`, and `read_meta` turned that into `{}`. Reproduced by holding the file exclusively, as a real-time scanner would; the organic load did not reproduce it | production defect | **fixed** (task-550) -- see below |
-| 18 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | `PermissionError: [Errno 13]` reading the test's own `grandchild.pid`, then `Cannot operate on a closed database` -- not a timeout | not named. The writer closes the file before renaming it, so something else held it or was replacing it: a second parent, or a scanner. Seen 1 of 20 in task-546's probe (`-n 13`, 2 slots held), on the cold first run | unknown | open -- **task-553** |
+| 18 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | `PermissionError: [Errno 13]` reading its own `grandchild.pid`, then `Cannot operate on a closed database` | the read landed after `os.replace` made the name visible but before `MoveFileExW` closed its DELETE-access handle; a plain `open` does not share delete, so it hit a sharing violation. One writer is enough | test premise | **fixed** (task-553) -- see below |
 
 **14-16 observed** 2026-09-23 about 21:50 UTC in task-526's finish `fin_8f638f51` on
 `b6be1fd9`, a branch touching only the finisher's classification, the failure rollup and
@@ -538,6 +538,51 @@ same kill then left every port free within 3 seconds on 3 of 3 runs.
 `tests/test_e2e_server_owner.py` pins the pieces. That includes the first version's own
 defect: it printed before stopping, the print raised on a stdout piped to the dead
 runner, and the watcher thread died before it could stop anything.
+
+### 18. A marker that existed and could not be opened (fixed, task-553)
+
+Seen once, 2026-09-24, in task-546's eight-file probe at `-n 13`, on a cold first run
+that took 134.6s. Row 4 is the same test with a different signature (a timeout) and a
+different cause. The test waits for `grandchild.pid` to exist and then reads it. The
+parent writes it by `os.replace`, so the file is never half-written, and the reader
+assumed that a file which exists can be opened.
+
+On Windows it cannot always be opened. `os.replace` is `MoveFileExW`, which opens the
+source with DELETE access, renames it through that handle, and closes the handle after the
+new name is already visible. Python's `open` asks for `FILE_SHARE_READ | FILE_SHARE_WRITE`
+and not `FILE_SHARE_DELETE`, so an open in that window fails with
+`ERROR_SHARING_VIOLATION` (winerror 32), which surfaces as errno 13. The reduction, one
+writer renaming onto a fresh name 3000 times and a reader polling `exists()` and then
+reading at once:
+
+| reader | result |
+|---|---|
+| `Path.read_text()` | **2826 of 3000** raised errno 13 (2727 beside 12 CPU spinners) |
+| raw `CreateFileW`, same share mode | 1859 of 2000 failed, **all winerror 32** (not 5, which would mean a delete-pending target) |
+| `atomic_yaml.read_shared` | **0 of 3000**, and 0 of 3000 beside 12 spinners |
+| `read_text()` 1ms after `exists()` | 0 of 2000, and 0 of 1000 beside 12 spinners |
+
+The window is shorter than a millisecond. The test polls every 50ms, so it lands in the
+window only when the parent is preempted between the rename and the close, which a cold,
+loaded run does. **The draft's reading, the grandchild holding the file, is ruled out**:
+the grandchild never touches it. **A second launch is not needed**: the reduction has one
+writer and one rename per name, and it fails nearly every time. The batch runner has one
+`Popen` with no retry, so there is also no path by which a second one could happen.
+
+A probe with the read instrumented ran 20 times at `-n 13` with 2 slots held. On errno 13
+it would have recorded the parent's launch count and the winerror of an immediate reopen.
+This red did not recur. At about 1 in 20 cold runs, 20 runs cannot be expected to show it,
+which is why the reduction is the evidence. After the fix, the same eight files ran
+**0 red in 20** at `-n 8` with three gates holding slots, a busier machine, and run 1 was
+cold at 68s. **The fix** is to read the marker with `read_shared`, which
+opens it with FILE_SHARE_DELETE, and the reason is in the test. The rejected alternative
+was a short sleep, or a retry, after `exists()`. That is a timing assumption and would
+return under enough load. `test_a_file_a_rename_has_not_yet_let_go_of_is_readable_shared_and_not_plainly`
+pins the mechanism with a held DELETE handle rather than a race.
+
+The closed-database error that followed is the consequence, not a second cause. The test
+died before `join(handle)`, so the supervisor thread outlived the fixture's store. That
+is row 11's class (task-497).
 
 ### 10, 11 and 12, filed before this page existed (all resolved since -- see the table)
 
