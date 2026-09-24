@@ -78,7 +78,7 @@ test("walks the whole drafts loop: create, find through the dashboard, promote",
   // Gone, because the ball has left the human -- and the state a human reads is
   // the promoted one, not merely different markup.
   await expect(page.getByRole("region", { name: "Draft actions" })).toBeHidden();
-  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Actionable now");
+  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Ready");
 
   const log = page.getByRole("region", { name: "Task log" });
   await expect(log).toContainText("Spec is finished; open for claiming.");
@@ -92,7 +92,7 @@ test("wears the review vocabulary once a task is past draft", async ({ page }) =
   // Ready/agent-available: the ball is not with the human, so no action panel at all.
   await expect(page.getByRole("region", { name: "Draft actions" })).toBeHidden();
   await expect(page.getByRole("region", { name: "Review actions" })).toBeHidden();
-  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Actionable now");
+  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Ready");
 });
 
 test("promoting without a note records the manager's own sentence", async ({ page }) => {

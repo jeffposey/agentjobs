@@ -77,7 +77,7 @@ test("authors a full task from the capture control and stores every field", asyn
   await page.goto("/app/p/_local/tasks?status=all");
   const tasks = page.getByRole("region", { name: "Tasks" });
   await expect(tasks.getByText("Playwright-created task")).toBeVisible();
-  await expect(tasks.getByText("Actionable now")).toBeVisible();
+  await expect(tasks.locator("[data-status-category=ready]")).toHaveText("Ready");
 });
 
 test("files a second task without the dialog remembering the first", async ({ page }) => {
