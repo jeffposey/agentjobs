@@ -152,6 +152,9 @@ async function withClosures(page: Page, count: number) {
         project_id: index % 2 === 0 ? "_local" : "another",
         project_name: index % 2 === 0 ? "This Project" : "Another Project Entirely",
         outcome: index === 1 ? "superseded" : "completed",
+        // What the server sends beside the outcome since task-562, and what the row draws.
+        display_status: index === 1 ? "Superseded" : "Completed",
+        status_category: index === 1 ? "closed_unfinished" : "closed",
         closed_at: new Date(Date.now() - (index + 1) * 3_600_000).toISOString(),
         age_seconds: (index + 1) * 3_600,
         task_url: `/p/${index % 2 === 0 ? "_local" : "another"}/tasks/task-${600 + index}`,
@@ -415,7 +418,7 @@ for (const [state, rows] of [
         await expect(page.getByTestId("closure-row")).toHaveCount(rows);
         // The rendered value, not the markup: the outcome and the project are what a
         // reader scans a row for, and both belong to the row's own project.
-        await expect(region).toContainText("superseded");
+        await expect(region).toContainText("Superseded");
         await expect(region).toContainText("Another Project Entirely");
       } else {
         await expect(region).toContainText("Nothing has finished in the last 7 days.");

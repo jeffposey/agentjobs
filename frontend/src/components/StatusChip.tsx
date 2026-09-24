@@ -57,8 +57,11 @@ export const CHIP_SHAPE = "inline-flex whitespace-nowrap rounded border px-2 py-
  * capitalised, so a lowercase source cannot reach the screen lowercase. The rest is left
  * as written because a label like "Needs spec" is already the data file's exact word.
  */
-export function chipCase(label: string): string {
-  return label.charAt(0).toUpperCase() + label.slice(1);
+export function chipCase(label: string | null | undefined): string {
+  // Absent from a server older than the field that carries it. A chip is one element of
+  // a page; an empty one is a defect to notice, a thrown one takes the whole page down.
+  const word = label ?? "";
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 export function StatusChip({

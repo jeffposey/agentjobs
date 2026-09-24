@@ -153,9 +153,10 @@ test("send feedback and reject still work on a draft, unchanged", async ({ page,
     "The acceptance criteria are not testable yet.",
   );
   // Still a draft, now with the agent, reason revise -- which is exactly what
-  // feedback on a spec should mean: go rewrite it, it is not ready yet. And the
-  // panel is gone, because the ball is no longer with the human.
-  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Revising");
+  // feedback on a spec should mean: go rewrite it, it is not ready yet. A draft not
+  // waiting on a person reads "Draft" (task-562), and the panel is gone, because the
+  // ball is no longer with the human.
+  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Draft");
   await expect(page.getByRole("region", { name: "Draft actions" })).toBeHidden();
 
   await createTask(page, "Draft that gets rejected", "Draft");

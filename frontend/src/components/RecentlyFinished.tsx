@@ -100,7 +100,12 @@ function ClosureRow({ closure }: { closure: ClosureView }) {
         </div>
         <div className="flex shrink-0 items-center gap-2 text-xs text-dark-muted">
           <span data-outcome={closure.outcome} className="inline-flex">
-            <StatusChip category={closure.status_category} label={closure.display_status} />
+            {/* The outcome only as a fallback, for a server older than display_status:
+                the word is the server's whenever it sends one. */}
+            <StatusChip
+              category={closure.status_category}
+              label={closure.display_status ?? closure.outcome}
+            />
           </span>
           <span className="truncate">{closure.project_name}</span>
           <time dateTime={closure.closed_at} className="whitespace-nowrap">

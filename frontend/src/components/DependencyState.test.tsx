@@ -279,3 +279,12 @@ describe("DependencyState in a list column", () => {
     expect(chip()).toHaveTextContent("Ready");
   });
 });
+
+describe("a response from an older server", () => {
+  it("draws an empty chip rather than taking the page down when the word is missing", () => {
+    const older = task({ display_status: undefined as unknown as string });
+
+    expect(() => render(<DependencyState task={older} />)).not.toThrow();
+    expect(chip().textContent).toBe("");
+  });
+});
