@@ -198,6 +198,12 @@ installed from a phone or tablet browser as a Progressive Web App (PWA). See
 [Mobile and installed-app access](docs/mobile-access.md) for the secure setup and its
 network-only task-data behavior.
 
+**Tailscale is recommended, not required.** Everything works on one machine without it.
+With it, the dashboard reaches your phone and tablet over the tailnet, and AgentJobs uses
+it wherever it is available: the review sandboxes agents stand up to show you a UI change
+serve the tailnet address as well as loopback, so the link in a review request opens on
+your mobile devices too.
+
 The production React bundle is included in the Python package. Running an installed
 release therefore requires Python, but not Node, npm, a separate frontend server, or
 a particular desktop operating system.
