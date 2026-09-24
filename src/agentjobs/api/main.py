@@ -36,6 +36,7 @@ from agentjobs.store_factory import close_databases, mark_server_process
 
 from .authorization import Forbidden, enforce_capability
 from .live_finish import bind_live_finishes
+from .live_run import bind_live_runs
 from .queued_dispatch import bind_queued_dispatches
 from .dependencies import PRINCIPAL_STATE_ATTR, resolve_request_principal
 from .routes import (
@@ -273,6 +274,7 @@ app = FastAPI(
         Depends(enforce_capability),
         Depends(bind_queued_dispatches),
         Depends(bind_live_finishes),
+        Depends(bind_live_runs),
     ],
 )
 

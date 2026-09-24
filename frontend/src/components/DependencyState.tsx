@@ -1,5 +1,5 @@
 import type { StatusCategory, TaskSummaryRead } from "../api/types";
-import { StatusChip } from "./StatusChip";
+import { type ChipMotion, StatusChip, taskMotion } from "./StatusChip";
 
 /**
  * A task's chip and the reason line under it.
@@ -19,11 +19,13 @@ export function dependencyState(task: TaskSummaryRead): {
   category: StatusCategory;
   label: string;
   reasons: string[];
+  motion: ChipMotion | null;
 } {
   return {
     category: task.status_category,
     label: task.display_status,
     reasons: reasonsFor(task),
+    motion: taskMotion(task),
   };
 }
 
@@ -114,7 +116,7 @@ export function DependencyState({ task, compact = false }: { task: TaskSummaryRe
   return (
     <div className={compact ? "space-y-1" : "space-y-2"}>
       <span className="inline-flex flex-wrap items-center gap-1">
-        <StatusChip category={state.category} label={state.label} />
+        <StatusChip category={state.category} label={state.label} motion={state.motion} />
         {task.archived && <ArchivedTag />}
       </span>
       {compact

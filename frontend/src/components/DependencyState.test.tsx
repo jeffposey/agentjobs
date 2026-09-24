@@ -288,3 +288,23 @@ describe("a response from an older server", () => {
     expect(chip().textContent).toBe("");
   });
 });
+
+describe("a task chip moves only when a live fact backs it (task-570)", () => {
+  const working = { lifecycle: "active", ball_reason: "work", display_status: "Working", status_category: "working" } as const;
+
+  it("orbits a Working task whose run is producing output", () => {
+    render(<DependencyState task={task({ ...working, live_run_health: "working" })} />);
+    expect(chip()).toHaveAttribute("data-motion", "orbit");
+  });
+
+  it("keeps a Working task still when no live run backs it", () => {
+    render(<DependencyState task={task(working)} />);
+    expect(chip()).not.toHaveAttribute("data-motion");
+    expect(chip().className).not.toContain("chip-motion");
+  });
+
+  it("keeps a Working task still when its run is parked", () => {
+    render(<DependencyState task={task({ ...working, live_run_health: "parked" })} />);
+    expect(chip()).not.toHaveAttribute("data-motion");
+  });
+});

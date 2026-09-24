@@ -979,7 +979,7 @@ export function TaskList({
                 </span>
               </Link>
               <div className="mt-1 flex flex-wrap items-center gap-1" data-field="status">
-                <StatusChip category={state.category} label={state.label} />
+                <StatusChip category={state.category} label={state.label} motion={state.motion} />
                 {task.archived && <ArchivedTag />}
                 <span className={`rounded px-1.5 text-xs ${PRIORITY_CLASSES[task.priority ?? "medium"]}`}>
                   {task.priority ?? "medium"}

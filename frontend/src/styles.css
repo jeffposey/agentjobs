@@ -248,3 +248,72 @@ tr[data-drop-side="after"] > .responsive-table-cell {
     font-weight: 600;
   }
 }
+
+/* ----- Status chips that move (task-570) ---------------------------------------------
+   The classes are mapped to states in one place, `MOTION_CLASSES` in StatusChip.tsx; a
+   chip moves only when a live fact backs it, and every live chip moves the same way (owner
+   decision, 2026-09-24). The motion is a pseudo-element, never a size or a margin, so a
+   moving chip is exactly as wide and as tall as a still one and nothing beside it shifts.
+   It is tinted with `currentColor`, the chip's own text colour -- the light tint of its
+   category's hue. */
+
+@property --orbit-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.chip-motion {
+  position: relative;
+  /* Its own stacking context, so a z-index of -1 on the ring paints above the chip's
+     fill and border and below its text. */
+  isolation: isolate;
+}
+
+.chip-motion::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* A short bright arc running round the border, one lap every 2.4s. A ring the
+   width of the border, masked out of a conic gradient whose start angle turns. */
+.chip-motion-orbit::before {
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--orbit-angle),
+    transparent 0deg 250deg,
+    color-mix(in srgb, currentColor 35%, transparent) 300deg,
+    currentColor 350deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation: chip-orbit 2.4s linear infinite;
+}
+
+@keyframes chip-orbit {
+  to {
+    --orbit-angle: 360deg;
+  }
+}
+
+/* Reduced motion: nothing moves, and a live chip keeps one still cue -- an outer ring in
+   its own tint -- so it can still be told apart from a chip that is not live. */
+@media (prefers-reduced-motion: reduce) {
+  .chip-motion::before {
+    animation: none;
+    display: none;
+  }
+  .chip-motion {
+    box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 55%, transparent);
+  }
+}

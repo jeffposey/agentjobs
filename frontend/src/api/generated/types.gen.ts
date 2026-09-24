@@ -6620,6 +6620,10 @@ export type TaskCardReadInput = {
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
     /**
+     * Live Run Health
+     */
+    live_run_health?: string | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -6771,6 +6775,10 @@ export type TaskCardReadOutput = {
     id: string;
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
+    /**
+     * Live Run Health
+     */
+    live_run_health?: string | null;
     /**
      * Needs Cycles
      */
@@ -7212,6 +7220,10 @@ export type TaskReadInput = {
     links?: Array<Link>;
     live_finish?: LiveFinishState | null;
     /**
+     * Live Run Health
+     */
+    live_run_health?: string | null;
+    /**
      * Log
      */
     log?: Array<LogEntry>;
@@ -7359,6 +7371,10 @@ export type TaskReadOutput = {
     links?: Array<Link>;
     live_finish?: LiveFinishState | null;
     /**
+     * Live Run Health
+     */
+    live_run_health?: string | null;
+    /**
      * Log
      */
     log?: Array<LogEntry>;
@@ -7495,6 +7511,10 @@ export type TaskSummaryReadInput = {
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
     /**
+     * Live Run Health
+     */
+    live_run_health?: string | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -7627,6 +7647,10 @@ export type TaskSummaryReadOutput = {
     id: string;
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
+    /**
+     * Live Run Health
+     */
+    live_run_health?: string | null;
     /**
      * Needs Cycles
      */
@@ -8464,6 +8488,10 @@ export type TaskCardReadOutputWritable = {
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
     /**
+     * Live Run Health
+     */
+    live_run_health?: string | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -8635,6 +8663,10 @@ export type TaskReadOutputWritable = {
     links?: Array<Link>;
     live_finish?: LiveFinishState | null;
     /**
+     * Live Run Health
+     */
+    live_run_health?: string | null;
+    /**
      * Log
      */
     log?: Array<LogEntry>;
@@ -8766,6 +8798,10 @@ export type TaskSummaryReadOutputWritable = {
     id: string;
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
+    /**
+     * Live Run Health
+     */
+    live_run_health?: string | null;
     /**
      * Needs Cycles
      */

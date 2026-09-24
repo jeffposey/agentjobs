@@ -44,6 +44,7 @@ from agentjobs.models_v2 import (
 )
 
 from .live_finish import live_finish_for
+from .live_run import live_run_health_for
 from .queued_dispatch import queued_dispatch_for
 
 
@@ -111,6 +112,23 @@ class TaskRead(Task):
     which step it is waiting on, and matching on the prose of a label is what
     ENGINEERING.md's rendered-value rule exists to prevent.
     """
+
+    live_run_health: Optional[str] = None
+    """The run board's health word for the live run holding this task, or ``None``.
+
+    ``working``, ``starting``, ``parked``, ``silent`` and the rest of ``ledger.run_health``,
+    from the same function the Runs tab draws with (task-570). It exists so a chip can
+    animate only when a run is really doing something: "Working" is derived from the
+    record alone, and a task whose session died still reads it. Filled by the
+    request-scoped binding `api.live_run` installs, one scan of the live run locks per
+    request.
+    """
+
+    @model_validator(mode="after")
+    def _fill_live_run_health(self) -> "TaskRead":
+        """Ask this request's live runs about the task, overwriting what was passed."""
+        self.live_run_health = live_run_health_for(self.id)
+        return self
 
     @model_validator(mode="after")
     def _fill_self_clearing_wait(self) -> "TaskRead":
@@ -228,6 +246,23 @@ class TaskSummaryRead(TaskSummary):
     listing row because the list is the surface this exists for: it is where a finishing
     task used to read "In progress" beside tasks an agent was genuinely working.
     """
+
+    live_run_health: Optional[str] = None
+    """The run board's health word for the live run holding this task, or ``None``.
+
+    ``working``, ``starting``, ``parked``, ``silent`` and the rest of ``ledger.run_health``,
+    from the same function the Runs tab draws with (task-570). It exists so a chip can
+    animate only when a run is really doing something: "Working" is derived from the
+    record alone, and a task whose session died still reads it. Filled by the
+    request-scoped binding `api.live_run` installs, one scan of the live run locks per
+    request.
+    """
+
+    @model_validator(mode="after")
+    def _fill_live_run_health(self) -> "TaskSummaryRead":
+        """Ask this request's live runs about the task, overwriting what was passed."""
+        self.live_run_health = live_run_health_for(self.id)
+        return self
 
     @model_validator(mode="after")
     def _fill_queued_dispatch(self) -> "TaskSummaryRead":

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import inventory from "../../status-surfaces.md?raw";
 import { HEALTH_LABELS } from "../components/LiveRuns";
+import { MOTION_CLASSES, runMotion, taskMotion } from "../components/StatusChip";
 
 /**
  * Every surface that renders a task's state is named, and draws it from the agreed
@@ -120,5 +121,64 @@ describe("the agreed sources", () => {
     // `derived_display_status` returns "Finishing"; tests/test_status_surfaces.py reads
     // this same map from the Python side, so the two cannot drift apart silently.
     expect(HEALTH_LABELS.finishing).toBe("Finishing");
+  });
+});
+
+describe("the chips that move (task-570)", () => {
+  it("maps a state to a motion in one place", () => {
+    // A second file naming a motion or its class is a surface deciding for itself what
+    // counts as "happening now" -- the drift task-533 found with the word "Finishing".
+    for (const [path, text] of Object.entries(sources)) {
+      if (path === "components/StatusChip.tsx") continue;
+      expect(code(text), `${path} names a chip motion itself`).not.toMatch(
+        /chip-motion|["']orbit["']/,
+      );
+    }
+  });
+
+  it("keeps keyframes in the stylesheet, not in a component", () => {
+    for (const [path, text] of Object.entries(sources)) {
+      expect(code(text), `${path} defines an animation inline`).not.toMatch(
+        /@keyframes|animate-[a-z]|animation\s*:|requestAnimationFrame/,
+      );
+    }
+  });
+
+  it("moves every kind of activity the same way", () => {
+    // Owner decision, 2026-09-24: one motion for every live chip, not one per kind.
+    const kinds = [runMotion("working"), runMotion("starting"), runMotion("finishing")];
+    expect(new Set(kinds).size).toBe(1);
+    expect(Object.keys(MOTION_CLASSES)).toEqual([kinds[0]]);
+  });
+
+  it("moves no run chip that is a wait or a process state", () => {
+    for (const health of ["handback", "parked", "silent", "idle", "orphaned", "work_done", "unknown"]) {
+      expect(runMotion(health), health).toBeNull();
+    }
+  });
+
+  it("moves a task chip only when a live fact backs it", () => {
+    const working = { status_category: "working" as const };
+    expect(taskMotion({ ...working, live_run_health: "working" })).toBe(runMotion("working"));
+    expect(taskMotion({ ...working, live_run_health: "starting" })).toBe(runMotion("working"));
+    // "Working" from the record alone: the session is gone, parked or silent.
+    expect(taskMotion(working)).toBeNull();
+    for (const health of ["parked", "silent", "orphaned", "handback", "idle"]) {
+      expect(taskMotion({ ...working, live_run_health: health }), health).toBeNull();
+    }
+
+    const finish = { current_step: "gate" };
+    expect(taskMotion({ status_category: "finishing", live_finish: finish })).toBe(runMotion("finishing"));
+    expect(taskMotion({ status_category: "finishing" })).toBeNull();
+
+    expect(taskMotion({ status_category: "queued", queued_dispatch: { status: "starting" } })).toBe(
+      runMotion("starting"),
+    );
+    expect(taskMotion({ status_category: "queued", queued_dispatch: { status: "waiting" } })).toBeNull();
+
+    // A live run under a chip that is not "Working" -- review, hold, closed -- stays still.
+    for (const category of ["needs_you", "not_now", "ready", "draft", "closed", "closed_unfinished"] as const) {
+      expect(taskMotion({ status_category: category, live_run_health: "working" }), category).toBeNull();
+    }
   });
 });
