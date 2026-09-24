@@ -65,7 +65,7 @@ ready to paste -- nodeid, assertion text, how many gates were running and both g
 | 11 | `test_dispatch_api.py::TestDispatchRuns::test_a_finished_run_reports_its_outcome_and_its_captured_output` | `sqlite3.ProgrammingError: Cannot operate on a closed database` | a supervisor thread outlives its test and writes through a store the fixture has closed | teardown lifetime | open -- **task-497** |
 | 12 | whichever test an xdist worker happens to be running (`test_auto_dispatch.py` and `test_dispatch_api.py` seen) | `Windows fatal exception: access violation`, `worker 'gwN' crashed` | `_classify_batch_exit` reads SQLite from a background thread while the fixture closes the database | teardown lifetime | open -- **task-438** |
 | 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone | environment, or entry 3's cause not fully removed | open -- see below |
-| 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | not named; the process-global sweep throttle is the first suspect | unknown | open -- **task-546**; seen by finish `fin_8f638f51` and by task-522 |
+| 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | a skipping clock's stamp (up to 7190 fake seconds) left in the process-global sweep throttle read as the future against real uptime within two hours of a reboot, and the throttle skipped on a future stamp | production defect, surfaced by test state leaking between tests | **fixed** (task-546) |
 | 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | not named. Reproduces on `main` df398c13 under load: 1 of 48 runs with 12 copies at once, 30 of 30 green run alone (task-525, 2026-09-23) | production defect, until shown otherwise | open -- **task-549**; seen by finish `fin_8f638f51` |
 | 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | not named | unknown | open -- seen by finish `fin_8f638f51` |
 | 17 | `test_dispatch_atomic_yaml.py::TestTheDocumentIsNeverHalfWritten::test_a_reader_never_sees_a_partial_document` | `461 of 1153 reads saw a document without run_id` | not named. Seen once in about ten full runs on 2026-09-23 (task-525's measurements) | production defect, until shown otherwise | open -- **task-550**, needs a reproduction |
@@ -412,7 +412,7 @@ does not create that load. The evidence is the two deterministic pairs above. Th
 pair is recorded because the spec asked for it and because a red result in it would have
 meant something.
 
-### 14. The retraction sweep that swept nothing (open, task-546)
+### 14. The retraction sweep that swept nothing (fixed, task-546)
 
 Seen twice on 2026-09-23, independently: in finish `fin_8f638f51` (above, with 15 and 16),
 and in task-522's own run. In the second it failed with `AssertionError: []` while
@@ -422,7 +422,38 @@ and on `main`, and that branch's diff does not reach it. The first suspect is no
 confirmed: `_last_retraction_sweep` is process-global, and this test, unlike its
 neighbour, does not reset it. The test sets the interval to zero, so the sweep skips only
 if the stamp reads *later* than this test's `now`: a thread still polling, or a stamp
-taken from a different clock. **Reproduction:** not reduced yet.
+taken from a different clock.
+
+**Cause, proved 2026-09-24 (task-546): a stamp from a different clock.** The throttle
+stamps `agentjobs.clock.monotonic()`, which reads whatever clock is installed.
+`tests/dispatch/test_durable_replay.py` ticks the poller under a `SkippingClock`, whose
+monotonic starts at 0 and jumps by every skipped sleep. It does not stub the sweep, so it
+leaves fake offsets in the stamp: 10, 310, 906, 1910, and finally 7190 after
+`test_a_usage_limit_parks_on_the_service_and_resumes_once_after_the_reset`. On Windows,
+`time.monotonic()` is roughly uptime. The machine rebooted at about 15:59 CDT on
+2026-09-23, and task-522's red came about 2400s later, so a 7190 stamp read as the future.
+With the interval at zero the sweep skips only on a negative gap, and it skipped every tick
+in that worker until uptime passed the stamp. At normal uptime (about 68,000s when this was
+reduced) no fake stamp is in the future, which is why the test passed alone and why the
+load probe could not have found it.
+
+| arm | result |
+|---|---|
+| stamp set to `time.monotonic() + 10_000`, test run alone, `main` 89dbab15 | **red**, `AssertionError: []` |
+| the durable-replay test above, then this one in one process, with only this test's clock shifted to read uptime 2400s, `main` | **red**, `AssertionError: []`, stamp before it 7190.0 |
+| this test alone under the same shift, `main` | green |
+| both arms after the fix | green |
+
+**Fix, two layers.** *Production:* `_retract_resolved_asks` now throttles only on
+`0 <= now - last < interval`. A stamp in the future of `now` means the clock changed, not
+that the sweep ran recently. Without that, a stuck stamp keeps a stale ask held and the
+attention badge lit. *Tests:* an autouse fixture in `tests/conftest.py` resets the stamp
+before every test, so one test's timeline cannot reach another's. The regression test is
+`test_a_throttle_stamp_from_another_clock_does_not_stop_the_sweep`. It is red without the
+production change and runs with the real 300s window.
+
+`idle_sessions.tick` has the same throttle shape. It is keyed per `home`, and every test
+has its own tmp home, so this leak cannot reach it across tests. It was not changed.
 
 ### 10, 11 and 12, filed before this page existed, open
 
