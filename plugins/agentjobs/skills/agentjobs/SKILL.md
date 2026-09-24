@@ -57,7 +57,8 @@ context can pick the work up:
 | give it back | `task_release` |
 | finish it | `task_close` |
 | edit the spec | `task_update_content` |
-| add new work | `task_create_draft` or `task_create_ready` |
+| add new work you found | `task_create_ready`, with a spec and acceptance criteria written now |
+| add work only a person can specify | `task_create_draft` (it lands in their Needs-spec queue) |
 
 There is no tool that sets `lifecycle`, `ball`, `outcome`, or `queue_position`
 directly, and none is coming. State moves through the verbs, or not at all.

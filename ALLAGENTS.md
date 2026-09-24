@@ -414,6 +414,9 @@ able to read the task record alone and know what happened and what is next.
     later reader cannot recover that from the diff.
 -   Raise unknowns as `question` entries. A question with no `answer` threaded to it is
     queryable as an open thread; a question asked only in chat is not.
+-   **File what you find `ready`, with its spec written now** (`task_create_ready`).
+    A draft hands the spec to the owner and stops an epic walk; use one only when a
+    fact or decision only a person has is missing, and say which.
 -   Never report a task complete on the strength of a chat message alone; it must be
     closed through the API.
 
