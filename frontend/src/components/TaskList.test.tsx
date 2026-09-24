@@ -3,6 +3,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Priority, QueueProblemRead, TaskRead } from "../api/types";
+import { PRIORITY_COLOURS } from "./PriorityMark";
 import { TaskList, type ReorderHandlers } from "./TaskList";
 import type { QueueMove } from "./queueOrder";
 
@@ -1803,10 +1804,17 @@ describe("TaskList band headers", () => {
 
     const edge = (selector: string) =>
       (document.querySelector(selector) as HTMLElement).style.borderLeftColor;
-    const critical = edge('[data-band-header="critical"]');
-    const high = edge('[data-band-header="high"]');
-    expect(critical).not.toBe("");
+    const colour = (hex: string) => {
+      const probe = document.createElement("div");
+      probe.style.color = hex;
+      return probe.style.color;
+    };
+    const critical = colour(PRIORITY_COLOURS.critical);
+    const high = colour(PRIORITY_COLOURS.high);
     expect(critical).not.toBe(high);
+    // The header itself carries no edge since task-576: the colour runs down the rows.
+    expect(edge('[data-band-header="critical"]')).toBe("");
+    expect(edge('[data-band-header="high"]')).toBe("");
     expect(edge('[data-task="task-crit"]')).toBe(critical);
     // The medium child sits in the critical band, so it takes the critical edge.
     expect(edge('[data-task="task-crit-child"]')).toBe(critical);

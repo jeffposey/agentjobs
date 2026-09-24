@@ -941,8 +941,10 @@ export function TaskList({
           <li
             key={`band-${header.closed ? "closed" : "open"}-${header.band}-${task.id}`}
             data-band-header={header.band}
-            className="border-l-4 bg-dark-bg px-2 pb-1 pt-3"
-            style={{ borderLeftColor: PRIORITY_COLOURS[priorityName(header.band)] }}
+            // No edge of its own (task-576): the colour runs down the rows, and boxing
+            // the header text too was one stripe more than the band needed. The edge's
+            // width is added to the padding instead, so the text sits where it sat.
+            className="bg-dark-bg pb-1 pr-2 pt-3 pl-[calc(3px+0.5rem)]"
           >
             <h3 className="m-0 text-xs">
               <PriorityMark
@@ -976,7 +978,7 @@ export function TaskList({
               paddingLeft: `${0.25 + Math.min(row.depth, 4) * 1.1}rem`,
               borderLeftColor: PRIORITY_COLOURS[priorityName(rowBand)],
             }}
-            className={`flex gap-1 border-l-4 py-1 pr-2 ${selected ? "bg-blue-950/60" : "hover:bg-dark-bg/60"}`}
+            className={`flex gap-1 border-l-[3px] py-1 pr-2 ${selected ? "bg-blue-950/60" : "hover:bg-dark-bg/60"}`}
           >
             <div className="flex shrink-0 items-start">
               {movableRow(task) ? renderGrip(task) : <span className="inline-block w-5" />}
@@ -1043,9 +1045,11 @@ export function TaskList({
                   )}
                 </span>
                 {/* Two lines of title, then an ellipsis -- the line the chips used to
-                    take. The full text stays in the tooltip and on the record. */}
+                    take. The full text stays in the tooltip and on the record. Normal
+                    weight (task-576): a list where every title is heavy has no emphasis
+                    left. The detail panel's title is the headline and stays bold. */}
                 <span
-                  className="mt-0.5 line-clamp-2 break-words font-medium leading-snug text-dark-text"
+                  className="mt-0.5 line-clamp-2 break-words font-normal leading-snug text-dark-text"
                   data-field="title"
                   title={task.title}
                 >
