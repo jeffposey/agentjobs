@@ -3203,9 +3203,21 @@ export type LiveRunView = {
      */
     elapsed_seconds?: number | null;
     /**
+     * Finish Id
+     *
+     * The live finish for this run's task, when `health` is `finishing`.
+     */
+    finish_id?: string;
+    /**
+     * Finish Step
+     *
+     * The step that finish is on, in the finish's own vocabulary (`runway`, `gate`...). `runway` means it is queued for the repository's merge runway.
+     */
+    finish_step?: string;
+    /**
      * Health
      *
-     * What the run is actually doing: working, starting, parked, silent, work_done, orphaned or unknown. `live` means only that nothing has declared the run over, so this is the field a surface renders.
+     * What the run is actually doing: working, starting, parked, silent, handback, work_done, finishing, orphaned or unknown. `live` means only that nothing has declared the run over, so this is the field a surface renders. `finishing` comes from the same live-finish lookup as the task read's `live_finish`, so it and the task's Finishing chip cannot disagree (task-533).
      */
     health: string;
     /**
@@ -3248,6 +3260,12 @@ export type LiveRunView = {
      * Run Id
      */
     run_id: string;
+    /**
+     * Runway Behind
+     *
+     * When the finish is queued for the runway: the task whose finish holds it, if that can be told. Empty otherwise.
+     */
+    runway_behind?: string;
     /**
      * Session
      *
@@ -3501,7 +3519,7 @@ export type MachineHolderView = {
     /**
      * Lock Name
      *
-     * The lock file's stem. A task id, or a runway key.
+     * The lock file's stem: a task id, or a runway key. For a finish drawn from its record because it holds no finish lock yet (task-533), `project:task`.
      */
     lock_name: string;
     /**
@@ -3523,13 +3541,19 @@ export type MachineHolderView = {
      */
     project_name?: string;
     /**
+     * Runway Behind
+     *
+     * For a finish queued for the runway: the task whose finish holds it, if that can be told (task-533).
+     */
+    runway_behind?: string;
+    /**
      * Started At
      */
     started_at?: string;
     /**
      * Task Id
      *
-     * Empty for a runway, which holds no task.
+     * The task. For a runway, the task whose live finish holds it, or empty when no live finish names that runway's finish id (task-533).
      */
     task_id?: string;
     /**

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -32,10 +32,16 @@ from agentjobs.dispatch import pull as dispatch_pull
 from agentjobs.dispatch import queue as dispatch_queue
 from agentjobs.dispatch import start_pause
 from agentjobs.dispatch.config import machine_ceiling
-from agentjobs.dispatch.finish_status import OVERTAKEN, read_finish_status
+from agentjobs.dispatch.finish_status import (
+    OVERTAKEN,
+    FinishStatus,
+    machine_live_finishes,
+    read_finish_status,
+)
 from agentjobs.dispatch.ledger import (
     KIND_FINISH,
     KIND_RUNWAY,
+    HEALTH_FINISHING,
     LockHolder,
     RunRecord,
     live_lock_holders,
@@ -86,8 +92,28 @@ class LiveRunView(BaseModel):
         ...,
         description=(
             "What the run is actually doing: working, starting, parked, silent, "
-            "work_done, orphaned or unknown. `live` means only that nothing has declared "
-            "the run over, so this is the field a surface renders."
+            "handback, work_done, finishing, orphaned or unknown. `live` means only that "
+            "nothing has declared the run over, so this is the field a surface renders. "
+            "`finishing` comes from the same live-finish lookup as the task read's "
+            "`live_finish`, so it and the task's Finishing chip cannot disagree (task-533)."
+        ),
+    )
+    finish_id: str = Field(
+        default="",
+        description="The live finish for this run's task, when `health` is `finishing`.",
+    )
+    finish_step: str = Field(
+        default="",
+        description=(
+            "The step that finish is on, in the finish's own vocabulary (`runway`, "
+            "`gate`...). `runway` means it is queued for the repository's merge runway."
+        ),
+    )
+    runway_behind: str = Field(
+        default="",
+        description=(
+            "When the finish is queued for the runway: the task whose finish holds it, "
+            "if that can be told. Empty otherwise."
         ),
     )
     started_at: Optional[str] = None
@@ -132,8 +158,20 @@ class MachineHolderView(BaseModel):
     """
 
     kind: str = Field(..., description="`finish` or `runway`.")
-    lock_name: str = Field(..., description="The lock file's stem. A task id, or a runway key.")
-    task_id: str = Field(default="", description="Empty for a runway, which holds no task.")
+    lock_name: str = Field(
+        ...,
+        description=(
+            "The lock file's stem: a task id, or a runway key. For a finish drawn from its "
+            "record because it holds no finish lock yet (task-533), `project:task`."
+        ),
+    )
+    task_id: str = Field(
+        default="",
+        description=(
+            "The task. For a runway, the task whose live finish holds it, or empty when "
+            "no live finish names that runway's finish id (task-533)."
+        ),
+    )
     task_title: str = ""
     project_id: str = ""
     project_name: str = ""
@@ -151,6 +189,13 @@ class MachineHolderView(BaseModel):
         description=(
             "True when this finish holds a task that is already closed and it merged "
             "nothing, so it is not the finish that finished it (task-514)."
+        ),
+    )
+    runway_behind: str = Field(
+        default="",
+        description=(
+            "For a finish queued for the runway: the task whose finish holds it, if that "
+            "can be told (task-533)."
         ),
     )
 
@@ -603,10 +648,24 @@ def _elapsed_since(started_at: str) -> Optional[float]:
     return max(0.0, (datetime.now(timezone.utc) - started).total_seconds())
 
 
-def _run_view(record: RunRecord, projects: Dict[str, Project]) -> LiveRunView:
-    """Render one live run for the browser."""
+def _run_view(
+    record: RunRecord,
+    projects: Dict[str, Project],
+    finish: Optional[FinishStatus] = None,
+    runway_behind: str = "",
+) -> LiveRunView:
+    """Render one live run for the browser.
+
+    ``finish`` is the live finish for this run's task, already filtered to an open task
+    by the caller -- see ``run_health``'s ``finishing`` for why a closed one is not.
+    """
     project = projects.get(record.project_id)
+    health = run_health(record, finishing=finish is not None)
+    finishing = health == HEALTH_FINISHING and finish is not None
     return LiveRunView(
+        finish_id=finish.finish_id if finishing and finish else "",
+        finish_step=finish.current_step if finishing and finish else "",
+        runway_behind=runway_behind if finishing else "",
         run_id=record.run_id,
         task_id=record.task_id,
         task_title=_task_title(project, record.task_id),
@@ -616,7 +675,7 @@ def _run_view(record: RunRecord, projects: Dict[str, Project]) -> LiveRunView:
         session=record.is_session,
         posture=record.posture,
         status=record.status,
-        health=run_health(record),
+        health=health,
         started_at=record.started_at.isoformat() if record.started_at else None,
         elapsed_seconds=record.elapsed_seconds(),
         task_url=_task_url(record.project_id, record.task_id),
@@ -765,6 +824,126 @@ def _holder_task_is_open(
     except Exception:  # pragma: no cover - a status page never fails over a detail
         return None
     return None if task is None else bool(getattr(task, "is_open", True))
+
+
+FinishKey = Tuple[str, str]
+
+
+def _live_finishes(home: Path, project_ids: List[str]) -> Dict[FinishKey, FinishStatus]:
+    """Every live finish on the machine, or none when it cannot be read.
+
+    A status page never fails over a detail: an unreadable finish directory costs the
+    word "Finishing", not the whole board.
+    """
+    try:
+        return machine_live_finishes(home, project_ids)
+    except Exception:  # pragma: no cover - a status page never fails over a detail
+        return {}
+
+
+def _name_runway_holders(
+    holders: List[MachineHolderView],
+    finishing: Dict[FinishKey, FinishStatus],
+    projects: Dict[str, Project],
+) -> None:
+    """Give each runway holder the task whose finish holds it (task-533).
+
+    A runway lock is keyed on the repository, so it names no task, and the board said
+    "an unregistered checkout" -- or nothing -- about the merge everybody else was
+    queued behind. Its finish id does name an attempt, and a live finish with that id
+    names the task.
+    """
+    by_finish = {status.finish_id: key for key, status in finishing.items() if status.finish_id}
+    for view in holders:
+        if view.kind != KIND_RUNWAY or not view.finish_id or view.task_id:
+            continue
+        key = by_finish.get(view.finish_id)
+        if key is None:
+            continue
+        project_id, task_id = key
+        project = projects.get(project_id)
+        view.task_id = task_id
+        view.task_title = _task_title(project, task_id)
+        view.task_url = _task_url(project_id, task_id)
+        if not view.project_id:
+            view.project_id = project_id
+            view.project_name = project.name if project else project_id
+
+
+def _open_task_finishes(
+    finishing: Dict[FinishKey, FinishStatus], projects: Dict[str, Project]
+) -> Dict[FinishKey, FinishStatus]:
+    """The live finishes whose task is still open.
+
+    ``derived_display_status`` keeps a closed task's outcome while its finish spends a
+    second or two cleaning up, so a surface that said "Finishing" there would disagree
+    with the task page. One store read per live finish -- none on an idle machine.
+    """
+    return {
+        key: status
+        for key, status in finishing.items()
+        if _holder_task_is_open(projects, key[0], key[1]) is not False
+    }
+
+
+def _runway_queue(
+    holders: List[MachineHolderView], finishing: Dict[FinishKey, FinishStatus]
+) -> Dict[FinishKey, str]:
+    """For each finish waiting for its runway, the task whose finish is on it."""
+    on_runway = {
+        view.project_id: view.task_id
+        for view in holders
+        if view.kind == KIND_RUNWAY and view.task_id and view.project_id
+    }
+    behind: Dict[FinishKey, str] = {}
+    for (project_id, task_id), status in finishing.items():
+        holder = on_runway.get(project_id, "")
+        if status.current_step == "runway" and holder and holder != task_id:
+            behind[(project_id, task_id)] = holder
+    return behind
+
+
+def _unheld_finish_views(
+    finishing: Dict[FinishKey, FinishStatus],
+    records: List[RunRecord],
+    holders: List[MachineHolderView],
+    projects: Dict[str, Project],
+    behind: Dict[FinishKey, str],
+) -> List[MachineHolderView]:
+    """A card for each live finish that nothing else on the board draws (task-533).
+
+    A finish is drawn by its own ``kind=finish`` lock, or -- under ``--posture-release``,
+    which keeps the run's lock and adopts no finish one -- by that run's tile reading
+    ``finishing``. What neither covers is a finish holding no lock of its own yet: the
+    second between a spawn and its process taking one, or a finish run by hand from a
+    shell with no run record. Those are drawn from the finish record, so every task the
+    task read calls Finishing has a cell on the board.
+    """
+    covered = {(record.project_id, record.task_id) for record in records}
+    covered.update((view.project_id, view.task_id) for view in holders if view.kind == KIND_FINISH)
+    views: List[MachineHolderView] = []
+    for key, status in sorted(finishing.items()):
+        if key in covered:
+            continue
+        project_id, task_id = key
+        project = projects.get(project_id)
+        views.append(
+            MachineHolderView(
+                kind=KIND_FINISH,
+                lock_name=f"{project_id}:{task_id}",
+                task_id=task_id,
+                task_title=_task_title(project, task_id),
+                project_id=project_id,
+                project_name=project.name if project else project_id,
+                finish_id=status.finish_id,
+                started_at=status.started_at,
+                elapsed_seconds=_elapsed_since(status.started_at) or status.elapsed_seconds,
+                detail=status.current_step or "merging",
+                task_url=_task_url(project_id, task_id),
+                runway_behind=behind.get(key, ""),
+            )
+        )
+    return views
 
 
 def _armed_view(
@@ -945,6 +1124,15 @@ async def list_live_runs(
     rows from the count would make this surface disagree with ``dispatch/guards.py``
     about whether there is a slot, which is the one thing its docstring says it must
     never do.
+
+    **What the live-finish lookup adds (task-533), measured 2026-09-24** with
+    ``machine_live_finishes`` against a home of 311 finish directories, median of 15:
+    0.09 ms with no lock held; 33 ms with three runs and no finish (the one shared scan
+    confirming none of them is merging); 65 ms with one of them finishing; 67 ms with six
+    runs and one finishing. The live home the same day -- three run locks, 311
+    directories, nothing finishing -- measured 68 ms. The cost follows live locks and
+    live finishes, never tasks or rows, and each live finish adds one store read for
+    whether its task is still open.
     """
     home = _home()
     projects = _projects_by_id(principal)
@@ -966,6 +1154,23 @@ async def list_live_runs(
         # and a row that appears for that long is noise rather than information.
         if holder.is_runway or holder.is_finish
     ]
+
+    # The live finishes, from the lookup the task read's `live_finish` uses (task-533).
+    # One answer for the whole response, so a run tile, a finish card and the task's own
+    # chip are the same fact rather than three readings of it.
+    # The runs' projects and the finish holders' too: a pre-task-264 lock name carries no
+    # project, so the holder's own record is the only place that says which to ask.
+    finishing = _live_finishes(
+        home,
+        [record.project_id for record in records] + [view.project_id for view in holders],
+    )
+    _name_runway_holders(holders, finishing, projects)
+    open_finishes = _open_task_finishes(finishing, projects)
+    behind = _runway_queue(holders, open_finishes)
+    for view in holders:
+        if view.kind == KIND_FINISH:
+            view.runway_behind = behind.get((view.project_id, view.task_id), "")
+    holders.extend(_unheld_finish_views(open_finishes, records, holders, projects, behind))
     holders = [holder for holder in holders if _may_see(holder.project_id, projects, principal)]
 
     # FIFO, and the position is assigned over the machine's whole queue before this
@@ -1007,7 +1212,15 @@ async def list_live_runs(
         occupied=len(occupied),
         max_concurrent_runs=ceiling,
         dispatch_configured=configured,
-        runs=[_run_view(record, projects) for record in records],
+        runs=[
+            _run_view(
+                record,
+                projects,
+                open_finishes.get((record.project_id, record.task_id)),
+                behind.get((record.project_id, record.task_id), ""),
+            )
+            for record in records
+        ],
         holders=holders,
         queued=waiting,
         armed=[

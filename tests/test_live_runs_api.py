@@ -13,6 +13,7 @@ to produce on demand, and the reader under test is a pure function of what is on
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -25,7 +26,13 @@ from fastapi.testclient import TestClient
 from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
 from agentjobs.api.main import app
 from agentjobs.dispatch.journal import journal
-from agentjobs.dispatch.ledger import KIND_FINISH, KIND_RUNWAY, locks_root, runway_lock_name
+from agentjobs.dispatch.ledger import (
+    KIND_DISPATCH,
+    KIND_FINISH,
+    KIND_RUNWAY,
+    locks_root,
+    runway_lock_name,
+)
 from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, Outcome
 from agentjobs.projects import ProjectRegistry
@@ -292,6 +299,171 @@ class TestOtherHolders:
         client, home, _, _ = two_projects
         _write_lock(home, "task-001", f"pid=999999 run= kind={KIND_FINISH} finish=fin_abc")
         assert _live(client)["holders"] == []
+
+
+def _write_finish(
+    home: Path,
+    finish_id: str,
+    task_id: str,
+    project_id: str,
+    *,
+    steps: Tuple[str, ...] = ("preflight",),
+    **meta: Any,
+) -> Path:
+    """A finish directory with ``steps`` done, as ``FinishDirectory`` leaves one.
+
+    With only ``preflight`` done the step in flight is ``runway``: queued for the merge
+    runway, the exact state task-369 was in when task-533 was filed.
+    """
+    directory = home / "finishes" / finish_id
+    directory.mkdir(parents=True, exist_ok=True)
+    body: Dict[str, Any] = {
+        "finish_id": finish_id,
+        "task_id": task_id,
+        "project_id": project_id,
+        "outcome": "running",
+        "started_at": _ago(20),
+        **meta,
+    }
+    (directory / "meta.yaml").write_text(yaml.safe_dump(body), encoding="utf-8")
+    with (directory / "phases.jsonl").open("a", encoding="utf-8") as handle:
+        for step in steps:
+            line = {"ts": _ago(10), "kind": "finish_step", "step": step, "ok": True, "seconds": 1.0}
+            handle.write(json.dumps(line) + "\n")
+    return directory
+
+
+def _run_finishing_itself(home: Path, *, steps: Tuple[str, ...] = ("preflight",), **meta: Any):
+    """The ``--posture-release`` shape: a run whose own lock is held by its finish.
+
+    The lock keeps ``kind=dispatch`` and names no finish -- such a finish never adopts a
+    finish lock -- which is why ``holders`` had nothing to draw for it.
+    """
+    _write_run(
+        home, "run_a", task_id="task-001", project_id="alpha", mode="session", status="running"
+    )
+    _write_lock(home, "alpha~task-001", f"pid={os.getpid()} run=run_a kind={KIND_DISPATCH}")
+    return _write_finish(home, "fin_own", "task-001", "alpha", steps=steps, run_id="run_a", **meta)
+
+
+class TestFinishing:
+    """A run whose task is being merged reads what the task reads (task-533)."""
+
+    def test_a_run_finishing_itself_reads_finishing_not_working(self, two_projects):
+        client, home, _, _ = two_projects
+        _run_finishing_itself(home)
+
+        row = _live(client)["runs"][0]
+        assert row["health"] == "finishing"
+        assert row["finish_id"] == "fin_own"
+        assert row["finish_step"] == "runway"
+
+    def test_the_task_read_says_finishing_about_the_same_task(self, two_projects):
+        """The chip and the tile are one fact: assert both off the same machine."""
+        client, home, _, _ = two_projects
+        _run_finishing_itself(home)
+
+        task = client.get("/api/projects/alpha/tasks/task-001/detail").json()["task"]
+        row = {r["id"]: r for r in client.get("/api/projects/alpha/tasks").json()}["task-001"]
+        assert row["display_status"] == "Finishing"
+        assert task["display_status"] == "Finishing"
+        assert _live(client)["runs"][0]["health"] == "finishing"
+
+    def test_a_run_merely_working_still_reads_working(self, two_projects):
+        client, home, _, _ = two_projects
+        _write_run(
+            home, "run_a", task_id="task-001", project_id="alpha", mode="session", status="running"
+        )
+        _write_lock(home, "alpha~task-001", f"pid={os.getpid()} run=run_a kind={KIND_DISPATCH}")
+
+        row = _live(client)["runs"][0]
+        assert row["health"] == "working"
+        assert row["finish_id"] == ""
+
+    @pytest.mark.parametrize("outcome", ["finished", "escalated", "declined"])
+    def test_a_finish_that_ended_does_not_make_a_run_read_finishing(self, two_projects, outcome):
+        client, home, _, _ = two_projects
+        _run_finishing_itself(home, outcome=outcome, finished_at=_ago(5))
+        assert _live(client)["runs"][0]["health"] == "working"
+
+    def test_an_interrupted_finish_does_not_make_a_run_read_finishing(self, two_projects):
+        """The lock is gone with its process, so the finish is interrupted, not live."""
+        client, home, _, _ = two_projects
+        _write_run(
+            home, "run_a", task_id="task-001", project_id="alpha", mode="session", status="running"
+        )
+        _write_finish(home, "fin_dead", "task-001", "alpha")
+        _write_lock(home, "alpha~task-001", f"pid=999999 run= kind={KIND_FINISH} finish=fin_dead")
+
+        assert _live(client)["runs"][0]["health"] == "working"
+
+    def test_finishing_outranks_a_parked_prompt_and_waiting_feedback(self, two_projects):
+        """The ranking ``run_health`` states: a live finish is what is happening."""
+        client, home, _, _ = two_projects
+        _run_finishing_itself(home)
+        meta_path = home / "runs" / "run_a" / "meta.yaml"
+        meta = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+        meta.update(status="parked", handback_pending=3)
+        meta_path.write_text(yaml.safe_dump(meta), encoding="utf-8")
+
+        assert _live(client)["runs"][0]["health"] == "finishing"
+
+    def test_a_closed_task_reads_its_outcome_not_finishing(self, two_projects):
+        """The task page says Completed while the finish cleans up; so does the tile."""
+        client, home, alpha, _ = two_projects
+        manager = TaskManager(task_store(alpha / "tasks"))
+        manager.close_task("task-001", outcome=Outcome.COMPLETED, actor="claude")
+        _run_finishing_itself(home, steps=("preflight", "runway", "rebase", "gate", "merge"))
+
+        assert _live(client)["runs"][0]["health"] != "finishing"
+
+    def test_a_queued_finish_with_no_lock_of_its_own_still_gets_a_card(self, two_projects):
+        """a2: a live finish nothing else draws is drawn from its record."""
+        client, home, _, _ = two_projects
+        _write_finish(home, "fin_hand", "task-001", "alpha")
+        # Held by a finish run by hand from a shell: a live process, no run record.
+        _write_lock(home, "alpha~task-001", f"pid={os.getpid()} run= kind={KIND_DISPATCH}")
+
+        body = _live(client)
+        assert body["runs"] == []
+        cards = [holder for holder in body["holders"] if holder["kind"] == KIND_FINISH]
+        assert [(card["task_id"], card["finish_id"], card["detail"]) for card in cards] == [
+            ("task-001", "fin_hand", "runway")
+        ]
+        assert cards[0]["task_url"] == "/p/alpha/tasks/task-001"
+
+    def test_a_finish_the_run_tile_draws_gets_no_second_card(self, two_projects):
+        client, home, _, _ = two_projects
+        _run_finishing_itself(home)
+        assert _live(client)["holders"] == []
+
+    def test_the_runway_names_its_task_and_the_queue_names_the_runway(self, two_projects):
+        """The task-526 report: a runway holder with an empty task id."""
+        client, home, alpha, _ = two_projects
+        _make_task(alpha, "task-002", "Hold the runway")
+        _write_finish(home, "fin_front", "task-002", "alpha", steps=("preflight", "runway"))
+        _write_lock(
+            home,
+            "alpha~task-002",
+            f"pid={os.getpid()} run= kind={KIND_FINISH} finish=fin_front started={_ago(30)}",
+        )
+        _write_lock(
+            home,
+            runway_lock_name(alpha),
+            f"pid={os.getpid()} run= kind={KIND_RUNWAY} finish=fin_front started={_ago(25)}",
+        )
+        _run_finishing_itself(home)
+
+        body = _live(client)
+        runway = next(holder for holder in body["holders"] if holder["kind"] == KIND_RUNWAY)
+        assert runway["task_id"] == "task-002"
+        assert runway["task_title"] == "Hold the runway"
+        run = body["runs"][0]
+        assert (run["health"], run["finish_step"], run["runway_behind"]) == (
+            "finishing",
+            "runway",
+            "task-002",
+        )
 
 
 class TestEpicWalks:

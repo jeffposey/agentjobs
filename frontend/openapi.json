@@ -4466,8 +4466,20 @@
             "description": "Seconds since this run started, computed on the server. The phone reading this page is not on the clock that wrote `started_at`.",
             "title": "Elapsed Seconds"
           },
+          "finish_id": {
+            "default": "",
+            "description": "The live finish for this run's task, when `health` is `finishing`.",
+            "title": "Finish Id",
+            "type": "string"
+          },
+          "finish_step": {
+            "default": "",
+            "description": "The step that finish is on, in the finish's own vocabulary (`runway`, `gate`...). `runway` means it is queued for the repository's merge runway.",
+            "title": "Finish Step",
+            "type": "string"
+          },
           "health": {
-            "description": "What the run is actually doing: working, starting, parked, silent, work_done, orphaned or unknown. `live` means only that nothing has declared the run over, so this is the field a surface renders.",
+            "description": "What the run is actually doing: working, starting, parked, silent, handback, work_done, finishing, orphaned or unknown. `live` means only that nothing has declared the run over, so this is the field a surface renders. `finishing` comes from the same live-finish lookup as the task read's `live_finish`, so it and the task's Finishing chip cannot disagree (task-533).",
             "title": "Health",
             "type": "string"
           },
@@ -4507,6 +4519,12 @@
           },
           "run_id": {
             "title": "Run Id",
+            "type": "string"
+          },
+          "runway_behind": {
+            "default": "",
+            "description": "When the finish is queued for the runway: the task whose finish holds it, if that can be told. Empty otherwise.",
+            "title": "Runway Behind",
             "type": "string"
           },
           "session": {
@@ -4846,7 +4864,7 @@
             "type": "string"
           },
           "lock_name": {
-            "description": "The lock file's stem. A task id, or a runway key.",
+            "description": "The lock file's stem: a task id, or a runway key. For a finish drawn from its record because it holds no finish lock yet (task-533), `project:task`.",
             "title": "Lock Name",
             "type": "string"
           },
@@ -4877,6 +4895,12 @@
             "title": "Project Name",
             "type": "string"
           },
+          "runway_behind": {
+            "default": "",
+            "description": "For a finish queued for the runway: the task whose finish holds it, if that can be told (task-533).",
+            "title": "Runway Behind",
+            "type": "string"
+          },
           "started_at": {
             "default": "",
             "title": "Started At",
@@ -4884,7 +4908,7 @@
           },
           "task_id": {
             "default": "",
-            "description": "Empty for a runway, which holds no task.",
+            "description": "The task. For a runway, the task whose live finish holds it, or empty when no live finish names that runway's finish id (task-533).",
             "title": "Task Id",
             "type": "string"
           },
@@ -17724,7 +17748,7 @@
     },
     "/api/runs/live": {
       "get": {
-        "description": "Every run this caller may see, with what is left of the machine's capacity.\n\nOne request answers both surfaces task-328 ships -- the Runs tab and the Dashboard's\ncapacity row -- which is why the ceiling and the occupied count are in the body\nrather than left to a second call.\n\n**``occupied`` counts every run, including the ones not listed** (task-333). The two\nnumbers answer different questions and only one of them is about exposure: the rows\nare \"what may I read\", while the capacity is \"why can I not dispatch\", and a machine\nthat is full because of a hidden project's run is still full. Subtracting the hidden\nrows from the count would make this surface disagree with ``dispatch/guards.py``\nabout whether there is a slot, which is the one thing its docstring says it must\nnever do.",
+        "description": "Every run this caller may see, with what is left of the machine's capacity.\n\nOne request answers both surfaces task-328 ships -- the Runs tab and the Dashboard's\ncapacity row -- which is why the ceiling and the occupied count are in the body\nrather than left to a second call.\n\n**``occupied`` counts every run, including the ones not listed** (task-333). The two\nnumbers answer different questions and only one of them is about exposure: the rows\nare \"what may I read\", while the capacity is \"why can I not dispatch\", and a machine\nthat is full because of a hidden project's run is still full. Subtracting the hidden\nrows from the count would make this surface disagree with ``dispatch/guards.py``\nabout whether there is a slot, which is the one thing its docstring says it must\nnever do.\n\n**What the live-finish lookup adds (task-533), measured 2026-09-24** with\n``machine_live_finishes`` against a home of 311 finish directories, median of 15:\n0.09 ms with no lock held; 33 ms with three runs and no finish (the one shared scan\nconfirming none of them is merging); 65 ms with one of them finishing; 67 ms with six\nruns and one finishing. The live home the same day -- three run locks, 311\ndirectories, nothing finishing -- measured 68 ms. The cost follows live locks and\nlive finishes, never tasks or rows, and each live finish adds one store read for\nwhether its task is still open.",
         "operationId": "list_live_runs_api_runs_live_get",
         "responses": {
           "200": {

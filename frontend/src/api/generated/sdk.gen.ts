@@ -1849,6 +1849,15 @@ export const getProjectRevisionApiRevisionGet = <ThrowOnError extends boolean = 
  * rows from the count would make this surface disagree with ``dispatch/guards.py``
  * about whether there is a slot, which is the one thing its docstring says it must
  * never do.
+ *
+ * **What the live-finish lookup adds (task-533), measured 2026-09-24** with
+ * ``machine_live_finishes`` against a home of 311 finish directories, median of 15:
+ * 0.09 ms with no lock held; 33 ms with three runs and no finish (the one shared scan
+ * confirming none of them is merging); 65 ms with one of them finishing; 67 ms with six
+ * runs and one finishing. The live home the same day -- three run locks, 311
+ * directories, nothing finishing -- measured 68 ms. The cost follows live locks and
+ * live finishes, never tasks or rows, and each live finish adds one store read for
+ * whether its task is still open.
  */
 export const listLiveRunsApiRunsLiveGet = <ThrowOnError extends boolean = false>(options?: Options<ListLiveRunsApiRunsLiveGetData, ThrowOnError>) => (options?.client ?? client).get<ListLiveRunsApiRunsLiveGetResponses, unknown, ThrowOnError>({ url: '/api/runs/live', ...options });
 
