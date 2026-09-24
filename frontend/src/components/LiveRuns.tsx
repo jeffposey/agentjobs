@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { listLiveRunsApiRunsLiveGetOptions } from "../api/generated/@tanstack/react-query.gen";
 import type { LiveRunView, LiveRunsView, MachineHolderView } from "../api/types";
-import { CHIP_SHAPE, ChipIcon, RUN_HEALTH, categoryStyle, chipClasses, runMotion } from "./StatusChip";
+import { CHIP_SHAPE, RUN_HEALTH, WithStatusIcon, categoryStyle, chipClasses, runMotion } from "./StatusChip";
 import { formatElapsed } from "./DispatchPanel";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
@@ -164,16 +164,17 @@ export function HealthBadge({ health, task }: { health: string; task?: ClosedTas
   const status = RUN_HEALTH[health];
   if (status) {
     return (
-      <span
-        data-health={health}
-        data-status-category={status.category}
-        data-motion={runMotion(health) ?? undefined}
-        className={chipClasses(runMotion(health), status.icon)}
-        style={categoryStyle(status.category)}
-      >
-        <ChipIcon name={status.icon} />
-        {status.label}
-      </span>
+      <WithStatusIcon name={status.icon} category={status.category}>
+        <span
+          data-health={health}
+          data-status-category={status.category}
+          data-motion={runMotion(health) ?? undefined}
+          className={chipClasses(runMotion(health))}
+          style={categoryStyle(status.category)}
+        >
+          {status.label}
+        </span>
+      </WithStatusIcon>
     );
   }
   return (
@@ -286,17 +287,18 @@ export function finishDetail(step: string | undefined, behind: string | undefine
  */
 export function FinishBadge({ finish }: { finish: MachineHolderView }) {
   return (
-    <span
-      data-finish-step={finish.detail}
-      data-status-category={finish.overtaken ? undefined : "finishing"}
-      // A lock state rather than a task status, so Overtaken keeps a colour of its own.
-      data-motion={finish.overtaken ? undefined : (runMotion("finishing") ?? undefined)}
-      className={finish.overtaken ? `${CHIP_SHAPE} border-orange-700 bg-orange-900 text-orange-200` : chipClasses(runMotion("finishing"), RUN_HEALTH.finishing?.icon)}
-      style={finish.overtaken ? undefined : categoryStyle("finishing")}
-    >
-      {!finish.overtaken && <ChipIcon name={RUN_HEALTH.finishing?.icon} />}
-      {finish.overtaken ? "Overtaken" : RUN_HEALTH.finishing?.label}
-    </span>
+    <WithStatusIcon name={finish.overtaken ? null : RUN_HEALTH.finishing?.icon} category="finishing">
+      <span
+        data-finish-step={finish.detail}
+        data-status-category={finish.overtaken ? undefined : "finishing"}
+        // A lock state rather than a task status, so Overtaken keeps a colour of its own.
+        data-motion={finish.overtaken ? undefined : (runMotion("finishing") ?? undefined)}
+        className={finish.overtaken ? `${CHIP_SHAPE} border-orange-700 bg-orange-900 text-orange-200` : chipClasses(runMotion("finishing"))}
+        style={finish.overtaken ? undefined : categoryStyle("finishing")}
+      >
+        {finish.overtaken ? "Overtaken" : RUN_HEALTH.finishing?.label}
+      </span>
+    </WithStatusIcon>
   );
 }
 

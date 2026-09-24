@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import type { StatusCategory } from "../api/types";
 // The one data file every status word and colour comes from (task-562). The server reads
@@ -54,9 +54,6 @@ export const STATUSES = vocabulary.statuses as Record<string, Entry>;
 /** The shape every status chip has, so no surface draws a filled one beside an outlined one. */
 export const CHIP_SHAPE = "inline-flex whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium";
 
-/** Added to a chip only when it draws an icon, so an icon-less chip is exactly as it was. */
-const WITH_ICON = "items-center gap-1";
-
 /**
  * Each status word's icon, from the data file (task-578).
  *
@@ -78,16 +75,44 @@ export function statusIconName(label: string | null | undefined): string | undef
 }
 
 /**
- * A status's icon at the chip's text size, before its word.
+ * A chip with its status's icon beside it, outside the chip (task-578).
  *
- * `aria-hidden` because the word is the chip's accessible name and the glyph adds
- * nothing a screen reader should say. A name the registry lacks draws nothing rather than
- * throwing: the test suite is where that is an error, not the page.
+ * **Beside, not inside** (owner's revision, 2026-09-24): inside, the glyph took a third of
+ * a chip the task sidebar already draws 20% smaller, and crowded the word until it was
+ * hard to read. Outside, the chip is exactly the chip it was, and the glyph is drawn in
+ * its category's border colour, the one tone of the three that reads on the page
+ * background, so it still visibly belongs to the chip.
+ *
+ * With no icon this returns the chip alone, with no wrapper, so an icon-less chip is the
+ * pre-icon markup exactly. `aria-hidden` because the chip's word is the accessible name.
+ * A name the registry lacks draws nothing rather than throwing: the test suite is where
+ * that is an error, not the page.
  */
-export function ChipIcon({ name }: { name: string | null | undefined }) {
+export function WithStatusIcon({
+  name,
+  category,
+  children,
+}: {
+  name: string | null | undefined;
+  category: StatusCategory;
+  children: ReactNode;
+}) {
   const Icon = name ? STATUS_ICONS[name] : undefined;
-  if (!Icon) return null;
-  return <Icon data-status-icon={name} aria-hidden="true" focusable="false" className="h-3 w-3 shrink-0" strokeWidth={2.25} />;
+  if (!Icon) return <>{children}</>;
+  const colours = CATEGORIES[category] as Colours | undefined;
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1" data-status-with-icon="">
+      <Icon
+        data-status-icon={name}
+        aria-hidden="true"
+        focusable="false"
+        className="h-3.5 w-3.5 shrink-0"
+        style={colours ? { color: colours.border } : undefined}
+        strokeWidth={2.25}
+      />
+      {children}
+    </span>
+  );
 }
 
 /**
@@ -173,10 +198,9 @@ export function taskMotion(task: MotionFacts): ChipMotion | null {
   return live ? "orbit" : categoryMotion(task.status_category);
 }
 
-/** The chip's classes, with its motion when it has one and icon spacing when it draws one. */
-export function chipClasses(motion?: ChipMotion | null, icon?: string | null): string {
-  const shape = icon && STATUS_ICONS[icon] ? `${CHIP_SHAPE} ${WITH_ICON}` : CHIP_SHAPE;
-  return motion ? `${shape} ${MOTION_CLASSES[motion]}` : shape;
+/** The chip's classes, with its motion when it has one. */
+export function chipClasses(motion?: ChipMotion | null): string {
+  return motion ? `${CHIP_SHAPE} ${MOTION_CLASSES[motion]}` : CHIP_SHAPE;
 }
 
 export function StatusChip({
@@ -197,16 +221,17 @@ export function StatusChip({
 }) {
   const iconName = icon === undefined ? statusIconName(label) : icon;
   return (
-    <span
-      data-status-category={category}
-      data-motion={motion ?? undefined}
-      data-testid={testId}
-      title={title}
-      className={chipClasses(motion, iconName)}
-      style={categoryStyle(category)}
-    >
-      <ChipIcon name={iconName} />
-      {chipCase(label)}
-    </span>
+    <WithStatusIcon name={iconName} category={category}>
+      <span
+        data-status-category={category}
+        data-motion={motion ?? undefined}
+        data-testid={testId}
+        title={title}
+        className={chipClasses(motion)}
+        style={categoryStyle(category)}
+      >
+        {chipCase(label)}
+      </span>
+    </WithStatusIcon>
   );
 }

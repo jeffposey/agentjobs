@@ -677,8 +677,9 @@ running session) and the three epic-walk badges (Walking, Waiting, Grounded) to 
 categories.
 
 **Each entry may also name an `icon`** (task-578): a [Lucide](https://lucide.dev/icons/)
-name, drawn at the chip's text size before its word and hidden from screen readers, since
-the word is the chip's accessible name. The icon is optional, and an entry without one
+name, drawn just before the chip in its category's border colour and hidden from screen
+readers, since the word is the chip's accessible name. It sits outside the chip rather
+than inside: inside, it crowded the word in the task sidebar's smaller chip. The icon is optional, and an entry without one
 draws the chip exactly as it was before icons existed, so choosing one is an edit to this
 file at leisure. The React app draws only the icons listed in
 `frontend/src/components/statusIcons.ts`, so a new name is one line there too;

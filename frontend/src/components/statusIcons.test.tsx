@@ -59,22 +59,33 @@ describe("the icon registry", () => {
 });
 
 describe("a chip with an icon", () => {
-  it("draws it before the word, hidden from assistive technology", () => {
+  it("draws it beside the chip, in the category's border colour, hidden from assistive technology", () => {
     const { container } = render(<StatusChip category="finishing" label="Landing" />);
-    const chip = container.firstElementChild as HTMLElement;
-    const icon = chip.firstElementChild as SVGElement;
+    const pair = container.firstElementChild as HTMLElement;
+    const [icon, chip] = Array.from(pair.children) as [SVGElement, HTMLElement];
 
     expect(icon.tagName.toLowerCase()).toBe("svg");
     expect(icon).toHaveAttribute("data-status-icon", "plane-landing");
     expect(icon).toHaveAttribute("aria-hidden", "true");
-    expect(chip.lastChild?.textContent).toBe("Landing");
+    expect(icon.style.color).not.toBe("");
+    expect(chip).toHaveAttribute("data-status-category", "finishing");
     expect(chip).toHaveTextContent(/^Landing$/);
-    expect(chip.className).toContain("gap-1");
   });
 
-  it("draws a run's health icon on the run board too", () => {
+  it("leaves the chip itself exactly as it was, so the icon cannot crowd the word", () => {
+    // The owner's revision: inside the chip, the icon squeezed the task sidebar's
+    // already-smaller chip until its word was hard to read.
+    const { container } = render(<StatusChip category="finishing" label="Landing" />);
+    const chip = container.querySelector("[data-status-category]") as HTMLElement;
+    expect(chip.className).toBe(PRE_ICON_SHAPE);
+    expect(chip.childNodes).toHaveLength(1);
+    expect(chip.querySelector("svg")).toBeNull();
+  });
+
+  it("draws a run's health icon on the run board too, outside its badge", () => {
     const { container } = render(<HealthBadge health="parked" />);
     expect(container.querySelector("[data-status-icon]")).toHaveAttribute("data-status-icon", "hand");
+    expect(container.querySelector("[data-health] svg")).toBeNull();
   });
 });
 

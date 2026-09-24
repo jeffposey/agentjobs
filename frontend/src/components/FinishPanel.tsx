@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { FinishStepView, TaskFinishView } from "../api/types";
-import { ChipIcon, RUN_HEALTH, categoryStyle, chipClasses, runMotion } from "./StatusChip";
+import { RUN_HEALTH, WithStatusIcon, categoryStyle, chipClasses, runMotion } from "./StatusChip";
 
 /**
  * What is happening to this task's branch, on the page that started it.
@@ -271,10 +271,11 @@ export function FinishPanel({ finish }: FinishPanelProps) {
     >
       <div className="flex flex-wrap items-center gap-3">
         {LIVE_STATES.has(finish.state) ? (
-          <span data-status-category="finishing" data-motion={runMotion("finishing") ?? undefined} className={chipClasses(runMotion("finishing"), RUN_HEALTH.finishing?.icon)} style={categoryStyle("finishing")}>
-            <ChipIcon name={RUN_HEALTH.finishing?.icon} />
-            {finishBadge(finish)}
-          </span>
+          <WithStatusIcon name={RUN_HEALTH.finishing?.icon} category="finishing">
+            <span data-status-category="finishing" data-motion={runMotion("finishing") ?? undefined} className={chipClasses(runMotion("finishing"))} style={categoryStyle("finishing")}>
+              {finishBadge(finish)}
+            </span>
+          </WithStatusIcon>
         ) : (
           <span className={`rounded px-2 py-0.5 text-xs font-semibold ${badge}`}>
             {finishBadge(finish)}

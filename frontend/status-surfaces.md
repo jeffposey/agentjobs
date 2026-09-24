@@ -30,9 +30,11 @@ table is in `docs/task-schema.md`. Render a task status with `<StatusChip>` or
 `categoryStyle()`; never pick a colour for one.
 
 **Icons come from the same file** (task-578): an entry's optional `icon` is a Lucide name,
-drawn by `StatusChip` (or `ChipIcon`, in the three badges that build their own span)
-from the registry in `statusIcons.ts`. An entry without one draws the chip exactly as
-before icons existed.
+drawn beside the chip, not inside it, by `StatusChip` (or `WithStatusIcon`, in the three
+badges that build their own span) from the registry in `statusIcons.ts`. The chip itself
+is unchanged, so a surface that restyles it (the task sidebar draws it smaller) must
+select it as a descendant, not a direct child. An entry without one draws the chip
+exactly as before icons existed, with no wrapper.
 
 The run-health words that name a task status, and the epic-walk badges, come from the
 same file (`RUN_HEALTH`, `WALK_STATES`); the process-only health states keep their own
