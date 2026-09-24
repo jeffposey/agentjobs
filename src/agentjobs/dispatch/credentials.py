@@ -55,6 +55,25 @@ Named beside ``AGENTJOBS_RUN_ID`` and ``AGENTJOBS_RUN_DIR`` because it travels w
 them, and separately from them because it is the only one of the three that is a secret.
 """
 
+RUN_IDENTITY_VARS = ("AGENTJOBS_RUN_ID", "AGENTJOBS_RUN_DIR", CREDENTIAL_ENV)
+"""The three variables that make a process a dispatched run: granted, never inherited.
+
+Spelled out rather than imported from ``phases`` so that this module keeps no dependency
+on the ledger side; ``tests/test_finish_identity.py`` pins the names to the constants.
+"""
+
+
+def without_run_identity(environ: Mapping[str, str]) -> dict[str, str]:
+    """``environ`` with every run-identity variable removed (task-538).
+
+    For a process that is *not* the run whose environment it is being started from: a
+    finisher the server spawns, or a server started by a run's finish. Either one that
+    kept them would be that run to every reader -- a finisher that borrowed the run's
+    task lock, a server whose own client calls presented a concluded run's credential.
+    """
+    return {key: value for key, value in environ.items() if key not in RUN_IDENTITY_VARS}
+
+
 CREDENTIAL_FILENAME = "credential.sha256"
 """Where a run's credential digest is kept, inside the run's own directory.
 

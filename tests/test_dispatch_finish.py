@@ -2040,7 +2040,9 @@ class TestTheLeakedRunIsTheOneRunningOneLevelUp:
         hold_lock(tmp_path, "task-318", "run_74dfbc1c")
         monkeypatch.setenv(RUN_ID_ENV, "run_1132ebf8")
 
-        assert _own_run_holds_lock(tmp_path, "task-318", project_id="demo") is True
+        assert (
+            _own_run_holds_lock(tmp_path, "task-318", project_id="demo", authority=POSTURE) is True
+        )
 
     def test_a_supervisor_holding_its_own_lock_is_not_adopted_by_a_child(
         self, tmp_path: Path
