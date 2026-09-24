@@ -127,6 +127,128 @@ def process_table() -> List[Proc]:
     return _proc_table()
 
 
+_CLAUDE_SCRIPT = (
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+    "Get-CimInstance Win32_Process -Filter \"Name='claude.exe'\" | ForEach-Object { "
+    "[pscustomobject]@{ p = $_.ProcessId; q = $_.ParentProcessId; n = $_.Name; "
+    "t = $(if ($_.CreationDate) { $_.CreationDate.ToFileTimeUtc() } else { 0 }); "
+    "c = $_.CommandLine } } | ConvertTo-Json -Compress"
+)
+
+
+def claude_processes() -> List[Proc]:
+    """Only the ``claude.exe`` processes, with command lines: what finds a session.
+
+    A filtered CIM query rather than the whole table, because under a 26-worker pytest
+    the whole-machine query took tens of seconds, and a cancel paid for it several times
+    over (88s, measured 2026-09-23). Elsewhere it is the full table.
+    """
+    if os.name != "nt":  # pragma: no cover
+        return _proc_table()
+    completed = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", _CLAUDE_SCRIPT],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=90,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise OSError(f"Win32_Process query failed: {(completed.stderr or '').strip()[:300]}")
+    if not completed.stdout.strip():
+        return []
+    loaded = json.loads(completed.stdout)
+    if isinstance(loaded, dict):
+        loaded = [loaded]
+    return [
+        Proc(
+            pid=int(item.get("p") or 0),
+            ppid=int(item.get("q") or 0),
+            created=int(item.get("t") or 0),
+            name=str(item.get("n") or ""),
+            cmdline=str(item.get("c") or ""),
+        )
+        for item in loaded
+        if isinstance(item, dict)
+    ]
+
+
+def fast_process_table() -> List[Proc]:
+    """pid, parent, image and creation time for every process, in milliseconds.
+
+    A Toolhelp snapshot plus one ``GetProcessTimes`` per process: no command lines and no
+    memory, which is all a reap needs. A process that will not open for query reads as
+    created 0, which :func:`terminate` refuses -- so an unreadable process is never ended.
+    """
+    if os.name != "nt":  # pragma: no cover
+        return _proc_table()
+    import ctypes
+    from ctypes import wintypes
+
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_wchar * 260),
+        ]
+
+    kernel32 = getattr(ctypes, "windll").kernel32
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
+    if not snapshot or snapshot == wintypes.HANDLE(-1).value:
+        raise OSError("CreateToolhelp32Snapshot failed")
+    rows: List[Proc] = []
+    try:
+        entry = PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+        more = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+        while more:
+            pid = int(entry.th32ProcessID)
+            rows.append(
+                Proc(
+                    pid=pid,
+                    ppid=int(entry.th32ParentProcessID),
+                    created=_created(kernel32, pid),
+                    name=str(entry.szExeFile),
+                )
+            )
+            more = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(snapshot)
+    return rows
+
+
+def _created(kernel32: object, pid: int) -> int:
+    import ctypes
+
+    if pid <= 4:
+        return 0
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # type: ignore[attr-defined]
+    if not handle:
+        return 0
+    try:
+        created = ctypes.c_ulonglong()
+        ignored = [ctypes.c_ulonglong() for _ in range(3)]
+        ok = kernel32.GetProcessTimes(  # type: ignore[attr-defined]
+            handle,
+            ctypes.byref(created),
+            ctypes.byref(ignored[0]),
+            ctypes.byref(ignored[1]),
+            ctypes.byref(ignored[2]),
+        )
+        return int(created.value) if ok else 0
+    finally:
+        kernel32.CloseHandle(handle)  # type: ignore[attr-defined]
+
+
 def _proc_table() -> List[Proc]:  # pragma: no cover - Windows is the reference platform
     rows: List[Proc] = []
     page = getattr(os, "sysconf")("SC_PAGE_SIZE")
@@ -306,7 +428,7 @@ def reap(
     snapshot: Sequence[Proc],
     *,
     roots: Sequence[Proc] = (),
-    table: Callable[[], List[Proc]] = process_table,
+    table: Callable[[], List[Proc]] = fast_process_table,
     end: Callable[[Proc], bool] = terminate,
     wait_seconds: float = 10.0,
     poll_seconds: float = 0.5,
@@ -359,17 +481,38 @@ def _any_alive(table: Sequence[Proc], rows: Sequence[Proc]) -> bool:
 
 
 def session_tree(
-    short_id: Optional[str], *, table: Callable[[], List[Proc]] = process_table
+    short_id: Optional[str],
+    *,
+    table: Callable[[], List[Proc]] = fast_process_table,
+    commands: Callable[[], List[Proc]] = claude_processes,
 ) -> tuple[List[Proc], List[Proc], str]:
-    """``(roots, descendants, error)`` for a session, read now. Never raises."""
+    """``(roots, descendants, error)`` for a session, read now. Never raises.
+
+    ``commands`` finds the session (it needs command lines); ``table`` walks the tree.
+    """
     if not short_id:
         return [], [], "no session id recorded"
     try:
+        roots = session_roots(commands(), short_id)
+        if not roots:
+            return [], [], ""
         rows = table()
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         return [], [], str(exc)[:200]
-    roots = session_roots(rows, short_id)
-    return roots, descendants(rows, session_workers(roots)), ""
+    # The roots as the fast table reads them, so both sides of every comparison come
+    # from GetProcessTimes rather than one from WMI.
+    fast = {(row.pid): row for row in rows}
+    matched = [
+        fast[root.pid]
+        if root.pid in fast and same_creation(fast[root.pid].created, root.created)
+        else root
+        for root in roots
+    ]
+    matched = [
+        Proc(row.pid, row.ppid, row.created, row.name, root.cmdline)
+        for row, root in zip(matched, roots)
+    ]
+    return matched, descendants(rows, session_workers(matched)), ""
 
 
 def session_workers(roots: Sequence[Proc]) -> List[Proc]:
@@ -385,7 +528,9 @@ __all__ = [
     "AGENT_IMAGES",
     "Proc",
     "ReapResult",
+    "claude_processes",
     "descendants",
+    "fast_process_table",
     "process_table",
     "reap",
     "same_creation",

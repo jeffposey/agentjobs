@@ -124,6 +124,7 @@ def never_reads_the_machines_processes(monkeypatch) -> None:
     from agentjobs.dispatch import ledger
 
     monkeypatch.setattr(ledger, "SESSION_TREE_READER", lambda: [])
+    monkeypatch.setattr(ledger, "SESSION_FINDER", lambda: [])
     monkeypatch.setenv("AGENTJOBS_MEMORY_WATCH", "off")
     monkeypatch.delenv("AGENTJOBS_MEMORY_FLOOR_MB", raising=False)
 

@@ -142,6 +142,7 @@ class TestStopSessionReapsItsTree:
 
         ended: List[int] = []
         monkeypatch.setattr(ledger_module, "SESSION_TREE_READER", table)
+        monkeypatch.setattr(ledger_module, "SESSION_FINDER", table)
         monkeypatch.setattr(proctree, "terminate", recorder(ended))
         ledger = DispatchLedger(tmp_path)
 
@@ -184,9 +185,10 @@ class TestStopSessionReapsItsTree:
             assert pids.exists(), "the stand-in tree never started"
 
             ledger = DispatchLedger(tmp_path)
-            monkeypatch.setattr(ledger_module, "SESSION_TREE_READER", proctree.process_table)
+            monkeypatch.setattr(ledger_module, "SESSION_TREE_READER", proctree.fast_process_table)
+            monkeypatch.setattr(ledger_module, "SESSION_FINDER", proctree.process_table)
 
-            roots, tree, _ = proctree.session_tree(session[:8])
+            roots, tree, _ = proctree.session_tree(session[:8], commands=proctree.process_table)
             # The venv's python.exe is a launcher that starts the real interpreter with
             # the same command line, so the stand-in is two processes -- as a real session
             # is a pty host and claude.exe.
@@ -205,8 +207,8 @@ class TestStopSessionReapsItsTree:
             result = ledger._stop_session(a_session_record(tmp_path, session[:8]))
 
             assert result.stopped, result.detail
-            after = {row.pid: row for row in proctree.process_table()}
-            survivors = [row for row in tree if proctree._alive_in(list(after.values()), row)]
+            after = proctree.fast_process_table()
+            survivors = [row for row in tree if proctree._alive_in(after, row)]
             assert survivors == [], result.detail
             assert "ended" in result.detail
         finally:

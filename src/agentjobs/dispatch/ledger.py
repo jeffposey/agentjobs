@@ -1370,12 +1370,15 @@ def write_status(record: RunRecord, **fields: object) -> None:
 # ----- stopping things --------------------------------------------------------
 
 
-SESSION_TREE_READER: Callable[[], List["proctree.Proc"]] = proctree.process_table
-"""How a session stop reads the machine's processes (task-548).
+SESSION_TREE_READER: Callable[[], List["proctree.Proc"]] = proctree.fast_process_table
+"""How a session stop walks the machine's process tree (task-548)."""
 
-A module attribute so the suite can replace it: ``tests/conftest.py`` points it at an
-empty table for every test, because a test cancelling a fake session must never read --
-or end -- the tree of a real one that happens to share a prefix.
+SESSION_FINDER: Callable[[], List["proctree.Proc"]] = proctree.claude_processes
+"""How a session stop finds the session's own processes, by command line (task-548).
+
+Both are module attributes so the suite can replace them: ``tests/conftest.py`` points
+them at an empty table for every test, because a test cancelling a fake session must
+never read -- or end -- the tree of a real one that happens to share a prefix.
 """
 
 
@@ -1648,7 +1651,7 @@ class DispatchLedger:
         if not record.session_id:
             return StopResult(record.run_id, False, "no session id recorded")
         roots, tree, tree_error = proctree.session_tree(
-            record.session_id, table=SESSION_TREE_READER
+            record.session_id, table=SESSION_TREE_READER, commands=SESSION_FINDER
         )
         try:
             completed = self._session("stop", record.session_id)
