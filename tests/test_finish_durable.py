@@ -86,7 +86,7 @@ import sys
 CALLS = pathlib.Path({calls!r})
 CLONE = pathlib.Path({clone!r})
 MODE = {mode!r}
-STAGES = ["ruff", "pytest", "vitest"]
+STAGES = ["ruff", "pytest", "vitest"] + (["e2e"] if MODE.startswith("traces") else [])
 
 args = sys.argv[1:]
 with CALLS.open("a", encoding="utf-8") as handle:
@@ -103,14 +103,33 @@ if run_dir:
         handle.write(json.dumps({{"kind": "gate_started", "stages": selected}}) + chr(10))
 
 
-def red(test, assertion="AssertionError: it broke"):
+def red(test, assertion="AssertionError: it broke", stage="pytest"):
     print("pytest runs at -n 10, sharing this machine with 3 gates: 32 cores less 6.")
     print("FAILED " + test + " - " + assertion)
-    print("Failed at stage 'pytest'.", file=sys.stderr)
+    print("Failed at stage '" + stage + "'.", file=sys.stderr)
     sys.exit(1)
 
 
 first = len(CALLS.read_text(encoding="utf-8").splitlines()) == 1
+if MODE.startswith("traces"):
+    # Playwright's own habit: empty test-results/ at the start of every run.
+    import shutil
+
+    results = pathlib.Path.cwd() / "frontend" / "test-results"
+    shutil.rmtree(results, ignore_errors=True)
+    attempt = "first" if first else "second"
+    trace = results / "capture-draft-idle" / "trace.zip"
+    trace.parent.mkdir(parents=True, exist_ok=True)
+    trace.write_text(attempt + " attempt", encoding="utf-8")
+    if MODE == "traces_green":
+        sys.exit(0)
+    if MODE == "traces_at_pytest" and first:
+        red("tests/test_flaky.py::test_sometimes")
+    if MODE == "traces_e2e_flaky" and first:
+        red("capture-draft.spec.ts:40:1 > idle tab reload", stage="e2e")
+    if MODE == "traces_e2e_red":
+        red("capture-draft.spec.ts:40:1 > idle tab reload", stage="e2e")
+    sys.exit(0)
 if MODE == "flaky":
     if first:
         red("tests/test_flaky.py::test_sometimes")
@@ -362,6 +381,92 @@ class TestAFlakeIsRetriedOnceAndRecorded:
         assert result.outcome == ESCALATED and result.reason == "gate_failed"
         assert calls.read_text().count("call") == 1
         assert "not retried" in result.detail
+
+
+# ----- a red e2e attempt keeps its Playwright traces (task-580) ---------------------
+
+
+def kept_traces(world: Dict[str, Any], finish_id: str) -> Dict[str, str]:
+    """Every ``test-results-<n>/`` copy in the finish directory, by name, with its trace."""
+    directory = world["home"] / "finishes" / finish_id
+    return {
+        copy.name: (copy / "capture-draft-idle" / "trace.zip").read_text(encoding="utf-8")
+        for copy in sorted(directory.glob("test-results-*"))
+    }
+
+
+class TestARedE2EAttemptKeepsItsTraces:
+    def test_the_first_attempts_traces_outlive_the_retry_that_wipes_them(
+        self, world: Dict[str, Any]
+    ) -> None:
+        calls = install_gate(world, "traces_e2e_flaky")
+
+        result = run(world)
+
+        assert result.outcome == FINISHED, result.render()
+        assert gate_calls(calls) == [[], ["--from", "e2e"]]
+        assert kept_traces(world, result.finish_id) == {"test-results-1": "first attempt"}
+
+    def test_two_red_attempts_keep_two_copies_and_the_escalation_names_them(
+        self, world: Dict[str, Any]
+    ) -> None:
+        install_gate(world, "traces_e2e_red")
+
+        result = run(world)
+
+        assert result.outcome == ESCALATED and result.reason == "gate_failed"
+        assert kept_traces(world, result.finish_id) == {
+            "test-results-1": "first attempt",
+            "test-results-2": "second attempt",
+        }
+        assert "Playwright traces kept" in result.detail
+        assert "test-results-2" in result.detail
+
+    @pytest.mark.parametrize("mode", ["traces_green", "traces_at_pytest"])
+    def test_a_green_or_a_red_at_another_stage_copies_nothing(
+        self, world: Dict[str, Any], mode: str
+    ) -> None:
+        install_gate(world, mode)
+
+        result = run(world)
+
+        assert result.outcome == FINISHED, result.render()
+        assert kept_traces(world, result.finish_id) == {}
+
+
+class TestKeepTestResults:
+    def results(self, worktree: Path, sizes: Dict[str, int]) -> None:
+        for name, size in sizes.items():
+            path = worktree / "frontend" / "test-results" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"x" * size)
+
+    def test_no_results_directory_copies_nothing_and_says_nothing(self, tmp_path: Path) -> None:
+        assert finish_module.keep_test_results(tmp_path, tmp_path / "copy") is None
+        assert not (tmp_path / "copy").exists()
+
+    def test_under_the_limit_everything_is_copied(self, tmp_path: Path) -> None:
+        self.results(tmp_path / "wt", {"a/trace.zip": 10, "b/trace.zip": 20})
+
+        kept = finish_module.keep_test_results(tmp_path / "wt", tmp_path / "copy", limit=100)
+
+        assert kept is not None and (kept.files, kept.bytes, kept.truncated) == (2, 30, False)
+        assert (tmp_path / "copy" / "b" / "trace.zip").stat().st_size == 20
+        assert not (tmp_path / "copy" / "TRUNCATED.txt").exists()
+
+    def test_over_the_limit_the_copy_stops_and_says_it_truncated(self, tmp_path: Path) -> None:
+        self.results(tmp_path / "wt", {"a/trace.zip": 60, "b/trace.zip": 60, "c/trace.zip": 30})
+
+        kept = finish_module.keep_test_results(tmp_path / "wt", tmp_path / "copy", limit=100)
+
+        assert kept is not None and (kept.files, kept.bytes, kept.skipped) == (2, 90, 1)
+        assert kept.truncated
+        assert not (tmp_path / "copy" / "b").exists()
+        assert "1 file(s)" in (tmp_path / "copy" / "TRUNCATED.txt").read_text(encoding="utf-8")
+        attempt = GateAttempt(number=1, selection=[], head="h", base="b", corpus=None)
+        attempt.traces = kept
+        assert attempt.evidence()["traces_truncated"] is True
+        assert "(truncated)" in finish_module.traces_clause([attempt])
 
 
 # ----- proof that inputs changed (gate-2, gate-3, gate-4) ---------------------------
