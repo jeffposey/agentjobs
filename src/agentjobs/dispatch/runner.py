@@ -131,7 +131,7 @@ from agentjobs.models_v2 import (
 from agentjobs.dispatch.phases import RUN_DIR_ENV, RUN_ID_ENV
 from agentjobs.dispatch.pids import (
     describe_exit,
-    is_the_recorded_process,
+    held_if_recorded,
     process_identity,
     recorded_process_alive,
 )
@@ -4874,11 +4874,22 @@ def _kill_tree(
     Returns whether anything was killed. **Nothing** is, and ``False`` comes back, when
     the caller offers no proof or the proof fails; a refusal is a normal outcome here
     rather than an error, because the process it would have killed is already gone.
+
+    **The proof is held across the kill, not just passed before it** (task-554). It used
+    to be ``is_the_recorded_process`` and then ``taskkill /PID <pid>``: a check, a spawn
+    that takes seconds under load, and an act by number. A worker that exited inside that
+    spawn left its number free, and this machine reissues one in 0.35s. The receipt was
+    right and the kill still landed on a stranger. The proof is now read through a
+    handle that stays open until ``taskkill`` has finished, so the number cannot move.
     """
-    if not holding_handle and not is_the_recorded_process(
-        pid, identity=identity, recorded_at=recorded_at
-    ):
-        return False
+    if holding_handle:
+        return _kill_tree_now(pid)
+    with held_if_recorded(pid, identity=identity, recorded_at=recorded_at) as proved:
+        return _kill_tree_now(pid) if proved else False
+
+
+def _kill_tree_now(pid: int) -> bool:
+    """``_kill_tree``'s act, for a caller that has already made ``pid`` safe to name."""
     if os.name == "nt":
         subprocess.run(
             ["taskkill", "/PID", str(pid), "/T", "/F"],
