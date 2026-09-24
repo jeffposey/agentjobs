@@ -95,10 +95,13 @@ async def get_dashboard(
     def reads(cards: list[TaskCard]) -> list[TaskCardRead]:
         return TaskCardRead.from_cards(facts, cards)
 
+    # `active_tasks` stays in the snapshot for the legacy Jinja dashboard, and is left
+    # out of this response: the React page stopped drawing it (task-557), and it was
+    # every open task in the project, serialised as cards on every load for nothing.
+    served = {key: value for key, value in snapshot.items() if key != "active_tasks"}
     return DashboardResponse(
         **{
-            **snapshot,
-            "active_tasks": reads(snapshot["active_tasks"]),
+            **served,
             "waiting_tasks": reads(snapshot["waiting_tasks"]),
             "backlog_tasks": reads(snapshot["backlog_tasks"]),
             "next_task": read(snapshot["next_task"]),

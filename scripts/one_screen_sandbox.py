@@ -11,7 +11,7 @@ tasks, a queue, drafts and a log full of activity, and hands over a URL.
 What to look at, and the comparison is the point:
 
     default            a calm project with forty open tasks. The slot board is the top
-                       of the page, the two lists below it are a bounded tail with
+                       of the page, the sections below it are a bounded tail with
                        their own scroll, and the browser window does not scroll at all.
                        Resize the window, or open Chrome's device toolbar and pick an
                        iPhone: the page never grows a scrollbar of its own.
@@ -53,9 +53,10 @@ DEFAULT_CEILING = 3
 
 #: How many open tasks the project carries.
 #:
-#: Forty, because `active_tasks` is uncapped by the server -- it is every open task --
-#: and the Dashboard used to render all of them. On this repository's own corpus that
-#: was the four thousand pixels that made the page eight screens tall on a phone.
+#: Forty, because the Dashboard's old "Active tasks" list was every open task and used
+#: to render all of them. On this repository's own corpus that was the four thousand
+#: pixels that made the page eight screens tall on a phone. The list is gone since
+#: task-557; the crowd stays so the frame is measured against a realistic backlog.
 CROWD = 40
 
 TITLES = [
@@ -100,7 +101,7 @@ def build_project(root: Path, *, alarm: bool, claimed: Tuple[str, ...]) -> Path:
             id=f"task-{100 + index}",
             title=f"{TITLES[index % len(TITLES)]} ({index + 1})",
             summary=(
-                "Seeded so the Dashboard's active list and its queue have something "
+                "Seeded so the Dashboard's queue and log feed have something "
                 "real in them. Nothing here is work."
             ),
             description=(

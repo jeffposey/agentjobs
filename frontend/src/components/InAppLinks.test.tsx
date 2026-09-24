@@ -66,7 +66,6 @@ function dashboard(overrides: Partial<DashboardResponse> = {}): DashboardRespons
       awaiting_input: 0,
       completed: 0,
     },
-    active_tasks: [],
     recent_updates: [],
     waiting_tasks: [],
     backlog_tasks: [],
@@ -135,7 +134,6 @@ describe("in-app links keep the router basename", () => {
       <MemoryRouter basename={BASENAME} initialEntries={["/app/p/inbox"]}>
         <Dashboard
           dashboard={dashboard({
-            active_tasks: [card("task-001", { lifecycle: "active", display_status: "In flight" })],
             waiting_tasks: [
               card("task-002", {
                 lifecycle: "active",

@@ -9,12 +9,13 @@ import { expect, test, type Page, type Route } from "./fixtures";
  * parent whose child has no `min-h-0` clips instead of fitting. Only the geometry can
  * tell those apart -- ENGINEERING.md, Verification.
  *
- * **The content is amplified, not fabricated.** The suite seeds two real tasks, and
- * each test then multiplies the server's own `active_tasks` list into forty entries
- * before the page sees it. The shape under test is therefore the real response and the
- * volume is the worst case a real project reaches -- `active_tasks` is uncapped by the
- * server, so a real backlog genuinely puts forty cards on this page. Before this task
- * that made the Dashboard 5681px tall on a desktop and 8566px on a phone.
+ * **The content is the real response.** The suite seeds two real tasks so the board has
+ * a queue and the log feed has entries. Until task-557 each test also multiplied the
+ * server's `active_tasks` list into forty entries, because that list was uncapped and a
+ * real backlog genuinely put forty cards on this page -- 5681px on a desktop and 8566px
+ * on a phone before task-294. Task-557 took the list off the Dashboard and out of the
+ * response, and every section left in the tail is capped by the page, so there is no
+ * unbounded list left to amplify.
  *
  * The two seeds are closed again in `afterAll`. Every spec here shares one project and
  * one server, and `queue-order.spec.ts` drags between two rows that must fit in one
@@ -75,19 +76,14 @@ const GLANCE_MUST_BE_WHOLE: ReadonlyArray<[keyof typeof VIEWPORTS, number]> = [
   ["laptop", 6],
 ];
 
-/** How many active tasks the amplified response carries. */
-const CROWD = 40;
-
 /** How many rows the recently-finished region shows at its fullest (`RECENT_LIMIT`). */
 const RECENT_ROWS = 5;
 
 const seeded: string[] = [];
 
 test.beforeAll(async ({ request }) => {
-  // Two, not one: `active_tasks` is amplified from whatever the server sends, and one
-  // seed would make every amplified card identical, which is a layout this page is
-  // never asked to draw. Both are `ready`, so they are open work on the board's queue
-  // and in the active list at the same time -- which is the state being measured.
+  // Both are `ready`, so they are open work on the board's queue -- which is the state
+  // being measured.
   for (const [index, title] of [
     "A task with a title long enough to test how a card truncates it",
     "A short one",
@@ -123,28 +119,6 @@ async function fulfilJson(route: Route, body: unknown) {
     status: 200,
     contentType: "application/json",
     body: JSON.stringify(body),
-  });
-}
-
-/** Amplify the real dashboard response so the unbounded lists are at their worst. */
-async function withCrowdedDashboard(page: Page) {
-  await page.route("**/api/projects/*/dashboard*", async (route: Route) => {
-    const response = await route.fetch();
-    const body = (await response.json()) as { active_tasks: unknown[] };
-    const seed = body.active_tasks;
-    expect(seed.length, "the seeded tasks reached the dashboard response").toBeGreaterThan(0);
-    const grown: unknown[] = [];
-    for (let index = 0; index < CROWD; index += 1) {
-      const clone = JSON.parse(JSON.stringify(seed[index % seed.length])) as {
-        id: string;
-        title: string;
-      };
-      clone.id = `${clone.id}-crowd-${index}`;
-      clone.title = `${clone.title} (${index + 1})`;
-      grown.push(clone);
-    }
-    body.active_tasks = grown;
-    await fulfilJson(route, body);
   });
 }
 
@@ -229,7 +203,6 @@ for (const [name, viewport] of Object.entries(VIEWPORTS)) {
       page,
     }) => {
       await withCeiling(page, ceiling);
-      await withCrowdedDashboard(page);
       await page.setViewportSize(viewport);
       await openDashboard(page);
 
@@ -249,7 +222,6 @@ for (const [name, viewport] of Object.entries(VIEWPORTS)) {
       // bottom edge -- which is the difference between "short" and "truncated", and the
       // property that makes a scrolling fallback legitimate.
       await withCeiling(page, ceiling);
-      await withCrowdedDashboard(page);
       await page.setViewportSize(viewport);
       await openDashboard(page);
 
@@ -282,7 +254,6 @@ for (const [name, ceiling] of GLANCE_MUST_BE_WHOLE) {
     page,
   }) => {
     await withCeiling(page, ceiling);
-    await withCrowdedDashboard(page);
     await page.setViewportSize(VIEWPORTS[name]);
     await openDashboard(page);
 
@@ -300,14 +271,13 @@ test("the tail is a remainder, and it never disappears", async ({ page }) => {
   // 747px frame, so without `TAIL_MIN` the tail would resolve to nothing and take both
   // its sections with it -- unreachable, rather than short.
   await withCeiling(page, 6);
-  await withCrowdedDashboard(page);
   await page.setViewportSize(VIEWPORTS.phone);
   await openDashboard(page);
 
   const tail = await regionScroll(page, "dashboard-tail");
   // `TAIL_MIN`, which is 6rem.
   expect(tail.clientHeight, "the tail keeps a floor of its own").toBeGreaterThanOrEqual(96);
-  await expect(page.getByRole("heading", { name: "Active tasks" })).toBeVisible();
+  await expect(page.getByTestId("recently-finished")).toBeVisible();
 });
 
 test("the assertion has teeth: unframing the shell makes the Dashboard scroll again", async ({
@@ -316,7 +286,6 @@ test("the assertion has teeth: unframing the shell makes the Dashboard scroll ag
   // A negative control, in the test rather than in a reviewer's head. Without it a
   // green run above is equally consistent with a Dashboard that has nothing on it.
   await withCeiling(page, 3);
-  await withCrowdedDashboard(page);
   await page.setViewportSize(VIEWPORTS.phone);
   await openDashboard(page);
 
@@ -338,26 +307,24 @@ test("the assertion has teeth: unframing the shell makes the Dashboard scroll ag
   ).toBeGreaterThan(scroll.innerHeight);
 });
 
-test("the count-tile strip is gone, and everything else is still on the page", async ({
+test("the count-tile strip and the Active tasks list are gone, and the rest is still on the page", async ({
   page,
 }) => {
   await withCeiling(page, 3);
-  await withCrowdedDashboard(page);
   await page.setViewportSize(VIEWPORTS.desktop);
   await openDashboard(page);
 
   // ac-4: the five-tile strip no longer renders.
   await expect(page.getByRole("region", { name: "Task statistics" })).toHaveCount(0);
 
-  // ac-6: what stayed. The board, both tail sections, and the link that makes the
-  // shortened Active tasks list a sample rather than a truncation.
+  // Task-557: the "Active tasks" preview no longer renders, nor its "View all" link.
+  await expect(page.getByRole("heading", { name: /Active tasks/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /^View all \d* ?→$/ })).toHaveCount(0);
+
+  // What stayed: the board and both tail sections.
   await expect(page.getByTestId("slot-board")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Active tasks" })).toBeVisible();
+  await expect(page.getByTestId("recently-finished")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recent updates" })).toBeVisible();
-  await expect(page.getByRole("link", { name: `View all ${CROWD} →` })).toHaveAttribute(
-    "href",
-    "/app/p/_local/tasks",
-  );
 });
 
 test("the frame is not the shell's: an unframed surface still scrolls its document", async ({
@@ -438,7 +405,6 @@ for (const [state, rows] of [
       page,
     }) => {
       await withCeiling(page, 3);
-      await withCrowdedDashboard(page);
       await withClosures(page, rows);
       await page.setViewportSize(viewport);
       await openDashboard(page);

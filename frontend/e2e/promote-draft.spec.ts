@@ -22,13 +22,6 @@ async function createTask(page: Page, title: string, lifecycle: "Draft" | "Ready
   await expect(page).toHaveURL(/\/tasks\?status=all$/);
 }
 
-/** The Dashboard's "Active tasks" card, found by the heading a reader sees on it. */
-function activeTasks(page: Page) {
-  return page
-    .locator("section")
-    .filter({ has: page.getByRole("heading", { name: /^Active tasks/ }) });
-}
-
 /**
  * Open a task's detail page the way a user does: by clicking it in the task list.
  *
@@ -53,18 +46,16 @@ test("walks the whole drafts loop: create, find through the dashboard, promote",
   // screen depends on what ran before this on the same worker.
   //
   // The unconditional route used to be the "+N in backlog" link under the statistics
-  // card. task-294 took that card off the Dashboard, and this is the route that
-  // replaced it: the Active tasks section's "View all" link, which is unconditional for
-  // the same reason, and then the Tasks surface's own Status filter. Three clicks rather
-  // than one since task-356 put that filter behind a button, and every step of it is a
-  // control a person can see.
-  //
-  // Scoped to that section, because the drafts panel's own link also begins "View all"
-  // and the two are ambiguous whenever both are on screen. Until task-369 that was rare
-  // enough to look like it could not happen: every spec shared one project, and by the
-  // time this one ran there was always something claimable in it.
+  // card. task-294 took that card off the Dashboard; the Active tasks section's "View
+  // all" link replaced it until task-557 took that section off too. What is left, and
+  // unconditional, is the primary nav's Tasks link, and then the Tasks surface's own
+  // Status filter. Three clicks rather than one since task-356 put that filter behind a
+  // button, and every step of it is a control a person can see.
   await page.goto("/app/");
-  await activeTasks(page).getByRole("link", { name: /^View all/ }).click();
+  await page
+    .getByRole("navigation", { name: "Primary navigation" })
+    .getByRole("link", { name: "Tasks", exact: true })
+    .click();
   await expect(page).toHaveURL(/\/tasks$/);
   await page.getByRole("button", { name: /^Filters/ }).click();
   await page.getByLabel("Status").selectOption("draft");

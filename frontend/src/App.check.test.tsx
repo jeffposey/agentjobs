@@ -50,7 +50,6 @@ function task(overrides: Partial<TaskRead> = {}): TaskRead {
 
 const DASHBOARD: DashboardResponse = {
   stats: { total: 1, in_progress: 1, blocked: 0, waiting_for_human: 0, awaiting_input: 0, completed: 0 },
-  active_tasks: [],
   recent_updates: [],
   waiting_tasks: [],
   backlog_tasks: [],

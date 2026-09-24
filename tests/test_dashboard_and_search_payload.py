@@ -103,10 +103,21 @@ class TestTheDashboardSendsCards:
         """
         from agentjobs.api.models import DashboardResponse
 
-        carried = ("active_tasks", "waiting_tasks", "backlog_tasks", "queue_preview", "next_task")
+        carried = ("waiting_tasks", "backlog_tasks", "queue_preview", "next_task")
         for name in carried:
             annotation = DashboardResponse.model_fields[name].annotation
             assert TaskCardRead in get_args(annotation), f"{name} is not a card: {annotation}"
+
+    def test_the_response_no_longer_carries_every_open_task(self, api_client, corpus) -> None:
+        """`active_tasks` left the response in task-557, when the React page stopped
+        drawing it. It was every open task in the project; the snapshot still holds it
+        for the legacy Jinja dashboard, so this guards the route rather than the model."""
+        client, _ = api_client
+        assert corpus
+
+        body = client.get("/api/dashboard").json()
+
+        assert "active_tasks" not in body
 
     def test_a_card_carries_the_summary_line_it_draws(self, api_client, corpus) -> None:
         client, _ = api_client

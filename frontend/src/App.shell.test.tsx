@@ -74,13 +74,22 @@ const DETAIL: TaskDetailResponse = {
 
 const DASHBOARD: DashboardResponse = {
   stats: { total: 2, in_progress: 0, blocked: 0, waiting_for_human: 0, awaiting_input: 0, completed: 0 },
-  active_tasks: [card("task-001", { lifecycle: "active", display_status: "In flight" })],
   recent_updates: [],
-  waiting_tasks: [],
+  // The Dashboard's task link now comes from the blocked rung: task-557 took the
+  // "Active tasks" preview, which this fixture used to route through, off the page.
+  waiting_tasks: [
+    card("task-001", {
+      lifecycle: "active",
+      ball: "human",
+      ball_reason: "review",
+      ball_prompt: "Approve or request changes.",
+      display_status: "Waiting for review",
+    }),
+  ],
   backlog_tasks: [],
   next_task: null,
   queue_preview: [],
-  next_action: "nothing_claimable",
+  next_action: "blocked",
   broken_files: [],
   identity: { ok: true, user: "jeff", problem: null, detail: "Acting as jeff." },
 };
