@@ -169,6 +169,7 @@ def poll_live_sessions(
     results.extend(_resume_interrupted_finishes(home, registry, managers))
     results.extend(_retract_resolved_asks(registry, managers))
     results.extend(_sweep_idle_sessions(home))
+    results.extend(_watch_memory(home))
     return results
 
 
@@ -279,6 +280,22 @@ def _sweep_idle_sessions(home: Path) -> List[PollResult]:
         PollResult(subject, None, detail)
         for subject, _, detail in (line.partition(": ") for line in lines)
     ]
+
+
+def _watch_memory(home: Path) -> List[PollResult]:
+    """Take a memory census when free memory is below the floor (task-548).
+
+    On 2026-09-23 the machine lost about 30 GB over an afternoon and a reboot cleared it
+    before anyone had looked, so the cause was never captured. The poller runs whether or
+    not a gate is, so it is what catches that state while it lasts. Reading memory is two
+    Win32 calls; the census itself is throttled on disk to one per half hour.
+    """
+    from agentjobs.memory import capture_if_low
+
+    written = capture_if_low(home, reason="poller: free memory below the floor")
+    if written is None:
+        return []
+    return [PollResult("memory", None, f"memory below the floor; census written to {written}")]
 
 
 def _recover_parked(

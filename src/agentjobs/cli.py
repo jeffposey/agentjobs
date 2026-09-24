@@ -2752,6 +2752,49 @@ def execution_backup(
     typer.echo(f"Snapshot written to {written}.")
 
 
+memory_app = typer.Typer(
+    name="memory",
+    help="How much memory this machine has left, and a census of where it went (task-548).",
+)
+app.add_typer(memory_app)
+
+
+@memory_app.command("now")
+def memory_now() -> None:
+    """Available memory, commit and kernel pool right now, against the gate's floor."""
+    from agentjobs.memory import floor_mb, gb, read_memory
+
+    state = read_memory()
+    if state is None:
+        typer.secho("This machine's memory could not be read.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    floor = floor_mb()
+    typer.echo(state.describe())
+    typer.echo(
+        f"kernel pool: paged {gb(state.paged_pool_mb)}, nonpaged {gb(state.nonpaged_pool_mb)}; "
+        f"system cache {gb(state.system_cache_mb)}"
+    )
+    verdict = "BELOW the floor" if state.low(floor) else "above the floor"
+    typer.echo(f"floor {gb(floor)}: {verdict}")
+
+
+@memory_app.command("census")
+def memory_census(
+    reason: str = typer.Option("by command", "--reason", help="Why it was taken."),
+) -> None:
+    """Write a census under ~/.agentjobs/memory/: counters and every agent process with
+    its parent, whether that parent is alive, its memory, and its run or worktree."""
+    from agentjobs.memory import capture
+
+    directory = capture(default_home(), reason=reason)
+    typer.echo((directory / "summary.txt").read_text(encoding="utf-8").rstrip())
+    typer.echo(f"\nWritten to {directory}")
+    typer.echo(
+        "RAMMap is not scripted: when the processes above do not account for the memory, "
+        "open Sysinternals RAMMap and File > Save into that directory."
+    )
+
+
 sessions_app = typer.Typer(
     name="sessions",
     help="Idle Claude sessions sharing this machine's login, and the sweep that stops them.",
