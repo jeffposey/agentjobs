@@ -1,122 +1,249 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { TaskRead } from "../api/types";
+import type { StatusCategory, TaskRead } from "../api/types";
 import { DependencyState, dependencyState } from "./DependencyState";
+import vocabulary from "../../../src/agentjobs/status_vocabulary.json";
 
-function closedTask(outcome: "completed" | "cancelled" | "superseded" | "duplicate", displayStatus: string): TaskRead {
+function task(overrides: Partial<TaskRead> = {}): TaskRead {
   return {
     schema: 2,
-    id: `task-${outcome}`,
-    title: `A ${outcome} task`,
-    created: "2026-08-13T08:00:00Z",
-    updated: "2026-08-13T09:00:00Z",
-    lifecycle: "closed",
-    ball: null,
-    ball_reason: null,
-    outcome,
-    display_status: displayStatus,
+    id: "task-562-fixture",
+    title: "A task",
+    created: "2026-09-24T08:00:00Z",
+    updated: "2026-09-24T09:00:00Z",
+    lifecycle: "ready",
+    ball: "agent",
+    ball_reason: "available",
+    outcome: null,
+    display_status: "Ready",
+    status_category: "ready",
     priority: "medium",
-    category: "general",
+    category: "ux",
     tags: [],
     assignment: { eligible: [] },
     spec: { summary: "Summary.", description: "Body." },
+    ...overrides,
   };
 }
 
-describe("DependencyState closed outcomes", () => {
-  // Every closed task used to render the single word "Done". Jeff read that on the
-  // task list for task-058, whose record says Superseded, and reasonably concluded
-  // the work had been finished.
-  it.each([
-    ["completed", "Completed"],
-    ["cancelled", "Cancelled"],
-    ["superseded", "Superseded"],
-    ["duplicate", "Duplicate"],
-  ] as const)("shows %s as its own label rather than Done", (outcome, label) => {
-    render(<DependencyState task={closedTask(outcome, label)} />);
+/** The chip a browser receives: its text, its category and its computed colours. */
+function chip(): HTMLElement {
+  const element = document.querySelector<HTMLElement>("[data-status-category]");
+  if (!element) throw new Error("no status chip rendered");
+  return element;
+}
 
-    expect(screen.getByText(label)).toBeVisible();
-    expect(screen.queryByText("Done")).not.toBeInTheDocument();
+type Colours = { fill: string; border: string; text: string; border_style?: string };
+const CATEGORIES = vocabulary.categories as Record<StatusCategory, Colours>;
+
+/**
+ * What the data file says a category looks like, normalised the way the browser
+ * normalises the chip's own inline style, so the two compare as rendered values.
+ */
+function expectedStyle(category: StatusCategory): string {
+  const colours = CATEGORIES[category];
+  const probe = document.createElement("span");
+  probe.style.backgroundColor = colours.fill;
+  probe.style.borderColor = colours.border;
+  probe.style.borderStyle = colours.border_style ?? "solid";
+  probe.style.color = colours.text;
+  return probe.style.cssText;
+}
+
+/**
+ * The design table (task-562, as revised by the owner on 2026-09-24), one row per state.
+ * The server sends the word and the category; what is asserted is what the browser
+ * renders from them -- the text, the category, and the exact colours -- per the
+ * rendered-value rule.
+ */
+const TABLE: Array<[string, StatusCategory, Partial<TaskRead>]> = [
+  ["Ready", "ready", {}],
+  ["Queued", "queued", {}],
+  ["Starting", "queued", {}],
+  ["Working", "working", { lifecycle: "active", ball_reason: "work", ball_prompt: "Go." }],
+  ["Finishing", "finishing", { lifecycle: "active", ball_reason: "work", ball_prompt: "Go." }],
+  ["Needs spec", "needs_you", { ball: "human", ball_reason: "spec", ball_prompt: "Spec it." }],
+  ["Needs review", "needs_you", { ball: "human", ball_reason: "review", ball_prompt: "Look." }],
+  ["Needs decision", "needs_you", { ball: "human", ball_reason: "decision", ball_prompt: "Pick." }],
+  ["Needs approval", "needs_you", { ball: "human", ball_reason: "approval", ball_prompt: "OK?" }],
+  ["Needs input", "needs_you", { ball: "human", ball_reason: "input", ball_prompt: "Say." }],
+  ["Error", "needs_you", { needs_cycles: [["task-1", "task-2", "task-1"]] }],
+  ["Blocked", "not_now", { unmet_needs: ["task-042"] }],
+  ["On hold", "not_now", { lifecycle: "active", ball_reason: "hold", ball_prompt: "Held." }],
+  ["Quota", "not_now", { lifecycle: "active", ball: "external", ball_reason: "service", ball_prompt: "Limit." }],
+  ["Draft", "draft", { lifecycle: "draft" }],
+  ["Completed", "closed", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "completed" }],
+  ["Superseded", "closed_unfinished", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "superseded" }],
+  ["Cancelled", "closed_unfinished", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "cancelled" }],
+  ["Duplicate", "closed_unfinished", { lifecycle: "closed", ball: null, ball_reason: null, outcome: "duplicate" }],
+];
+
+describe("the status chip renders the design table", () => {
+  it.each(TABLE)("%s is drawn as %s", (label, category, overrides) => {
+    render(<DependencyState task={task({ ...overrides, display_status: label, status_category: category })} />);
+
+    expect(chip()).toHaveTextContent(label);
+    expect(chip()).toHaveAttribute("data-status-category", category);
+    expect(chip().style.cssText).toBe(expectedStyle(category));
   });
 
-  it("carries the archived suffix the backend puts in display_status", () => {
-    render(<DependencyState task={{ ...closedTask("superseded", "Superseded (archived)"), archived: true }} />);
-
-    expect(screen.getByText("Superseded (archived)")).toBeVisible();
+  it("covers every category the data file defines", () => {
+    expect(new Set(TABLE.map(([, category]) => category))).toEqual(new Set(Object.keys(CATEGORIES)));
   });
 
-  it("tints an unfinished outcome differently from a completed one", () => {
-    const { unmount } = render(<DependencyState task={closedTask("completed", "Completed")} />);
-    const completedClasses = screen.getByText("Completed").className;
-    unmount();
+  it("uses every label the data file gives a task", () => {
+    const labels = Object.values(vocabulary.statuses).map((entry) => entry.label);
+    expect(new Set(TABLE.map(([label]) => label))).toEqual(new Set(labels));
+  });
 
-    render(<DependencyState task={closedTask("superseded", "Superseded")} />);
+  it("never strikes a word through", () => {
+    // The owner rejected the strikethrough (2026-09-24); an unfinished ending is hollow.
+    for (const [label, category, overrides] of TABLE) {
+      const { unmount } = render(
+        <DependencyState task={task({ ...overrides, display_status: label, status_category: category })} />,
+      );
+      expect(chip().className, label).not.toMatch(/line-through/);
+      unmount();
+    }
+  });
 
-    expect(screen.getByText("Superseded").className).not.toEqual(completedClasses);
+  it("draws Completed solid and the unfinished endings hollow", () => {
+    render(<DependencyState task={task({ ...TABLE[15]![2], display_status: "Completed", status_category: "closed" })} />);
+    const completed = chip().style.backgroundColor;
+    expect(completed).not.toBe("transparent");
+    document.body.innerHTML = "";
+
+    render(<DependencyState task={task({ ...TABLE[16]![2], display_status: "Superseded", status_category: "closed_unfinished" })} />);
+    expect(chip().style.backgroundColor).toBe("transparent");
+    expect(chip().style.borderStyle).toBe("dashed");
   });
 });
 
-describe("DependencyState on a held task", () => {
-  // task-231: `agent/hold` is the first agent-ball state that is not workable, so
-  // every place that read "active" as "somebody is working on it" had to be revisited.
-  // This badge was one of them: it fell through to `lifecycle === "active"` and read
-  // "In flight" on the one task a human had deliberately stopped. Found by looking at
-  // it in a browser, not by any test that existed at the time.
-  const held: TaskRead = {
-    schema: 2,
-    id: "task-held",
-    title: "A held task",
-    created: "2026-08-13T08:00:00Z",
-    updated: "2026-08-13T09:00:00Z",
-    lifecycle: "active",
-    ball: "agent",
-    ball_reason: "hold",
-    ball_prompt: "ON HOLD -- wait for the dispatch fixes.",
-    display_status: "On hold (claude)",
-    priority: "high",
-    category: "general",
-    tags: [],
-    assignment: { owner: "claude", eligible: [] },
-    spec: { summary: "Summary.", description: "Body." },
-  };
+describe("the chip says the server's word and never its own", () => {
+  // Before task-562 this component rewrote "Ready" to "Actionable now", an agent's
+  // label to "In flight", and a parent's to "Waiting on sub-tasks".
+  it.each([
+    [{ actionable: true }, "Ready"],
+    [{ lifecycle: "active" as const, ball_reason: "work" as const, ball_prompt: "Go." }, "Working"],
+    [{ unmet_needs: ["task-9"] }, "Blocked"],
+  ])("renders display_status as sent", (overrides, label) => {
+    render(<DependencyState task={task({ ...overrides, display_status: label })} />);
 
-  it("says it is on hold rather than in flight", () => {
-    render(<DependencyState task={held} />);
-
-    expect(screen.getByText("On hold (claude)")).toBeVisible();
-    expect(screen.queryByText("In flight")).not.toBeInTheDocument();
+    expect(chip()).toHaveTextContent(label);
+    for (const retired of ["Actionable now", "In flight", "Waiting on sub-tasks"]) {
+      expect(screen.queryByText(retired)).not.toBeInTheDocument();
+    }
   });
 
-  it("says so even when the task is also blocked on an unmet dependency", () => {
-    // A hold outranks the dependency: nothing moves until a person releases it,
-    // whatever else is also true of the task.
-    render(<DependencyState task={{ ...held, unmet_needs: ["task-042"] }} />);
+  it("never reads Ready for a task that cannot start", () => {
+    // The server's answer for a non-actionable ready task. The chip must not fall back
+    // to a grey "Ready", which is what the old last branch did.
+    render(
+      <DependencyState
+        task={task({ actionable: false, unmet_needs: ["task-1"], display_status: "Blocked", status_category: "not_now" })}
+      />,
+    );
 
-    expect(screen.getByText("On hold (claude)")).toBeVisible();
-    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
+    expect(chip()).not.toHaveTextContent("Ready");
+    expect(chip()).not.toHaveAttribute("data-status-category", "ready");
+  });
+
+  it("capitalises whatever it is given", () => {
+    render(<DependencyState task={task({ display_status: "queued", status_category: "queued" })} />);
+
+    expect(chip().textContent).toBe("Queued");
+  });
+
+  it("shows the archived flag beside the chip, not in it", () => {
+    render(
+      <DependencyState
+        task={task({ lifecycle: "closed", ball: null, ball_reason: null, outcome: "superseded", archived: true, display_status: "Superseded", status_category: "closed_unfinished" })}
+      />,
+    );
+
+    expect(chip().textContent).toBe("Superseded");
+    expect(screen.getByTestId("archived-tag")).toHaveTextContent("Archived");
+  });
+});
+
+describe("the reason line", () => {
+  it("names the blockers", () => {
+    render(<DependencyState task={task({ unmet_needs: ["task-042", "task-043"], display_status: "Blocked", status_category: "not_now" })} />);
+
+    expect(screen.getByText("Waiting for task-042")).toBeVisible();
+    expect(screen.getByText("Waiting for task-043")).toBeVisible();
+  });
+
+  it("gives a quota reset its time, which left the chip", () => {
+    const parked = task({
+      lifecycle: "active",
+      ball: "external",
+      ball_reason: "service",
+      ball_prompt: "The limit resets at 2026-09-18T21:30:00+00:00.",
+      display_status: "Quota",
+      status_category: "not_now",
+      self_clearing_wait: { kind: "usage_limit", resets_at: "2026-09-18T21:30:00Z" },
+    });
+    const state = dependencyState(parked);
+
+    expect(state.label).toBe("Quota");
+    expect(state.reasons[0]).toMatch(/^Resumes by itself when the quota resets at /);
+  });
+
+  it("puts a service block's prompt under Blocked", () => {
+    const blocked = task({
+      lifecycle: "active",
+      ball: "external",
+      ball_reason: "service",
+      ball_prompt: "GitHub is down.",
+      display_status: "Blocked",
+      status_category: "not_now",
+    });
+
+    expect(dependencyState(blocked).reasons).toEqual(["GitHub is down."]);
+  });
+
+  it("names the step a finish is on", () => {
+    const finishing = task({
+      lifecycle: "active",
+      ball_reason: "work",
+      ball_prompt: "Go.",
+      display_status: "Finishing",
+      status_category: "finishing",
+      live_finish: { finish_id: "f1", state: "running", current_step: "gate", step_meaning: "Running the gate" },
+    });
+
+    expect(dependencyState(finishing).reasons).toEqual(["Merging this branch. Running the gate."]);
+  });
+
+  it("says a queued dispatch is waiting for a slot", () => {
+    const queued = task({
+      display_status: "Queued",
+      status_category: "queued",
+      queued_dispatch: { queue_id: "q1", position: 1, queued_at: "2026-09-24T09:00:00Z" },
+    });
+
+    expect(dependencyState(queued).reasons).toEqual([
+      "A dispatch of this task is waiting for a free slot. Nothing has started.",
+    ]);
+  });
+
+  it("says what supervising a parent means", () => {
+    // An epic nobody holds reads Ready (owner, 2026-09-24); the line says what claiming it gets.
+    const parent = task({ open_children_count: 2, display_status: "Ready", status_category: "ready" });
+
+    expect(dependencyState(parent).reasons[0]).toMatch(/^2 open sub-tasks to finish\./);
   });
 });
 
 describe("DependencyState in a list column", () => {
-  const blocked: TaskRead = {
-    schema: 2,
+  const blocked = task({
     id: "task-341-fixture",
-    title: "A task waiting on two others",
-    created: "2026-09-05T08:00:00Z",
-    updated: "2026-09-05T09:00:00Z",
-    lifecycle: "ready",
-    ball: "agent",
-    ball_reason: "work",
-    outcome: null,
-    display_status: "Ready",
-    priority: "medium",
-    category: "ux",
-    tags: [],
     unmet_needs: ["task-042", "task-043"],
-    assignment: { eligible: [] },
-    spec: { summary: "Summary.", description: "Body." },
-  };
+    display_status: "Blocked",
+    status_category: "not_now",
+  });
 
   // A `ball_prompt` is written for someone who has the task open, so it is routinely
   // several paragraphs. Rendered one `<p>` per reason in a 194px table column it made
@@ -129,20 +256,15 @@ describe("DependencyState in a list column", () => {
     expect(paragraphs[0]).toHaveTextContent("Waiting for task-042 · Waiting for task-043");
   });
 
-  // Clamped, not truncated: the cut is CSS, and the whole text is still on the element
-  // for a reader who hovers it. Nothing is dropped from the DOM.
   it("keeps the full text reachable on the element that shows the clamp", () => {
     const { container } = render(<DependencyState task={blocked} compact />);
 
-    const paragraph = container.querySelector("p");
-    expect(paragraph).toHaveAttribute(
+    expect(container.querySelector("p")).toHaveAttribute(
       "title",
       "Waiting for task-042 · Waiting for task-043",
     );
   });
 
-  // The task's own page has room for the whole thing, and is where a reader who wants
-  // to act on it is going. Only the list summarises.
   it("still gives each reason its own paragraph when it is not compact", () => {
     const { container } = render(<DependencyState task={blocked} />);
 
@@ -151,277 +273,18 @@ describe("DependencyState in a list column", () => {
   });
 
   it("renders no paragraph at all when there is nothing to say", () => {
-    const quiet = { ...blocked, unmet_needs: [], actionable: true };
-    const { container } = render(<DependencyState task={quiet} compact />);
+    const { container } = render(<DependencyState task={task({ actionable: true })} compact />);
 
     expect(container.querySelectorAll("p")).toHaveLength(0);
-    expect(screen.getByText("Actionable now")).toBeVisible();
+    expect(chip()).toHaveTextContent("Ready");
   });
 });
 
-describe("DependencyState on an external park", () => {
-  // task-456: every `external`/`service` park read "Blocked", in the red a real blockage
-  // gets, including a session waiting out a usage limit that recovery resumes by itself.
-  // A reader then has to open the task to learn there is nothing to do.
-  const parked: TaskRead = {
-    schema: 2,
-    id: "task-parked",
-    title: "A parked task",
-    created: "2026-09-18T18:00:00Z",
-    updated: "2026-09-18T19:00:00Z",
-    lifecycle: "active",
-    ball: "external",
-    ball_reason: "service",
-    ball_prompt: "The limit resets at 2026-09-18T21:30:00Z. Nothing to do.",
-    display_status: "Waiting on quota reset (21:30 UTC)",
-    priority: "medium",
-    category: "ops",
-    tags: [],
-    assignment: { owner: "claude", eligible: [] },
-    spec: { summary: "Summary.", description: "Body." },
-  };
-  const quota: TaskRead = {
-    ...parked,
-    self_clearing_wait: { kind: "usage_limit", resets_at: "2026-09-18T21:30:00Z" },
-  };
-  const vendorDown: TaskRead = {
-    ...parked,
-    display_status: "Blocked on a service",
-    ball_prompt: "Their API has been 503 since this morning.",
-    self_clearing_wait: null,
-  };
+describe("a response from an older server", () => {
+  it("draws an empty chip rather than taking the page down when the word is missing", () => {
+    const older = task({ display_status: undefined as unknown as string });
 
-  it("says what a quota park is waiting for and when it ends", () => {
-    render(<DependencyState task={quota} />);
-
-    expect(screen.getByText("Waiting on quota reset (21:30 UTC)")).toBeVisible();
-    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
-  });
-
-  it("still says Blocked when nothing says the wait clears itself", () => {
-    render(<DependencyState task={vendorDown} />);
-
-    expect(screen.getByText("Blocked")).toBeVisible();
-  });
-
-  // The colour is what a scan of the list reads, and red on a condition already handled
-  // is what sends somebody to investigate it.
-  it("does not draw a self-clearing wait in the colour a blockage gets", () => {
-    const { unmount } = render(<DependencyState task={vendorDown} />);
-    const blockedClasses = screen.getByText("Blocked").className;
-    unmount();
-
-    render(<DependencyState task={quota} />);
-
-    expect(screen.getByText("Waiting on quota reset (21:30 UTC)").className).not.toEqual(
-      blockedClasses,
-    );
-  });
-
-  // The routes serialise a task with no wait as an absent key on some surfaces and a
-  // null on others, so the check has to survive both.
-  it("treats an absent field the same as a null one", () => {
-    render(<DependencyState task={parked} />);
-
-    expect(screen.getByText("Blocked")).toBeVisible();
-  });
-});
-
-/**
- * A dispatch of the task waiting for a free slot (task-476).
- *
- * The row used to read "Actionable now" in green, which invites a reader to start the
- * agent the machine has already promised to start.
- */
-describe("a queued dispatch", () => {
-  function task(overrides: Partial<TaskRead>): TaskRead {
-    return {
-      schema: 2,
-      id: "task-queued",
-      title: "A task with a dispatch waiting for a slot",
-      created: "2026-09-19T15:00:00Z",
-      updated: "2026-09-19T15:29:00Z",
-      lifecycle: "ready",
-      ball: "agent",
-      ball_reason: "available",
-      display_status: "Ready",
-      priority: "high",
-      category: "ops",
-      tags: [],
-      assignment: { eligible: [] },
-      spec: { summary: "Summary.", description: "Body." },
-      ...overrides,
-    };
-  }
-
-  const entry = {
-    queue_id: "q_e1aeca49780f",
-    position: 1,
-    queued_at: "2026-09-19T15:29:00Z",
-    queued_by: "Jeff Posey",
-    source: "manual",
-    status: "queued",
-    detail: "",
-    paused_by: "",
-  };
-
-  it("replaces the invitation with the server's own label", () => {
-    const state = dependencyState(
-      task({
-        lifecycle: "ready",
-        ball: "agent",
-        ball_reason: "available",
-        actionable: true,
-        display_status: "Queued",
-        queued_dispatch: entry,
-      }),
-    );
-
-    expect(state.label).toBe("Queued");
-    expect(state.kind).toBe("waiting");
-    expect(state.reasons.join(" ")).toMatch(/waiting for a free slot/i);
-  });
-
-  it("says when nothing is being tried at all", () => {
-    const state = dependencyState(
-      task({
-        lifecycle: "ready",
-        ball: "agent",
-        ball_reason: "available",
-        actionable: true,
-        display_status: "Queued",
-        queued_dispatch: { ...entry, paused_by: "inc_7ffcc0210a984e39" },
-      }),
-    );
-
-    expect(state.label).toBe("Queued");
-    expect(state.reasons.join(" ")).toMatch(/inc_7ffcc0210a984e39 is open/);
-  });
-
-  it("leaves a ready task with no waiting entry actionable", () => {
-    const state = dependencyState(
-      task({
-        lifecycle: "ready",
-        ball: "agent",
-        ball_reason: "available",
-        actionable: true,
-        display_status: "Ready",
-      }),
-    );
-
-    expect(state.label).toBe("Actionable now");
-    expect(state.kind).toBe("actionable");
-  });
-});
-
-/**
- * A scripted finish merging the task's branch (task-509).
- *
- * The row read "In flight" — the same badge a task an agent is editing gets, because
- * the record says the same thing about both. A reader scanning the list had no way to
- * tell a task three minutes from being merged from one being worked on.
- */
-describe("a task being finished", () => {
-  function task(overrides: Partial<TaskRead>): TaskRead {
-    return {
-      schema: 2,
-      id: "task-finishing",
-      title: "A task whose branch is being merged",
-      created: "2026-09-20T15:00:00Z",
-      updated: "2026-09-20T15:29:00Z",
-      lifecycle: "active",
-      ball: "agent",
-      ball_reason: "work",
-      display_status: "In progress (claude)",
-      priority: "high",
-      category: "ops",
-      tags: [],
-      assignment: { owner: "claude", eligible: [] },
-      spec: { summary: "Summary.", description: "Body." },
-      ...overrides,
-    };
-  }
-
-  const finish = {
-    finish_id: "fin_a1b2c3d4",
-    state: "running",
-    started_at: "2026-09-20T15:26:00Z",
-    current_step: "gate",
-    step_meaning: "Running the full gate on the rebased branch",
-    branch: "feat/task-509-finishing-status",
-  };
-
-  it("shows the server's label instead of the badge a worked task gets", () => {
-    const state = dependencyState(
-      task({ display_status: "Finishing", live_finish: finish }),
-    );
-
-    expect(state.label).toBe("Finishing");
-    expect(state.kind).toBe("finishing");
-  });
-
-  it("draws the chip in the finishing violet, not the in-flight blue", () => {
-    // task-533: the owner's screenshot of task-548 showed "Finishing" in the blue a
-    // session editing files gets. Asserted on the rendered chip, not on the kind.
-    render(<DependencyState task={task({ display_status: "Finishing", live_finish: finish })} />);
-    const chip = screen.getByText("Finishing");
-
-    expect(chip.className).toMatch(/\bbg-violet-900\b/);
-    expect(chip.className).not.toMatch(/blue/);
-  });
-
-  it("is what separates it from a task an agent is genuinely working", () => {
-    // The two rows differ in nothing the record carries. This is the defect, stated as
-    // a test: without `live_finish` both of these return the identical badge.
-    const working = dependencyState(task({ id: "task-worked" }));
-
-    expect(working.label).toBe("In flight");
-    expect(dependencyState(task({ display_status: "Finishing", live_finish: finish })).label)
-      .not.toBe(working.label);
-  });
-
-  it("names the step in flight, which the one-word chip has no room for", () => {
-    const state = dependencyState(
-      task({ display_status: "Finishing", live_finish: finish }),
-    );
-
-    expect(state.reasons.join(" ")).toMatch(/Running the full gate on the rebased branch/);
-  });
-
-  it("falls back to the step's own name when no sentence was resolved for it", () => {
-    const state = dependencyState(
-      task({
-        display_status: "Finishing",
-        live_finish: { ...finish, step_meaning: "" },
-      }),
-    );
-
-    expect(state.reasons.join(" ")).toMatch(/gate/);
-  });
-
-  it("leaves a closed task reading its outcome while the finish cleans up", () => {
-    // The finish closes the task and then spends a second or two removing the worktree.
-    // "Completed" is the answer a reader wants there; "Finishing" would replace it with
-    // a process. The server decides this, and the closed branch above it is what keeps
-    // the component agreeing.
-    const state = dependencyState(
-      task({
-        lifecycle: "closed",
-        ball: null,
-        ball_reason: null,
-        outcome: "completed",
-        display_status: "Completed",
-        live_finish: { ...finish, current_step: "worktree" },
-      }),
-    );
-
-    expect(state.label).toBe("Completed");
-    expect(state.kind).toBe("done");
-  });
-
-  it("renders the label a reader actually sees, not merely the structure", () => {
-    render(<DependencyState task={task({ display_status: "Finishing", live_finish: finish })} />);
-
-    expect(screen.getByText("Finishing")).toBeVisible();
+    expect(() => render(<DependencyState task={older} />)).not.toThrow();
+    expect(chip().textContent).toBe("");
   });
 });

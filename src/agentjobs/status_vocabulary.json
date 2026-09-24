@@ -1,0 +1,93 @@
+{
+  "about": "Every status chip's word and colour (task-562). The server reads this for the words and categories it sends as display_status and status_category; the React app reads it for the colours. Edit a label or a colour here and both follow. A category's colours apply in every theme: they carry meaning, so a theme does not restyle them.",
+  "categories": {
+    "ready": {
+      "meaning": "Can start.",
+      "fill": "#064e3b",
+      "border": "#059669",
+      "text": "#d1fae5"
+    },
+    "queued": {
+      "meaning": "Will start on its own: a dispatch is waiting for a slot.",
+      "fill": "#4a2c17",
+      "border": "#8b5a2b",
+      "text": "#f1dcc5"
+    },
+    "working": {
+      "meaning": "Running: an agent is on it.",
+      "fill": "#1e3a8a",
+      "border": "#2563eb",
+      "text": "#dbeafe"
+    },
+    "finishing": {
+      "meaning": "Merging: a scripted finish is rebasing, gating and merging it.",
+      "fill": "#4c1d95",
+      "border": "#7c3aed",
+      "text": "#ede9fe"
+    },
+    "needs_you": {
+      "meaning": "Waiting, and will not continue until a person acts.",
+      "fill": "#7f1d1d",
+      "border": "#dc2626",
+      "text": "#fee2e2"
+    },
+    "not_now": {
+      "meaning": "Will not start yet, and not because of you: it clears without a person.",
+      "fill": "#831843",
+      "border": "#db2777",
+      "text": "#fce7f3"
+    },
+    "draft": {
+      "meaning": "Not specified yet, and not with a person.",
+      "fill": "#facc15",
+      "border": "#fde047",
+      "text": "#422006"
+    },
+    "closed": {
+      "meaning": "Finished: the work was done.",
+      "fill": "#475569",
+      "border": "#94a3b8",
+      "text": "#f8fafc"
+    },
+    "closed_unfinished": {
+      "meaning": "Ended without the work being done. Hollow where Completed is solid.",
+      "fill": "transparent",
+      "border": "#64748b",
+      "text": "#94a3b8",
+      "border_style": "dashed"
+    }
+  },
+  "statuses": {
+    "ready": { "label": "Ready", "category": "ready" },
+    "queued": { "label": "Queued", "category": "queued" },
+    "starting": { "label": "Starting", "category": "queued" },
+    "working": { "label": "Working", "category": "working" },
+    "finishing": { "label": "Finishing", "category": "finishing" },
+    "needs_spec": { "label": "Needs spec", "category": "needs_you" },
+    "needs_review": { "label": "Needs review", "category": "needs_you" },
+    "needs_decision": { "label": "Needs decision", "category": "needs_you" },
+    "needs_approval": { "label": "Needs approval", "category": "needs_you" },
+    "needs_input": { "label": "Needs input", "category": "needs_you" },
+    "error": { "label": "Error", "category": "needs_you" },
+    "blocked": { "label": "Blocked", "category": "not_now" },
+    "on_hold": { "label": "On hold", "category": "not_now" },
+    "quota": { "label": "Quota", "category": "not_now" },
+    "draft": { "label": "Draft", "category": "draft" },
+    "completed": { "label": "Completed", "category": "closed" },
+    "superseded": { "label": "Superseded", "category": "closed_unfinished" },
+    "cancelled": { "label": "Cancelled", "category": "closed_unfinished" },
+    "duplicate": { "label": "Duplicate", "category": "closed_unfinished" }
+  },
+  "run_health": {
+    "working": { "label": "Working", "category": "working" },
+    "starting": { "label": "Starting", "category": "queued" },
+    "parked": { "label": "Waiting on you", "category": "needs_you" },
+    "finishing": { "label": "Finishing", "category": "finishing" },
+    "handback": { "label": "Feedback", "category": "working" }
+  },
+  "walk": {
+    "walking": { "label": "Walking", "category": "working" },
+    "waiting": { "label": "Waiting", "category": "not_now" },
+    "grounded": { "label": "Grounded", "category": "needs_you" }
+  }
+}

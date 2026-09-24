@@ -17,7 +17,8 @@ function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
     ball: "human",
     ball_reason: "review",
     ball_prompt: "Read the entire record, then approve or request changes.",
-    display_status: "Waiting for review",
+    display_status: "Needs review",
+    status_category: "needs_you",
     priority: "high",
     category: "ux",
     tags: ["react"],
@@ -107,7 +108,7 @@ describe("TaskDetail resumption contract", () => {
     expect(screen.getByRole("link", { name: "task-noticed-on" })).toHaveAttribute("href", "/p/inbox/tasks/task-noticed-on");
     expect(screen.getByText("Reported while viewing this task.")).toBeVisible();
     expect(screen.getByRole("region", { name: "Umbrella dependency graph" })).toHaveTextContent("task-missing (missing)");
-    expect(screen.getByRole("region", { name: "Dependency state" })).toHaveTextContent("Waiting for review");
+    expect(screen.getByRole("region", { name: "Dependency state" })).toHaveTextContent("Needs review");
   });
 
   it("surfaces dependency cycles as data errors without hiding graph nodes", () => {

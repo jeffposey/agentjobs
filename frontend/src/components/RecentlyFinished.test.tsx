@@ -21,6 +21,8 @@ function closure(overrides: Partial<ClosureView> = {}): ClosureView {
     project_id: "agentjobs",
     project_name: "AgentJobs",
     outcome: "completed",
+    display_status: "Completed",
+    status_category: "closed",
     closed_at: "2026-09-18T09:00:00+00:00",
     age_seconds: 7_200,
     task_url: "/p/agentjobs/tasks/task-460",
@@ -56,15 +58,33 @@ describe("a row", () => {
       within(row).getByText("A small recently-finished spot on the Dashboard"),
     ).toBeTruthy();
     expect(within(row).getByText("AgentJobs")).toBeTruthy();
-    expect(within(row).getByText("completed")).toBeTruthy();
+    // The server's word and colour for the closure (task-562), not the raw outcome.
+    const chip = within(row).getByText("Completed");
+    expect(chip).toHaveAttribute("data-status-category", "closed");
+    expect(chip.style.backgroundColor).not.toBe("transparent");
+    expect(chip.style.borderStyle).toBe("solid");
     expect(within(row).getByText("2h ago")).toBeTruthy();
   });
 
   it("says a non-completed outcome rather than flattening it to done", () => {
-    draw(body({ closures: [closure({ outcome: "superseded" })] }));
+    draw(
+      body({
+        closures: [
+          closure({
+            outcome: "superseded",
+            display_status: "Superseded",
+            status_category: "closed_unfinished",
+          }),
+        ],
+      }),
+    );
 
-    expect(screen.getByText("superseded")).toBeTruthy();
-    expect(screen.queryByText("completed")).toBeNull();
+    const chip = screen.getByText("Superseded");
+    // Hollow rather than struck through (owner, 2026-09-24).
+    expect(chip).toHaveAttribute("data-status-category", "closed_unfinished");
+    expect(chip.style.backgroundColor).toBe("transparent");
+    expect(chip.style.borderStyle).toBe("dashed");
+    expect(screen.queryByText("Completed")).toBeNull();
   });
 
   it("links into the row's own project, not the one being looked at", () => {

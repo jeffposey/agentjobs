@@ -30,7 +30,7 @@ const sources = Object.fromEntries(
 
 /** What marks a file as rendering a task's or a run's state. */
 const RENDERS_STATE =
-  /\bdisplay_status\b|\blive_finish\b|\bHealthBadge\b|\bFinishBadge\b|\bdependencyState\b|<DependencyState\b|\.health\b|\bFINISHING_FILL\b/;
+  /\bdisplay_status\b|\bstatus_category\b|\blive_finish\b|\bHealthBadge\b|\bFinishBadge\b|\bdependencyState\b|<DependencyState\b|\.health\b|\bStatusChip\b|\bCATEGORY_CLASSES\b|\bstatusChipClasses\b/;
 
 const rows = inventory
   .split("\n")
@@ -83,8 +83,36 @@ describe("the agreed sources", () => {
 
   it("defines the finishing colour once", () => {
     for (const [path, text] of Object.entries(sources)) {
-      if (path === "components/DependencyState.tsx") continue;
+      if (path === "components/StatusChip.tsx") continue;
       expect(code(text), `${path} spells the finishing fill itself`).not.toMatch(/\bbg-violet-900\b(?!\/)/);
+    }
+  });
+
+  it("defines the category-to-colour map in one place", () => {
+    // task-562: four components each chose their own colours for the same status.
+    for (const [path, text] of Object.entries(sources)) {
+      if (path === "components/StatusChip.tsx") continue;
+      expect(code(text), `${path} defines its own status colour map`).not.toMatch(
+        /Record<StatusCategory,\s*string>/,
+      );
+    }
+  });
+
+  it("no longer rewrites the server's word anywhere", () => {
+    // task-562 ac-3: the words the list used to overwrite `display_status` with.
+    for (const [path, text] of Object.entries(sources)) {
+      for (const retired of ["Actionable now", "In flight", "Waiting on sub-tasks"]) {
+        expect(code(text), `${path} spells "${retired}"`).not.toContain(retired);
+      }
+    }
+  });
+
+  it("draws every display_status chip through the one chip", () => {
+    for (const [path, text] of Object.entries(sources)) {
+      if (!/\bdisplay_status\b/.test(code(text))) continue;
+      expect(code(text), `${path} renders display_status without the status chip`).toMatch(
+        /\bStatusChip\b|<DependencyState\b|\bdependencyState\b/,
+      );
     }
   });
 

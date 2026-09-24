@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { listLiveRunsApiRunsLiveGetOptions } from "../api/generated/@tanstack/react-query.gen";
 import type { LiveRunView, LiveRunsView, MachineHolderView } from "../api/types";
-import { FINISHING_FILL } from "./DependencyState";
+import { CHIP_SHAPE, RUN_HEALTH, categoryStyle } from "./StatusChip";
 import { formatElapsed } from "./DispatchPanel";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
@@ -84,41 +84,41 @@ export function useLiveRuns() {
  * exists to avoid. A session parked on a permission prompt is live and is waiting for a
  * human; an orphaned batch run is live and is not running at all.
  */
-export const HEALTH_LABELS: Record<string, string> = {
-  working: "Working",
-  starting: "Starting",
-  parked: "Waiting on you",
+const PROCESS_HEALTH_LABELS: Record<string, string> = {
   silent: "No output",
   orphaned: "Process gone",
   unknown: "Unreadable",
   // An interactive session whose transcript has not changed for a while (task-354).
   // Not an alarm: a chat window left open is the most ordinary state there is.
   idle: "Idle",
-  // A human moved the ball back to the agent while this run was still going (task-384).
-  // Ahead of "Working" in `run_health` because both are true and this is the one the
-  // reader is asking about: the click landed, and it is queued for this session.
-  handback: "Feedback waiting",
   // The task this run was dispatched for is closed, and the session is still open
   // (task-482). It holds no slot from here on, so a board that draws this badge is
   // drawing a run outside the slot cells.
   work_done: "Work done",
-  // A scripted finish is live for this run's task (task-533). The same word the task's
-  // own chip says -- `display_status` is "Finishing" from the same lookup -- because
-  // the board read "Working" beside a task page reading "Finishing", twice reported.
-  finishing: "Finishing",
 };
 
+/**
+ * Every health word. The ones that name the same thing as a task status -- Working,
+ * Starting, Waiting on you, Finishing, and Feedback (a human handed the ball back while
+ * this run was still going, task-384) -- come with their category from the status data
+ * file, so a run and its task are drawn in one word and one colour (task-562). The rest
+ * describe the process rather than the task and are spelled here.
+ */
+export const HEALTH_LABELS: Record<string, string> = {
+  ...PROCESS_HEALTH_LABELS,
+  ...Object.fromEntries(Object.entries(RUN_HEALTH).map(([health, entry]) => [health, entry.label])),
+};
+
+/**
+ * The rest describe the process rather than the task, and keep colours of their own.
+ * Same chip shape as a status, so the board does not mix filled and outlined badges.
+ */
 const HEALTH_CLASSES: Record<string, string> = {
-  working: "bg-green-900 text-green-200",
-  starting: "bg-slate-700 text-slate-200",
-  parked: "bg-orange-900 text-orange-200",
-  silent: "bg-orange-900 text-orange-200",
-  orphaned: "bg-red-900 text-red-200",
-  unknown: "bg-red-900 text-red-200",
-  idle: "bg-slate-700 text-slate-200",
-  handback: "bg-sky-900 text-sky-200",
-  work_done: "bg-slate-700 text-slate-200",
-  finishing: FINISHING_FILL,
+  silent: "border-orange-700 bg-orange-900 text-orange-200",
+  orphaned: "border-red-700 bg-red-900 text-red-200",
+  unknown: "border-red-700 bg-red-900 text-red-200",
+  idle: "border-slate-600 bg-slate-700 text-slate-200",
+  work_done: "border-slate-600 bg-slate-700 text-slate-200",
 };
 
 /**
@@ -143,13 +143,21 @@ export function healthLabel(health: string): string {
 }
 
 export function HealthBadge({ health }: { health: string }) {
+  const status = RUN_HEALTH[health];
+  if (status) {
+    return (
+      <span
+        data-health={health}
+        data-status-category={status.category}
+        className={CHIP_SHAPE}
+        style={categoryStyle(status.category)}
+      >
+        {status.label}
+      </span>
+    );
+  }
   return (
-    <span
-      data-health={health}
-      className={`whitespace-nowrap rounded px-2 py-1 text-xs ${
-        HEALTH_CLASSES[health] ?? HEALTH_CLASSES.unknown
-      }`}
-    >
+    <span data-health={health} className={`${CHIP_SHAPE} ${HEALTH_CLASSES[health] ?? HEALTH_CLASSES.unknown}`}>
       {healthLabel(health)}
     </span>
   );
@@ -260,13 +268,12 @@ export function FinishBadge({ finish }: { finish: MachineHolderView }) {
   return (
     <span
       data-finish-step={finish.detail}
-      className={
-        finish.overtaken
-          ? "whitespace-nowrap rounded bg-amber-900 px-2 py-1 text-xs text-amber-200"
-          : `whitespace-nowrap rounded px-2 py-1 text-xs ${FINISHING_FILL}`
-      }
+      data-status-category={finish.overtaken ? undefined : "finishing"}
+      // A lock state rather than a task status, so Overtaken keeps a colour of its own.
+      className={finish.overtaken ? `${CHIP_SHAPE} border-orange-700 bg-orange-900 text-orange-200` : CHIP_SHAPE}
+      style={finish.overtaken ? undefined : categoryStyle("finishing")}
     >
-      {finish.overtaken ? "Overtaken" : "Finishing"}
+      {finish.overtaken ? "Overtaken" : RUN_HEALTH.finishing?.label}
     </span>
   );
 }

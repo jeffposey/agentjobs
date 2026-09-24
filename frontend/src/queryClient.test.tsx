@@ -41,6 +41,8 @@ const TASK = {
   lifecycle: "ready",
   ball: "agent",
   ball_reason: "available",
+  display_status: "Ready",
+  status_category: "ready",
   archived: false,
   priority: "medium",
   category: "testing",

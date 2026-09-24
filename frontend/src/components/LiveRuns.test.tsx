@@ -10,6 +10,7 @@ import type {
 } from "../api/types";
 import {
   BUSY_POLL_MS,
+  HealthBadge,
   IDLE_POLL_MS,
   LiveRunCount,
   LiveRunsPage,
@@ -281,7 +282,9 @@ describe("the Runs tab", () => {
     // the question the reader has, so `run_health` renders this one and this asserts it
     // reaches the badge rather than falling through to the raw value.
     renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run({ health: "handback" })] })} />);
-    expect(screen.getByText("Feedback waiting")).toHaveAttribute("data-health", "handback");
+    // "Feedback", in the working blue: it continues with nobody acting (owner, 2026-09-24).
+    expect(screen.getByText("Feedback")).toHaveAttribute("data-health", "handback");
+    expect(screen.getByText("Feedback")).toHaveAttribute("data-status-category", "working");
     expect(screen.queryByText("Working")).toBeNull();
   });
 
@@ -369,5 +372,29 @@ describe("the Runs tab", () => {
     // Read-only is a decision, not an omission (task-328 out_of_scope, task-312).
     renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run()] })} />);
     expect(screen.queryByRole("button", { name: /cancel/i })).toBeNull();
+  });
+});
+
+describe("a run's badge in the task status colours (task-562)", () => {
+  it.each([
+    ["working", "Working", "working"],
+    ["starting", "Starting", "queued"],
+    ["finishing", "Finishing", "finishing"],
+    ["parked", "Waiting on you", "needs_you"],
+    ["handback", "Feedback", "working"],
+  ])("draws %s as the task status it names", (health, label, category) => {
+    render(<HealthBadge health={health} />);
+
+    const badge = screen.getByText(label);
+    expect(badge).toHaveAttribute("data-health", health);
+    expect(badge).toHaveAttribute("data-status-category", category);
+    expect(badge.style.backgroundColor).not.toBe("");
+  });
+
+  it("leaves a process-only state its own colour", () => {
+    render(<HealthBadge health="silent" />);
+
+    expect(screen.getByText("No output")).toHaveClass("bg-orange-900");
+    expect(screen.getByText("No output")).not.toHaveAttribute("data-status-category");
   });
 });

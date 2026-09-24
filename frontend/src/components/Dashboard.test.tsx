@@ -16,6 +16,7 @@ function task(id: string, overrides: Partial<TaskCardRead> = {}): TaskCardRead {
     ball: "agent",
     ball_reason: "available",
     display_status: "Ready",
+    status_category: "ready",
     priority: "medium",
     category: "general",
     summary: `Summary of ${id}`,

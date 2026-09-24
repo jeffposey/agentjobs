@@ -30,6 +30,7 @@ _SUMMARY_PASSTHROUGH = (
     "parent",
     "updated",
     "display_status",
+    "status_category",
     "actionable",
     "unmet_needs",
     "open_children_count",
@@ -76,7 +77,9 @@ def broken_task(record: Mapping[str, Any]) -> Dict[str, Any]:
 #: Derived values a read surface attaches that are not dependency facts. A task document
 #: must carry none of them: a caller cannot set any, and `display_status` looked settable
 #: inside one once already.
-_DERIVED_ONLY = frozenset({"display_status", "self_clearing_wait", "queued_dispatch"})
+_DERIVED_ONLY = frozenset(
+    {"display_status", "status_category", "self_clearing_wait", "queued_dispatch"}
+)
 
 
 def dependency_facts(record: Mapping[str, Any]) -> Dict[str, Any]:
@@ -152,6 +155,14 @@ TASK_SUMMARY_SCHEMA: Dict[str, Any] = {
         "owner": {"type": ["string", "null"]},
         "updated": {"type": "string"},
         "display_status": {"type": ["string", "null"]},
+        "status_category": {
+            "type": ["string", "null"],
+            "description": (
+                "The colour category of display_status, derived beside it: ready, "
+                "queued, working, finishing, needs_you, not_now, closed or "
+                "closed_unfinished."
+            ),
+        },
         "actionable": {"type": "boolean"},
         "unmet_needs": {"type": "array", "items": {"type": "string"}},
         "open_children_count": {"type": ["integer", "null"], "minimum": 0},

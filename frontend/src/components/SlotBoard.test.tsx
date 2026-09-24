@@ -118,6 +118,7 @@ function task(id: string, overrides: Partial<TaskCardRead> = {}): TaskCardRead {
     ball: "agent",
     ball_reason: "available",
     display_status: "Ready",
+    status_category: "ready",
     priority: "medium",
     category: "general",
     summary: `Summary of ${id}`,
@@ -636,6 +637,15 @@ describe("dispatches waiting for a slot", () => {
     // caller may see, so counting them here would promise somebody a place they do not
     // have.
     expect(cards.map((card) => card.dataset.position)).toEqual(["1", "2"]);
+  });
+
+  it("is headed with the word a queued task's chip says, and says what goes first", () => {
+    // task-562: the heading was "Waiting for a slot" beside chips reading "Queued".
+    renderBoard(<SlotBoard body={waitingBody([queued()])} queue={[]} projectId="alpha" />);
+
+    const rail = screen.getByTestId("slot-board-queue");
+    expect(within(rail).getByRole("heading", { level: 3 }).textContent).toBe("Queued");
+    expect(rail).toHaveTextContent("1 of 20 · Queued tasks are taken before epic walk tasks.");
   });
 
   it("names the task, who queued it, and how long it has waited", () => {
@@ -1183,10 +1193,14 @@ describe("the epics this machine is walking (task-523)", () => {
     expect(within(row).getByTestId("epic-walk-counts")).toHaveTextContent(
       "3 of 7 children done \u00b7 1 in flight \u00b7 3 to come",
     );
-    expect(within(row).getByTestId("epic-walk-badge")).toHaveTextContent("walking");
+    // Capitalised by the chip, and in the task chips' colour for the same situation (task-562).
+    expect(within(row).getByTestId("epic-walk-badge").textContent).toBe("Walking");
+    expect(within(row).getByTestId("epic-walk-badge")).toHaveAttribute("data-status-category", "working");
     expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
       "starting each child as its dependencies close",
     );
+    // Purple is Finishing's alone, so nothing on the walk card may be violet.
+    expect(row.outerHTML).not.toMatch(/violet/);
   });
 
   it("says a grounded walk has stopped, and why", () => {
@@ -1212,7 +1226,9 @@ describe("the epics this machine is walking (task-523)", () => {
     );
 
     const row = screen.getByTestId("epic-walk");
-    expect(within(row).getByTestId("epic-walk-badge")).toHaveTextContent("grounded");
+    // Capitalised by the chip, and in the task chips' colour for the same situation (task-562).
+    expect(within(row).getByTestId("epic-walk-badge").textContent).toBe("Grounded");
+    expect(within(row).getByTestId("epic-walk-badge")).toHaveAttribute("data-status-category", "needs_you");
     expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
       "grounded: a child used both of its attempts. Nothing more takes off until a person acts.",
     );
@@ -1243,7 +1259,9 @@ describe("the epics this machine is walking (task-523)", () => {
     );
 
     const row = screen.getByTestId("epic-walk");
-    expect(within(row).getByTestId("epic-walk-badge")).toHaveTextContent("waiting");
+    // Capitalised by the chip, and in the task chips' colour for the same situation (task-562).
+    expect(within(row).getByTestId("epic-walk-badge").textContent).toBe("Waiting");
+    expect(within(row).getByTestId("epic-walk-badge")).toHaveAttribute("data-status-category", "not_now");
     expect(within(row).getByTestId("epic-walk-state")).toHaveTextContent(
       "waiting on task-147: a child needs a person. It takes off again on its own when that clears.",
     );
@@ -1358,7 +1376,7 @@ describe("a run whose task is being merged (task-533)", () => {
 
     const cell = screen.getAllByTestId("slot-cell")[0]!;
     const badge = within(cell).getByText("Finishing");
-    expect(badge.className).toMatch(/\bbg-violet-900\b/);
+    expect(badge).toHaveAttribute("data-status-category", "finishing");
     expect(cell).not.toHaveTextContent("Working");
     expect(cell).toHaveTextContent("Queued for the merge runway, behind task-526");
   });

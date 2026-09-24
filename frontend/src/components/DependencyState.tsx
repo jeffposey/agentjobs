@@ -1,153 +1,103 @@
-import type { TaskSummaryRead } from "../api/types";
+import type { StatusCategory, TaskSummaryRead } from "../api/types";
+import { StatusChip } from "./StatusChip";
 
 /**
- * The finishing colour, one definition for every surface that says "Finishing".
+ * A task's chip and the reason line under it.
  *
- * Violet, the colour the slot board has drawn a finish card in since task-352. The task
- * chip used to borrow the in-flight blue, so a task being merged and a session editing
- * files looked the same at a glance, and the owner asked on 2026-09-24 that finishing
- * read in its own colour everywhere (task-533). Filled rather than outlined, which is
- * also what keeps it apart from the outlined violet of a closed-but-unfinished task.
+ * **The word and the colour are the server's** (task-562): `display_status` and
+ * `status_category` come from one function, `models_v2.task_status`, which already
+ * folds in every fact this component used to rewrite the word from -- unmet needs,
+ * open sub-tasks, a `needs` cycle, a queued dispatch, a live finish. Before that this
+ * function overwrote the server's word in five branches, so the list, the live runs
+ * board and the task page each spoke their own dialect. Nothing here decides a word now.
+ *
+ * What stays here is the reason line: the detail that had to leave the one-word chip --
+ * the blocker, the reset time, the step a finish is on, the prompt a person is being
+ * asked to answer.
  */
-export const FINISHING_FILL = "bg-violet-900 text-violet-200";
+export function dependencyState(task: TaskSummaryRead): {
+  category: StatusCategory;
+  label: string;
+  reasons: string[];
+} {
+  return {
+    category: task.status_category,
+    label: task.display_status,
+    reasons: reasonsFor(task),
+  };
+}
 
-export const STATE_CLASSES = {
-  actionable: "border-emerald-700 bg-emerald-950/40 text-emerald-300",
-  finishing: `border-violet-600 ${FINISHING_FILL}`,
-  blocked: "border-red-700 bg-red-950/40 text-red-300",
-  cycle: "border-amber-600 bg-amber-950/40 text-amber-200",
-  done: "border-slate-600 bg-slate-900 text-slate-300",
-  flight: "border-blue-700 bg-blue-950/40 text-blue-300",
-  // A task that was superseded, cancelled or duplicated is closed but was not
-  // finished, and the difference is the whole point of recording an outcome. Its own
-  // colour so a scan of the list catches it without reading every label.
-  unfinished: "border-violet-700 bg-violet-950/40 text-violet-300",
-  waiting: "border-dark-border bg-dark-bg text-dark-muted",
-} as const;
-
-export function dependencyState(task: TaskSummaryRead) {
-  if ((task.needs_cycles?.length ?? 0) > 0) {
-    return {
-      kind: "cycle" as const,
-      label: "Dependency data error",
-      reasons: task.needs_cycles?.map((cycle) => `Cycle: ${cycle.join(" → ")}`) ?? [],
-    };
-  }
-  if (task.lifecycle === "closed") {
-    // `display_status` is the backend's canonical label -- Completed, Superseded,
-    // Cancelled, Duplicate, each with "(archived)" when it applies. Collapsing all
-    // four to "Done" told a reviewer that a superseded task had been finished, which
-    // is the opposite of what its record says. Derive nothing here; show that.
-    const finished = (task.outcome ?? "completed") === "completed";
-    return {
-      kind: finished ? ("done" as const) : ("unfinished" as const),
-      label: task.display_status,
-      reasons: [],
-    };
-  }
+/**
+ * The reason line, in the same order the server ranks the facts in, so the sentence
+ * under a chip is always about the fact the chip names.
+ */
+function reasonsFor(task: TaskSummaryRead): string[] {
+  if (task.lifecycle === "closed") return [];
   if (task.live_finish) {
-    // A scripted finish is rebasing, gating and merging this task's branch right now
-    // (task-509). Above every branch below it because while a finish holds the task's
-    // run lock nothing else can be happening to the task: no dispatch can start, no
-    // second finish can begin, and the agent the row used to name has already handed
-    // the work over. Below the closed branch, though -- the finish closes the task at
-    // its `close` step and spends a second or two afterwards removing the worktree, and
-    // "Completed" is the more useful truth in that window.
-    //
-    // Drawn in the finishing colour, not the in-flight blue it used to borrow: the
-    // colour is what a scan of the list reads, and blue said "an agent is on it" about a
-    // task no agent is touching (task-533). It reads
-    // `display_status` rather than spelling "Finishing" here, for the reason every
-    // other branch does: the server decides the word, so the chip and the task page's
-    // panel cannot drift apart.
     const step = task.live_finish.step_meaning || task.live_finish.current_step;
-    return {
-      kind: "finishing" as const,
-      label: task.display_status,
-      reasons: [step ? `Merging this branch. ${step}.` : "Merging this branch."],
-    };
+    return [step ? `Merging this branch. ${step}.` : "Merging this branch."];
   }
-  if (task.ball === "agent" && task.ball_reason === "hold") {
-    // Before this, a held task fell through to `lifecycle === "active"` and read "In
-    // flight" -- the badge asserting work was underway on the one task a human had
-    // deliberately stopped. It sits above the blocked and dependency branches because
-    // a hold outranks them: what a reader needs to know is that nothing will move
-    // until a person releases it, whatever else is also true.
-    return {
-      kind: "waiting" as const,
-      label: task.display_status,
-      reasons: task.ball_prompt ? [task.ball_prompt] : [],
-    };
+  const cycles = task.needs_cycles ?? [];
+  if (cycles.length > 0) return cycles.map((cycle) => `Cycle: ${cycle.join(" → ")}`);
+  if (task.ball === "human" || (task.ball === "agent" && task.ball_reason === "hold")) {
+    return task.ball_prompt ? [task.ball_prompt] : [];
   }
-  if ((task.unmet_needs?.length ?? 0) > 0) {
-    return {
-      kind: "blocked" as const,
-      label: "Blocked",
-      reasons: task.unmet_needs?.map((reason) => `Waiting for ${reason}`) ?? [],
-    };
-  }
+  const unmet = task.unmet_needs ?? [];
+  if (unmet.length > 0) return unmet.map((reason) => `Waiting for ${reason}`);
   if (task.ball === "external") {
-    // A park on a usage limit clears with nobody acting, so it is drawn as a wait and
-    // not in the red a blockage gets: the colour is what a scan of the list reads, and
-    // red on a condition already handled is what sends somebody to investigate it.
-    // `display_status` carries the reset time -- derive nothing here, show that.
-    const selfClearing = task.self_clearing_wait != null;
-    return {
-      kind: selfClearing ? ("waiting" as const) : ("blocked" as const),
-      label: selfClearing ? task.display_status : "Blocked",
-      reasons: [task.ball_prompt || "Waiting for an external dependency."],
-    };
+    if (task.self_clearing_wait) {
+      // The reset time moved here from the chip (task-562), and in the reader's own
+      // zone: a label derived on the server could only say UTC.
+      const resets = task.self_clearing_wait.resets_at;
+      return [
+        resets
+          ? `Resumes by itself when the quota resets at ${formatResetTime(resets)}.`
+          : "Resumes by itself when the quota resets.",
+      ];
+    }
+    return [task.ball_prompt || "Waiting for an external dependency."];
   }
-  if (task.ball === "human") {
-    return {
-      kind: "waiting" as const,
-      label: task.display_status,
-      reasons: task.ball_prompt ? [task.ball_prompt] : [],
-    };
-  }
-  if (task.lifecycle === "active") {
-    return { kind: "flight" as const, label: "In flight", reasons: [] };
-  }
-  if ((task.open_children_count ?? 0) > 0) {
-    const count = task.open_children_count ?? 0;
-    return {
-      kind: "waiting" as const,
-      label: "Waiting on sub-tasks",
-      // Not "must finish first": since task-164 an epic can be claimed, and what that
-      // hands you is the supervisor's seat rather than the children's work.
-      reasons: [
-        `${count} open sub-task${count === 1 ? "" : "s"} to finish. ` +
-          "Claim it to supervise them — a session per child, not the work itself.",
-      ],
-    };
+  if (task.status_category === "working") return [];
+  const children = task.open_children_count ?? 0;
+  if (children > 0) {
+    // Not "must finish first": since task-164 an epic can be claimed, and what that
+    // hands you is the supervisor's seat rather than the children's work.
+    return [
+      `${children} open sub-task${children === 1 ? "" : "s"} to finish. ` +
+        "Claim it to supervise them — a session per child, not the work itself.",
+    ];
   }
   if (task.queued_dispatch) {
-    // A dispatch of this task is waiting for a free slot (task-476). Above the
-    // `actionable` branch because "Actionable now" is the same claim `Ready` was making
-    // on the task's own page: it invites a reader to start something the machine has
-    // already promised to start, and two agents on one repository is what the queue's
-    // `already_queued` rule exists to prevent. Drawn as a wait rather than in the green
-    // an open invitation gets, for the reason a self-clearing park is: nothing here
-    // needs anybody. `display_status` carries the place in line -- derive nothing here,
-    // show that.
-    return {
-      kind: "waiting" as const,
-      label: task.display_status,
-      reasons: [
-        task.queued_dispatch.paused_by
-          ? `A dispatch is waiting for a slot, and nothing is being tried on its credential while ${task.queued_dispatch.paused_by} is open.`
-          : "A dispatch of this task is waiting for a free slot. Nothing has started.",
-      ],
-    };
+    return [
+      task.queued_dispatch.paused_by
+        ? `A dispatch is waiting for a slot, and nothing is being tried on its credential while ${task.queued_dispatch.paused_by} is open.`
+        : "A dispatch of this task is waiting for a free slot. Nothing has started.",
+    ];
   }
-  if (task.actionable) {
-    return { kind: "actionable" as const, label: "Actionable now", reasons: [] };
-  }
-  return {
-    kind: "waiting" as const,
-    label: task.display_status,
-    reasons: task.ball_prompt ? [task.ball_prompt] : [],
-  };
+  return [];
+}
+
+function formatResetTime(iso: string): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return iso;
+  return when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * The archived flag, drawn beside the chip rather than inside it (task-562).
+ *
+ * Neutral on purpose: it is not a status, so it takes no status colour. It used to be
+ * an "(archived)" suffix on the chip's word, which made one outcome two labels.
+ */
+export function ArchivedTag() {
+  return (
+    <span
+      data-testid="archived-tag"
+      className="inline-flex rounded border border-dark-border px-1.5 text-xs text-dark-muted"
+    >
+      Archived
+    </span>
+  );
 }
 
 export function DependencyState({ task, compact = false }: { task: TaskSummaryRead; compact?: boolean }) {
@@ -163,8 +113,9 @@ export function DependencyState({ task, compact = false }: { task: TaskSummaryRe
   const summary = state.reasons.join(" · ");
   return (
     <div className={compact ? "space-y-1" : "space-y-2"}>
-      <span className={`inline-flex rounded border px-2 py-1 text-xs font-medium ${STATE_CLASSES[state.kind]}`}>
-        {state.label}
+      <span className="inline-flex flex-wrap items-center gap-1">
+        <StatusChip category={state.category} label={state.label} />
+        {task.archived && <ArchivedTag />}
       </span>
       {compact
         ? summary !== "" && (

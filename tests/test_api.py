@@ -237,7 +237,8 @@ def test_a_quota_park_reaches_a_client_as_both_a_label_and_a_structure(api_clien
     detail = client.get(f"/api/tasks/{task_id}/detail").json()["task"]
 
     for served in (row, detail):
-        assert served["display_status"] == "Waiting on quota reset (21:30 UTC)"
+        assert served["display_status"] == "Quota"
+        assert served["status_category"] == "not_now"
         assert served["self_clearing_wait"] == {
             "kind": "usage_limit",
             "resets_at": "2026-09-18T21:30:00Z",
@@ -251,8 +252,42 @@ def test_a_service_park_nobody_marked_carries_no_wait(api_client) -> None:
 
     row = next(item for item in client.get("/api/tasks").json() if item["id"] == task_id)
 
-    assert row["display_status"] == "Blocked on a service"
+    assert row["display_status"] == "Blocked"
     assert row["self_clearing_wait"] is None
+
+
+def test_the_corpus_facts_decide_the_label_on_both_read_surfaces(api_client) -> None:
+    """task-562: "Blocked" is the server's word, not the list's, and an epic reads Ready.
+
+    Before, the frontend rewrote a ready task's "Ready" to "Blocked" or "Waiting on
+    sub-tasks" from facts only it read. Now the server folds those facts in, so the
+    word and its colour category arrive together on the list row and the task read.
+    """
+    client, manager = api_client
+    blocker = manager.create_task(
+        title="Blocker", description="x", category="ops", lifecycle=Lifecycle.READY
+    )
+    blocked = manager.create_task(
+        title="Blocked", description="x", category="ops", lifecycle=Lifecycle.READY
+    )
+    manager.update_task(
+        blocked.id, dependencies=[{"task": blocker.id, "type": "needs"}], actor="claude"
+    )
+    epic = manager.create_task(
+        title="Epic", description="x", category="ops", lifecycle=Lifecycle.READY
+    )
+    manager.update_task(blocker.id, parent=epic.id, actor="claude")
+
+    rows = {item["id"]: item for item in client.get("/api/tasks").json()}
+    for task_id, label, category in (
+        (blocker.id, "Ready", "ready"),
+        (blocked.id, "Blocked", "not_now"),
+        # An epic nobody holds is claimable as the supervisor's seat (task-164).
+        (epic.id, "Ready", "ready"),
+    ):
+        detail = client.get(f"/api/tasks/{task_id}/detail").json()["task"]
+        for served in (rows[task_id], detail):
+            assert (served["display_status"], served["status_category"]) == (label, category)
 
 
 def test_get_task_success(api_client) -> None:

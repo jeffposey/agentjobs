@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { listRecentClosuresApiRecentClosuresGetOptions } from "../api/generated/@tanstack/react-query.gen";
 import type { ClosureView, RecentClosuresView } from "../api/types";
+import { StatusChip } from "./StatusChip";
 
 /**
  * What landed while you were not looking (task-460).
@@ -68,20 +69,17 @@ export function closureAge(seconds: number): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-const OUTCOME_CLASSES: Record<string, string> = {
-  completed: "bg-green-900 text-green-200",
-  cancelled: "bg-slate-700 text-slate-200",
-  superseded: "bg-slate-700 text-slate-200",
-  duplicate: "bg-slate-700 text-slate-200",
-};
-
 /**
  * One closure, on one line where there is room for one.
  *
  * `completed` is the common case and the other three are the ones worth noticing, so the
- * outcome is printed as written rather than flattened into "done". A region that said
- * *done* for a task somebody cancelled would be hiding the one difference these rows are
- * scanned for.
+ * outcome is said rather than flattened into "done". A region that said *done* for a task
+ * somebody cancelled would be hiding the one difference these rows are scanned for.
+ *
+ * The chip is the server's `display_status` and `status_category` for the closure, from
+ * the function a task read uses (task-562), so this row says exactly what the task list
+ * says about the same task: "Completed" in grey, and the other three in grey struck
+ * through. It used to print the raw lowercase outcome, and Completed in green.
  *
  * The id, outcome, project and age wrap under the title below 560px rather than being
  * dropped, because the project is exactly what a phone reader needs here: the whole point
@@ -101,13 +99,13 @@ function ClosureRow({ closure }: { closure: ClosureView }) {
           <span className="truncate text-sm text-dark-text">{closure.task_title}</span>
         </div>
         <div className="flex shrink-0 items-center gap-2 text-xs text-dark-muted">
-          <span
-            data-outcome={closure.outcome}
-            className={`whitespace-nowrap rounded px-2 py-0.5 ${
-              OUTCOME_CLASSES[closure.outcome] ?? OUTCOME_CLASSES.cancelled
-            }`}
-          >
-            {closure.outcome}
+          <span data-outcome={closure.outcome} className="inline-flex">
+            {/* The outcome only as a fallback, for a server older than display_status:
+                the word is the server's whenever it sends one. */}
+            <StatusChip
+              category={closure.status_category}
+              label={closure.display_status ?? closure.outcome}
+            />
           </span>
           <span className="truncate">{closure.project_name}</span>
           <time dateTime={closure.closed_at} className="whitespace-nowrap">

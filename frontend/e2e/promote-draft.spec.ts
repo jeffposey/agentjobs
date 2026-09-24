@@ -78,7 +78,7 @@ test("walks the whole drafts loop: create, find through the dashboard, promote",
   // Gone, because the ball has left the human -- and the state a human reads is
   // the promoted one, not merely different markup.
   await expect(page.getByRole("region", { name: "Draft actions" })).toBeHidden();
-  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Actionable now");
+  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Ready");
 
   const log = page.getByRole("region", { name: "Task log" });
   await expect(log).toContainText("Spec is finished; open for claiming.");
@@ -92,7 +92,7 @@ test("wears the review vocabulary once a task is past draft", async ({ page }) =
   // Ready/agent-available: the ball is not with the human, so no action panel at all.
   await expect(page.getByRole("region", { name: "Draft actions" })).toBeHidden();
   await expect(page.getByRole("region", { name: "Review actions" })).toBeHidden();
-  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Actionable now");
+  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Ready");
 });
 
 test("promoting without a note records the manager's own sentence", async ({ page }) => {
@@ -153,9 +153,10 @@ test("send feedback and reject still work on a draft, unchanged", async ({ page,
     "The acceptance criteria are not testable yet.",
   );
   // Still a draft, now with the agent, reason revise -- which is exactly what
-  // feedback on a spec should mean: go rewrite it, it is not ready yet. And the
-  // panel is gone, because the ball is no longer with the human.
-  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Revising");
+  // feedback on a spec should mean: go rewrite it, it is not ready yet. A draft not
+  // waiting on a person reads "Draft" (task-562), and the panel is gone, because the
+  // ball is no longer with the human.
+  await expect(page.getByRole("region", { name: "Dependency state" })).toContainText("Draft");
   await expect(page.getByRole("region", { name: "Draft actions" })).toBeHidden();
 
   await createTask(page, "Draft that gets rejected", "Draft");

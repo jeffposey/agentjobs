@@ -34,6 +34,7 @@ function task(id: string, overrides: Partial<TaskRead> = {}): TaskRead {
     ball: "agent",
     ball_reason: "available",
     display_status: "Ready",
+    status_category: "ready",
     priority: "high",
     category: "general",
     tags: [],

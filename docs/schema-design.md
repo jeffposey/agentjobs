@@ -314,6 +314,10 @@ CLI, GUI, and API all want one human-readable label. It derives mechanically
 was rejected: a denormalized copy of three fields is a drift bug waiting for its moment,
 and the derivation is ~15 lines.
 
+*(2026-09-24, task-562: the labels above are the original examples. The vocabulary is now
+one word per state with a colour category beside it — see
+[task-schema.md](task-schema.md#status_category-and-the-vocabulary).)*
+
 ### Consistency rules (model-enforced)
 
 1. `ball` is absent-or-null ⟺ `lifecycle: closed`.

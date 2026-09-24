@@ -637,26 +637,84 @@ bytes may be referenced by an entry nobody has looked at yet.
 
 ## `display_status`
 
-Computed on read, never stored — `Needs review`, `In progress (claude)`,
-`Blocked on task-044`, `Ready`, `Completed (archived)`. A stored copy of three fields is
-a drift bug waiting for its moment.
+Computed on read, never stored — one word or short phrase from a fixed vocabulary, and
+the same word on every surface: the React app, the CLI and MCP. A stored copy of three
+fields is a drift bug waiting for its moment.
 
 It is a Pydantic *computed field*, so it appears in API responses and templates use it
 instead of switching on the axes themselves. The store and the exporter both exclude it
 when writing, and a file that contains it is rejected by name (`extra="forbid"`).
 
-### `Waiting on quota reset (21:30 UTC)`
+### `status_category` and the vocabulary
 
-One label is derived from more than the axes. An `external`/`service` park is
-`Blocked on a service` — except where the newest handoff is auth recovery's own, its
-action still means waiting, and the incident kind is one that lifts with nobody acting.
-Today that is `usage_limit` alone, and the label then names the reset time the refusal
-reported, in UTC, because a label derived on the server cannot know the reader's zone.
-The full timestamp stays in `ball_prompt`.
+**Every read model carries `status_category` beside `display_status`**, derived by the
+same call to `models_v2.task_status()`, so the word and its colour cannot disagree
+(task-562). **Every word and every colour is in one data file,
+[`src/agentjobs/status_vocabulary.json`](../src/agentjobs/status_vocabulary.json)**: the
+server reads it for the labels and categories it sends, and the React app reads the same
+file for the colours. Change a label or a colour there and both follow. The rule is **one
+colour per category, and every label in exactly one category.** Grey means closed and
+nothing else, so any coloured chip is a live task.
+
+| `status_category` | Colour | Labels — the chip's exact words |
+|---|---|---|
+| `ready` | green | `Ready` |
+| `queued` | brown | `Queued`, `Starting` |
+| `working` | blue | `Working` |
+| `finishing` | purple | `Finishing` |
+| `needs_you` | red | `Needs spec`, `Needs review`, `Needs decision`, `Needs approval`, `Needs input`, `Error` (a `needs` cycle) |
+| `not_now` | pink | `Blocked`, `On hold`, `Quota` |
+| `draft` | yellow | `Draft` |
+| `closed` | grey, solid | `Completed` |
+| `closed_unfinished` | grey, hollow with a dashed border | `Superseded`, `Cancelled`, `Duplicate` |
+
+`closed` and `closed_unfinished` are the one grey, drawn two ways: a task that ended with
+the work done is solid, and one that ended without it is hollow.
+
+The same file maps the run-health words that name a task status (Working, Starting,
+Waiting on you, Finishing, and Feedback, meaning the owner's feedback is queued for the
+running session) and the three epic-walk badges (Walking, Waiting, Grounded) to these
+categories.
+
+**What the chip does not say.** The owner, the blocker, a quota wait's reset time and the
+archived flag are each on the record and drawn beside the chip, never in it — a chip is
+read at a glance in a narrow column, and a qualifier there is read as noise. Before
+task-562 the same task read `In progress (claude)` in the API, `In flight` in the task
+list and `Working` on the live runs board; `Blocked on task-044`, `Waiting on quota
+reset (21:30 UTC)`, `Waiting on sub-tasks` and `Completed (archived)` are retired the same
+way.
+
+**Why red is "needs you" and pink is "blocked".** Red marks what is waiting and will not
+continue until a person acts. Most blocks — a dependency on another task, a quota wait —
+clear with nobody acting, and red on them sends somebody to investigate a handled
+condition. A `needs` cycle is red because only a person can fix the data.
+
+**The order the facts are weighed in** is in `task_status()`'s docstring, and it is the
+one place it is decided. Three rules are worth stating here: a closed task keeps its
+outcome even while a finish is still cleaning up; a human ball outranks an unmet `needs`
+edge, because a spec can be written whatever the task is blocked on; and an epic nobody
+holds reads `Ready`, because since task-164 it can be claimed as the supervisor's seat. A
+walked epic is claimed, so it reads `Working`.
+
+**Which facts a surface can see decides how precise its word is.** A read model
+(`TaskRead`, the listing row, the dashboard card) folds in the corpus's dependency facts,
+the machine's dispatch queue and its live finishes. The CLI's list knows the queue but
+not the corpus, so it cannot say `Blocked` for an unmet edge nobody handed off on, or
+`Error` for a cycle; a bare `Task.display_status` knows neither. That is a narrower
+answer, never a contradictory one.
+
+### `Quota`
+
+One label is derived from more than the axes. An `external`/`service` park reads
+`Blocked` — except where the newest handoff is auth recovery's own, its action still
+means waiting, and the incident kind is one that lifts with nobody acting. Today that is
+`usage_limit` alone, and the label is then `Quota`. The reset time is not in the
+label: the React app writes it under the chip in the reader's own zone, from
+`self_clearing_wait.resets_at`, and the full timestamp stays in `ball_prompt`.
 
 **The point is that the two states need different things from a reader.** A session
 waiting out a usage limit is probed and resumed by AgentJobs itself, so a label saying
-only "Blocked on a service" sends somebody to investigate a condition already handled
+only "Blocked" sends somebody to investigate a condition already handled
 (task-456). A `spend_limit` and a dead credential store past its probe deadline park on
 a *person* instead, so they keep reading `Needs input` and none of this reaches them.
 
@@ -678,7 +736,7 @@ a finish moves nothing on the record it is finishing — approving hands the bal
 `agent`/`work`, and there it stays for the three to four minutes of the attempt.
 
 **The point is the same as above: the two states need different things from a reader.**
-`In progress (claude)` on a task being merged is not wrong, it is merely useless — it is
+`Working` on a task being merged is not wrong, it is merely useless — it is
 the label a task an agent is editing gets, and before task-509 nothing anywhere but the
 task page's finish panel could tell the two apart.
 

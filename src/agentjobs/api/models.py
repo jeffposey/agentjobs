@@ -35,13 +35,28 @@ from agentjobs.models_v2 import (
     Task,
     TaskCard,
     TaskSummary,
-    derived_display_status,
+    StatusCategory,
+    StatusFacts,
+    TaskStatus,
     self_clearing_wait,
     summary_of,
+    task_status,
 )
 
 from .live_finish import live_finish_for
 from .queued_dispatch import queued_dispatch_for
+
+
+def _facts_of(row: "TaskRead | TaskSummaryRead") -> StatusFacts:
+    """The dependency facts a read model already carries, in the shape the label reads.
+
+    Built from the row's own fields rather than passed alongside, so the chip is drawn
+    from exactly the facts a client is shown beside it.
+    """
+    return StatusFacts(
+        needs_cycle=bool(row.needs_cycles),
+        unmet_needs=bool(row.unmet_needs),
+    )
 
 
 class TaskRead(Task):
@@ -131,17 +146,27 @@ class TaskRead(Task):
         self.live_finish = live_finish_for(self.id, self.is_open)
         return self
 
+    def _status(self) -> TaskStatus:
+        """This row's chip, from every fact this read model carries (task-562).
+
+        Overridden here rather than on `Task`, which cannot see the machine's queue, its
+        finishes or the corpus's dependency facts. The derivation itself stays in
+        `models_v2`, so the label, the category and the structures they are drawn from
+        cannot disagree about what is happening.
+        """
+        return task_status(self, self.queued_dispatch, self.live_finish, _facts_of(self))
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def display_status(self) -> str:
-        """The record's label, with a waiting dispatch named where there is one.
+        """The chip's word: the one label every surface shows for this task."""
+        return self._status().label
 
-        Overridden here rather than on `Task`, which cannot see the machine's queue or
-        its finishes. The derivation itself stays in `models_v2` beside the one it falls
-        back to, so the label and the structures it is drawn from cannot disagree about
-        what is happening.
-        """
-        return derived_display_status(self, self.queued_dispatch, self.live_finish)
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def status_category(self) -> StatusCategory:
+        """The chip's colour, from the same derivation as ``display_status``."""
+        return self._status().category
 
     @classmethod
     def from_tasks(cls, manager: TaskManager, tasks: List[Task]) -> List["TaskRead"]:
@@ -162,7 +187,7 @@ class TaskRead(Task):
         """Attach dependency facts without changing the persisted task schema."""
         return cls.model_validate(
             {
-                **task.model_dump(exclude={"display_status"}),
+                **task.model_dump(exclude={"display_status", "status_category"}),
                 "unmet_needs": list(facts.unmet_needs),
                 "actionable": facts.actionable,
                 "needs_cycles": [list(cycle) for cycle in facts.needs_cycles],
@@ -216,11 +241,21 @@ class TaskSummaryRead(TaskSummary):
         self.live_finish = live_finish_for(self.id, self.is_open)
         return self
 
+    def _status(self) -> TaskStatus:
+        """This row's chip, from every fact the listing row carries -- see ``TaskRead``."""
+        return task_status(self, self.queued_dispatch, self.live_finish, _facts_of(self))
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def display_status(self) -> str:
-        """The record's label, with a waiting dispatch or a running finish named."""
-        return derived_display_status(self, self.queued_dispatch, self.live_finish)
+        """The chip's word: the one label every surface shows for this task."""
+        return self._status().label
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def status_category(self) -> StatusCategory:
+        """The chip's colour, from the same derivation as ``display_status``."""
+        return self._status().category
 
     @classmethod
     def from_summaries(
@@ -246,7 +281,9 @@ class TaskSummaryRead(TaskSummary):
         """
         return cls.model_validate(
             {
-                **row.model_dump(mode="python", by_alias=True, exclude={"display_status"}),
+                **row.model_dump(
+                    mode="python", by_alias=True, exclude={"display_status", "status_category"}
+                ),
                 "unmet_needs": list(facts.unmet_needs),
                 "actionable": facts.actionable,
                 "needs_cycles": [list(cycle) for cycle in facts.needs_cycles],
