@@ -14,12 +14,9 @@ What to look at:
     red Needs spec / review / decision / approval / input, Error ·
     pink Blocked, On hold, Quota · yellow Draft ·
     grey: Completed solid, and Superseded / Cancelled / Duplicate hollow.
-    Every word, colour and icon comes from src/agentjobs/status_vocabulary.json.
+    Every word and colour comes from src/agentjobs/status_vocabulary.json.
     Each task's title names the state it was seeded into.
-  * **The icons** (task-578): every chip draws its status's icon before the word. Grounded,
-    on the dashboard's walk rail, is left without one in the data file, and the Runs
-    tab's No output badge is a process word with none: both are the icon-less chip, exactly
-    as every chip looked before icons, to compare against the ones beside them.
+  * **No icons** (task-578): the data file names one per status, and no chip draws it.
   * **Any task page**: the header chip and the "Work state" card say the same word in the
     same colour as the list, and the reason line carries what left the chip (the
     blocker, the quota reset time in your zone, the finish step). task-005 is the
@@ -29,7 +26,7 @@ What to look at:
     walked" rail has one walk each Walking (blue), Waiting (pink) and Grounded (red),
     with no violet on the cards.
   * **The Runs tab**: Working blue, Starting brown, Waiting on you red, Landing purple,
-    Feedback blue, and No output (orange, a process word with no icon).
+    Feedback blue, and No output (orange, a process word).
 
 **Two things here are drawn, not real**, and both are machine state a review sandbox
 cannot arrange on demand: the three epic walks (a real walk dispatches real children)
@@ -304,7 +301,7 @@ RUN_HEALTH = {
     "run_parked": ("task-007", "parked"),
     "run_finishing": ("task-005", "finishing"),
     "run_handback": ("task-004", "handback"),
-    # A process word rather than a task status: no icon, the pre-task-578 chip.
+    # A process word rather than a task status, which keeps a colour of its own.
     "run_silent": ("task-014", "silent"),
 }
 

@@ -1,5 +1,5 @@
 {
-  "about": "Every status chip's word, colour and optional icon (task-562, task-578). An icon is a Lucide name, drawn only if frontend/src/components/statusIcons.ts registers it; an entry without one draws the chip with no icon. The server reads this for the words and categories it sends as display_status and status_category; the React app reads it for the colours. Edit a label or a colour here and both follow. A category's colours apply in every theme: they carry meaning, so a theme does not restyle them.",
+  "about": "Every status chip's word, colour and optional icon (task-562, task-578). An icon is a Lucide name registered in frontend/src/components/statusIcons.ts; no chip draws it (task-584 decides where icons are used). The server reads this for the words and categories it sends as display_status and status_category; the React app reads it for the colours. Edit a label or a colour here and both follow. A category's colours apply in every theme: they carry meaning, so a theme does not restyle them.",
   "categories": {
     "ready": {
       "meaning": "Can start.",

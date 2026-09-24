@@ -1025,7 +1025,7 @@ export function TaskList({
                       at full size it outweighed the id and title it sits between. Scoped
                       to this row so StatusChip itself is unchanged. */}
                   <span
-                    className="flex min-w-0 shrink items-center gap-1 overflow-hidden [&_[data-status-category]]:px-1.5 [&_[data-status-category]]:py-0 [&_[data-status-category]]:text-[0.6rem] [&_[data-status-category]]:leading-4"
+                    className="flex min-w-0 shrink items-center gap-1 overflow-hidden [&>[data-status-category]]:px-1.5 [&>[data-status-category]]:py-0 [&>[data-status-category]]:text-[0.6rem] [&>[data-status-category]]:leading-4"
                     data-field="status"
                   >
                     <StatusChip category={state.category} label={state.label} motion={state.motion} />

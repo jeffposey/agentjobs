@@ -26,8 +26,11 @@ import {
 } from "lucide-react";
 
 /**
- * Every icon a status chip can draw, by the Lucide name `status_vocabulary.json` uses
- * (task-578).
+ * Every status icon, by the Lucide name `status_vocabulary.json` uses (task-578).
+ *
+ * **Nothing imports this but its test yet.** Chips do not draw icons: next to the word
+ * they were clutter (owner's decision on task-578), and where they are used instead is
+ * task-584. Kept so the choices in the data file stay valid until then.
  *
  * An explicit list rather than `import *` so the bundle carries these glyphs and no
  * others. Choosing an icon is an edit to the data file plus one line here; a name in the

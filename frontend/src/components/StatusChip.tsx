@@ -1,10 +1,9 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 
 import type { StatusCategory } from "../api/types";
 // The one data file every status word and colour comes from (task-562). The server reads
 // it for the words it sends as `display_status`; this reads it for the colours.
 import vocabulary from "../../../src/agentjobs/status_vocabulary.json";
-import { STATUS_ICONS } from "./statusIcons";
 
 /**
  * The status colours: one per category, and every status in exactly one category.
@@ -48,72 +47,11 @@ export const RUN_HEALTH = vocabulary.run_health as Record<string, Entry>;
 /** An epic walk's badge word and category. */
 export const WALK_STATES = vocabulary.walk as Record<"walking" | "waiting" | "grounded", Entry>;
 
-/** Every task status's word, category and icon, for a surface naming one by key. */
+/** Every task status's word and category, for a surface naming one by key. */
 export const STATUSES = vocabulary.statuses as Record<string, Entry>;
 
 /** The shape every status chip has, so no surface draws a filled one beside an outlined one. */
 export const CHIP_SHAPE = "inline-flex whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium";
-
-/**
- * Each status word's icon, from the data file (task-578).
- *
- * Keyed by the word because the word is what every surface already holds: the server
- * sends `display_status`, not the key it chose it by. The same word appears in more than
- * one section -- Working is a task status and a run's health -- and `statusIcons.test.ts`
- * holds that it names one icon wherever it appears, so the key is never ambiguous.
- */
-export const LABEL_ICONS: Record<string, string> = Object.fromEntries(
-  [STATUSES, RUN_HEALTH, WALK_STATES as Record<string, Entry>]
-    .flatMap((section) => Object.values(section))
-    .filter((entry) => entry.icon)
-    .map((entry) => [entry.label, entry.icon as string]),
-);
-
-/** The icon name for a chip's word, or undefined: most process words have none. */
-export function statusIconName(label: string | null | undefined): string | undefined {
-  return label ? LABEL_ICONS[label] : undefined;
-}
-
-/**
- * A chip with its status's icon beside it, outside the chip (task-578).
- *
- * **Beside, not inside** (owner's revision, 2026-09-24): inside, the glyph took a third of
- * a chip the task sidebar already draws 20% smaller, and crowded the word until it was
- * hard to read. Outside, the chip is exactly the chip it was, and the glyph is drawn in
- * its category's border colour, the one tone of the three that reads on the page
- * background, so it still visibly belongs to the chip.
- *
- * With no icon this returns the chip alone, with no wrapper, so an icon-less chip is the
- * pre-icon markup exactly. `aria-hidden` because the chip's word is the accessible name.
- * A name the registry lacks draws nothing rather than throwing: the test suite is where
- * that is an error, not the page.
- */
-export function WithStatusIcon({
-  name,
-  category,
-  children,
-}: {
-  name: string | null | undefined;
-  category: StatusCategory;
-  children: ReactNode;
-}) {
-  const Icon = name ? STATUS_ICONS[name] : undefined;
-  if (!Icon) return <>{children}</>;
-  const colours = CATEGORIES[category] as Colours | undefined;
-  return (
-    <span className="inline-flex min-w-0 items-center gap-1" data-status-with-icon="">
-      <Icon
-        data-status-icon={name}
-        aria-hidden="true"
-        focusable="false"
-        className="h-3.5 w-3.5 shrink-0"
-        style={colours ? { color: colours.border } : undefined}
-        strokeWidth={2.25}
-      />
-      {children}
-    </span>
-  );
-}
 
 /**
  * Capitalise the first letter and leave the rest alone.
@@ -209,29 +147,23 @@ export function StatusChip({
   title,
   testId,
   motion,
-  icon,
 }: {
   category: StatusCategory;
   label: string;
   title?: string;
   testId?: string;
   motion?: ChipMotion | null;
-  /** Overrides the icon the word would draw. `null` draws none. */
-  icon?: string | null;
 }) {
-  const iconName = icon === undefined ? statusIconName(label) : icon;
   return (
-    <WithStatusIcon name={iconName} category={category}>
-      <span
-        data-status-category={category}
-        data-motion={motion ?? undefined}
-        data-testid={testId}
-        title={title}
-        className={chipClasses(motion)}
-        style={categoryStyle(category)}
-      >
-        {chipCase(label)}
-      </span>
-    </WithStatusIcon>
+    <span
+      data-status-category={category}
+      data-motion={motion ?? undefined}
+      data-testid={testId}
+      title={title}
+      className={chipClasses(motion)}
+      style={categoryStyle(category)}
+    >
+      {chipCase(label)}
+    </span>
   );
 }
