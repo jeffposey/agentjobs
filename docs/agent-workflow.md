@@ -989,6 +989,13 @@ On the tailnet, looking works and writing is refused (403): a sandbox is not beh
 tailnet front door, so the server cannot prove who is calling. When a check needs a
 write, name the loopback URL for that step as well.
 
+**Start a sandbox from your worktree and leave it running for the review; the finish
+stops it** (task-566). Before removing the worktree, the scripted finish stops every
+process whose working directory or command line is inside it, and their children, and
+names them in its step table. Do not detach a sandbox with `Start-Process` to get it out
+of your session: nothing would ever stop it. A session that still lingers after its task
+closes is stopped once it is idle, unless a person has written to it since its review.
+
 **Ask in options, not in paragraphs** (task-017). A handoff may carry `questions[]`,
 each a question with the answers you are offering and which one you recommend, written
 in the same mutation as the handoff:

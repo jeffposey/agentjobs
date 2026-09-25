@@ -133,10 +133,15 @@ def never_reads_the_machines_processes(monkeypatch) -> None:
     installs its own. The automatic census is off for the same reason, and so that a
     machine short of memory does not change what a poller test observes.
     """
-    from agentjobs.dispatch import ledger
+    from agentjobs.dispatch import closed_sessions, ledger, worktree_teardown
 
     monkeypatch.setattr(ledger, "SESSION_TREE_READER", lambda: [])
     monkeypatch.setattr(ledger, "SESSION_FINDER", lambda: [])
+    # A finish stops what runs out of the worktree it removes (task-566). The same rule:
+    # a test's finish must never reach a real process, so the table is empty by default.
+    monkeypatch.setattr(worktree_teardown, "RESIDENT_READER", lambda: [])
+    # And the lingering-session backstop never finds a real session's transcript.
+    monkeypatch.setattr(closed_sessions, "TRANSCRIPT_FINDER", lambda session_id, cwd: None)
     monkeypatch.setenv("AGENTJOBS_MEMORY_WATCH", "off")
     monkeypatch.delenv("AGENTJOBS_MEMORY_FLOOR_MB", raising=False)
 
