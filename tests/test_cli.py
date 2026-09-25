@@ -148,7 +148,7 @@ def test_a_loopback_host_is_served_on_both_loopback_families(host: str) -> None:
     is exposed that the host check refuses."""
     with (
         patch("uvicorn.run") as plain_run,
-        patch("uvicorn.Server.run") as server_run,
+        patch("agentjobs.cli._serve_sockets") as serve_sockets,
         patch("agentjobs.cli._loopback_sockets", return_value=["v4", "v6"]) as sockets,
     ):
         result = runner.invoke(app, ["serve", "--host", host, "--port", "9001"])
@@ -156,7 +156,7 @@ def test_a_loopback_host_is_served_on_both_loopback_families(host: str) -> None:
     assert result.exit_code == 0, result.output
     plain_run.assert_not_called()
     sockets.assert_called_once_with(9001)
-    server_run.assert_called_once_with(sockets=["v4", "v6"])
+    assert serve_sockets.call_args.args[1] == ["v4", "v6"]
 
 
 def test_a_named_interface_is_served_exactly_as_asked() -> None:

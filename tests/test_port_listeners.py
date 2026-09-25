@@ -167,3 +167,25 @@ def test_serve_refuses_to_start_beside_an_ipv6_holder() -> None:
             cli._loopback_sockets(port)
         # The IPv4 socket it had already bound is released, not leaked.
         socket.create_server(("127.0.0.1", port), family=socket.AF_INET).close()
+
+
+def test_windows_serves_on_the_selector_loop() -> None:
+    """The proactor loop closes a listener when one accept fails (task-601)."""
+    import asyncio
+
+    seen: List[str] = []
+
+    class FakeServer:
+        config = MagicMock()
+
+        def run(self, sockets: list) -> None:
+            seen.append("proactor-or-default")
+
+        async def serve(self, sockets: list) -> None:
+            seen.append(type(asyncio.get_running_loop()).__name__)
+
+    with patch("sys.platform", "win32"):
+        cli._serve_sockets(FakeServer(), ["v4"])
+
+    assert len(seen) == 1
+    assert "Selector" in seen[0]

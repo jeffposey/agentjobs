@@ -540,7 +540,33 @@ def _run_server(host: str, port: int, reload: bool) -> None:
         uvicorn.run("agentjobs.api.main:app", host=host, port=port, reload=reload)
         return
     config = uvicorn.Config("agentjobs.api.main:app", host=host, port=port)
-    uvicorn.Server(config).run(sockets=_loopback_sockets(port))
+    _serve_sockets(uvicorn.Server(config), _loopback_sockets(port))
+
+
+def _serve_sockets(server: Any, sockets: List[Any]) -> None:
+    """Run ``server`` on ``sockets``, on an event loop that keeps its listeners open.
+
+    **Windows gets the selector loop, because the proactor loop closes a listening
+    socket when one accept fails** (task-601). ``asyncio.proactor_events`` answers any
+    ``OSError`` from an accept with ``sock.close()`` and never re-arms it, and a client
+    that resets its connection before the accept completes is such an error. Measured
+    2026-09-25 with 8 threads of connect-then-RST against each loop: the proactor
+    listener was closed within the run, logging "Accept failed on a socket"; the
+    selector listener stayed open with no errors. On the dashboard this left a live
+    server listening on ::1 alone, or on nothing, with no kill anywhere in the journal.
+
+    Uvicorn picks the selector loop on Windows itself whenever it runs workers or the
+    reloader. The one thing the proactor loop adds -- asyncio subprocesses -- is not
+    used by this server.
+    """
+    import asyncio
+
+    if sys.platform != "win32":
+        server.run(sockets=sockets)
+        return
+    server.config.setup_event_loop()
+    with asyncio.Runner(loop_factory=asyncio.SelectorEventLoop) as runner:
+        runner.run(server.serve(sockets=sockets))
 
 
 @app.command()
