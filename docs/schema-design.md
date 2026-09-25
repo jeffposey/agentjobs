@@ -267,6 +267,7 @@ responsible is not representable in v2.
 | | `hold` | stopped by a human, release condition in `ball_prompt` — the one agent reason that is not workable |
 | `human` | `spec` | the spec needs human completion/refinement (typical in `draft`) |
 | | `review` | work product needs review (v1's `under_review`) |
+| | `plan` | a plan, design or approach awaits a go-ahead; nothing is built yet. Approving it never authorises a merge (task-001) |
 | | `decision` | a choice is blocking progress |
 | | `approval` | a gate: merge, spend, publish (distinct from review: yes/no, not critique) |
 | | `input` | missing information only a human has |

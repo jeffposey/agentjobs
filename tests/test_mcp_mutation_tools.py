@@ -448,6 +448,7 @@ class TestStateVerbs:
             ("agent", "revise"),
             ("human", "spec"),
             ("human", "review"),
+            ("human", "plan"),
             ("human", "decision"),
             ("human", "approval"),
             ("human", "input"),

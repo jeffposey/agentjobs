@@ -66,6 +66,7 @@ const TABLE: Array<[string, StatusCategory, Partial<TaskRead>]> = [
   ["Landing", "finishing", { lifecycle: "active", ball_reason: "work", ball_prompt: "Go." }],
   ["Needs spec", "needs_you", { ball: "human", ball_reason: "spec", ball_prompt: "Spec it." }],
   ["Needs review", "needs_you", { ball: "human", ball_reason: "review", ball_prompt: "Look." }],
+  ["Needs plan approval", "needs_you", { ball: "human", ball_reason: "plan", ball_prompt: "Plan." }],
   ["Needs decision", "needs_you", { ball: "human", ball_reason: "decision", ball_prompt: "Pick." }],
   ["Needs approval", "needs_you", { ball: "human", ball_reason: "approval", ball_prompt: "OK?" }],
   ["Needs input", "needs_you", { ball: "human", ball_reason: "input", ball_prompt: "Say." }],

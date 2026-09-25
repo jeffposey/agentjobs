@@ -202,7 +202,7 @@ HANDOFF_TARGET_SCHEMA: Dict[str, Any] = {
                 "ball": {"const": "human"},
                 "reason": {
                     "type": "string",
-                    "enum": ["spec", "review", "decision", "approval", "input"],
+                    "enum": ["spec", "review", "plan", "decision", "approval", "input"],
                 },
                 "prompt": {"type": "string", "minLength": 1},
             },

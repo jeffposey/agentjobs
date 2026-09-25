@@ -82,7 +82,7 @@ down. Limbo stops being representable.
 
 `ball_reason` is scoped to whoever holds the ball — an agent can be `available`,
 `work`, `revise`, `answer`, `redirect`, or `hold`; a human can be `spec`, `review`,
-`decision`, `approval`, or `input`; `external` can be `dependency` or `service`. That's the "sub-parameter for
+`plan`, `decision`, `approval`, or `input`; `external` can be `dependency` or `service`. That's the "sub-parameter for
 why" from your own first design note, made into a closed vocabulary.
 
 ---

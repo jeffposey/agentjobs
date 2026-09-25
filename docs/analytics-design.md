@@ -1314,7 +1314,7 @@ open life exactly by construction — there is no residual and nothing to reconc
 | **queue** | `agent` / `available` — ready and unclaimed, whether before the first claim or after a release | |
 | **work** | `agent` with any other reason — `work`, `revise`, `answer`, `redirect`, `hold` | |
 | **review** | `human` / `review` | |
-| **waiting** | `human` with any other reason — `spec`, `decision`, `input`, `approval` — and `external` / `dependency`, `external` / `service` | |
+| **waiting** | `human` with any other reason — `spec`, `plan`, `decision`, `input`, `approval` — and `external` / `dependency`, `external` / `service` | |
 | **finish** | carved out of *work*: the span from the last approval to the close (§17.3) | |
 
 Every definition reads the same columns of `task_event`, and nothing else: `task_id`,
