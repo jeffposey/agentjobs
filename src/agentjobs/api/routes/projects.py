@@ -222,7 +222,10 @@ async def get_projects(
     payload: List[ProjectResponse] = []
     for project in visible_projects(principal):
         try:
-            count: Optional[int] = len(storage_for(project).list_tasks())
+            # The listing projection: a count needs rows, not every task's spec and log.
+            # Counting whole records cost ~230 ms on every app open for a 580-task
+            # project (task-483).
+            count: Optional[int] = len(storage_for(project).list_task_summaries())
         except OSError:
             count = None
         payload.append(_describe(project, count, principal))

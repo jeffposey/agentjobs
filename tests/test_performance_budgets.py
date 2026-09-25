@@ -759,7 +759,8 @@ QUERY_BUDGETS: Dict[str, Tuple[int, int]] = {
     f"{LOCAL}/dashboard": (10, 24),
     f"{LOCAL}/tasks/{SAMPLE_TASK}/detail": (23, 40),
     f"{LOCAL}/search?q=generated": (11, 20),
-    f"{LOCAL}/tasks/next": (11, 20),
+    # 11 -> 14 in task-483: the listing read plus one record, instead of every record.
+    f"{LOCAL}/tasks/next": (14, 20),
     f"{LOCAL}/tasks/broken": (1, 8),
     f"{LOCAL}/revision": (1, 4),
     # Measured over the attention corpus, not the shared one -- see `SHAPE_FOR`. Both of
@@ -881,6 +882,9 @@ LOG_ROWS_BUDGET: Dict[str, Tuple[int, int]] = {
     # of its neighbours, which the listing projection answers without a log row. That
     # was most of click-to-detail on a real store (task-483).
     f"{LOCAL}/tasks/{SAMPLE_TASK}/detail": (6, 32),
+    # The winner's log, and nobody else's. Choosing it over whole records read all of
+    # them -- ~230 ms on the real backlog -- to return one (task-483).
+    f"{LOCAL}/tasks/next": (6, 32),
 }
 
 
