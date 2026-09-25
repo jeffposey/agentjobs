@@ -33,13 +33,14 @@ list while a finish runs changes nothing about how that finish goes.
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 from fastapi import Request
 
 from agentjobs.models_v2 import LiveFinishState
 from agentjobs.projects import default_home
 
+from .landing_estimate import landing_estimate
 from .request_scope import request_project_id
 
 _BINDING: ContextVar[Optional["LiveFinishBinding"]] = ContextVar(
@@ -102,6 +103,7 @@ class LiveFinishBinding:
             for task_id, status in statuses.items()
             if did_the_closing(status.merge_commit, status.steps)
         }
+        storage = self._storage() if statuses else None
         return {
             task_id: LiveFinishState(
                 finish_id=status.finish_id,
@@ -110,9 +112,19 @@ class LiveFinishBinding:
                 current_step=status.current_step,
                 step_meaning=STEP_MEANING.get(status.current_step, ""),
                 branch=status.branch,
+                estimate=landing_estimate(status, storage),
             )
             for task_id, status in statuses.items()
         }
+
+    def _storage(self) -> Any:
+        """This request's project store, for the landing estimate's history (task-586)."""
+        from .dependencies import request_project, storage_for
+
+        try:
+            return storage_for(request_project(self._request))
+        except Exception:  # noqa: BLE001 - a label may not cost the read
+            return None
 
 
 async def bind_live_finishes(request: Request) -> None:

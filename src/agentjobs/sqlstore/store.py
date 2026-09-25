@@ -1706,5 +1706,33 @@ class SqlTaskStore:
         """Write one gate run and its stages; see :func:`sqlstore.history.upsert_gate_run`."""
         return upsert_gate_run(self.database, self.project_id, gate_id, record, stages)
 
+    # -----------------------------------------------------------------------
+    # The landing estimate (task-586)
+    # -----------------------------------------------------------------------
+
+    def finish_estimate_model(self, now: Optional[datetime] = None) -> Any:
+        """What history says a landing costs; see :func:`finish_estimate.load_model`."""
+        from ..finish_estimate import load_model
+
+        return load_model(self.read_connection(), self.project_id, now)
+
+    def record_finish_checkpoint(self, finish_id: str, now: Optional[datetime] = None) -> Any:
+        """Record a running finish's prediction if it is at a checkpoint.
+
+        See :func:`finish_estimate.record_checkpoint`. Read and write in one transaction,
+        so two history writes racing for the same checkpoint keep one prediction.
+        """
+        from ..finish_estimate import record_checkpoint
+
+        with self.database.write() as connection:
+            return record_checkpoint(connection, self.project_id, finish_id, now)
+
+    def reset_finish_estimator(self, now: Optional[datetime] = None) -> str:
+        """Forget the learned landing correction; see :func:`finish_estimate.reset`."""
+        from ..finish_estimate import reset
+
+        with self.database.write() as connection:
+            return reset(connection, self.project_id, now)
+
 
 __all__ = ["SqlTaskStore", "TaskNotFound", "EVENT_AXES"]

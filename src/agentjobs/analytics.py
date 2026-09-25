@@ -1566,6 +1566,69 @@ class AnalyticsProjection:
             )
         return points, coverage
 
+    def estimates(
+        self, window: Window
+    ) -> Tuple[List[Dict[str, Any]], SeriesCoverage, Dict[str, Any]]:
+        """F6: how good the landing estimate was, per week of start (task-586).
+
+        Scored at the prediction given as the gate started -- the runway is behind it by
+        then and the gate is most of what is left -- against the time the landing really
+        took from there. ``raw_error_p50_pct`` is the same score for the uncorrected
+        medians, so the gap between the two lines is what the learned correction is
+        worth; a correction making things worse would show as the corrected line above.
+        Outliers (a gate retry, a runway wait) are scored here and counted, and are the
+        ones the bias factor ignores.
+
+        The third value is the correction in force now: the factor, what it was learned
+        from, and whether the clamp is holding it.
+        """
+        from .finish_estimate import (
+            BIAS_CEILING,
+            BIAS_FLOOR,
+            BIAS_MIN_SAMPLE,
+            BIAS_WINDOW,
+            learn_bias,
+            measured,
+            scored,
+        )
+
+        # One read of the scored landings serves the series, its coverage and the
+        # correction in force now -- which is what keeps this panel inside the page's
+        # statement budget however many landings there are.
+        landings = measured(self.connection, self.project_id, as_of=_iso(self.now))
+        starts = [parse_instant(landing.started_at) for landing in landings]
+        recorded_from = min((moment for moment in starts if moment is not None), default=None)
+        coverage = self._series_coverage(
+            window,
+            label="landing estimates",
+            recorded_from=recorded_from,
+            native_from=recorded_from,
+        )
+        grouped: Dict[date, List[Any]] = {}
+        for landing, started in zip(landings, starts):
+            if started is None or started < window.start or started > window.end:
+                continue
+            grouped.setdefault(self._bucket(started, window, WEEK), []).append(landing)
+        points = [
+            {"bucket": bucket, **scored(grouped.get(bucket, []))}
+            for bucket in self._series_spine(window, WEEK, coverage.recorded_from)
+        ]
+        bias = learn_bias(self.connection, self.project_id, self.now, landings=landings)
+        state = {
+            "factor": bias.factor,
+            "active": bias.active,
+            "sample": bias.sample,
+            "learned": bias.learned,
+            "clamped": bias.clamped,
+            "excluded": bias.excluded,
+            "reset_at": parse_instant(bias.reset_at) if bias.reset_at else None,
+            "floor": BIAS_FLOOR,
+            "ceiling": BIAS_CEILING,
+            "min_sample": BIAS_MIN_SAMPLE,
+            "window": BIAS_WINDOW,
+        }
+        return points, coverage, state
+
     def gates(self, window: Window) -> Tuple[List[Dict[str, Any]], SeriesCoverage]:
         """G1 to G3: full gates per week of start."""
         edges = self._row(SQL_GATE_COVERAGE, (self.project_id,))
@@ -1915,6 +1978,7 @@ class AnalyticsProjection:
         # coverage says what it can claim.
         segments, segments_coverage = self.segments(window, coverage)
         finishes, finishes_coverage = self.finishes(window)
+        estimates, estimates_coverage, estimator = self.estimates(window)
         gates, gates_coverage = self.gates(window)
         cost, cost_coverage = self.cost_per_task(window, finishes_coverage, gates_coverage)
         runs, runs_coverage = self.runs(window)
@@ -1952,6 +2016,9 @@ class AnalyticsProjection:
             "cost_coverage": cost_coverage.as_dict(),
             "finishes": finishes,
             "finishes_coverage": finishes_coverage.as_dict(),
+            "estimates": estimates,
+            "estimates_coverage": estimates_coverage.as_dict(),
+            "estimator": estimator,
             "gates": gates,
             "gates_coverage": gates_coverage.as_dict(),
             "runs": runs,

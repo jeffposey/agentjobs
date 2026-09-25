@@ -3373,6 +3373,14 @@ class TaskManager:
         """Index one gate run and its stages in the store. See :meth:`record_finish`."""
         return self.storage.record_gate_run(gate_id, record, stages)
 
+    def record_finish_checkpoint(self, finish_id: str) -> Any:
+        """Record the landing estimate's prediction for a running finish (task-586).
+
+        See :func:`agentjobs.finish_estimate.record_checkpoint`. ``None`` when the finish
+        is not at a checkpoint worth recording.
+        """
+        return self.storage.record_finish_checkpoint(finish_id)
+
     # ------------------------------------------------------------------
     # Webhooks
     # ------------------------------------------------------------------

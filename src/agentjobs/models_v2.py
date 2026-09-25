@@ -19,7 +19,7 @@ import json
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Union
+from typing import Any, Dict, List, Literal, Mapping, NamedTuple, Optional, Union
 
 from pydantic import (
     BaseModel,
@@ -264,6 +264,38 @@ class QueuedDispatchState(BaseModel):
     as one that is next in line."""
 
 
+class LandingEstimate(BaseModel):
+    """How far along a live finish is and roughly when it will be done (task-586).
+
+    Computed once, on the server, by ``agentjobs.finish_estimate.estimate`` -- the task
+    list's ``live_finish``, the task page's finish view and the slot board all carry this
+    same shape from that same function, so no two surfaces can draw a different bar for
+    one finish, and no client re-derives the model.
+
+    Two numbers and a sentence, not the step list, which is why it may ride on every row.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["estimate", "runway", "no_history"]
+    """``estimate``: the numbers are set. ``runway``: waiting for the merge runway, which
+    history cannot time, so the bar is indeterminate. ``no_history``: too few finished
+    landings in this project to estimate from, so elapsed time only."""
+    progress: Optional[float] = None
+    """0 to 0.95 while running, weighted by each step's and gate stage's recent median
+    duration. Never 1: only a recorded ending is done."""
+    eta_seconds: Optional[float] = None
+    """Expected seconds remaining, after the learned correction. Measured from when this
+    response was built, so a client may count it down between polls."""
+    overrun: bool = False
+    """The landing has already taken longer than a whole typical one, runway waits aside.
+    A surface says "taking longer than usual" rather than showing a number."""
+    basis: str = ""
+    """What the estimate rests on, in one sentence, for a tooltip."""
+    typical_seconds: Optional[float] = None
+    """Median total seconds of this project's recent finished landings."""
+
+
 class LiveFinishState(BaseModel):
     """A scripted finish running against this task's branch right now (task-509).
 
@@ -278,6 +310,10 @@ class LiveFinishState(BaseModel):
     ``GET /dispatch/finishes/{task_id}``, which the panel already polls; duplicating the
     step list and the gate counter here would put a second copy of a fact on every row
     of a list nothing draws it on.
+
+    ``estimate`` is the exception that proves the rule (task-586): two numbers a row does
+    draw -- a thin progress bar and "about N min left" -- computed from the step list on
+    the server so the row does not need it.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -299,6 +335,8 @@ class LiveFinishState(BaseModel):
     tooltip and the panel's step list cannot describe the same step differently."""
     branch: str = ""
     """The branch being merged. Empty until the finish's preflight has recorded it."""
+    estimate: Optional[LandingEstimate] = None
+    """Progress and time remaining; see :class:`LandingEstimate`."""
 
 
 class Outcome(ValueEnum):
