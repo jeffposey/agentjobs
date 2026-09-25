@@ -50,7 +50,7 @@ export const REFUSAL_ACTIONS: Record<string, string> = {
     "Dispatch is not set up on this machine. Create ~/.agentjobs/dispatch.yaml and define a runner before anything can start.",
   disabled: "The machine-wide switch is off. Set 'enabled: true' in ~/.agentjobs/dispatch.yaml.",
   sentinel:
-    "Dispatch is switched off by the kill-switch file. Delete ~/.agentjobs/DISPATCH_DISABLED to allow runs again.",
+    "Dispatch is stopped machine-wide by the emergency stop. Press Stopped in the header to resume it.",
   project_not_enabled: "This project is not enabled for dispatch. Turn it on under Dispatch.",
   unknown_runner:
     "This project names a runner this machine does not define. Pick one that exists, or add it by hand to the config file.",

@@ -31,7 +31,7 @@ const ONE_ROW_MAX_PX = 72;
 const DESTINATIONS = ["Dashboard", "Tasks"];
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 748;
+const NAV_INLINE_MIN_PX = 796;
 
 /**
  * One record, long enough that every viewport under test has somewhere to scroll to,

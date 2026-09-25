@@ -30,6 +30,7 @@ import { setUnsentComposition } from "../unsentComposition";
 import { CaptureForm, type CaptureDestination } from "./CaptureForm";
 import { CaptureTray } from "./CaptureTray";
 import { FiledNotice, type FiledOutcome } from "./DispatchOnCreate";
+import { EmergencyStop, StoppedBanner } from "./EmergencyStop";
 
 /**
  * The one capture control (task-346): the single place anything becomes a task.
@@ -717,5 +718,19 @@ function CaptureDialog({ onClose, tray }: { onClose: () => void; tray: CaptureTr
 export function GlobalCapture() {
   const insideProject = useMatch("/p/:projectId/*");
   if (insideProject) return null;
-  return <CaptureControl className="fixed right-4 top-3 z-40" />;
+  // The stop rides with the capture trigger here too, in the same order as the header
+  // (task-573): it has to be on every page, and these pages have no header to hold it.
+  // The strip goes to the bottom here: the top-right corner is the controls', and a page
+  // with no header has no bar for it to sit under.
+  return (
+    <>
+      <div className="fixed right-4 top-3 z-40 flex items-center gap-1">
+        <EmergencyStop />
+        <CaptureControl />
+      </div>
+      <div className="fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]">
+        <StoppedBanner />
+      </div>
+    </>
+  );
 }
