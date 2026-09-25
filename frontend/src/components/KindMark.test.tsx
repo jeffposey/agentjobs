@@ -44,17 +44,22 @@ const design = task("task-design", { kind: "design", title: "Decide the shape" }
 const build = task("task-build", { title: "Build the shape" });
 
 describe("KindMark", () => {
-  it("draws the icon and the word for both kinds, never colour alone", () => {
+  it("draws the word for both kinds in a dashed outline, never colour alone", () => {
     render(<><KindMark kind="design" /><KindMark kind={null} /></>);
-    const marks = document.querySelectorAll("[data-kind]");
-    expect([...marks].map((mark) => [mark.getAttribute("data-kind"), mark.textContent])).toEqual([
+    const marks = [...document.querySelectorAll<HTMLElement>("[data-kind]")];
+    expect(marks.map((mark) => [mark.getAttribute("data-kind"), mark.textContent])).toEqual([
       ["design", "Design"],
       ["implementation", "Implementation"],
     ]);
-    // The icon is drawn in both, hidden from assistive technology because the word says it.
+    // The owner's review: the word alone, no icon beside it.
     for (const mark of marks) {
-      expect(mark.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      expect(mark.querySelector("svg")).toBeNull();
+      expect(mark).toHaveClass("border-dashed");
     }
+    // Design is the Draft chip's yellow, as an outline; never the landing's violet.
+    const designMark = marks[0] as HTMLElement;
+    expect(designMark.style.color).toBe("rgb(250, 204, 21)");
+    expect(designMark.style.borderColor).toBe("rgb(253, 224, 71)");
   });
 
   it("reads an absent or unknown kind as implementation", () => {
