@@ -31,7 +31,12 @@ from pydantic import BaseModel, Field
 from agentjobs.dispatch import pull as dispatch_pull
 from agentjobs.dispatch import queue as dispatch_queue
 from agentjobs.dispatch import start_pause
-from agentjobs.dispatch.config import machine_ceiling
+from agentjobs.dispatch.config import (
+    clear_sentinel,
+    machine_ceiling,
+    sentinel_note,
+    sentinel_path,
+)
 from agentjobs.dispatch.finish_status import (
     OVERTAKEN,
     FinishStatus,
@@ -39,6 +44,7 @@ from agentjobs.dispatch.finish_status import (
     read_finish_status,
 )
 from agentjobs.dispatch.ledger import (
+    DispatchLedger,
     KIND_FINISH,
     KIND_RUNWAY,
     HEALTH_FINISHING,
@@ -1051,6 +1057,7 @@ GROUNDING_WORDS: Dict[str, str] = {
     "already_supervised": "another supervisor holds this epic",
     "no_eligible_child": "no child is claimable",
     "all_children_done": "every child is done",
+    "emergency_stop": "the emergency stop ended it",
 }
 """How a ``WalkStop`` reads in a sentence.
 
@@ -1348,3 +1355,92 @@ def _pause_views(
             if project_id and project_id not in view.projects:
                 view.projects.append(project_id)
     return list(found.values())
+
+
+# ----- the emergency stop (task-573) ---------------------------------------------------
+
+
+class EmergencyStopState(BaseModel):
+    """Whether the machine's kill switch is down, and what it says about who put it there."""
+
+    stopped: bool = Field(
+        ..., description="`~/.agentjobs/DISPATCH_DISABLED` exists, so every dispatch is refused."
+    )
+    note: str = Field(
+        default="",
+        description="The sentinel's first line: who stopped dispatch, from where, and when.",
+    )
+    sentinel_file: str = Field(..., description="Where the sentinel lives on this machine.")
+
+
+class EmergencyStopItem(BaseModel):
+    """One thing the stop acted on."""
+
+    id: str = Field(..., description="The run, walk, pull arming or queue entry id.")
+    kind: str = Field(..., description="`run`, `walk`, `pull` or `queue`.")
+    stopped: bool = Field(..., description="False when it could not be confirmed stopped.")
+    detail: str
+
+
+class EmergencyStopResult(EmergencyStopState):
+    """The state after the stop, and everything it acted on."""
+
+    items: List[EmergencyStopItem] = Field(default_factory=list)
+
+
+def _stop_state() -> EmergencyStopState:
+    home = _home()
+    note = sentinel_note(home)
+    return EmergencyStopState(
+        stopped=note is not None, note=note or "", sentinel_file=str(sentinel_path(home))
+    )
+
+
+def _who(principal: Optional[Principal]) -> str:
+    if principal is None:
+        return "an unidentified caller"
+    return principal.actor_id or principal.login or principal.kind.value
+
+
+@router.get("/emergency-stop", response_model=EmergencyStopState)
+async def get_emergency_stop() -> EmergencyStopState:
+    """Whether dispatch is stopped machine-wide. Read by the header on every page."""
+    return _stop_state()
+
+
+@router.post("/emergency-stop", response_model=EmergencyStopResult)
+def press_emergency_stop(
+    principal: Optional[Principal] = Depends(get_principal),
+) -> EmergencyStopResult:
+    """Refuse every new dispatch, then stop everything AgentJobs started. Takes nothing.
+
+    The browser's twin of ``agentjobs dispatch stop``, and the same call underneath. No
+    body and no questions, for the reason ``disable_dispatch`` gives: a kill switch you
+    cannot reach is not one. It works whether or not dispatch is configured, because it
+    reads no configuration at all.
+
+    A plain ``def`` so Starlette runs it on a worker thread: stopping a batch run may
+    wait out its grace period, and the event loop serving every other page must not.
+    """
+    results = DispatchLedger(_home()).stop_everything(
+        requester=_who(principal), source="the web UI"
+    )
+    state = _stop_state()
+    return EmergencyStopResult(
+        **state.model_dump(),
+        items=[
+            EmergencyStopItem(id=r.run_id, kind=r.kind, stopped=r.stopped, detail=r.detail)
+            for r in results
+        ],
+    )
+
+
+@router.post("/emergency-stop/resume", response_model=EmergencyStopState)
+async def resume_after_emergency_stop() -> EmergencyStopState:
+    """Lift the kill switch. Starts nothing: what the stop ended stays ended.
+
+    Walks, pull armings and queued dispatches were ended by the stop rather than paused,
+    so resuming only means the next dispatch a person asks for is allowed again.
+    """
+    clear_sentinel(_home())
+    return _stop_state()

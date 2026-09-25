@@ -2131,6 +2131,92 @@ export type DispatchStateView = {
 };
 
 /**
+ * EmergencyStopItem
+ *
+ * One thing the stop acted on.
+ */
+export type EmergencyStopItem = {
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Id
+     *
+     * The run, walk, pull arming or queue entry id.
+     */
+    id: string;
+    /**
+     * Kind
+     *
+     * `run`, `walk`, `pull` or `queue`.
+     */
+    kind: string;
+    /**
+     * Stopped
+     *
+     * False when it could not be confirmed stopped.
+     */
+    stopped: boolean;
+};
+
+/**
+ * EmergencyStopResult
+ *
+ * The state after the stop, and everything it acted on.
+ */
+export type EmergencyStopResult = {
+    /**
+     * Items
+     */
+    items?: Array<EmergencyStopItem>;
+    /**
+     * Note
+     *
+     * The sentinel's first line: who stopped dispatch, from where, and when.
+     */
+    note?: string;
+    /**
+     * Sentinel File
+     *
+     * Where the sentinel lives on this machine.
+     */
+    sentinel_file: string;
+    /**
+     * Stopped
+     *
+     * `~/.agentjobs/DISPATCH_DISABLED` exists, so every dispatch is refused.
+     */
+    stopped: boolean;
+};
+
+/**
+ * EmergencyStopState
+ *
+ * Whether the machine's kill switch is down, and what it says about who put it there.
+ */
+export type EmergencyStopState = {
+    /**
+     * Note
+     *
+     * The sentinel's first line: who stopped dispatch, from where, and when.
+     */
+    note?: string;
+    /**
+     * Sentinel File
+     *
+     * Where the sentinel lives on this machine.
+     */
+    sentinel_file: string;
+    /**
+     * Stopped
+     *
+     * `~/.agentjobs/DISPATCH_DISABLED` exists, so every dispatch is refused.
+     */
+    stopped: boolean;
+};
+
+/**
  * EpicWalkView
  *
  * One epic walk that is still open, as the board draws it (task-523).
@@ -12913,6 +12999,54 @@ export type GetProjectRevisionApiRevisionGetResponses = {
 };
 
 export type GetProjectRevisionApiRevisionGetResponse = GetProjectRevisionApiRevisionGetResponses[keyof GetProjectRevisionApiRevisionGetResponses];
+
+export type GetEmergencyStopApiRunsEmergencyStopGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/runs/emergency-stop';
+};
+
+export type GetEmergencyStopApiRunsEmergencyStopGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmergencyStopState;
+};
+
+export type GetEmergencyStopApiRunsEmergencyStopGetResponse = GetEmergencyStopApiRunsEmergencyStopGetResponses[keyof GetEmergencyStopApiRunsEmergencyStopGetResponses];
+
+export type PressEmergencyStopApiRunsEmergencyStopPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/runs/emergency-stop';
+};
+
+export type PressEmergencyStopApiRunsEmergencyStopPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmergencyStopResult;
+};
+
+export type PressEmergencyStopApiRunsEmergencyStopPostResponse = PressEmergencyStopApiRunsEmergencyStopPostResponses[keyof PressEmergencyStopApiRunsEmergencyStopPostResponses];
+
+export type ResumeAfterEmergencyStopApiRunsEmergencyStopResumePostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/runs/emergency-stop/resume';
+};
+
+export type ResumeAfterEmergencyStopApiRunsEmergencyStopResumePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmergencyStopState;
+};
+
+export type ResumeAfterEmergencyStopApiRunsEmergencyStopResumePostResponse = ResumeAfterEmergencyStopApiRunsEmergencyStopResumePostResponses[keyof ResumeAfterEmergencyStopApiRunsEmergencyStopResumePostResponses];
 
 export type ListLiveRunsApiRunsLiveGetData = {
     body?: never;
