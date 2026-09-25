@@ -734,6 +734,12 @@ def bench_browser(server: BenchServer, *, iterations: int) -> Section:
 
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     output_path.unlink()
+    if not payload["measurements"]:
+        # The spec writes its output in `afterAll`, which runs when the test failed as
+        # well -- so an empty file is a failure, and printing it as a section with no
+        # rows reported a broken measurement as nothing at all (task-483).
+        tail = completed.stdout.decode("utf-8", "replace").strip().splitlines()[-15:]
+        return failed("Playwright ran but recorded no timings:\n" + "\n".join(tail))
     return Section(
         name="Browser (packaged React app at /app/)",
         note="Timed from the click to the task detail heading being visible.",
