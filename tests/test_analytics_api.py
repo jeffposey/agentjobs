@@ -1036,6 +1036,11 @@ class TestQueryPlans:
         the second set (§21) adds twenty over the task store: thirty-two in all. A
         regression that put a query inside a loop -- one per task, one per bucket --
         would not change any plan above and would change this.
+
+        F6 (task-586) adds five on this store: the scored landings, the reset marker
+        and the three the uncorrected medians need. Each is a set query, so a store
+        with landings to score pays three more for their predictions and outliers, and
+        never one per landing.
         """
         connection = store.read_connection()
         executed: List[str] = []
@@ -1045,7 +1050,7 @@ class TestQueryPlans:
         finally:
             connection.set_trace_callback(None)
 
-        assert len(executed) <= 34, executed
+        assert len(executed) <= 37, executed
 
 
 class TestSpineHelpers:

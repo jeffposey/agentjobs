@@ -242,13 +242,21 @@ def seed_landing(
     scale: float = 1.0,
     runway_wait: float = 0.0,
     retried: bool = False,
+    slow: Optional[Dict[str, float]] = None,
 ) -> datetime:
-    """One finished landing, as the finisher and the gate would have recorded it."""
+    """One finished landing, as the finisher and the gate would have recorded it.
+
+    ``slow`` adds seconds to named steps, which is how a test builds a landing slower
+    than the sum of its steps' medians.
+    """
     moment = start
     steps: List[Dict[str, Any]] = []
     gate_start = start
     for seq, name in enumerate(STEP_ORDER, start=1):
         seconds = STEP_SECONDS[name] * scale + (runway_wait if name == "runway" else 0.0)
+        seconds += (slow or {}).get(name, 0.0)
+        if name == "gate" and retried:
+            seconds *= 2  # a retried gate runs twice
         if name == "gate":
             gate_start = moment
         moment += timedelta(seconds=seconds)
@@ -437,13 +445,34 @@ class TestItRecordsWhatItPredicted:
         assert store.record_finish_checkpoint("fin_wait", start) is None
 
 
-class TestTheCorrection:
-    """History seeded consistently slower than the medians predict."""
+AFTER_GATE = [step for step in STEP_ORDER[STEP_ORDER.index("gate") + 1 :]]
 
-    def slow_landings(
-        self, store: SqlTaskStore, ratios: List[float], start: datetime, **options: Any
+
+def skew(index: int, extra: float) -> Dict[str, float]:
+    """Each step after the gate slow in two landings of every five, never the same two.
+
+    So every step's median is its quick time -- three of every five are quick -- while
+    every landing has three or four slow steps. That is the miss the per-step medians
+    cannot see and the correction exists for: a landing takes longer than the sum of its
+    steps' medians, every time.
+    """
+    return {step: extra for offset, step in enumerate(AFTER_GATE) if (index + offset) % 5 < 2}
+
+
+class TestTheCorrection:
+    """History whose landings are consistently slower than the sum of their medians."""
+
+    def skewed_landings(
+        self,
+        store: SqlTaskStore,
+        count: int,
+        start: datetime,
+        *,
+        extra: float,
+        prefix: str = "slow",
+        **seed: Any,
     ) -> List[float]:
-        """One finished landing per ratio, each predicted at ``1/ratio`` of what it took.
+        """``count`` landings, each with a prediction recorded as its gate started.
 
         Returns the bias factor in force after each one ends, which is the sequence a
         reader of the accuracy chart would have watched.
@@ -451,72 +480,90 @@ class TestTheCorrection:
         task_id = make_task(store)
         factors: List[float] = []
         moment = start
-        for index, ratio in enumerate(ratios):
-            finish_id = f"fin_{options.get('prefix', 'slow')}{index:03d}"
+        for index in range(count):
+            finish_id = f"fin_{prefix}{index:03d}"
+            gate_start = moment + timedelta(seconds=2)
             ended = seed_landing(
-                store, finish_id, moment, task_id=task_id, **options.get("seed", {})
+                store, finish_id, moment, task_id=task_id, slow=skew(index, extra), **seed
             )
-            predicted_at = moment + timedelta(seconds=2)
-            prediction(
-                store, finish_id, predicted_at, (ended - predicted_at).total_seconds() / ratio
-            )
+            prediction(store, finish_id, gate_start, TOTAL - 2)
             factors.append(fe.learn_bias(store.read_connection(), store.project_id, ended).factor)
             moment = ended + timedelta(minutes=5)
         return factors
 
     def test_it_converges_on_a_consistent_miss(self, store: SqlTaskStore) -> None:
+        """Three or four slow steps of 45 s in a 323 s remainder: about ×1.42 to ×1.56."""
         start = history(store, 3, START)
-        ratios = [1.4, 1.6, 1.5, 1.45, 1.55, 1.5, 1.48, 1.52]
 
-        factors = self.slow_landings(store, ratios, start)
+        factors = self.skewed_landings(store, 10, start, extra=45.0)
 
         assert factors[:2] == [1.0, 1.0]  # fewer than three measured: no correction yet
-        assert all(1.4 <= factor <= 1.6 for factor in factors[2:])
-        assert factors[-1] == pytest.approx(1.5, abs=0.02)
-        model = store.finish_estimate_model(start + timedelta(days=1))
+        assert all(1.40 <= factor <= 1.57 for factor in factors[2:])
+        assert factors[-1] == pytest.approx(1.49, abs=0.08)
+        model = store.finish_estimate_model(START + timedelta(days=1))
+        assert model.expected("restart") == STEP_SECONDS["restart"]  # the medians miss it
         assert model.bias.active and model.bias.factor == factors[-1]
         answer = fe.estimate(model, fe.Position(done=through("rebase"), current="gate"))
         assert answer.eta_seconds == pytest.approx(round((TOTAL - 2) * factors[-1], 1))
 
+    def test_a_slower_gate_is_left_to_the_medians(self, store: SqlTaskStore) -> None:
+        """Drift is the medians' job; learning it again double-counts it (the sandbox)."""
+        start = history(store, 3, START)
+        task_id = make_task(store)
+        moment = start
+        for index in range(12):
+            gate_start = moment + timedelta(seconds=2)
+            ended = seed_landing(store, f"fin_drift{index:03d}", moment, task_id=task_id, scale=1.6)
+            prediction(store, f"fin_drift{index:03d}", gate_start, TOTAL - 2)
+            moment = ended + timedelta(minutes=5)
+
+        bias = fe.learn_bias(store.read_connection(), store.project_id, START + timedelta(days=1))
+
+        assert bias.factor == pytest.approx(1.0, abs=0.01)
+
     def test_outliers_are_reported_but_do_not_move_it(self, store: SqlTaskStore) -> None:
         start = history(store, 3, START)
-        self.slow_landings(store, [1.5, 1.5, 1.5, 1.5], start)
-        before = fe.learn_bias(store.read_connection(), store.project_id, START + timedelta(days=1))
+        self.skewed_landings(store, 5, start, extra=45.0)
+        now = START + timedelta(days=1)
+        before = fe.learn_bias(store.read_connection(), store.project_id, now)
 
+        # Six retried gates -- each landing about x1.9 of its estimate -- and one runway
+        # wait. Taught from, they would outnumber the five measured landings and drag the
+        # factor to about x1.7; the step medians stay where they were, since six doubled
+        # gates of fifteen are not the median one.
         later = START + timedelta(hours=6)
-        self.slow_landings(store, [3.0, 3.0], later, prefix="retry", seed={"retried": True})
-        self.slow_landings(
-            store, [3.0, 3.0], later + timedelta(hours=2), prefix="wait", seed={"runway_wait": 400}
+        self.skewed_landings(store, 6, later, extra=0.0, prefix="retry", retried=True)
+        self.skewed_landings(
+            store, 1, later + timedelta(hours=3), extra=0.0, prefix="wait", runway_wait=400
         )
-        after = fe.learn_bias(store.read_connection(), store.project_id, START + timedelta(days=1))
+        after = fe.learn_bias(store.read_connection(), store.project_id, now)
 
-        assert (before.factor, before.sample) == (1.5, 4)
-        assert (after.factor, after.sample, after.excluded) == (1.5, 4, 4)
-        scored = fe.measured(
-            store.read_connection(), store.project_id, as_of=iso(START + timedelta(days=1))
-        )
-        assert sum(1 for landing in scored if landing.outlier) == 4
+        assert before.sample == 5 and before.factor > 1.3
+        assert (after.factor, after.sample, after.excluded) == (before.factor, 5, 7)
+        scored = fe.measured(store.read_connection(), store.project_id, as_of=iso(now))
+        assert sum(1 for landing in scored if landing.outlier) == 7
+        assert store.finish_estimate_model(now).expected("gate") == STEP_SECONDS["gate"]
 
     def test_it_is_clamped(self, store: SqlTaskStore) -> None:
         start = history(store, 3, START)
 
-        self.slow_landings(store, [3.0, 3.2, 2.8], start)
+        self.skewed_landings(store, 4, start, extra=300.0)
         bias = fe.learn_bias(store.read_connection(), store.project_id, START + timedelta(days=1))
 
         assert bias.factor == fe.BIAS_CEILING
-        assert bias.learned == pytest.approx(3.0)
+        assert bias.learned is not None and bias.learned > 3.5
         assert bias.clamped is True
 
     def test_a_reset_forgets_it_and_deletes_nothing(self, store: SqlTaskStore) -> None:
         start = history(store, 3, START)
-        self.slow_landings(store, [1.5, 1.5, 1.5], start)
+        self.skewed_landings(store, 4, start, extra=45.0)
         later = START + timedelta(days=1)
 
         store.reset_finish_estimator(later)
         bias = fe.learn_bias(store.read_connection(), store.project_id, later)
 
         assert (bias.factor, bias.sample, bias.reset_at) == (1.0, 0, iso(later))
-        assert len(fe.measured(store.read_connection(), store.project_id, as_of=iso(later))) == 3
+        assert len(fe.measured(store.read_connection(), store.project_id, as_of=iso(later))) == 4
 
 
 class TestTheAccuracyReport:
@@ -526,18 +573,26 @@ class TestTheAccuracyReport:
         # Within the hour: the page's window starts no earlier than the project's first
         # task, and these tasks were created just now.
         now = datetime.now(timezone.utc) + timedelta(hours=2)
-        start = history(store, 3, now - timedelta(hours=2))
-        TestTheCorrection().slow_landings(store, [1.1, 1.1, 1.1], start)
+        moment = history(store, 3, now - timedelta(hours=2))
+        task_id = make_task(store)
+        for index in range(3):
+            gate_start = moment + timedelta(seconds=2)
+            ended = seed_landing(store, f"fin_acc{index:03d}", moment, task_id=task_id)
+            # Recorded 10% short of what it took: the uncorrected estimate was 9% off.
+            prediction(store, f"fin_acc{index:03d}", gate_start, (TOTAL - 2) / 1.1)
+            moment = ended + timedelta(minutes=5)
 
         payload = build_analytics(store, "30d", now=now)
 
         measured = [point for point in payload["estimates"] if point["sample"]]
         assert sum(point["sample"] for point in measured) == 3
         point = measured[-1]
-        assert point["raw_error_p50_pct"] == pytest.approx(9.1, abs=0.1)  # 1/1.1 off by 9%
+        assert point["raw_error_p50_pct"] == pytest.approx(9.1, abs=0.1)
+        assert point["error_p50_pct"] == pytest.approx(9.1, abs=0.1)
         assert point["within_20"] == 1.0
-        assert payload["estimator"]["factor"] == pytest.approx(1.1)
-        assert payload["estimator"]["active"] is True
+        # Today's medians explain these landings exactly, so nothing is learned from them.
+        assert payload["estimator"]["factor"] == pytest.approx(1.0)
+        assert payload["estimator"]["sample"] == 3
         assert payload["estimates_coverage"]["recorded_from"] is not None
 
 

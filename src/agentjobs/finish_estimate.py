@@ -362,7 +362,15 @@ def _as_of(now: Optional[datetime]) -> str:
 def load_model(
     connection: sqlite3.Connection, project_id: str, now: Optional[datetime] = None
 ) -> EstimateModel:
-    """The model as it stood at ``now``: only history that had ended by then counts.
+    """The model as it stood at ``now``, with the correction learned against it."""
+    medians = load_medians(connection, project_id, now)
+    return replace(medians, bias=learn_bias(connection, project_id, now, model=medians))
+
+
+def load_medians(
+    connection: sqlite3.Connection, project_id: str, now: Optional[datetime] = None
+) -> EstimateModel:
+    """The uncorrected model as it stood at ``now``: only history that had ended by then.
 
     ``now`` is what makes a replay honest. The sandbox and the convergence test step a
     clock through a sequence of landings, and each prediction must be made from what was
@@ -405,7 +413,6 @@ def load_model(
         sample=len(finishes),
         gate_sample=gate_sample,
         typical_s=float(median(totals)) if totals else None,
-        bias=learn_bias(connection, project_id, now),
     )
 
 
@@ -454,8 +461,8 @@ class Measured:
     finish_id: str
     started_at: str
     outlier: bool
-    ratios: Tuple[float, ...]
-    """actual / raw predicted, per checkpoint worth scoring."""
+    checkpoints: Tuple[Tuple[str, float], ...]
+    """Each recorded checkpoint, with the seconds the landing actually took from there."""
     at_gate: Optional[Tuple[float, float, float, float]] = None
     """``(eta_s, raw_eta_s, actual_s, bias)`` at :data:`ACCURACY_CHECKPOINT`."""
 
@@ -492,7 +499,7 @@ def measured(connection: sqlite3.Connection, project_id: str, *, as_of: str) -> 
     if not finishes:
         return []
     ended = {str(row["finish_id"]): moment_of(row["finished_at"]) for row in finishes}
-    ratios: Dict[str, List[float]] = {}
+    checkpoints: Dict[str, List[Tuple[str, float]]] = {}
     at_gate: Dict[str, Tuple[float, float, float, float]] = {}
     for prediction in connection.execute(
         "SELECT finish_id, checkpoint, predicted_at, raw_eta_s, eta_s, bias "
@@ -503,8 +510,7 @@ def measured(connection: sqlite3.Connection, project_id: str, *, as_of: str) -> 
         finish_id = str(prediction["finish_id"])
         actual = _span(moment_of(prediction["predicted_at"]), ended.get(finish_id))
         raw = float(prediction["raw_eta_s"])
-        if raw >= MIN_RATIO_ETA_S and actual > 0:
-            ratios.setdefault(finish_id, []).append(actual / raw)
+        checkpoints.setdefault(finish_id, []).append((str(prediction["checkpoint"]), actual))
         if prediction["checkpoint"] == ACCURACY_CHECKPOINT:
             at_gate[finish_id] = (
                 float(prediction["eta_s"]),
@@ -518,7 +524,7 @@ def measured(connection: sqlite3.Connection, project_id: str, *, as_of: str) -> 
             finish_id=str(row["finish_id"]),
             started_at=str(row["started_at"]),
             outlier=str(row["finish_id"]) in outliers,
-            ratios=tuple(ratios.get(str(row["finish_id"]), ())),
+            checkpoints=tuple(checkpoints.get(str(row["finish_id"]), ())),
             at_gate=at_gate.get(str(row["finish_id"])),
         )
         for row in finishes
@@ -553,15 +559,30 @@ def learn_bias(
     now: Optional[datetime] = None,
     *,
     landings: Optional[Sequence[Measured]] = None,
+    model: Optional[EstimateModel] = None,
 ) -> Bias:
     """The bias factor as it stood at ``now``. See the module docstring.
 
-    ``landings`` is :func:`measured` at ``now`` when the caller has already read it, so
-    the analytics page pays for that read once.
+    **Learned against the medians as they are now, not as they were when each
+    prediction was recorded.** For every recorded checkpoint of a recent landing, the
+    ratio is what the landing really took from there over what *today's* medians would
+    predict from the same position. The first version divided by the prediction as
+    recorded, and the review sandbox showed what that costs: when the gate got slower,
+    the factor learned the slowdown from stale predictions while the rolling medians
+    were learning it too, so once the medians had caught up the correction applied it a
+    second time -- 26% error shown against 7.5% uncorrected in the weeks after the
+    shift. Drift is the medians' job. What is left for the correction is what they miss
+    structurally: a landing whose steps are each usually quick but often slow takes
+    longer than the sum of their medians, every time.
+
+    ``landings`` is :func:`measured` at ``now`` and ``model`` the uncorrected medians at
+    ``now``, when the caller has already read them, so neither is paid for twice.
     """
     since = reset_at(connection, project_id)
     if landings is None:
         landings = measured(connection, project_id, as_of=_as_of(now))
+    if model is None:
+        model = load_medians(connection, project_id, now)
     samples: List[float] = []
     excluded = 0
     for landing in landings:
@@ -572,8 +593,13 @@ def learn_bias(
         if landing.outlier:
             excluded += 1
             continue
-        if landing.ratios:
-            samples.append(float(median(landing.ratios)))
+        ratios = [
+            actual / expected
+            for checkpoint, actual in landing.checkpoints
+            if (expected := _expected_from(model, checkpoint)) >= MIN_RATIO_ETA_S and actual > 0
+        ]
+        if ratios:
+            samples.append(float(median(ratios)))
     if len(samples) < BIAS_MIN_SAMPLE:
         return Bias(sample=len(samples), excluded=excluded, reset_at=since)
     learned = float(median(samples))
@@ -585,6 +611,33 @@ def learn_bias(
         excluded=excluded,
         reset_at=since,
     )
+
+
+def _expected_from(model: EstimateModel, checkpoint: str) -> float:
+    """Seconds the uncorrected model expects to remain from a checkpoint's position.
+
+    A checkpoint names a step or a gate stage *starting*, so its position is fixed by
+    the name alone: every step before it done, none of its own time spent.
+    """
+    kind, _, name = checkpoint.partition(":")
+    uncorrected = replace(model, bias=Bias())
+    if kind == "step" and name in STEP_ORDER:
+        before = STEP_ORDER[: STEP_ORDER.index(name)]
+        position = Position(done=tuple((step, 0.0) for step in before), current=name)
+    elif kind == "stage":
+        before = STEP_ORDER[: STEP_ORDER.index("gate")]
+        order = [stage for stage, _ in model.stages]
+        stages_done = tuple(order[: order.index(name)]) if name in order else ()
+        position = Position(
+            done=tuple((step, 0.0) for step in before),
+            current="gate",
+            stages_done=stages_done,
+            stage=name,
+        )
+    else:
+        return 0.0
+    answer = estimate(uncorrected, position)
+    return answer.raw_eta_seconds or 0.0
 
 
 def reset(connection: sqlite3.Connection, project_id: str, now: Optional[datetime] = None) -> str:
