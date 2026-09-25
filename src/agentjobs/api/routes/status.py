@@ -833,7 +833,7 @@ _DISPATCH_STATUS: dict = {
 _DISPATCH_ACTION: dict = {
     "not_configured": "Create ~/.agentjobs/dispatch.yaml and define a runner.",
     "disabled": "Set 'enabled: true' in ~/.agentjobs/dispatch.yaml.",
-    "sentinel": "Delete ~/.agentjobs/DISPATCH_DISABLED to re-enable dispatch.",
+    "sentinel": "Dispatch is stopped machine-wide. Press Stopped in the header to resume it.",
     "project_not_enabled": "Run 'agentjobs dispatch enable <project>'.",
     "unknown_runner": "Point the project at a runner this machine defines.",
     "unknown_group": "Name a runner group defined in ~/.agentjobs/dispatch.yaml.",

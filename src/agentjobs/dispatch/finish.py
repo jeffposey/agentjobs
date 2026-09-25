@@ -91,6 +91,8 @@ from agentjobs.dispatch.config import (
     ResolvedPosture,
     assert_dispatch_permitted,
     resolve_posture,
+    sentinel_active,
+    sentinel_path,
 )
 from agentjobs.dispatch.ledger import (
     KIND_FINISH,
@@ -3656,6 +3658,15 @@ def finish_task(
 
     def authority_withdrawn() -> Optional[Tuple[str, str]]:
         """The authority re-read immediately before ``git merge`` (task-322)."""
+        if sentinel_active(resolved_home):
+            # Whatever authorised this merge, a person has since pressed the emergency
+            # stop (task-573). The finish is not killed mid-rebase -- that would leave a
+            # half-rebased worktree -- but it merges nothing while the stop stands.
+            return (
+                "emergency_stop",
+                f"The emergency stop is down ({sentinel_path(resolved_home)}), so nothing "
+                "was merged. Retry the finish once dispatch is resumed.",
+            )
         if authority == POSTURE:
             _, _, refusal = _posture_release(manager, project, task_id, resolved_home)
             if refusal is None:

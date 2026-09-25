@@ -202,6 +202,14 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     # on may turn it off.
     "arm_pull_mode": RouteRule(Capability.DISPATCH_ADMIN),
     "disarm_pull_mode": RouteRule(Capability.DISPATCH_ADMIN),
+    # The machine-wide emergency stop (task-573). Pressing it needs only `DISPATCH`:
+    # everyone who may start a run may stop them all, and a panic button behind the
+    # admin capability would be missing on exactly the surface somebody reaches for in
+    # a hurry. Lifting it is `DISPATCH_ADMIN`, because turning dispatch back on for the
+    # whole machine is the widening act -- the same line `enable_dispatch` draws. A run
+    # holds neither, so an agent can neither stop its peers nor restart the machine.
+    "press_emergency_stop": RouteRule(Capability.DISPATCH),
+    "resume_after_emergency_stop": RouteRule(Capability.DISPATCH_ADMIN),
     # Switching the idle-session sweep on lets it stop the owner's own sessions (task-447).
     "update_idle_session_settings": RouteRule(Capability.DISPATCH_ADMIN),
     # Resetting the landing estimate's learned correction changes what every Landing row

@@ -24,7 +24,7 @@ const project = "/app/p/_local";
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 800 };
 /** Mirrors `NAV_INLINE_MIN_PX`. */
-const NAV_INLINE_MIN_PX = 748;
+const NAV_INLINE_MIN_PX = 796;
 /** The app's own minimum touch target, from `.touch-target` in `styles.css`. */
 const TOUCH_TARGET_PX = 44;
 

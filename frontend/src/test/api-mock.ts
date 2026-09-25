@@ -75,7 +75,21 @@ export const DISPATCH_UNCONFIGURED = {
   config_path: "~/.agentjobs/dispatch.yaml",
 };
 
+/**
+ * What `GET /api/runs/emergency-stop` answers by default: dispatch not stopped.
+ *
+ * A default for the reason the dispatch state has one: the Stop control (task-573) sits
+ * beside the capture trigger in the header of every page, so every test that renders a
+ * header asks this. Not stopped is the state of every machine nobody has pressed it on.
+ */
+export const EMERGENCY_STOP_CLEAR = {
+  stopped: false,
+  note: "",
+  sentinel_file: "~/.agentjobs/DISPATCH_DISABLED",
+};
+
 export const apiMockServer = setupServer(
+  http.get("*/api/runs/emergency-stop", () => HttpResponse.json(EMERGENCY_STOP_CLEAR)),
   http.get("*/api/version", () => HttpResponse.json(VERSION_IN_STEP)),
   http.get("*/api/model", () => HttpResponse.json(MODEL_UNCONFIGURED)),
   http.get("*/api/projects/:projectId/dispatch", ({ params }) =>

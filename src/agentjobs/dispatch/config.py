@@ -1136,6 +1136,39 @@ def sentinel_active(home: Optional[Path] = None) -> bool:
     return sentinel_path(home).exists()
 
 
+def write_sentinel(home: Optional[Path] = None, *, actor: str, source: str) -> Path:
+    """Put the kill switch down, saying who did it and from where (task-573).
+
+    The text is for the person who later finds the file. It used to name the CLI
+    whoever wrote it, and a stop pressed on a phone is a different story from a stop
+    typed in a terminal.
+    """
+    path = sentinel_path(home)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stamp = dispatch_clock.utcnow().isoformat()
+    path.write_text(f"written by {actor} from {source} at {stamp}\n", encoding="utf-8")
+    return path
+
+
+def sentinel_note(home: Optional[Path] = None) -> Optional[str]:
+    """The sentinel's first line, or ``None`` when it is absent. Never raises."""
+    try:
+        text = sentinel_path(home).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    lines = text.strip().splitlines()
+    return lines[0] if lines else ""
+
+
+def clear_sentinel(home: Optional[Path] = None) -> bool:
+    """Lift the kill switch. ``False`` when it was not down, which is not an error."""
+    try:
+        sentinel_path(home).unlink()
+    except FileNotFoundError:
+        return False
+    return True
+
+
 def _home(home: Optional[Path]) -> Path:
     """Resolve the AgentJobs home, honouring ``AGENTJOBS_HOME`` via ``projects.py``."""
     return Path(home).expanduser().resolve() if home else default_home()
@@ -2146,7 +2179,8 @@ def assert_dispatch_permitted(
     """
     if sentinel_active(home):
         raise DispatchSentinelError(
-            f"Dispatch is disabled by {sentinel_path(home)}. Delete that file to re-enable."
+            f"Dispatch is stopped by {sentinel_path(home)}. Resume it from the web UI's Stopped "
+            "button or with 'agentjobs dispatch resume'."
         )
 
     config = load_dispatch_config(home)

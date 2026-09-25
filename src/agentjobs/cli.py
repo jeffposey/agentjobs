@@ -23,6 +23,7 @@ from .dispatch.address import (
 )
 from .dispatch.config import (
     DispatchConfig,
+    clear_sentinel,
     DispatchError,
     Posture,
     assert_dispatch_permitted,
@@ -2427,14 +2428,25 @@ def dispatch_stop_all() -> None:
     One command, no arguments, on purpose. A kill switch you have to look up the syntax
     for is not one.
     """
+    import getpass
+
     ledger = DispatchLedger(default_home())
-    results = ledger.stop_everything()
+    results = ledger.stop_everything(requester=getpass.getuser())
     typer.secho(f"⛔ {sentinel_path()} written; no new run will start.", fg=typer.colors.YELLOW)
     if not results:
-        typer.echo("   No runs were live.")
+        typer.echo("   Nothing was running, queued, armed or walking.")
     for result in results:
-        typer.echo(f"   {result.run_id}: {result.detail}")
-    typer.echo("   Delete the sentinel file to re-enable dispatch.")
+        typer.echo(f"   {result.kind} {result.run_id}: {result.detail}")
+    typer.echo("   'agentjobs dispatch resume' re-enables dispatch.")
+
+
+@dispatch_app.command("resume")
+def dispatch_resume() -> None:
+    """Lift the panic button's sentinel. Starts nothing that the stop ended."""
+    if clear_sentinel():
+        typer.echo("✅ Dispatch re-enabled. Nothing was restarted: dispatch what you want.")
+    else:
+        typer.echo("Dispatch was not stopped. Nothing to do.")
 
 
 @dispatch_app.command("reconcile")

@@ -2886,7 +2886,14 @@ raising a project's posture.
 
 - **One run:** `agentjobs dispatch cancel <run-id>`, or a Cancel button on the run.
 - **Everything:** `agentjobs dispatch stop` writes the sentinel *and* cancels every live
-  run. This is the panic button, and it is one command with no arguments.
+  run. This is the panic button, and it is one command with no arguments. The same call
+  is the red Stop control beside the capture trigger on every page of the web UI
+  (task-573). Since task-573 it also disarms pull mode, cancels queued dispatches and
+  closes epic walks, because the sentinel alone only paused them and they would all have
+  started again on resume. A finish that is already gating declines before `git merge`.
+  It is not killed, because a half-rebased worktree is worse than a wasted gate.
+  Interactive sessions are closed on the record and left running. `agentjobs dispatch
+  resume`, or Resume in the UI, lifts the sentinel and restarts nothing.
 - **The blunt one, and only for batch runners:** killing `agentjobs serve` terminates its
   batch runs too, by design. **It does not stop sessions** — a session outlives the
   AgentJobs server deliberately (§9), so the panic button for one is `claude stop <id>`,

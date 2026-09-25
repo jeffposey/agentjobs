@@ -856,3 +856,23 @@ class TestAuthorityIsReadAtTheMerge:
         assert resumed.outcome == FINISHED, resumed.render()
         assert resumed.merge_commit == result.merge_commit
         assert len(gate_calls(calls)) == gated
+
+
+class TestTheEmergencyStopIsReadAtTheMerge:
+    """task-573: a stop pressed while a finish gates means nothing is merged.
+
+    Patched on the finish module's own name for the sentinel, so it reads as "pressed
+    after the finish began": the checks at the start of a finish go through
+    ``assert_dispatch_permitted``, which still sees no sentinel, exactly as a finish that
+    was already gating when the button was pressed did.
+    """
+
+    def test_an_approved_finish_merges_nothing_once_the_stop_is_down(
+        self, world: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(finish_module, "sentinel_active", lambda *args: True)
+
+        result = run(world)
+
+        assert result.reason == "emergency_stop"
+        assert not merged_into(world["root"], world["branch"])

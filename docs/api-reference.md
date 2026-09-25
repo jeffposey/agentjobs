@@ -387,6 +387,9 @@ answer with the whole dispatch state, whose `pull` field carries the arming and 
 | `GET` | `/api/recent/closures` | The last few tasks to close on this **machine**, in every project this caller may see (task-460) |
 | `GET` | `/api/sessions/idle` | Every Claude Code process on this machine, the idle sweep's verdict on each and why, and its record of stops and switch-overs (task-447) |
 | `PUT` | `/api/sessions/idle/settings` | Turn idle-session enforcement on or off, or change `idle_minutes`. Needs `dispatch.admin` |
+| `GET` | `/api/runs/emergency-stop` | Whether dispatch is stopped machine-wide, and the sentinel's line saying who stopped it and from where (task-573) |
+| `POST` | `/api/runs/emergency-stop` | The panic button: writes the sentinel, then disarms pull mode, cancels queued dispatches, closes epic walks and stops every live run. No body. Answers with each thing it acted on. Needs `dispatch.start` |
+| `POST` | `/api/runs/emergency-stop/resume` | Lift the sentinel. Starts nothing the stop ended. Needs `dispatch.admin` |
 
 Every other route on this page is mounted twice -- once at `/api/...` for the default
 project and once at `/api/projects/{project_id}/...` -- and answers about that one

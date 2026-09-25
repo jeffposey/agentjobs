@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 
 import { ActionsMenu } from "./ActionsMenu";
 import { CaptureControl } from "./CaptureControl";
+import { EmergencyStop, StoppedBanner } from "./EmergencyStop";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
 /**
@@ -147,11 +148,19 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * the first cut's pill, drawing it left the switcher 19px wide at 390px. Without it the
  * switcher has 120px at 390 and 105px at 375.
  *
+ * **Re-measured for task-573's emergency stop**, a 44px trigger plus a gap left of the
+ * capture trigger at every width. Switcher pinned at 224px, links `nowrap`, swept at
+ * 1px steps on 2026-09-24, in both of the trigger's states, which are the same width by
+ * design: the bar last overflows at **784px**, so the constant is **796**. A first cut
+ * drew the stopped state as a wider "Stopped" pill. It cost 57px more, and at 375px it
+ * squeezed the switcher to nothing, so the stopped state became a strip under the bar
+ * instead (`StoppedBanner`). Below the breakpoint the switcher now has 57px at 375.
+ *
  * Kept as a constant beside the class names that encode it so a reader can find both
  * at once; Tailwind needs the literal in the class, so the two are checked against
  * each other by a test rather than by the compiler.
  */
-export const NAV_INLINE_MIN_PX = 748;
+export const NAV_INLINE_MIN_PX = 796;
 
 /** Shown inline above the breakpoint, and inside the panel below it. */
 const DESTINATIONS: ReadonlyArray<{
@@ -402,18 +411,18 @@ export function PrimaryNav({
       className="sticky top-0 z-30 border-b border-dark-border bg-dark-surface"
     >
       <nav
-        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[748px]:gap-4 sm:px-6 lg:px-8"
+        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[796px]:gap-4 sm:px-6 lg:px-8"
         aria-label="Primary navigation"
       >
         {/*
           The breakpoint lives on this wrapper rather than on the button, and that is
           not a stylistic choice. `styles.css` carries `.touch-target:not(.block) {
           display: inline-flex }`, whose specificity (0,2,0) beats a Tailwind utility's
-          (0,1,0) -- so `min-[748px]:hidden` on a `touch-target` element loses, and the
+          (0,1,0) -- so `min-[796px]:hidden` on a `touch-target` element loses, and the
           burger stays visible at every width. Caught in a browser at 1280px; jsdom
           would never have shown it.
         */}
-        <div className="shrink-0 min-[748px]:hidden">
+        <div className="shrink-0 min-[796px]:hidden">
           <button
             ref={triggerRef}
             type="button"
@@ -440,7 +449,7 @@ export function PrimaryNav({
           wide -- the project's name gone, beside the product's. On a phone the name of
           the project is the one a reader needs, so the wordmark gives up the room.
         */}
-        <h1 className="sr-only text-2xl font-bold min-[748px]:not-sr-only min-[748px]:shrink-0">
+        <h1 className="sr-only text-2xl font-bold min-[796px]:not-sr-only min-[796px]:shrink-0">
           AgentJobs
         </h1>
         <ProjectSwitcher projectId={projectId} />
@@ -468,7 +477,7 @@ export function PrimaryNav({
           point of shortening the row was to move that number down. The task's
           constraint is not to restyle the bar, and reverting this would be one.
         */}
-        <div className="hidden items-center gap-4 min-[748px]:flex">{destinations}</div>
+        <div className="hidden items-center gap-4 min-[796px]:flex">{destinations}</div>
         {/*
           The actions end: the capture trigger (task-346) and the actions menu
           (task-168), at the opposite end from the burger and present at every width.
@@ -479,17 +488,20 @@ export function PrimaryNav({
           neither of these is a destination.
         */}
         <div className="ml-auto flex shrink-0 items-center gap-1">
+          <EmergencyStop />
           <CaptureControl />
           <ActionsMenu projectId={projectId} onOpen={close} />
         </div>
       </nav>
+      {/* Under the bar rather than in it: the stopped state costs the row no width. */}
+      <StoppedBanner />
       {open && (
         <div
           id={PANEL_ID}
           // Absolute rather than in flow, so opening the panel overlays the page
           // instead of pushing it down under a bar that is already pinned. `sticky`
           // is a positioned value, so the header is the containing block already.
-          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[748px]:hidden"
+          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[796px]:hidden"
         >
           <div
             className="mx-auto flex max-w-7xl flex-col px-4 py-2 sm:px-6"

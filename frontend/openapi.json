@@ -2844,6 +2844,99 @@
         "title": "DispatchStateView",
         "type": "object"
       },
+      "EmergencyStopItem": {
+        "description": "One thing the stop acted on.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "description": "The run, walk, pull arming or queue entry id.",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`run`, `walk`, `pull` or `queue`.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "stopped": {
+            "description": "False when it could not be confirmed stopped.",
+            "title": "Stopped",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "stopped",
+          "detail"
+        ],
+        "title": "EmergencyStopItem",
+        "type": "object"
+      },
+      "EmergencyStopResult": {
+        "description": "The state after the stop, and everything it acted on.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EmergencyStopItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "note": {
+            "default": "",
+            "description": "The sentinel's first line: who stopped dispatch, from where, and when.",
+            "title": "Note",
+            "type": "string"
+          },
+          "sentinel_file": {
+            "description": "Where the sentinel lives on this machine.",
+            "title": "Sentinel File",
+            "type": "string"
+          },
+          "stopped": {
+            "description": "`~/.agentjobs/DISPATCH_DISABLED` exists, so every dispatch is refused.",
+            "title": "Stopped",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stopped",
+          "sentinel_file"
+        ],
+        "title": "EmergencyStopResult",
+        "type": "object"
+      },
+      "EmergencyStopState": {
+        "description": "Whether the machine's kill switch is down, and what it says about who put it there.",
+        "properties": {
+          "note": {
+            "default": "",
+            "description": "The sentinel's first line: who stopped dispatch, from where, and when.",
+            "title": "Note",
+            "type": "string"
+          },
+          "sentinel_file": {
+            "description": "Where the sentinel lives on this machine.",
+            "title": "Sentinel File",
+            "type": "string"
+          },
+          "stopped": {
+            "description": "`~/.agentjobs/DISPATCH_DISABLED` exists, so every dispatch is refused.",
+            "title": "Stopped",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stopped",
+          "sentinel_file"
+        ],
+        "title": "EmergencyStopState",
+        "type": "object"
+      },
       "EpicWalkView": {
         "description": "One epic walk that is still open, as the board draws it (task-523).\n\nA walk is the only thing on this machine that dispatches work with no human act at\nthe moment of dispatch, and since task-458 it is hosted by the server rather than by\na blocking process -- so its own ``mode: \"walk\"`` run is normally over before any\nboard is drawn and there was nothing on the page to explain the children arriving.\nThis row is that explanation.\n\n**It holds no slot**, exactly as its run did not. Nothing here is counted against\n``occupied`` or takes a cell from the board; a walk is supervision, and the slots it\nfills are filled by the children's own runs, which are already in ``runs``.",
         "properties": {
@@ -18380,6 +18473,70 @@
         "summary": "Get Project Revision",
         "tags": [
           "live updates"
+        ]
+      }
+    },
+    "/api/runs/emergency-stop": {
+      "get": {
+        "description": "Whether dispatch is stopped machine-wide. Read by the header on every page.",
+        "operationId": "get_emergency_stop_api_runs_emergency_stop_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmergencyStopState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Emergency Stop",
+        "tags": [
+          "dispatch"
+        ]
+      },
+      "post": {
+        "description": "Refuse every new dispatch, then stop everything AgentJobs started. Takes nothing.\n\nThe browser's twin of ``agentjobs dispatch stop``, and the same call underneath. No\nbody and no questions, for the reason ``disable_dispatch`` gives: a kill switch you\ncannot reach is not one. It works whether or not dispatch is configured, because it\nreads no configuration at all.\n\nA plain ``def`` so Starlette runs it on a worker thread: stopping a batch run may\nwait out its grace period, and the event loop serving every other page must not.",
+        "operationId": "press_emergency_stop_api_runs_emergency_stop_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmergencyStopResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Press Emergency Stop",
+        "tags": [
+          "dispatch"
+        ]
+      }
+    },
+    "/api/runs/emergency-stop/resume": {
+      "post": {
+        "description": "Lift the kill switch. Starts nothing: what the stop ended stays ended.\n\nWalks, pull armings and queued dispatches were ended by the stop rather than paused,\nso resuming only means the next dispatch a person asks for is allowed again.",
+        "operationId": "resume_after_emergency_stop_api_runs_emergency_stop_resume_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmergencyStopState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Resume After Emergency Stop",
+        "tags": [
+          "dispatch"
         ]
       }
     },
