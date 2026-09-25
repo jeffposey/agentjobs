@@ -44,6 +44,10 @@ Two states are deliberately **not** stalls:
   record, so nobody is meant to be on it -- and it is the one agent-side reason no
   dispatch path will act on. The same corpus puts the median hold at eighteen hours,
   which is what reporting them would look like.
+
+And one claimed state is **supervised without a run**: an epic that a walk is flying
+over (task-605). See :func:`walked_epics`; a walk whose attached holder died is not
+flying, so its epic is still reported.
 """
 
 from __future__ import annotations
@@ -54,6 +58,7 @@ from pathlib import Path
 from typing import (
     Callable,
     Dict,
+    FrozenSet,
     List,
     Literal,
     Mapping,
@@ -305,6 +310,36 @@ def live_runs_by_task(project_id: str, *, home: Optional[Path] = None) -> Dict[s
     return found
 
 
+def walked_epics(project_id: str, *, home: Optional[Path] = None) -> FrozenSet[str]:
+    """The parents in *project_id* that an epic walk is flying over right now (task-605).
+
+    **A walk supervises its parent, and nothing keyed on a run can see that.** A walked
+    epic reads ``agent``/``work`` for the whole walk (task-591), the walk is not a run and
+    holds no slot, and each child's run is keyed on the child. The walk writes to the
+    parent's log only on a transition, so a child that runs for over an hour -- the
+    ordinary case -- left the parent reading ``no_agent`` while its walk was live
+    (task-555, 2026-09-25).
+
+    Read through :func:`~agentjobs.dispatch.pull.walking_now` rather than the journal's
+    raw ``walking`` rows, because a row is not by itself a flying walk: an attached walk
+    whose holder died leaves a row nothing will close, and that epic has no supervisor --
+    the task-499 incident one level up, and still reported.
+
+    Never raises, on the contract :func:`live_runs_by_task` states: a journal that cannot
+    be read costs the exemption, which is a report to the owner rather than a silence.
+    """
+    try:
+        from .dispatch import pull
+        from .projects import default_home
+    except Exception:  # noqa: BLE001 - as in `live_runs_by_task`
+        return frozenset()
+    try:
+        flying = pull.walking_now(home or default_home())
+    except Exception:  # noqa: BLE001 - see the docstring
+        return frozenset()
+    return frozenset(walk.parent_task_id for walk in flying if walk.project_id == project_id)
+
+
 def stalled_in(
     tasks: Sequence[LabelledTask],
     *,
@@ -325,7 +360,7 @@ def stalled_in(
     ordinary case on a machine where nothing has been claimed and left; and a candidate
     that has not been quiet long enough to be stalled under *either* threshold is
     filtered before the ledger is opened, because whichever branch it takes it cannot be
-    reported yet.
+    reported yet. The walk journal (:func:`walked_epics`) is read behind the same two.
 
     ``newest_log_ts`` lets the corpus be listing rows rather than records. The five other
     things this reads are on a row; the sixth is the newest log timestamp, and a caller
@@ -346,6 +381,10 @@ def stalled_in(
     candidates = [
         task for task in claimed if (moment - quiet_since(task, newest)).total_seconds() >= floor
     ]
+    if not candidates:
+        return []
+    walked = walked_epics(project_id, home=home)
+    candidates = [task for task in candidates if task.id not in walked]
     if not candidates:
         return []
     return stalls(
