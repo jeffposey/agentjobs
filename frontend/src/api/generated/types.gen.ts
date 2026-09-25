@@ -421,6 +421,39 @@ export type AnswerSubmission = {
 };
 
 /**
+ * ApproveActionRequest
+ *
+ * An approval, plus the gate the person believed they were approving (task-001).
+ *
+ * ``gate`` is a guard, never a source. The route derives the gate from the record's
+ * ``ball_reason`` and refuses with 409 when this disagrees, so a page rendered at a plan
+ * gate and clicked after the agent re-handed to review cannot merge on a button that
+ * said *proceed* -- and the reverse cannot turn a merge approval into a plan approval.
+ * Omitted, the derived gate is accepted, which is exactly what the route did before the
+ * field existed.
+ */
+export type ApproveActionRequest = {
+    /**
+     * Gate
+     *
+     * The gate the approver was shown: `plan` at human/plan, `final` at human/review or human/approval. Refused with 409 when it disagrees with the record; omitted, the record decides.
+     */
+    gate?: 'plan' | 'final' | null;
+    /**
+     * Note
+     *
+     * Optional note, recorded verbatim in the handoff prompt and the log.
+     */
+    note?: string | null;
+    /**
+     * User
+     *
+     * User performing the action
+     */
+    user: string;
+};
+
+/**
  * ArmedProjectView
  *
  * One project the pull mode is armed for, as the slot board draws it (task-462).
@@ -730,7 +763,7 @@ export type Ball = 'agent' | 'human' | 'external';
  *
  * Why the ball holder holds it. Scoped to the holder -- see BALL_REASONS.
  */
-export type BallReason = 'available' | 'work' | 'revise' | 'answer' | 'redirect' | 'hold' | 'spec' | 'review' | 'decision' | 'approval' | 'input' | 'dependency' | 'service';
+export type BallReason = 'available' | 'work' | 'revise' | 'answer' | 'redirect' | 'hold' | 'spec' | 'review' | 'plan' | 'decision' | 'approval' | 'input' | 'dependency' | 'service';
 
 /**
  * Branch
@@ -11737,7 +11770,7 @@ export type AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses = {
 export type AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponse = AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses[keyof AnswerTaskApiProjectsProjectIdTasksTaskIdAnswerPostResponses];
 
 export type ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData = {
-    body: NoteActionRequest;
+    body: ApproveActionRequest;
     path: {
         /**
          * Task Id
@@ -13749,7 +13782,7 @@ export type AnswerTaskApiTasksTaskIdAnswerPostResponses = {
 export type AnswerTaskApiTasksTaskIdAnswerPostResponse = AnswerTaskApiTasksTaskIdAnswerPostResponses[keyof AnswerTaskApiTasksTaskIdAnswerPostResponses];
 
 export type ApproveTaskApiTasksTaskIdApprovePostData = {
-    body: NoteActionRequest;
+    body: ApproveActionRequest;
     path: {
         /**
          * Task Id

@@ -1963,6 +1963,14 @@ export const answerTaskApiProjectsProjectIdTasksTaskIdAnswerPostMutation = (opti
  * a fresh review round has inverted the point of attaching one. Before this, an
  * approval carrying a sentence had to go through Request Changes: a round trip the
  * human did not ask for, and a record that said `revise` about work that was approved.
+ *
+ * **Which gate the task is at decides what the approval says** (task-001). At
+ * ``human/plan`` nothing is built yet, so it writes ``PLAN_APPROVAL``, records
+ * ``gate: plan`` on the receipt and is never finishable: the approval goes through
+ * ``deliver_handback`` like a Request Changes does. Anywhere else it is the final gate
+ * and writes ``APPROVAL_CLEARANCE`` as before -- or ``DESIGN_APPROVAL_CLEARANCE`` on a
+ * ``kind: design`` task, which merges the document and authorises nothing further.
+ * ``payload.gate`` only guards against a stale page; see ``ApproveActionRequest``.
  */
 export const approveTaskApiProjectsProjectIdTasksTaskIdApprovePostMutation = (options?: Partial<Options<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData>>): UseMutationOptions<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponse, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostError, Options<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData>> => {
     const mutationOptions: UseMutationOptions<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponse, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostError, Options<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData>> = {
@@ -3503,6 +3511,14 @@ export const answerTaskApiTasksTaskIdAnswerPostMutation = (options?: Partial<Opt
  * a fresh review round has inverted the point of attaching one. Before this, an
  * approval carrying a sentence had to go through Request Changes: a round trip the
  * human did not ask for, and a record that said `revise` about work that was approved.
+ *
+ * **Which gate the task is at decides what the approval says** (task-001). At
+ * ``human/plan`` nothing is built yet, so it writes ``PLAN_APPROVAL``, records
+ * ``gate: plan`` on the receipt and is never finishable: the approval goes through
+ * ``deliver_handback`` like a Request Changes does. Anywhere else it is the final gate
+ * and writes ``APPROVAL_CLEARANCE`` as before -- or ``DESIGN_APPROVAL_CLEARANCE`` on a
+ * ``kind: design`` task, which merges the document and authorises nothing further.
+ * ``payload.gate`` only guards against a stale page; see ``ApproveActionRequest``.
  */
 export const approveTaskApiTasksTaskIdApprovePostMutation = (options?: Partial<Options<ApproveTaskApiTasksTaskIdApprovePostData>>): UseMutationOptions<ApproveTaskApiTasksTaskIdApprovePostResponse, ApproveTaskApiTasksTaskIdApprovePostError, Options<ApproveTaskApiTasksTaskIdApprovePostData>> => {
     const mutationOptions: UseMutationOptions<ApproveTaskApiTasksTaskIdApprovePostResponse, ApproveTaskApiTasksTaskIdApprovePostError, Options<ApproveTaskApiTasksTaskIdApprovePostData>> = {

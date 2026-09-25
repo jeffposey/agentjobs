@@ -1176,6 +1176,14 @@ export const answerTaskApiProjectsProjectIdTasksTaskIdAnswerPost = <ThrowOnError
  * a fresh review round has inverted the point of attaching one. Before this, an
  * approval carrying a sentence had to go through Request Changes: a round trip the
  * human did not ask for, and a record that said `revise` about work that was approved.
+ *
+ * **Which gate the task is at decides what the approval says** (task-001). At
+ * ``human/plan`` nothing is built yet, so it writes ``PLAN_APPROVAL``, records
+ * ``gate: plan`` on the receipt and is never finishable: the approval goes through
+ * ``deliver_handback`` like a Request Changes does. Anywhere else it is the final gate
+ * and writes ``APPROVAL_CLEARANCE`` as before -- or ``DESIGN_APPROVAL_CLEARANCE`` on a
+ * ``kind: design`` task, which merges the document and authorises nothing further.
+ * ``payload.gate`` only guards against a stale page; see ``ApproveActionRequest``.
  */
 export const approveTaskApiProjectsProjectIdTasksTaskIdApprovePost = <ThrowOnError extends boolean = false>(options: Options<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostData, ThrowOnError>) => (options.client ?? client).post<ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostResponses, ApproveTaskApiProjectsProjectIdTasksTaskIdApprovePostErrors, ThrowOnError>({
     url: '/api/projects/{project_id}/tasks/{task_id}/approve',
@@ -2186,6 +2194,14 @@ export const answerTaskApiTasksTaskIdAnswerPost = <ThrowOnError extends boolean 
  * a fresh review round has inverted the point of attaching one. Before this, an
  * approval carrying a sentence had to go through Request Changes: a round trip the
  * human did not ask for, and a record that said `revise` about work that was approved.
+ *
+ * **Which gate the task is at decides what the approval says** (task-001). At
+ * ``human/plan`` nothing is built yet, so it writes ``PLAN_APPROVAL``, records
+ * ``gate: plan`` on the receipt and is never finishable: the approval goes through
+ * ``deliver_handback`` like a Request Changes does. Anywhere else it is the final gate
+ * and writes ``APPROVAL_CLEARANCE`` as before -- or ``DESIGN_APPROVAL_CLEARANCE`` on a
+ * ``kind: design`` task, which merges the document and authorises nothing further.
+ * ``payload.gate`` only guards against a stale page; see ``ApproveActionRequest``.
  */
 export const approveTaskApiTasksTaskIdApprovePost = <ThrowOnError extends boolean = false>(options: Options<ApproveTaskApiTasksTaskIdApprovePostData, ThrowOnError>) => (options.client ?? client).post<ApproveTaskApiTasksTaskIdApprovePostResponses, ApproveTaskApiTasksTaskIdApprovePostErrors, ThrowOnError>({
     url: '/api/tasks/{task_id}/approve',
