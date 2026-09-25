@@ -101,7 +101,7 @@ Three things do not change because a child is a session:
 - Its **task record is written the same way yours is** — see
   [Where task records live](ENGINEERING.md#where-task-records-live).
 - Its **merge gate stands or falls on the child's own terms**: a child merges on an
-  explicit human approval of *that child*, or — at posture `autonomous` — on its own
+  explicit human approval of *that child*, or — at merge mode `automerge` — on its own
   green gate. Never on yours. A supervisor approves nothing under either policy.
 - A fresh worktree has no virtualenv and no `node_modules`, so a child **cannot run
   `scripts/check.py` until it bootstraps** — `python scripts/bootstrap.py`, about 30
@@ -175,7 +175,7 @@ are not working it — you are supervising, you take no worktree, and
     Make the review request complete the first time: a round trip to answer a question you could have answered is
     the largest thing keeping your branch open. **Stop there** — do not merge.
 
-    **Unless your dispatch prompt told you otherwise.** A run at posture `autonomous`
+    **Unless your dispatch prompt told you otherwise.** A run at merge mode `automerge`
     is told, in its own prompt, that the merge gate is released for it; that sentence
     is the only authority for skipping this step, and if it is not in your prompt you
     do not have it. See [Your prompt says whether you stop here](#your-prompt-says-whether-you-stop-here).
@@ -196,18 +196,18 @@ are not working it — you are supervising, you take no worktree, and
 
 ### Your prompt says whether you stop here
 
-Step 5 is unconditional for a person and for every posture but one. **A dispatched run's
-posture decides whether the merge gate stands for it** (task-021), and the decision
+Step 5 is unconditional for a person and for a `review` run. **A dispatched run's merge
+mode decides whether the merge gate stands for it** (task-021, task-602), and the decision
 reaches you exactly once, in the prompt that started your run:
 
-- *"Posture `auto` stops at the merge gate…"* — or `supervised`, or no clause at all.
-  Step 5 as written. Hand off, stop, and let a human approve. This is the default and
-  almost always what you have.
-- *"Posture `autonomous` releases the merge gate…"* — you merge your own work, and the
+- *"Merge mode `review` stops at the merge gate…"* — or no clause at all. Step 5 as
+  written. Hand off, stop, and let a human approve. This is the default. (A run started
+  before task-602 was told *"Posture `auto`…"*, which means the same.)
+- *"Merge mode `automerge` releases the merge gate…"* — you merge your own work, and the
   clause names the command. It is **not** `git merge`:
 
   ```bash
-  poetry run agentjobs finish <task-id> --project <project> --posture-release
+  poetry run agentjobs finish <task-id> --project <project> --automerge-release
   ```
 
   Record your evidence on the task **first** — what you built, what you verified, what
@@ -223,7 +223,7 @@ off for review however green the gate is. "No serious issue detected by the agen
 grading your own homework, which is why the merge goes through the finisher — it runs the
 gate itself rather than taking your word for it.
 
-**Never push**, whatever your posture, unless the prompt's push clause says this project
+**Never push**, whatever your merge mode, unless the prompt's push clause says this project
 permits it. AgentJobs is configured `push: false` and always will be; that
 recoverability is the whole reason an unreviewed merge is acceptable here.
 

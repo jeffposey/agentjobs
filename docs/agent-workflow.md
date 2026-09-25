@@ -180,21 +180,24 @@ rather than a `dispatch` entry. The design argument, including what was rejected
 ## When the work is done: does this run merge, or stop?
 
 Both answers exist, and **your dispatch prompt is the only thing that tells you which one
-you have.** It is the only channel that can: the answer comes from the project's posture
-in machine-local `~/.agentjobs/dispatch.yaml`, which you cannot read and must not, and
-every committed document in a repository has to be written for the default.
+you have.** It is the only channel that can: the answer is the run's merge mode, resolved
+from the dispatch, the task, the epic and machine-local `~/.agentjobs/dispatch.yaml`,
+which you cannot read and must not, and every committed document in a repository has to
+be written for the default.
 
-| Posture | The prompt says | What you do when the work is done |
+| Merge mode | The prompt says | What you do when the work is done |
 |---|---|---|
-| `read_only` | nothing about merging | you have no branch; your output is the record |
-| `auto`, `supervised` | *"stops at the merge gate"* | hand off to `human`/`review` and **stop** |
-| `autonomous` | *"releases the merge gate"* | record the evidence, then merge it yourself |
+| `review` (hands off for your review) | *"stops at the merge gate"* | hand off to `human`/`review` and **stop** |
+| `automerge` (merges itself on a green gate) | *"releases the merge gate"* | record the evidence, then merge it yourself |
+
+A prompt written before task-602 says *"Posture `auto`"* for review and *"Posture
+`autonomous`"* for automerge.
 
 **No clause means you stop.** A prompt from an older dispatch, a prompt you are
 reconstructing from memory, a session you are unsure about — all of them mean the gate
 stands. Nothing here fails towards merging.
 
-### Merging your own work, when the posture releases it
+### Merging your own work, when your merge mode is automerge
 
 Record what you did on the task **first** — what you built, what you verified and how,
 what you decided and what you rejected. This is not bookkeeping to do afterwards. It is
@@ -204,7 +207,7 @@ a merge nobody approved.
 Then run the command the clause names:
 
 ```bash
-poetry run agentjobs finish <task-id> --project <project> --posture-release
+poetry run agentjobs finish <task-id> --project <project> --automerge-release
 ```
 
 It rebases onto the base branch, runs the **full unqualified `scripts/check.py`** on the
@@ -213,8 +216,9 @@ green. Then it rebuilds, restarts, verifies the running service is serving the m
 closes the task, removes your worktree and deletes your branch. Exit 0 means all of that
 happened. Exit 1
 means it stopped, and the task record says at which step and whether anything was merged.
-Exit 2 means it declined and touched nothing — including when the posture does not
-actually release the gate, which is checked there rather than taken on trust.
+Exit 2 means it declined and touched nothing — including when this run was not
+actually granted automerge, which is checked there rather than taken on trust.
+(`--automerge-release`, the pre-task-602 spelling, is still accepted.)
 
 **Do not run `git merge` instead.** The whole reason an unreviewed merge is acceptable is
 that an objective check ran on the exact commit being merged, and it ran somewhere other
@@ -616,19 +620,19 @@ is waiting for its consequence -- see
 of them can depend on the parked one, or claimability would not have offered them, so
 stopping them would throw away work for no safety gain.
 
-**A parked child is also what an epic walk at posture `auto` or `supervised` is supposed
-to produce.** The first child hands off for review, the walk stops, and a person
-approves. That is the merge gate standing, not the walk failing. Only `autonomous` walks
-an epic to the end unattended.
+**A parked child is also what an epic walk at merge mode `review` is supposed to
+produce.** The first child hands off for review, the walk stops, and a person approves.
+That is the merge gate standing, not the walk failing. Only `automerge` walks an epic to
+the end unattended.
 
-**The posture that decides this is the one the *parent* was dispatched at** (task-316).
-A child inherits it, so an epic a person dispatched `autonomous` runs its children
-`autonomous` even where the project's own default is narrower -- which is what makes the
-sentence above about your own prompt true. It was not true until task-316: children fell
-through to the project default, so an epic authorised `autonomous` stopped on its first
-child for a review nobody had asked for. If you see that, check the child's `dispatch`
-entry -- `posture_source: epic` is the fix working. The walk prints the envelope its
-children will get before it starts any of them.
+**The merge mode that decides this is the one the *parent* was dispatched at**
+(task-316). A child inherits it, so an epic a person dispatched `automerge` runs its
+children `automerge` even where the project's own default is `review` -- which is what
+makes the sentence above about your own prompt true. It was not true until task-316:
+children fell through to the project default, so an epic authorised to merge itself
+stopped on its first child for a review nobody had asked for. If you see that, check the
+child's `dispatch` entry -- `merge_mode_source: epic` is the fix working. The walk prints
+the merge mode its children will get before it starts any of them.
 
 **Child died.** The session is gone, the child's ball is still `agent`, and nothing new
 was written to its record. Before anything else, look at what survived: the child's branch

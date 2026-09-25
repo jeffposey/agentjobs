@@ -302,10 +302,10 @@ including one holding no records at all.
     shows *what*.
 
 ### The Merge Gate
-Work does not merge itself **unless the run's posture releases it**, and only one posture
-does. Read [Posture decides this, not you](#posture-decides-this-not-you) below before
-concluding either half applies to you; if you are a person, or a run whose posture was
-not named there, the rule is unqualified and the release does not exist for you.
+Work does not merge itself **unless the run's merge mode is `automerge`**. Read
+[Merge mode decides this, not you](#merge-mode-decides-this-not-you) below before
+concluding that applies to you; if you are a person, or a run not dispatched `automerge`,
+the rule is unqualified and the release does not exist for you.
 
 **This numbered list is the only one.** ALLAGENTS.md's task lifecycle used to restate
 steps 3 to 6 under its own numbers 6 and 7, so "step 6" named two different actions
@@ -348,27 +348,25 @@ When a branch is complete and verified:
     that command rather than assuming the default. Either way the step is the same: the
     human ends up on the merged version, and you checked.
 
-#### Posture decides this, not you
+#### Merge mode decides this, not you
 
-**A dispatched run's posture carries two things** (task-021): what the process may
-execute, and whether the run stops at the gate above. The second is derived from the
-first — there is no separate switch.
+**A dispatched run has one merge mode** (task-021, task-602), and what the process may
+execute is derived from it — there is no separate switch.
 
-| Posture | Executes | Merge | Push |
+| Merge mode | Executes | Merge | Push |
 |---|---|---|---|
-| `read_only` | no shell at all | no branch to merge | n/a |
-| `auto` **(default)** | classifier-gated | **stop, hand off, wait for approval** | per project |
-| `supervised` | allow-list, parks otherwise | **stop, hand off, wait for approval** | per project |
-| `autonomous` | `bypassPermissions` | merges its own work | per project |
+| `review` **(default)** — hands off for your review | classifier-gated | **stop, hand off, wait for approval** | per project |
+| `automerge` — merges itself on a green gate | `bypassPermissions` | merges its own work | per project |
 
-`auto` and `supervised` are deliberately identical here. They differ in how the process
-is gated *while it runs*, which is a different question from who authorises the merge.
+A project allows `automerge` only where its machine-local `dispatch.yaml` says
+`allow_automerge: true`. Records from before task-602 say `posture`: `auto` there meant
+`review`, and `autonomous` meant `automerge`.
 
-**An autonomous run does not run `git merge`.** It records its evidence on the task and
-then runs `agentjobs finish <task> --project <id> --posture-release`, which routes it
+**An automerge run does not run `git merge`.** It records its evidence on the task and
+then runs `agentjobs finish <task> --project <id> --automerge-release`, which routes it
 through exactly the sequence a human approval takes and stops at the first step it cannot
-complete. The posture is re-checked there, in code: `--posture-release` on a project
-configured `auto` declines and touches nothing.
+complete. The run's own merge mode is re-checked there, in code: a `review` run, or one
+whose project no longer allows automerge, declines and touches nothing.
 
 **The gate is the point.** "No serious issue detected by the agent" is the agent grading
 its own homework and is the least reliable authority available, so it is not the one that
@@ -376,20 +374,20 @@ merges. `scripts/check.py` exit 0 is, and the finisher runs it rather than takin
 agent's word. Both have to hold: an agent that finds a serious problem stops and hands
 off however green the gate was, and a green agent with a red gate merges nothing.
 
-**Push is not a posture property.** It is per project, it defaults to `false`, and it is
-`false` here. Nothing in AgentJobs runs `git push`. **That is the whole of the safety
-argument**: a bad autonomous merge is caught by whoever next reads `main` and reverted,
+**Push is not part of the merge mode.** It is per project, it defaults to `false`, and it
+is `false` here. Nothing in AgentJobs runs `git push`. **That is the whole of the safety
+argument**: a bad automerge is caught by whoever next reads `main` and reverted,
 because nothing left this machine. A project that both releases the merge gate and
 permits pushing has given up that recovery, and should want a much stronger reason than
 this one.
 
 **An epic multiplies this, and the multiplication is the point** (task-022). Dispatching
-a parent at `autonomous` and running `agentjobs dispatch walk` merges *every* child in
-turn, unattended, on one click — each through `agentjobs finish --posture-release`, so
+a parent at `automerge` and running `agentjobs dispatch walk` merges *every* child in
+turn, unattended, on one click — each through `agentjobs finish --automerge-release`, so
 each merge still has a green unqualified gate on the exact commit under it, and the walk
 stops outright on the first child that is not clean. Read
 [the epic walk](docs/agent-dispatch-design.md#the-epic-walk-one-human-act-many-runs-task-022-2026-08-23)
-before raising a project's posture: chains of unreviewed merges are recoverable only for
+before allowing a project automerge: chains of unreviewed merges are recoverable only for
 as long as nothing is pushed.
 
 #### Steps 3 to 6 may already have happened before you read them

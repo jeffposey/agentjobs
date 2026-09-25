@@ -63,8 +63,8 @@ the only `desktop_visible` observation.
 ## Add the runners, disabled
 
 Put the following under `runners:` in the machine-local
-`~/.agentjobs/dispatch.yaml`. `driver: codex` makes AgentJobs translate the project's
-posture into Codex's sandbox policy and finds Codex Desktop's active bundled CLI on
+`~/.agentjobs/dispatch.yaml`. `driver: codex` makes AgentJobs translate the run's
+merge mode into Codex's sandbox policy and finds Codex Desktop's active bundled CLI on
 Windows, avoiding the non-spawnable Microsoft Store `codex` alias.
 
 ```yaml
@@ -119,14 +119,16 @@ authorization on the task; the command intentionally refuses to invent a human a
    its AgentJobs title or ID. A person records `desktop_visible`; otherwise preserve
    `not_observed` or `unavailable` without changing the other outcomes.
 
-## Posture mapping
+## Merge mode mapping
 
-| AgentJobs posture | Codex flag | Use |
+| AgentJobs merge mode | Codex flag | Use |
 | --- | --- | --- |
-| `read_only` | `--sandbox read-only` | Review and investigation |
-| `auto` | `--sandbox workspace-write` | Normal workhorse dispatch |
-| `autonomous` | `--sandbox danger-full-access` | Explicit, high-trust automation |
-| `supervised` | `approvalPolicy: on-request` | Desktop can answer an interactive approval |
+| `review` | `--sandbox workspace-write` | Normal workhorse dispatch; hands off for review |
+| `automerge` | `--sandbox danger-full-access` | Explicit, high-trust automation; merges itself on a green gate |
+
+The approval policy is always `never`: an unattended run has nobody to answer a prompt.
+`read_only` and `supervised` were removed by task-602; a run recorded under either before
+then reads as `review`.
 
 The controlled acceptance configuration uses Terra with `high` reasoning and Standard
 speed in an explicitly named group. It is not a claim that the default runner group has
