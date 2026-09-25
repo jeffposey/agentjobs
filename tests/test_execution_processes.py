@@ -233,7 +233,7 @@ class TestReplayInAFreshProcess:
             task_id="task-001",
             run_id="run_a",
             capacity=3,
-            envelope={"runner": "claude-opus-5", "posture": "auto"},
+            envelope={"runner": "claude-opus-5", "merge_mode": "review"},
             workflow_version=WORKFLOW_VERSION,
         )
         store.mark_launched("run_a", session_id="s-1")

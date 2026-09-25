@@ -16,7 +16,7 @@ cwd is elsewhere.
 
 **What is never stopped**, whatever it matches:
 
-* this process and every one of its ancestors -- a posture finish is started by the very
+* this process and every one of its ancestors -- a merge mode finish is started by the very
   session whose shell may have ``cd``-ed into the worktree to run it;
 * a Claude Code session process (``claude.exe``, or anything carrying ``--session-id``):
   a session is ended with ``claude stop``, which keeps the conversation, and never by a

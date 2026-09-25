@@ -84,14 +84,13 @@ from agentjobs.dispatch.codex_app_server import (
 from agentjobs.dispatch.config import (
     DispatchResolution,
     DispatchRunner as RunnerConfig,
-    MergePolicy,
-    Posture,
+    MergeMode,
     RECORDED_ON_DISPATCH_ENTRY,
-    ResolvedPosture,
+    ResolvedMergeMode,
     RunnerDriver,
     RunnerMode,
     RunnerSelection,
-    resolve_posture,
+    resolve_merge_mode,
     sentinel_active,
     substitute_argv,
 )
@@ -123,10 +122,10 @@ from agentjobs.models_v2 import (
     DispatchEnvelopeData,
     DispatchMode,
     DispatchOutcome,
-    DispatchPosture,
     DispatchSelectionData,
     DispatchTrigger,
     LogEntryType,
+    merge_mode_text,
     Task,
 )
 from agentjobs.dispatch import kills
@@ -291,20 +290,20 @@ supervisor's first decision was which one was eligible; by the time this runs th
 closed, and which ones they were is a fact about the record it is about to open."""
 
 REVIEW_CLAUSE = (
-    "Posture `{posture}` stops at the merge gate: when the work is done and verified, "
+    "Merge mode `{merge_mode}` stops at the merge gate: when the work is done and verified, "
     "record the evidence on the task, hand the ball to human/review, and stop. Do not "
     "merge."
 )
-"""What a run is told when its posture leaves the merge gate standing (task-021)."""
+"""What a ``review`` run is told: the merge gate stands (task-021)."""
 
 AUTOMATIC_CLAUSE = (
-    "Posture `{posture}` releases the merge gate: this run merges its own work with no "
-    "human review. Record the evidence on the task first, then run `agentjobs finish "
-    "{task_id} --project {project_id} --posture-release` from {project_root}. That "
+    "Merge mode `{merge_mode}` releases the merge gate: this run merges its own work with "
+    "no human review. Record the evidence on the task first, then run `agentjobs finish "
+    "{task_id} --project {project_id} --automerge-release` from {project_root}. That "
     "rebases, runs the full gate, and merges only on a green one -- it stops and hands "
     "the ball back if anything fails. Do not merge by hand."
 )
-"""What a run is told when its posture releases the merge gate (task-021).
+"""What an ``automerge`` run is told: it releases the merge gate (task-021).
 
 It names a command rather than describing an outcome, for the reason task-192 gave about
 the worktree: an instruction a model can satisfy in several ways will be satisfied in the
@@ -319,29 +318,29 @@ one that runs without a round trip.
 """
 
 EVALUATION_CLAUSE = (
-    "Posture `{posture}` decided what the children did with their branches, and they have "
+    "Merge mode `{merge_mode}` decided what the children did with their branches, and they have "
     "already done it: every child of this epic is closed. You hold no branch, so there is "
     "nothing here for you to merge and nothing to finish -- close this parent through the "
     "API, or hand it back saying which criterion is unmet."
 )
 """The merge policy, restated for a run that holds no branch of its own (task-458).
 
-One clause for every posture rather than two, because the difference the two versions of
+One clause for both merge modes rather than two, because the difference the two versions of
 this used to draw -- whether a child merges on an approval or on its own gate -- is a fact
 about runs that are over by the time this one starts. Saying it here would describe the
 past and invite this run to act on it. What this run needs to be told is that the merge
-question is not its question, which is true at every posture.
+question is not its question, which is true in either mode.
 
-The posture is still named. Not naming it would leave the one run that closes an epic
-unable to say, on the record, what envelope it was closing it under."""
+The mode is still named. Not naming it would leave the one run that closes an epic
+unable to say, on the record, what it was closing it under."""
 
 NO_PUSH_CLAUSE = "Never push: this project is configured `push: false`."
 PUSH_CLAUSE = "This project is configured `push: true`, so pushing `{base}` is permitted."
-"""The push half, which is the project's decision and never the posture's (task-021)."""
+"""The push half, which is the project's decision and never the merge mode's (task-021)."""
 
 
 def policy_clause(
-    posture: Posture,
+    merge_mode: MergeMode,
     *,
     push: bool,
     task_id: str,
@@ -359,21 +358,14 @@ def policy_clause(
     which the agent cannot read, must not read, and would not be told about by any
     document in the repository -- and the same repository's committed prose says
     unconditionally that work does not merge itself. A run that is not told otherwise
-    will obey the prose, correctly, and an ``autonomous`` posture would then mean
-    nothing at all.
-
-    ``read_only`` gets no clause. It has no branch, and a sentence about what to do with
-    one is noise in the prompt of a run that cannot write a file.
+    will obey the prose, correctly, and ``automerge`` would then mean nothing at all.
     """
-    policy = posture.merge_policy
-    if policy is MergePolicy.NONE:
-        return ""
     if evaluation:
         template = EVALUATION_CLAUSE
     else:
-        template = AUTOMATIC_CLAUSE if policy is MergePolicy.AUTOMATIC else REVIEW_CLAUSE
+        template = AUTOMATIC_CLAUSE if merge_mode is MergeMode.AUTOMERGE else REVIEW_CLAUSE
     merge = template.format(
-        posture=posture.value,
+        merge_mode=merge_mode.value,
         task_id=task_id,
         project_id=project_id,
         project_root=project_root,
@@ -466,7 +458,7 @@ def describe_children(child_ids: Sequence[str]) -> str:
     return f"{shown} and {len(ids) - CHILDREN_NAMED} more"
 
 
-# ----- the permission posture -------------------------------------------------
+# ----- the permission merge mode -------------------------------------------------
 
 
 ALLOW_PREFIXES = (
@@ -495,7 +487,7 @@ read a task record. So the pre-approval was justified by a check the thing being
 pre-approved does not make, and ``git merge`` remains the one command in the lifecycle
 that merges whether or not anybody approved anything.
 
-Meanwhile ``AUTOMATIC_CLAUSE`` -- the sentence that tells an ``autonomous`` run how to
+Meanwhile ``AUTOMATIC_CLAUSE`` -- the sentence that tells an ``automerge`` run how to
 merge -- names ``agentjobs finish ... --posture-release``, and *that* was not on this
 list. Its own docstring says the failure it guards against is that an instruction a
 model can satisfy several ways gets satisfied in the cheapest one. The list was making
@@ -540,7 +532,7 @@ def supervisor_allow_rules(mcp_servers: Sequence[str]) -> List[str]:
     three consecutive classifier blocks that armed the breaker were two identical
     ``task_log_append`` calls and one unrelated help command. Those two were the
     supervisor writing a *brief* into a child's log -- which child runs, under what merge
-    posture, on whose authority. An agent instructing another agent to skip human review
+    merge mode, on whose authority. An agent instructing another agent to skip human review
     and merge to ``main`` is exactly what a content classifier should decline when the
     authorisation it is acting on lives somewhere the classifier cannot see: on the
     parent's task record. An ordinary run writes progress notes and never says any such
@@ -593,15 +585,13 @@ def mcpjson_server_names(project_root: Path) -> List[str]:
 def settings_json(*, allow_list: bool, mcp_servers: Sequence[str], supervisor: bool = False) -> str:
     """The blob ``--settings`` takes, carrying only the keys a run actually needs.
 
-    Two independent things end up here and they are wanted by different postures. The
-    allow-list pre-approves commands; ``enabledMcpjsonServers`` pre-approves the
-    project's MCP servers. ``read_only`` needs the second and must not be given the
-    first, so neither key is unconditional.
+    Two independent things end up here. The allow-list pre-approves commands;
+    ``enabledMcpjsonServers`` pre-approves the project's MCP servers. Each key is
+    optional, so a caller wanting only one of them gets only that one.
 
     ``supervisor`` adds ``supervisor_allow_rules()`` to the allow-list, and does so
-    **only inside the branch that already carries one**. That placement is the whole
-    safety property: ``read_only`` and ``autonomous`` never reach it, so an epic cannot
-    quietly widen a posture chosen to be narrow.
+    **only inside the branch that already carries one**. That placement is the safety
+    property: ``automerge`` never reaches it, and a blob with no allow-list gains none.
 
     An empty ``mcp_servers`` produces exactly the JSON this emitted before the MCP key
     existed, byte for byte, which is what keeps a project without a ``.mcp.json`` on
@@ -619,127 +609,77 @@ def settings_json(*, allow_list: bool, mcp_servers: Sequence[str], supervisor: b
     return json.dumps(settings)
 
 
-def posture_flags(
-    posture: Posture,
+def merge_mode_flags(
+    merge_mode: MergeMode,
     mcp_servers: Sequence[str],
     *,
     supervisor: bool = False,
     driver: RunnerDriver = RunnerDriver.CLAUDE,
 ) -> List[str]:
-    """The flags that decide what a run may do, per task-076.
+    """The flags that decide what a run may do, derived from its merge mode (task-602).
 
     **AgentJobs owns these, not the operator.** Mechanically they are just more argv,
     which makes them look like the runner's business; they are the actual risk boundary
     of the whole feature, and burying them in a config example means they get chosen by
-    whoever copies the example first.
+    whoever copies the example first. They are also never chosen separately from the
+    merge mode: a run trusted to merge unreviewed runs ungated, and a run that stops for
+    review keeps the classifier. Two switches would have combinations nobody wants.
 
-    **No posture passes ``-w``, and that is the whole of task-186.** Until 2026-08-19
-    every writing posture did, on the reasoning that a dispatched run should not be able
-    to *forget* to take a worktree. What that reasoning did not know is that the
-    isolation ``-w`` grants is enforced by a guard which refuses any git operation aimed
-    at the shared checkout -- by ``-C`` and by ``cd`` alike, both probed on 2.1.235, with
-    no flag or setting that lifts either. This project commits every task record to
-    ``main`` in that shared checkout and runs its merge gate there, so a ``-w`` run could
-    do the work and then not record or merge it. Containment that guarantees the run
-    cannot finish is not containment. It is now the agent's own act -- ``PROMPT_STUB``
-    gives the ``git worktree add`` command in the first lines guaranteed to be read, and
-    the guide it points at says it in full.
+    ``review`` is Claude Code's ``--permission-mode auto`` plus a ``--settings`` blob;
+    ``automerge`` is ``bypassPermissions``. Exactly what the retired ``auto`` and
+    ``automerge`` merge modes passed, so no run's permissions changed when the two unused
+    merge modes were deleted.
 
-    **Nor does any posture pre-approve a permission-root relocation, and that is
-    task-192.** Claude Code's ``EnterWorktree`` tool -- which a prose instruction to
-    "take a worktree" invites -- asks to move the session's permission root outside
-    ``.claude/worktrees/``. ``auto``'s classifier declines that escalation and a ``--bg``
-    run cannot answer, so it parks. Rejected pre-approving it in the ``--settings`` blob
-    beside ``enabledMcpjsonServers``: it would need a rule for a gate that is an
-    escalation rather than an ordinary tool call, and ``allow_rules()`` records what a
-    rule that silently matches nothing costs. ``bypassPermissions`` is likewise rejected
-    -- it removes the gate for everything to fix one prompt. The prompt names the shell
-    command instead, which needs no approval at all.
+    **No mode passes ``-w``, and that is the whole of task-186.** The isolation ``-w``
+    grants is enforced by a guard which refuses any git operation aimed at the shared
+    checkout -- by ``-C`` and by ``cd`` alike, probed on 2.1.235 -- and the merge gate
+    runs there, so a ``-w`` run could do the work and then not merge it. Taking a
+    worktree is the agent's own act; ``PROMPT_STUB`` gives the command.
 
-    ``read_only`` still gets no worktree flag, for the reason it never had one: it cannot
-    write anything to one.
+    **Nor does either mode pre-approve a permission-root relocation (task-192).**
+    ``EnterWorktree`` asks to move the session's permission root; the classifier declines
+    that escalation and a ``--bg`` run cannot answer, so it parks. The prompt names the
+    shell command instead, which needs no approval at all.
 
-    **Every posture that can hit the ``.mcp.json`` approval dialog carries the project's
-    server names (task-019).** Probed on 2.1.235 against a project declaring one
-    otherwise-unknown server: ``auto`` and ``read_only`` both reach ``state: "blocked"``
-    on *"New MCP server found in this project"*, and ``bypassPermissions`` does not see
-    the gate at all. So ``read_only`` gains a ``--settings`` blob it never had -- holding
-    ``enabledMcpjsonServers`` and nothing else, because giving it an allow-list would be
-    a posture change -- ``auto`` and ``supervised`` gain the key in the blob they already
-    had, and ``autonomous`` is untouched, since adding an approval it demonstrably does
-    not need would only imply a limit that is not there. A project with no ``.mcp.json``
-    yields no names and every posture's argv is unchanged.
+    **``review`` carries the project's ``.mcp.json`` server names (task-019).** Probed on
+    2.1.235: a classifier-gated run reaches ``state: "blocked"`` on *"New MCP server found
+    in this project"*; ``bypassPermissions`` never sees the gate, so ``automerge`` is
+    untouched rather than implying a limit that is not there.
 
-    ``auto`` is the default (task-020). Its mode has a classifier review each action
-    instead of a human. ``supervised`` was the default until 2026-08-19 and could not
-    finish work: ``acceptEdits`` still prompts for Bash, the allow-list covers nine
-    prefixes, and the first command outside them parks a session nobody can answer.
-
-    This paragraph used to end that first sentence with "which is the only one of these
-    that both keeps a gate and never needs a terminal". **That was false**, and it is the
-    assumption task-220 was spent discovering. ``auto`` needs a terminal too, just later
-    and more rarely: a single classifier block is deny-and-continue, but *three
-    consecutive* blocks arm a breaker that turns the next call into an interactive prompt
-    -- and a ``--bg`` run has nobody to answer it. Six of eight runs on 2026-08-20/21
-    never came near that, which is why the belief survived as long as it did. The fix is
-    not a different mode; it is making sure the streak cannot form for the role that
-    provokes it.
-
-    ``supervisor`` says this run drives an epic. It is derived from the record -- the task
-    has an open child -- by the same property that chooses ``SUPERVISOR_STUB``, so the two
-    cannot disagree and nothing has to be remembered at spawn time. It reaches only the
-    allow-list branch below, so ``read_only`` and ``autonomous`` are untouched by it.
-
-    ``auto`` keeps the allow-list. The rules can only pre-approve, never widen beyond
-    what the classifier would already permit, and every one of them names a command the
+    **``review`` keeps the allow-list.** The rules can only pre-approve, never widen
+    beyond what the classifier would already permit, and every one names a command the
     run is certain to need -- so they cost nothing and spare the classifier the whole
-    test suite. Rejected the alternative of dropping it, which would have made ``auto``
-    differ from ``supervised`` in two ways at once and left the first ``pytest`` of every
-    run waiting on a classifier round-trip for no benefit.
+    test suite. The classifier still needs a terminal eventually: *three consecutive*
+    blocks arm a breaker that turns the next call into an interactive prompt, and a
+    ``--bg`` run has nobody to answer it (task-220). The fix is making sure the streak
+    cannot form for the role that provokes it, which is what ``supervisor`` is for: it
+    says this run drives an epic, derived from the record by the same property that
+    chooses ``SUPERVISOR_STUB``.
     """
     if driver is RunnerDriver.CODEX:
-        return codex_posture_flags(posture)
-
-    if posture is Posture.READ_ONLY:
-        flags = ["--tools", "Read,Glob,Grep,WebFetch"]
-        if mcp_servers:
-            flags += ["--settings", settings_json(allow_list=False, mcp_servers=mcp_servers)]
-        return flags
-    if posture is Posture.AUTONOMOUS:
+        return codex_merge_mode_flags(merge_mode)
+    if merge_mode is MergeMode.AUTOMERGE:
         return ["--permission-mode", "bypassPermissions"]
     return [
         "--permission-mode",
-        "auto" if posture is Posture.AUTO else "acceptEdits",
+        "auto",
         "--settings",
         settings_json(allow_list=True, mcp_servers=mcp_servers, supervisor=supervisor),
     ]
 
 
-def codex_posture_flags(posture: Posture) -> List[str]:
-    """Map AgentJobs' safe postures to Codex's batch sandbox policies.
+def codex_merge_mode_flags(merge_mode: MergeMode) -> List[str]:
+    """Map a merge mode to Codex's batch sandbox policy.
 
-    Codex's normal non-interactive surface is ``codex exec``.  Its sandbox policy is
-    the direct equivalent of a dispatch posture, but it deliberately has no useful
-    unattended analogue of Claude's ``supervised`` mode: a batch process has nobody to
-    answer its confirmation prompts.  Refusing is more honest than silently widening
-    that posture to workspace-write.
+    ``review`` is ``workspace-write`` and ``automerge`` is ``danger-full-access`` -- what
+    the retired ``auto`` and ``autonomous`` postures passed.
 
     The inline ``required`` override is intentionally independent of the runner argv.
     A Codex dispatch must be able to use AgentJobs to make its task-record writes; if
     this machine's shared ``mcp_servers.agentjobs`` entry is not available, Codex exits
     before doing work instead of producing an untracked run.
     """
-    if posture is Posture.SUPERVISED:
-        raise DispatchRunError(
-            "Codex batch dispatch does not support posture 'supervised'. Use "
-            "read_only, auto, or autonomous; unattended Codex cannot answer "
-            "interactive approval prompts."
-        )
-    sandbox = {
-        Posture.READ_ONLY: "read-only",
-        Posture.AUTO: "workspace-write",
-        Posture.AUTONOMOUS: "danger-full-access",
-    }[posture]
+    sandbox = "danger-full-access" if merge_mode is MergeMode.AUTOMERGE else "workspace-write"
     return [
         "--sandbox",
         sandbox,
@@ -1081,7 +1021,7 @@ def session_name_flags(
     the same string goes into the argv and onto the run's meta.
 
     Spliced by the dispatcher rather than written into a runner template, for the same
-    reason the posture flags are: an operator's custom runner then gets an identifiable
+    reason the merge mode flags are: an operator's custom runner then gets an identifiable
     session without having to remember to ask for one, and a template copied from the
     scaffold example does not silently lose the naming when it is edited. It is accepted
     in both modes -- a ``-p`` batch run takes ``--name`` and exits 0 with it.
@@ -1109,11 +1049,11 @@ def session_name_flags(
 def compose_argv(
     template: Sequence[str], values: Dict[str, str], flags: Sequence[str]
 ) -> List[str]:
-    """Render a runner's argv template and splice the posture flags into it.
+    """Render a runner's argv template and splice the merge mode flags into it.
 
     The split of responsibility, stated once here because it is the thing a reader will
     otherwise have to infer: **the operator's template supplies the executable, the mode
-    flags and where the prompt goes; AgentJobs supplies the posture flags.** A CLI that
+    flags and where the prompt goes; AgentJobs supplies the merge mode flags.** A CLI that
     is not Claude Code can therefore be driven by editing a template, while the flags
     that decide what a run may do stay out of a file the operator is invited to copy
     from an example.
@@ -1652,7 +1592,7 @@ class RunHandle:
     """
     group: Optional[str] = None
     """The group it was chosen from, when one participated."""
-    posture: Optional[ResolvedPosture] = None
+    merge_mode: Optional[ResolvedMergeMode] = None
     """What this run may do, and which of the three sources decided (task-308).
 
     Stamped by ``DispatchRunner.start`` on the way out, so a handle rebuilt from disk by
@@ -1721,7 +1661,7 @@ class DispatchRunner:
         clock: Callable[[], datetime] = dispatch_clock.utcnow,
         claude_home: Optional[Path] = None,
         playbook: Optional[PlaybookPointer] = None,
-        posture: Optional[ResolvedPosture] = None,
+        merge_mode: Optional[ResolvedMergeMode] = None,
         push: Optional[bool] = None,
         history: Optional["History"] = None,
         over_ceiling: bool = False,
@@ -1755,7 +1695,7 @@ class DispatchRunner:
         """Each run id's chosen session name -- see ``session_name_for``. The one thing
         held between two calls about the same run, because it is read off the machine
         rather than derived from the run, so re-deriving it can answer differently."""
-        self.posture = posture or resolve_posture(resolution.settings)
+        self.merge_mode = merge_mode or resolve_merge_mode(resolution.settings)
         """What this run may do, and which of the three sources said so (task-308).
 
         Resolved by the caller when a task record or a dispatch-time choice had anything
@@ -1833,7 +1773,7 @@ class DispatchRunner:
         be decided here by counting children is now decided in ``start``, one level up,
         where the choice is between starting a session and starting nothing.
 
-        The posture's merge and push policy is appended (task-021) and is the one thing
+        The merge mode's merge and push policy is appended (task-021) and is the one thing
         here that is *not* a pointer, because there is nothing to point at: see
         ``policy_clause``.
         """
@@ -1856,13 +1796,13 @@ class DispatchRunner:
         return rendered
 
     def policy_clause_for(self, task_id: str) -> str:
-        """The posture and push sentences this run's agent is told, exactly (task-021).
+        """The merge mode and push sentences this run's agent is told, exactly (task-021).
 
         One composition, used by the cold prompt, the wake prompt and the envelope the
         journal freezes (task-375), so the three cannot describe different runs.
         """
         return policy_clause(
-            self.posture.posture,
+            self.merge_mode.merge_mode,
             push=self.push,
             task_id=task_id,
             project_id=self.resolution.project_id,
@@ -1904,7 +1844,7 @@ class DispatchRunner:
         return cached
 
     def build_argv(self, task_id: str, run_id: str, title: str = "") -> List[str]:
-        """The full argv for a run, posture flags included."""
+        """The full argv for a run, merge mode flags included."""
         return self.build_argv_and_prompt(task_id, run_id, title)[0]
 
     def build_argv_and_prompt(
@@ -1926,13 +1866,13 @@ class DispatchRunner:
             "agent": self.runner.actor_id,
             "api_base": self.api_base,
         }
-        flags = posture_flags(
-            self.posture.posture,
+        flags = merge_mode_flags(
+            self.merge_mode.merge_mode,
             mcpjson_server_names(self.project_root),
             supervisor=self.evaluation,
             driver=self.runner.driver,
         )
-        # The session name is AgentJobs the same way the posture flags are, and rides
+        # The session name is AgentJobs the same way the merge mode flags are, and rides
         # the same splice: both are things an operator template must not have to
         # remember, and must not be able to get wrong.
         flags = [
@@ -1962,7 +1902,7 @@ class DispatchRunner:
     def _codex_wake_plan(self, task_id: str) -> tuple[Optional[WakeTarget], Optional[str]]:
         """The Codex thread to resume, and why a resumable one was not, if it was not.
 
-        A posture change is not a resume *failure*, so the explicit-fresh-start policy is
+        A merge mode change is not a resume *failure*, so the explicit-fresh-start policy is
         not engaged by it: no resume is attempted at all (``wake.resume_refusal``,
         task-375).
         """
@@ -1976,7 +1916,7 @@ class DispatchRunner:
             return None, None
         if meta.get("reaped") is True or meta.get("codex_status") != "completed":
             return None, None
-        refusal = resume_refusal(meta, self.posture.posture.value)
+        refusal = resume_refusal(meta, self.merge_mode.merge_mode.value)
         if refusal is not None:
             return None, f"Did not resume run `{record.run_id}`: {refusal}."
         return (
@@ -2016,7 +1956,7 @@ class DispatchRunner:
                 earlier=self._earlier_messages(task, wake.previous_run_id),
             )
         settings = parse_session_settings(
-            argv, posture=self.posture.posture.value, project_root=self.project_root
+            argv, merge_mode=self.merge_mode.merge_mode.value, project_root=self.project_root
         )
         directory = RunDirectory.create(
             self.home,
@@ -2027,8 +1967,8 @@ class DispatchRunner:
                 "project_id": self.resolution.project_id,
                 "mode": DispatchMode.SESSION.value,
                 "driver": self.runner.driver.value,
-                "posture": self.posture.posture.value,
-                **self.posture.as_data(),
+                "merge_mode": self.merge_mode.merge_mode.value,
+                **self.merge_mode.as_data(),
                 **self.overage_meta(),
                 "status": "starting",
                 "codex_status": "starting",
@@ -2106,7 +2046,7 @@ class DispatchRunner:
                             "The run is parked as resume_busy; its task lock remains held and "
                             "no fresh thread was started."
                         ),
-                        # Nothing reached a model, so nothing about posture was told to one.
+                        # Nothing reached a model, so nothing about merge mode was told to one.
                         delivery=self.delivery_data(
                             task.id, channel="none", payload=None, acknowledged_by=None
                         ),
@@ -2321,7 +2261,8 @@ class DispatchRunner:
         try:
             settings = parse_session_settings(
                 rendered_argv,
-                posture=str(meta.get("posture") or self.posture.posture.value),
+                merge_mode=merge_mode_text(meta.get("merge_mode") or meta.get("posture"))
+                or self.merge_mode.merge_mode.value,
                 project_root=self.project_root,
             )
             observer = CodexAppServerProcess(
@@ -2513,11 +2454,11 @@ class DispatchRunner:
                 else None
             ),
             mode=mode,
-            posture=DispatchPosture(self.posture.posture.value),
-            posture_source=self.posture.source.value,
-            posture_ceiling=self.posture.ceiling.value,
-            posture_requested=(
-                self.posture.requested.value if self.posture.requested is not None else None
+            merge_mode=MergeMode(self.merge_mode.merge_mode.value),
+            merge_mode_source=self.merge_mode.source.value,
+            allow_automerge=self.merge_mode.allow_automerge,
+            merge_mode_requested=(
+                self.merge_mode.requested.value if self.merge_mode.requested is not None else None
             ),
             trigger=trigger,
             caused_by=caused_by,
@@ -2597,7 +2538,7 @@ class DispatchRunner:
         """What was actually sent to the agent, checked rather than assumed (task-375).
 
         ``posture_delivered`` is computed from the payload: it is true only when the exact
-        clause this run's posture composes is inside the text that went out. Nothing here
+        clause this run's merge mode composes is inside the text that went out. Nothing here
         infers it from the run having been started, or from an earlier run of the session
         having been told it.
         """
@@ -2607,7 +2548,7 @@ class DispatchRunner:
             payload_sha256=(
                 hashlib.sha256(payload.encode("utf-8")).hexdigest() if payload else None
             ),
-            posture_delivered=(bool(payload) and clause in (payload or "")) if clause else None,
+            merge_mode_delivered=(bool(payload) and clause in (payload or "")) if clause else None,
             acknowledged_by=acknowledged_by,
             resume_refused=resume_refused,
         )
@@ -2659,7 +2600,7 @@ class DispatchRunner:
         # `RunHandle(...)` inside them. It is surfaced for the same reason `api_base` is:
         # it is otherwise buried in a run directory nobody opens, and a caller that just
         # spent money on a run should be able to say what envelope it got.
-        handle.posture = self.posture
+        handle.merge_mode = self.merge_mode
         return handle
 
     # ----- walk mode: an epic, with no agent ----------------------------------
@@ -2678,7 +2619,7 @@ class DispatchRunner:
         **Detaching the walk is the run.** A ``walk`` run has no worker, no prompt, no
         model call and no argv; it exists so that the epic's takeoff leaves the same
         evidence every other takeoff leaves, and so that the ``dispatch`` entry every
-        child reads its posture, runner and authorising human off is written by the
+        child reads its merge mode, runner and authorising human off is written by the
         thing that authorised them. It is terminal before this method returns, which is
         what makes the machine's whole ceiling available to the children it just
         started.
@@ -2705,8 +2646,8 @@ class DispatchRunner:
                 **({"execution_id": self.execution_id} if self.execution_id else {}),
                 "mode": DispatchMode.WALK.value,
                 "driver": self.runner.driver.value,
-                "posture": self.posture.posture.value,
-                **self.posture.as_data(),
+                "merge_mode": self.merge_mode.merge_mode.value,
+                **self.merge_mode.as_data(),
                 "status": "starting",
                 "started_at": self.clock().isoformat(),
                 "caused_by": caused_by,
@@ -2727,7 +2668,7 @@ class DispatchRunner:
                 "started for the epic itself, so none of its children queue behind one."
             ),
             # Nothing was sent anywhere, and saying so is not the same as leaving it
-            # unrecorded: a run credited with a delivery it never made is how a posture
+            # unrecorded: a run credited with a delivery it never made is how a merge mode
             # comes to be believed to have reached an agent that never existed.
             delivery=self.delivery_data(
                 task.id, channel="none", payload=None, acknowledged_by=None
@@ -2752,12 +2693,12 @@ class DispatchRunner:
                 parent_id=task.id,
                 home=self.home,
                 settings=settings,
-                # `None`, so each child resolves the epic's own posture off the dispatch
-                # entry written moments ago. Freezing this run's resolved posture into the
+                # `None`, so each child resolves the epic's own merge mode off the dispatch
+                # entry written moments ago. Freezing this run's resolved merge mode into the
                 # walk instead would turn an inherited value into an asserted one, which
                 # is the distinction task-316 drew and the reason inheritance is read from
                 # the record rather than passed along.
-                posture=None,
+                merge_mode=None,
                 actor=self.runner.actor_id,
             )
         except (EpicError, Exception) as exc:  # noqa: BLE001 - every failure ends this run
@@ -2906,7 +2847,7 @@ class DispatchRunner:
         resumed -- why. A cold start returns the argv untouched and ``None`` for stdin, so
         nothing about the existing path moves.
 
-        **A posture change is the one deliberate refusal** (task-375): see
+        **A merge mode change is the one deliberate refusal** (task-375): see
         ``wake.resume_refusal``. Every other doubt is still a silent cold start.
 
         **Every failure here is a cold start, never an exception.** Reading the session
@@ -2929,7 +2870,7 @@ class DispatchRunner:
         if target is None:
             return None, argv, None, None
         refusal = resume_refusal(
-            self._previous_meta(target.previous_run_id), self.posture.posture.value
+            self._previous_meta(target.previous_run_id), self.merge_mode.merge_mode.value
         )
         if refusal is not None:
             return None, argv, None, f"Did not resume run `{target.previous_run_id}`: {refusal}."
@@ -3123,7 +3064,7 @@ class DispatchRunner:
                     "rather than resuming a copy of it, so this is the same session id, "
                     "the same process and the same row in agent view -- along with the "
                     "worktree, the branch and the verification it established there. The "
-                    "ball prompt and this run's posture clause reached it as a message on "
+                    "ball prompt and this run's merge mode clause reached it as a message on "
                     f"the peer channel: {in_place.detail}."
                 ),
                 delivery=self.delivery_data(
@@ -3224,8 +3165,8 @@ class DispatchRunner:
             # "claude" -- correct for the runs that existed, and an inference that gets
             # quietly wrong the first time a third driver lands.
             "driver": self.runner.driver.value,
-            "posture": self.posture.posture.value,
-            **self.posture.as_data(),
+            "merge_mode": self.merge_mode.merge_mode.value,
+            **self.merge_mode.as_data(),
             **self.overage_meta(),
             "status": "starting",
             "started_at": self.clock().isoformat(),
@@ -3362,7 +3303,7 @@ class DispatchRunner:
                         f"Resumed the session from run `{wake.previous_run_id}` rather "
                         "than starting a cold one, so this agent still has the worktree, "
                         "the branch and the verification it established there. The ball "
-                        "prompt and this run's posture clause were delivered to it as its "
+                        "prompt and this run's merge mode clause were delivered to it as its "
                         "next turn."
                     )
                 ),
@@ -3974,7 +3915,8 @@ class DispatchRunner:
         try:
             settings = parse_session_settings(
                 rendered_argv,
-                posture=str(meta.get("posture") or self.posture.posture.value),
+                merge_mode=merge_mode_text(meta.get("merge_mode") or meta.get("posture"))
+                or self.merge_mode.merge_mode.value,
                 project_root=self.project_root,
             )
             app_server = CodexAppServerProcess(
@@ -4056,10 +3998,10 @@ class DispatchRunner:
     def _park_session(self, handle: RunHandle) -> None:
         """Turn a parked session into a question a human can answer from anywhere.
 
-        This is the mechanism the ``supervised`` posture depends on. Without it that
-        posture is not a safety property, it is a hang.
+        A classifier-gated run that trips the breaker parks (task-220), and without
+        this a park is not a safety property, it is a hang.
 
-        A parked run is never escalated to a more permissive posture, here or by any
+        A parked run is never escalated to a more permissive merge mode, here or by any
         timeout. Design section 2 requires every grant of autonomy to trace to a human
         act, and a deadline passing is not one.
         """
@@ -4526,7 +4468,7 @@ class DispatchRunner:
             self.stop_session(handle.session_id)
 
         if hand_to_human and self._resume_own_finish(handle):
-            # The run died inside its own posture finish, and that finish has been started
+            # The run died inside its own merge mode finish, and that finish has been started
             # again to carry on (task-443). It is what acts next, not a person.
             hand_to_human = None
 
@@ -4552,7 +4494,7 @@ class DispatchRunner:
         )
 
     def _resume_own_finish(self, handle: RunHandle) -> bool:
-        """Whether a posture finish this run was inside was started again (task-443).
+        """Whether a merge mode finish this run was inside was started again (task-443).
 
         After the lock release, because the resumed finish takes the same lock.
         """
@@ -4616,8 +4558,8 @@ class DispatchRunner:
                 **({"execution_id": self.execution_id} if self.execution_id else {}),
                 "mode": DispatchMode.BATCH.value,
                 "driver": self.runner.driver.value,
-                "posture": self.posture.posture.value,
-                **self.posture.as_data(),
+                "merge_mode": self.merge_mode.merge_mode.value,
+                **self.merge_mode.as_data(),
                 **self.overage_meta(),
                 "status": "starting",
                 "started_at": self.clock().isoformat(),

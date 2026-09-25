@@ -653,7 +653,7 @@ class TestAnAmbiguousDeliveryIsNotRepeated:
     def test_a_delivery_the_task_log_proves_is_reconciled_as_applied(
         self, served: Any, tmp_path: Path
     ) -> None:
-        from agentjobs.models_v2 import DispatchMode, DispatchPosture, DispatchTrigger
+        from agentjobs.models_v2 import DispatchMode, MergeMode, DispatchTrigger
         from test_dispatch_handback import runs_in
 
         _, home, manager, task = self._pending_feedback(served, tmp_path)
@@ -665,7 +665,7 @@ class TestAnAmbiguousDeliveryIsNotRepeated:
             agent="fake",
             runner="fake",
             mode=DispatchMode.SESSION,
-            posture=DispatchPosture.SUPERVISED,
+            merge_mode=MergeMode.REVIEW,
             trigger=DispatchTrigger.AUTO,
             caused_by=task.log[-1].id,
             argv=["python"],

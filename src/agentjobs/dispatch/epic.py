@@ -2,7 +2,7 @@
 
 Two tasks already own half of this behaviour each. Task-164 decided that whoever holds a
 parent task starts a session per child and supervises it. Task-021 decided that a run at
-posture ``autonomous`` merges its own work once an objective gate is green. Neither of
+merge mode ``automerge`` merges its own work once an objective gate is green. Neither of
 them, alone, produces the thing Jeff asked for: *dispatch an epic, walk away, come back
 to every child merged*. This module is the composition, and composition is where the risk
 lives -- the failure mode is not one bad merge, it is a run that merges a bad child and
@@ -46,7 +46,7 @@ person. What changed is only which task the person clicked: they clicked the epi
 the epic's children were named on its record at the moment they clicked it.
 
 That is a real widening and it is worth stating plainly rather than burying: **one human
-act now starts an arbitrarily long chain of runs, and at posture ``autonomous`` an
+act now starts an arbitrarily long chain of runs, and at merge mode ``automerge`` an
 arbitrarily long chain of merges into ``main``.** What is left holding is the objective
 gate each child runs before its own merge, the fact that nothing is ever pushed, and
 ``main`` being local and therefore recoverable with ``git reset``. The design record says
@@ -54,11 +54,11 @@ this in section 6 and it should keep saying it.
 
 ## The envelope the children run at (task-316)
 
-The widening above is stated in terms of posture -- *"at posture ``autonomous`` an
+The widening above is stated in terms of merge mode -- *"at merge mode ``automerge`` an
 arbitrarily long chain of merges"* -- and for the first three months of this module's
 life that sentence described behaviour the code did not have. ``start_child`` built a
-``DispatchRequest`` with no posture on it, so every child fell through to the project
-default however the parent had been dispatched. An epic authorised ``autonomous`` on a
+``DispatchRequest`` with no merge mode on it, so every child fell through to the project
+default however the parent had been dispatched. An epic authorised ``automerge`` on a
 project defaulting to ``auto`` therefore ran its first child at ``auto``, that child
 correctly handed off for review, and the walk stopped with ``CHILD_NEEDS_A_HUMAN`` --
 which reads as a child that needs a decision rather than one handed the wrong authority.
@@ -69,11 +69,11 @@ A child now inherits the parent run's posture, and :data:`INHERITABLE_POSTURE_SO
 records which of the four sources may cross that boundary and why the others may not.
 The rule is the same one the authorisation runs on: what crosses is a human's act.
 
-The runner crosses on the same terms (task-453). Task-316 carried the posture and
+The runner crosses on the same terms (task-453). Task-316 carried the merge mode and
 nothing else, so an epic dispatched on ``claude-fable-5-1`` through ``big-dawg`` on
 2026-09-18 started its first child on ``claude-opus-5``: ``posture_source: epic`` on the
 child's record, and the project default in its argv. :func:`inherited_runner` reads the
-runner and group off the same parent entry the posture comes from, the guards resolve
+runner and group off the same parent entry the merge mode comes from, the guards resolve
 the child's runner *as* that record or refuse -- never as today's default -- and
 :data:`INHERITABLE_RUNNER_SOURCES` says which sources cross. The refusal is deliberate:
 ``big-dawg`` is single-member so that an unavailable model is a stop, not a substitution,
@@ -103,7 +103,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence,
 
 from agentjobs import clock as dispatch_clock
 from agentjobs.actors import Actor
-from agentjobs.dispatch.config import DispatchError, Posture, PostureSource, SelectionSource
+from agentjobs.dispatch.config import DispatchError, MergeMode, MergeModeSource, SelectionSource
 from agentjobs.queue import order_key
 from agentjobs.projects import Project, default_home
 from agentjobs.models_v2 import (
@@ -113,6 +113,7 @@ from agentjobs.models_v2 import (
     LogEntry,
     LogEntryType,
     Outcome,
+    recorded_merge_mode,
     Task,
 )
 from agentjobs.store_factory import TaskManagerLike
@@ -208,7 +209,7 @@ class EpicAuthorization:
     entry: LogEntry
     actor: Actor
     attempts_used: int
-    posture: Optional[Posture] = None
+    merge_mode: Optional[MergeMode] = None
     """The envelope that human chose for the epic, when they chose one (task-316).
 
     ``None`` whenever the parent's own run took its posture from the project default or
@@ -240,7 +241,7 @@ class EpicAuthorization:
         who, which epic, and which entry on it. The attempt number is there because a
         second entry on the same child is otherwise indistinguishable from a duplicate.
 
-        The posture is named when one is inherited, because it is the only place on the
+        The merge mode is named when one is inherited, because it is the only place on the
         *child's* record where the human's name and the envelope their click bought
         appear in the same sentence. Everything else about it -- source, ceiling, what
         was clamped -- is on the child's `dispatch` entry moments later; this is the
@@ -249,8 +250,9 @@ class EpicAuthorization:
         authorised it, that the model was the epic's.
         """
         envelope = (
-            f" They chose posture `{self.posture.value}` for the epic, so this run gets " "it too."
-            if self.posture is not None
+            f" They chose merge mode `{self.merge_mode.value}` for the epic, so this run "
+            "gets it too."
+            if self.merge_mode is not None
             else ""
         )
         if self.runner is not None:
@@ -324,7 +326,7 @@ def parent_authorizing_entry(parent: Task) -> Optional[LogEntry]:
     return None
 
 
-INHERITABLE_POSTURE_SOURCES = frozenset({PostureSource.DISPATCH, PostureSource.EPIC})
+INHERITABLE_MERGE_MODE_SOURCES = frozenset({MergeModeSource.DISPATCH, MergeModeSource.EPIC})
 """Which sources of a parent run's posture cross into its children (task-316).
 
 **Only a posture a person chose at the moment they authorised the epic**, and the
@@ -338,7 +340,7 @@ The two that are deliberately absent are the whole decision:
   cross would mean one agent editing one field on its own parent widens *every* child in
   the epic at once. ``resolve_posture`` clamps that source to the project ceiling, which
   bounds the damage on a narrow project and bounds nothing at all on a project whose
-  ceiling is already ``autonomous``. A posture on a task record is a statement about
+  ceiling is already ``automerge``. A posture on a task record is a statement about
   that task's run; treating it as a statement about a dozen other tasks' runs is a
   widening nobody asked for.
 * ``PROJECT`` -- the default in ``dispatch.yaml`` -- does not need to. It already reaches
@@ -357,7 +359,7 @@ def parent_dispatch_entry(parent: Task) -> Optional[LogEntry]:
 
     Only the manager may append this type (``MANAGER_WRITTEN_LOG_TYPES``), so unlike an
     ordinary note it is an assertion nothing reachable over the API can forge. That is
-    what makes it safe to read a posture back out of.
+    what makes it safe to read a merge mode back out of.
     """
     for entry in reversed(parent.log):
         if entry.type is LogEntryType.DISPATCH:
@@ -365,18 +367,18 @@ def parent_dispatch_entry(parent: Task) -> Optional[LogEntry]:
     return None
 
 
-def inherited_posture(parent: Task) -> Optional[Posture]:
+def inherited_merge_mode(parent: Task) -> Optional[MergeMode]:
     """The envelope a child should be started at, or ``None`` to decide it locally.
 
     Read off the parent's newest ``dispatch`` entry -- the same entry
     :func:`parent_authorizing_entry` takes the authorisation from, so a child inherits
-    the posture of *the run that is walking it* rather than of some earlier run of the
+    the merge mode of *the run that is walking it* rather than of some earlier run of the
     same epic.
 
     ``None`` for every source outside :data:`INHERITABLE_POSTURE_SOURCES`, and for an
     entry written before task-308, where ``posture_source`` is absent and the field's
     own documentation says an absent value reads as ``project`` -- never as unknown. An
-    unparseable posture is also ``None``: this decides what a run may do, so a value
+    unparseable merge mode is also ``None``: this decides what a run may do, so a value
     nobody can read is a reason to fall back to the project's default rather than to
     guess at what was meant.
     """
@@ -384,13 +386,13 @@ def inherited_posture(parent: Task) -> Optional[Posture]:
     if entry is None or not isinstance(entry.data, dict):
         return None
     try:
-        source = PostureSource(entry.data.get("posture_source"))
+        source = MergeModeSource(entry.data.get("merge_mode_source"))
     except ValueError:
         return None
-    if source not in INHERITABLE_POSTURE_SOURCES:
+    if source not in INHERITABLE_MERGE_MODE_SOURCES:
         return None
     try:
-        return Posture(entry.data.get("posture"))
+        return recorded_merge_mode(entry.data)
     except ValueError:
         return None
 
@@ -428,7 +430,7 @@ point a reader at the parent for an answer that is in ``dispatch.yaml``.
 def inherited_runner(parent: Task) -> Optional[Tuple[str, Optional[str]]]:
     """The ``(runner, group)`` a child should be started on, or ``None`` to decide locally.
 
-    Read off the parent's newest ``dispatch`` entry, the same one the posture and the
+    Read off the parent's newest ``dispatch`` entry, the same one the merge mode and the
     authorisation come from, so a child runs on the runner of *the run that is walking
     it*. The entry records the source in one of two places: ``runner_source`` when a
     runner was named outright or carried from history, and ``selection.source`` when a
@@ -634,7 +636,7 @@ def resolve_epic_authorization(
         entry=entry,
         actor=actor,
         attempts_used=used,
-        posture=inherited_posture(parent),
+        merge_mode=inherited_merge_mode(parent),
         runner=runner[0] if runner is not None else None,
         group=runner[1] if runner is not None else None,
     )
@@ -1067,7 +1069,7 @@ class _Supervision:
         settings: "WalkSettings",
         host: str,
         wall: Optional[Callable[[], datetime]],
-        posture: Optional[Posture] = None,
+        merge_mode: Optional[MergeMode] = None,
         actor: Optional[str] = None,
     ) -> Optional["_Supervision"]:
         if home is None:
@@ -1097,7 +1099,7 @@ class _Supervision:
                     # server, and the tick that picks it up has no other way to learn
                     # which envelope its children were authorised under or whose name
                     # the outcome is written in.
-                    "posture": posture.value if posture is not None else None,
+                    "merge_mode": merge_mode.value if merge_mode is not None else None,
                     "actor": actor,
                 },
                 host=host,
@@ -1401,7 +1403,7 @@ def _walk_epic(
     home: Optional[Path] = None,
     api_base: Optional[str] = None,
     settings: Optional[WalkSettings] = None,
-    posture: Optional[Posture] = None,
+    merge_mode: Optional[MergeMode] = None,
     dispatch: Optional[Callable[..., object]] = None,
     read_run_status: Optional[Callable[[str], Optional[str]]] = None,
     sleep: Callable[[float], None] = time.sleep,
@@ -1451,10 +1453,10 @@ def _walk_epic(
     rule is exactly the pessimism about siblings that provably do not depend on it.
 
     ``posture`` is a choice made *for this walk*, and it is the only posture input this
-    function has (task-316). It is what ``agentjobs dispatch walk --posture`` supplies,
+    function has (task-316). It is what ``agentjobs dispatch walk --merge-mode`` supplies,
     and it exists because a walk started from a shell has no parent run whose envelope it
     could inherit -- the epic may never have been dispatched at all. Left ``None``, which
-    is the case for every walk a supervising run starts, each child works its posture out
+    is the case for every walk a supervising run starts, each child works its merge mode out
     for itself: the parent's dispatch-time choice if a person made one, then the child's
     own record, then the project default. Passing one refuses above the ceiling exactly
     as a dispatch-time choice does, because that is what it is.
@@ -1501,7 +1503,7 @@ def _walk_epic(
             task_id=child.id,
             trigger=DispatchTrigger.CHILD,
             on_behalf_of_parent=True,
-            posture=posture,
+            merge_mode=merge_mode,
             admission_operation_id=operation_id,
         )
         starter = dispatch or dispatch_task
@@ -1556,7 +1558,7 @@ def _walk_epic(
         settings=settings,
         host=host,
         wall=wall,
-        posture=posture,
+        merge_mode=merge_mode,
         actor=actor,
     )
     if supervision is not None and supervision.refusal is not None:
@@ -2372,8 +2374,8 @@ def walk_handoff_prompt(result: WalkResult) -> str:
 def describe_settings(
     settings: WalkSettings,
     *,
-    posture: Optional[Posture] = None,
-    inherited: Optional[Posture] = None,
+    merge_mode: Optional[MergeMode] = None,
+    inherited: Optional[MergeMode] = None,
     inherited_runner: Optional[Tuple[str, Optional[str]]] = None,
 ) -> Sequence[str]:
     """The bounds, printed before a walk starts so nobody has to guess at them.
@@ -2386,11 +2388,11 @@ def describe_settings(
     happen rather than an absence.
 
     The runner line is there for the same reason (task-453). The walk that downgraded
-    task-212's children printed the posture they would inherit and nothing about the
+    task-212's children printed the merge mode they would inherit and nothing about the
     runner, so the only way to see they had landed on the default was to read argv.
     """
-    if posture is not None:
-        envelope = f"{posture.value} (chosen for this walk)"
+    if merge_mode is not None:
+        envelope = f"{merge_mode.value} (chosen for this walk)"
     elif inherited is not None:
         envelope = f"{inherited.value} (inherited from the epic's own dispatch)"
     else:
@@ -2417,7 +2419,7 @@ def describe_settings(
         f"per-child ceiling: {settings.child_timeout_seconds / 3600:.1f}h",
         f"children this walk may start: {settings.max_children or 'every open one'}",
         f"children in flight: {slots}",
-        f"posture children start at: {envelope}",
+        f"merge mode children start at: {envelope}",
         f"runner children start on: {runner_line}",
     )
 
@@ -2459,12 +2461,12 @@ def detach_walk(
     parent_id: str,
     home: Path,
     settings: WalkSettings,
-    posture: Optional[Posture],
+    merge_mode: Optional[MergeMode],
     actor: str,
 ) -> str:
     """Record a walk for the server to advance, and return its id. Starts nothing itself.
 
-    The walk's settings, its posture choice and the actor its outcome is written as are
+    The walk's settings, its merge mode choice and the actor its outcome is written as are
     saved with it, because the process that will act on them is the server on its next
     tick, not this one. The authorisation is checked now, so a walk nothing authorises is
     refused to the person asking rather than failing silently on a later tick.
@@ -2490,7 +2492,7 @@ def detach_walk(
                 "max_concurrent": settings.max_concurrent,
                 "max_children": settings.max_children,
                 "child_timeout_seconds": settings.child_timeout_seconds,
-                "posture": posture.value if posture is not None else None,
+                "merge_mode": merge_mode.value if merge_mode is not None else None,
                 "actor": actor,
             },
             host="server",
@@ -2601,7 +2603,7 @@ def record_walk_outcome(
     * A walk that **stopped for cause** hands the parent to ``human/decision`` with the
       child and the reason, exactly as before.
     * A walk that **landed every child** hands the parent to ``human/review`` -- or, at
-      posture ``autonomous``, dispatches one evaluation run to do the reading instead,
+      merge mode ``automerge``, dispatches one evaluation run to do the reading instead,
       which is what keeps an autonomous epic unattended from the click to the close.
 
     ``home``/``project``/``project_config`` are what an evaluation dispatch needs. Without
@@ -2685,7 +2687,7 @@ def record_walk_outcome(
                 actor=actor,
                 type=LogEntryType.PROGRESS,
                 body=(
-                    "The evaluation run this epic's posture calls for was not started: "
+                    "The evaluation run this epic's merge mode calls for was not started: "
                     f"{type(exc).__name__}: {exc}. The reading is a person's again."
                 ),
             )
@@ -2697,7 +2699,7 @@ def record_walk_outcome(
                 body=(
                     f"Every child landed, so run `{run_id}` was dispatched to judge this "
                     "parent's acceptance criteria against their evidence and close it. "
-                    "Posture `autonomous` is what makes that this run's act rather than "
+                    "Merge mode `automerge` is what makes that this run's act rather than "
                     "a person's."
                 ),
             )
@@ -2717,25 +2719,25 @@ def record_walk_outcome(
 
 
 def _evaluates_itself(parent: Task) -> bool:
-    """Whether this epic was dispatched at a posture that judges its own ending.
+    """Whether this epic was dispatched at a merge mode that judges its own ending.
 
-    ``autonomous`` and nothing else. Read off the parent's own ``dispatch`` entry, which
+    ``automerge`` and nothing else. Read off the parent's own ``dispatch`` entry, which
     only the manager may write, for the same reason every other inheritance in this module
     is read from there: it is not forgeable over the API.
 
     **The value, not the inheritance.** ``inherited_posture`` deliberately answers ``None``
-    for a posture that came from the project default rather than from a person's click,
+    for a merge mode that came from the project default rather than from a person's click,
     because a default reaches each child on its own and relabelling it would point a reader
     at the wrong record. That distinction is about where a *child's* envelope comes from and
     has nothing to say here. The question this asks is whether this epic's work merges
-    without review, and a project whose default is ``autonomous`` answers yes just as
+    without review, and a project whose default is ``automerge`` answers yes just as
     loudly as a click does.
     """
     entry = parent_dispatch_entry(parent)
     if entry is None or not isinstance(entry.data, dict):
         return False
     try:
-        return Posture(entry.data.get("posture")) is Posture.AUTONOMOUS
+        return recorded_merge_mode(entry.data) is MergeMode.AUTOMERGE
     except ValueError:
         return False
 
@@ -2778,7 +2780,7 @@ def advance_hosted_walks(
             max_children=saved.get("max_children"),
             max_concurrent=int(saved.get("max_concurrent") or 1),
         )
-        chosen = saved.get("posture")
+        chosen = recorded_merge_mode(saved)
         try:
             result = _walk_epic(
                 manager=manager,
@@ -2787,7 +2789,7 @@ def advance_hosted_walks(
                 parent_id=walk.parent_task_id,
                 home=home,
                 settings=settings,
-                posture=Posture(chosen) if chosen else None,
+                merge_mode=chosen,
                 on_event=_reporter(lines, walk.walk_id),
                 durable=True,
                 once=True,

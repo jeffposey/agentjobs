@@ -31,7 +31,7 @@ def test_parse_session_settings_reads_codex_flags_and_posture() -> None:
             "-c",
             'service_tier="priority"',
         ],
-        posture="autonomous",
+        merge_mode="automerge",
         project_root=Path("C:/project"),
     )
 
@@ -125,7 +125,7 @@ def test_app_server_start_and_supervise_use_jsonl_protocol(monkeypatch) -> None:
 def test_parse_workspace_postures_add_only_git_and_sibling_worktrees() -> None:
     settings = parse_session_settings(
         ["codex", "app-server", "--model", "gpt-5.6-luna"],
-        posture="auto",
+        merge_mode="review",
         project_root=Path("C:/project"),
     )
 

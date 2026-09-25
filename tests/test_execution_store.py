@@ -53,7 +53,7 @@ def must(value: Optional[_T]) -> _T:
     return value
 
 
-ENVELOPE = {"runner": "claude-opus-5", "posture": "auto"}
+ENVELOPE = {"runner": "claude-opus-5", "merge_mode": "review"}
 
 
 @pytest.fixture
@@ -511,7 +511,7 @@ class TestOwnerModes:
             admitted_at=None,
             status="finished",
             outcome="completed",
-            envelope={"legacy_meta": {"posture": "auto"}},
+            envelope={"legacy_meta": {"merge_mode": "review"}},
             unknown_fields=["runner", "group", "selection_source"],
             workflow_version=WORKFLOW_VERSION,
         )

@@ -36,10 +36,10 @@ from agentjobs.dispatch.config import (
     DispatchLimits,
     DispatchResolution,
     DispatchRunner as RunnerConfig,
-    Posture,
-    PostureSource,
+    MergeMode,
+    MergeModeSource,
     ProjectDispatchSettings,
-    ResolvedPosture,
+    ResolvedMergeMode,
     RunnerMode,
 )
 from agentjobs.dispatch.ledger import list_runs
@@ -149,7 +149,7 @@ def build(
     cli: Path,
     *,
     resume_sessions: bool = True,
-    posture: Optional[ResolvedPosture] = None,
+    merge_mode: Optional[ResolvedMergeMode] = None,
 ) -> DispatchRunner:
     runner = RunnerConfig(
         name="fake",
@@ -162,7 +162,7 @@ def build(
         enabled=True,
         runner="fake",
         require_clean_tree=False,
-        posture=Posture.AUTO,
+        merge_mode=MergeMode.REVIEW,
         resume_sessions=resume_sessions,
     )
     limits = DispatchLimits()
@@ -178,7 +178,7 @@ def build(
         project_root=workspace / "project",
         home=workspace / "home",
         api_base="http://localhost:8899",
-        posture=posture,
+        merge_mode=merge_mode,
     )
 
 
@@ -191,14 +191,14 @@ def seed_finished_run(
     status: str = "finished",
     started_at: str = "2026-08-20T08:00:00+00:00",
     reaped: bool = False,
-    posture: Optional[str] = "auto",
+    merge_mode: Optional[str] = "review",
 ) -> RunDirectory:
     meta: Dict[str, object] = {
         "run_id": run_id,
         "task_id": task_id,
         "project_id": "sandbox",
         "mode": "session",
-        "posture": posture,
+        "merge_mode": merge_mode,
         "status": status,
         "session_id": session_id,
         "started_at": started_at,
@@ -1079,8 +1079,8 @@ class TestDispatchStartsColdInstead:
 
 # ----- posture across a resume (task-375) -------------------------------------
 
-AUTONOMOUS_FROM_EPIC = ResolvedPosture(
-    posture=Posture.AUTONOMOUS, source=PostureSource.EPIC, ceiling=Posture.AUTONOMOUS
+AUTONOMOUS_FROM_EPIC = ResolvedMergeMode(
+    merge_mode=MergeMode.AUTOMERGE, source=MergeModeSource.EPIC, allow_automerge=True
 )
 
 
@@ -1091,16 +1091,24 @@ def newest_entry(manager: TaskManager, task_id: str):
 
 
 class TestResumeRefusal:
-    def test_the_same_posture_may_be_resumed(self) -> None:
-        assert resume_refusal({"posture": "auto"}, "auto") is None
+    def test_the_same_merge_mode_may_be_resumed(self) -> None:
+        assert resume_refusal({"merge_mode": "review"}, "review") is None
 
-    def test_a_different_posture_is_refused_and_names_both(self) -> None:
-        refusal = resume_refusal({"posture": "auto"}, "autonomous")
+    def test_a_different_merge_mode_is_refused_and_names_both(self) -> None:
+        refusal = resume_refusal({"merge_mode": "review"}, "automerge")
         assert refusal is not None
-        assert "`auto`" in refusal and "`autonomous`" in refusal
+        assert "`review`" in refusal and "`automerge`" in refusal
 
-    def test_an_unrecorded_posture_cannot_be_shown_to_match(self) -> None:
-        assert resume_refusal({}, "auto") is not None
+    def test_an_unrecorded_merge_mode_cannot_be_shown_to_match(self) -> None:
+        assert resume_refusal({}, "review") is not None
+
+    def test_a_session_recorded_as_auto_before_the_rename_resumes_as_review(self) -> None:
+        """task-602: ``posture: auto`` meant review, so it is the same grant."""
+        assert resume_refusal({"posture": "auto"}, "review") is None
+
+    def test_a_legacy_auto_session_is_not_resumed_at_automerge(self) -> None:
+        """a3: a legacy ``auto`` never reads as automerge, including here."""
+        assert resume_refusal({"posture": "auto"}, "automerge") is not None
 
 
 class TestPostureAcrossAResume:
@@ -1109,10 +1117,10 @@ class TestPostureAcrossAResume:
     def test_a_session_last_run_at_auto_is_not_resumed_at_autonomous(
         self, workspace: Path, manager: TaskManager, task, cli: Path
     ) -> None:
-        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture="auto")
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", merge_mode="review")
         set_sessions(workspace, [stopped_row("aaaa1111", "u-u-i-d")])
 
-        handle = build(workspace, manager, cli, posture=AUTONOMOUS_FROM_EPIC).start(
+        handle = build(workspace, manager, cli, merge_mode=AUTONOMOUS_FROM_EPIC).start(
             task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.CHILD
         )
 
@@ -1121,25 +1129,25 @@ class TestPostureAcrossAResume:
         assert ran_stdin(workspace) == ""
         assert any("releases the merge gate" in element for element in argv)
         meta = handle.directory.read_meta()
-        assert "posture `auto`" in str(meta["resume_refused"])
+        assert "merge mode `review`" in str(meta["resume_refused"])
         assert "resumed" not in meta
 
     def test_the_record_says_why_and_what_the_fresh_session_was_told(
         self, workspace: Path, manager: TaskManager, task, cli: Path
     ) -> None:
-        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture="auto")
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", merge_mode="review")
         set_sessions(workspace, [stopped_row("aaaa1111", "u-u-i-d")])
 
-        build(workspace, manager, cli, posture=AUTONOMOUS_FROM_EPIC).start(
+        build(workspace, manager, cli, merge_mode=AUTONOMOUS_FROM_EPIC).start(
             task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.CHILD
         )
 
         entry = newest_entry(manager, task.id)
         data = dict(entry.data or {})
-        assert data["posture"] == "autonomous"
+        assert data["merge_mode"] == "automerge"
         delivery = data["delivery"]
         assert delivery["channel"] == "argv"
-        assert delivery["posture_delivered"] is True
+        assert delivery["merge_mode_delivered"] is True
         assert delivery["acknowledged_by"] == "feed1234"
         assert "run_previous" in delivery["resume_refused"]
         assert "Started a fresh session" in (entry.body or "")
@@ -1148,10 +1156,12 @@ class TestPostureAcrossAResume:
     def test_a_same_posture_wake_carries_the_posture_clause_on_stdin(
         self, workspace: Path, manager: TaskManager, task, cli: Path
     ) -> None:
-        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture="autonomous")
+        seed_finished_run(
+            workspace / "home", task.id, session_id="aaaa1111", merge_mode="automerge"
+        )
         set_sessions(workspace, [stopped_row("aaaa1111", "u-u-i-d")])
 
-        build(workspace, manager, cli, posture=AUTONOMOUS_FROM_EPIC).start(
+        build(workspace, manager, cli, merge_mode=AUTONOMOUS_FROM_EPIC).start(
             task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.CHILD
         )
 
@@ -1161,7 +1171,7 @@ class TestPostureAcrossAResume:
         assert "releases the merge gate" in stdin
         delivery = dict(newest_entry(manager, task.id).data or {})["delivery"]
         assert delivery["channel"] == "stdin"
-        assert delivery["posture_delivered"] is True
+        assert delivery["merge_mode_delivered"] is True
         assert delivery["payload_sha256"] == hashlib.sha256(stdin.encode("utf-8")).hexdigest()
         assert "resume_refused" not in delivery
 
@@ -1169,7 +1179,7 @@ class TestPostureAcrossAResume:
         self, workspace: Path, manager: TaskManager, task, cli: Path
     ) -> None:
         """The defect's other half: a wake used to carry no posture clause at all."""
-        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture="auto")
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", merge_mode="review")
         set_sessions(workspace, [stopped_row("aaaa1111", "u-u-i-d")])
 
         build(workspace, manager, cli).start(
@@ -1178,12 +1188,12 @@ class TestPostureAcrossAResume:
 
         assert "Do not merge." in ran_stdin(workspace)
         delivery = dict(newest_entry(manager, task.id).data or {})["delivery"]
-        assert delivery["posture_delivered"] is True
+        assert delivery["merge_mode_delivered"] is True
 
     def test_a_previous_run_with_no_recorded_posture_starts_cold(
         self, workspace: Path, manager: TaskManager, task, cli: Path
     ) -> None:
-        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture=None)
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", merge_mode=None)
         set_sessions(workspace, [stopped_row("aaaa1111", "u-u-i-d")])
 
         build(workspace, manager, cli).start(
@@ -1347,7 +1357,7 @@ class TestWakeInPlaceThroughDispatch:
         delivery = dict(entry.data or {})["delivery"]
         assert delivery["channel"] == "peer"
         assert delivery["acknowledged_by"] == "aaaa1111"
-        assert delivery["posture_delivered"] is True
+        assert delivery["merge_mode_delivered"] is True
         assert "in place" in (entry.body or "")
 
     def test_a_session_that_has_ended_forks_exactly_as_before(
@@ -1489,11 +1499,11 @@ class TestWakeInPlaceThroughDispatch:
         message would be exactly the authorisation change task-375 refuses -- and cheaper
         to do, which is the reason to check it.
         """
-        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", posture="auto")
+        seed_finished_run(workspace / "home", task.id, session_id="aaaa1111", merge_mode="review")
         set_sessions(workspace, [stopped_row("aaaa1111", "aaaa1111-uuid")])
         register_live(session_uuid="aaaa1111-uuid")
 
-        build(workspace, manager, cli, posture=AUTONOMOUS_FROM_EPIC).start(
+        build(workspace, manager, cli, merge_mode=AUTONOMOUS_FROM_EPIC).start(
             task, actor="Jeff Posey", caused_by=1, trigger=DispatchTrigger.CHILD
         )
 

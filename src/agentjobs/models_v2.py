@@ -81,6 +81,7 @@ class ValueEnum(str, Enum):
         already written stays valid. It is only *readers* that turn it into a breaking
         change, by re-checking a value the service already validated and rejecting the
         one member they have not heard of. That is how one line in `DispatchPosture`
+        (since replaced by `MergeMode`, task-602)
         made task-107 vanish from the dashboard and stopped an agent recording its own
         work (task-024).
 
@@ -91,7 +92,7 @@ class ValueEnum(str, Enum):
         ``posture: auto`` as text it cannot interpret and everything else about the
         task still works. The member is deliberately *not* registered in
         ``_member_map_``: it is a value this code does not know, not one it now
-        supports, and `list(DispatchPosture)` must keep telling the truth.
+        supports, and `list(MergeMode)` must keep telling the truth.
 
         Outside that context this returns ``None`` and the value is rejected exactly as
         before, which is what keeps the write path and ``storage`` strict.
@@ -670,18 +671,134 @@ class DispatchMode(ValueEnum):
     """
 
 
-class DispatchPosture(ValueEnum):
-    """What the run was permitted to do (design doc section 4, task-076).
+LEGACY_MERGE_MODES: Dict[str, str] = {
+    "auto": "review",
+    "supervised": "review",
+    "read_only": "review",
+    "autonomous": "automerge",
+}
+"""The four retired posture spellings, and the merge mode each one meant (task-602).
 
-    Mirrors ``dispatch.config.Posture``, and must keep mirroring it: this is the value
-    written into the task's dispatch log entry, so a posture missing here cannot be
-    recorded even though a run was started under it. ``auto`` was added by task-020.
+**No merge mode may ever be spelled ``auto``.** Task records, run directories, dispatch
+entries and every machine's ``dispatch.yaml`` written before task-602 store ``auto``
+meaning *stops for review*. A new value spelled ``auto`` would silently turn every one of
+them into an automerge."""
+
+
+class MergeMode(ValueEnum):
+    """Whether a dispatched run stops for human review or merges itself (task-602).
+
+    The one choice a person makes at dispatch. What a run may execute is derived from
+    it: ``review`` runs classifier-gated and hands off to human/review; ``automerge``
+    runs with every execution gate removed and merges its own work through
+    ``agentjobs finish`` on a green unqualified gate. Pushing is never part of it -- see
+    ``ProjectDispatchSettings.push``.
+
+    It replaced four postures, two of which nobody dispatched with. The old spellings
+    still *read* -- see ``LEGACY_MERGE_MODES`` -- so a record, run directory or config
+    written before the change loads rather than failing; nothing writes them.
     """
 
-    READ_ONLY = "read_only"
-    AUTO = "auto"
-    SUPERVISED = "supervised"
-    AUTONOMOUS = "autonomous"
+    REVIEW = "review"
+    AUTOMERGE = "automerge"
+
+    @classmethod
+    def _missing_(cls, value: object) -> Optional["ValueEnum"]:
+        """Read a retired posture spelling as the merge mode it meant."""
+        if isinstance(value, str) and value in LEGACY_MERGE_MODES:
+            return cls(LEGACY_MERGE_MODES[value])
+        return super()._missing_(value)
+
+    @property
+    def phrase(self) -> str:
+        """What this mode does, in the words every surface shows a person."""
+        return MERGE_MODE_PHRASES[self.value]
+
+
+MERGE_MODE_PHRASES: Dict[str, str] = {
+    "review": "Hands off for your review",
+    "automerge": "Merges itself on a green gate",
+}
+"""The one table of display copy. The API serves it, so no client keeps its own."""
+
+
+def legacy_allow_automerge(value: object) -> Optional[bool]:
+    """Read a retired ``max_posture``/``posture_ceiling`` as the yes/no it meant.
+
+    Only ``autonomous`` ever let a run merge itself, so it is the only legacy ceiling
+    that maps to ``True``. ``None`` stays ``None``: absent is not a refusal.
+    """
+    if value is None or isinstance(value, bool):
+        return value
+    return str(value) in ("autonomous", "automerge")
+
+
+_LEGACY_MERGE_MODE_KEYS = {
+    "posture": "merge_mode",
+    "posture_source": "merge_mode_source",
+    "posture_requested": "merge_mode_requested",
+    "posture_delivered": "merge_mode_delivered",
+}
+
+
+def rename_legacy_merge_mode_keys(data: Any) -> Any:
+    """Rewrite a pre-task-602 mapping's ``posture*`` keys to their ``merge_mode*`` names.
+
+    A read, not a migration: the stored mapping is untouched. ``posture_ceiling`` becomes
+    ``allow_automerge`` through :func:`legacy_allow_automerge`. A mapping carrying both
+    spellings keeps the new one.
+    """
+    if not isinstance(data, dict) or not any(
+        key in data for key in (*_LEGACY_MERGE_MODE_KEYS, "posture_ceiling")
+    ):
+        return data
+    renamed = {
+        key: value
+        for key, value in data.items()
+        if key not in _LEGACY_MERGE_MODE_KEYS and key != "posture_ceiling"
+    }
+    for old, new in _LEGACY_MERGE_MODE_KEYS.items():
+        if old in data and new not in renamed:
+            renamed[new] = data[old]
+    if "posture_ceiling" in data and "allow_automerge" not in renamed:
+        renamed["allow_automerge"] = legacy_allow_automerge(data["posture_ceiling"])
+    return renamed
+
+
+def merge_mode_text(raw: object) -> str:
+    """A stored merge mode as its current spelling, for a reader that keeps it as text.
+
+    Empty for absent. A retired spelling becomes the mode it meant; anything unreadable
+    is returned as it was, so the reader's own "unparseable means absent" rule applies.
+    """
+    if raw in (None, ""):
+        return ""
+    try:
+        return MergeMode(str(raw)).value
+    except ValueError:
+        return str(raw)
+
+
+def merge_mode_phrase(raw: object) -> str:
+    """The display phrase for a stored merge mode, or empty when there is none to read."""
+    text = merge_mode_text(raw)
+    return MERGE_MODE_PHRASES.get(text, "")
+
+
+def recorded_merge_mode(data: Mapping[str, Any]) -> Optional[MergeMode]:
+    """The merge mode a stored mapping records, under either spelling of its key.
+
+    For the machine-local stores no migration reaches -- run directories, the execution
+    journal's envelopes, queue rows and walk settings -- where a pre-task-602 writer left
+    ``posture``. ``None`` when neither key holds a value; an unreadable value raises
+    ``ValueError`` exactly as ``MergeMode(...)`` would.
+    """
+    raw = data.get("merge_mode")
+    if raw in (None, ""):
+        raw = data.get("posture")
+    if raw in (None, ""):
+        return None
+    return MergeMode(str(raw))
 
 
 class DispatchOutcome(ValueEnum):
@@ -1018,7 +1135,7 @@ class DispatchEnvelopeData(StrictModel):
     source: str = Field(
         ...,
         description=(
-            "'grant' when this dispatch resolved its runner and posture now; 'history' "
+            "'grant' when this dispatch resolved its runner and merge mode now; 'history' "
             "when it continued an earlier execution's recorded ones."
         ),
     )
@@ -1034,9 +1151,10 @@ class DispatchEnvelopeData(StrictModel):
 class DispatchDeliveryData(StrictModel):
     """What reached the agent, rather than what dispatch resolved (task-375).
 
-    The ``posture`` on the entry is the grant. Whether the agent was *told* it is a
+    The ``merge_mode`` on the entry is the grant. Whether the agent was *told* it is a
     separate fact, and one this entry used to assert without checking: task-273's
-    resumed session was recorded as ``autonomous`` and had only ever been sent ``auto``.
+    resumed session was recorded as merging itself and had only ever been told to stop
+    for review.
     """
 
     channel: str = Field(
@@ -1050,11 +1168,11 @@ class DispatchDeliveryData(StrictModel):
     payload_sha256: Optional[str] = Field(
         default=None, description="Hash of the exact prompt text delivered, when there was one."
     )
-    posture_delivered: Optional[bool] = Field(
+    merge_mode_delivered: Optional[bool] = Field(
         default=None,
         description=(
-            "Whether the posture and push clause was inside the delivered payload. Absent "
-            "for a posture that has no clause (read_only), which its flags enforce alone."
+            "Whether the merge-mode and push clause was inside the delivered payload. "
+            "Absent when the payload carried no prompt at all."
         ),
     )
     acknowledged_by: Optional[str] = Field(
@@ -1068,10 +1186,16 @@ class DispatchDeliveryData(StrictModel):
     resume_refused: Optional[str] = Field(
         default=None,
         description=(
-            "Why a resumable session was deliberately not resumed -- today, only a posture "
-            "change. Absent when nothing was refused."
+            "Why a resumable session was deliberately not resumed -- today, only a merge "
+            "mode change. Absent when nothing was refused."
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_legacy_posture_keys(cls, data: Any) -> Any:
+        """``posture_delivered``, written before task-602, is ``merge_mode_delivered``."""
+        return rename_legacy_merge_mode_keys(data)
 
 
 class DispatchData(StrictModel):
@@ -1107,29 +1231,35 @@ class DispatchData(StrictModel):
     mode: DispatchMode = Field(
         ..., description="Which process lifecycle this run had (task-077, task-458)."
     )
-    posture: DispatchPosture = Field(..., description="What the run may do (task-076).")
-    posture_source: Optional[str] = Field(
-        default=None,
+    merge_mode: MergeMode = Field(
+        ...,
         description=(
-            "Which of the three sources supplied `posture`: 'project' (dispatch.yaml's "
-            "default), 'task' (the record's own field) or 'dispatch' (chosen for this "
-            "run). Absent on every entry written before task-308, where the answer was "
-            "always 'project' -- read an absent value as that, never as unknown."
+            "Whether the run stops for review or merges itself on a green gate (task-602). "
+            "Entries written before task-602 carry `posture`, read through the legacy map."
         ),
     )
-    posture_ceiling: Optional[str] = Field(
+    merge_mode_source: Optional[str] = Field(
         default=None,
         description=(
-            "The project's machine-local `max_posture` at the moment this run started. "
-            "Recorded because the ceiling lives in a file no reader of this record can "
-            "see, and it is what makes `posture_requested` legible."
+            "Which source supplied `merge_mode`: 'project' (dispatch.yaml's default), "
+            "'task' (the record's own field), 'dispatch' (chosen for this run), 'epic' "
+            "(inherited from the parent's dispatch) or 'history' (a continuation). Absent "
+            "on every entry written before task-308, where the answer was always 'project'."
         ),
     )
-    posture_requested: Optional[str] = Field(
+    allow_automerge: Optional[bool] = Field(
         default=None,
         description=(
-            "What `posture_source` asked for, when the ceiling cut it down. Present "
-            "only on a clamped run, so its presence is itself the signal that "
+            "Whether the project's machine-local dispatch.yaml allowed `automerge` when "
+            "this run started. Recorded because the ceiling lives in a file no reader of "
+            "this record can see, and it is what makes `merge_mode_requested` legible."
+        ),
+    )
+    merge_mode_requested: Optional[str] = Field(
+        default=None,
+        description=(
+            "What `merge_mode_source` asked for, when the project's ceiling cut it down. "
+            "Present only on a clamped run, so its presence is itself the signal that "
             "something asked for more than it got (task-308)."
         ),
     )
@@ -1181,7 +1311,7 @@ class DispatchData(StrictModel):
     envelope: Optional[DispatchEnvelopeData] = Field(
         default=None,
         description=(
-            "Which execution this run belongs to, and whether its runner and posture "
+            "Which execution this run belongs to, and whether its runner and merge mode "
             "were granted now or carried over from the execution it continues (task-375). "
             "Absent on entries written before that task."
         ),
@@ -1190,10 +1320,16 @@ class DispatchData(StrictModel):
         default=None,
         description=(
             "What the agent was actually sent, as distinct from what was resolved: the "
-            "channel, a hash of the payload, and whether the posture clause was in it "
+            "channel, a hash of the payload, and whether the merge-mode clause was in it "
             "(task-375). Absent on entries written before that task."
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_legacy_posture_keys(cls, data: Any) -> Any:
+        """An entry written before task-602 names its merge mode ``posture``."""
+        return rename_legacy_merge_mode_keys(data)
 
     @model_validator(mode="after")
     def _argv_is_present_unless_nothing_ran(self) -> "DispatchData":
@@ -1778,15 +1914,16 @@ class Task(StrictModel):
     assignment: Assignment = Field(default_factory=Assignment)
     parent: Optional[str] = Field(default=None, description="Task id of the umbrella task, if any.")
 
-    posture: Optional[DispatchPosture] = Field(
+    merge_mode: Optional[MergeMode] = Field(
         default=None,
         description=(
-            "What a run dispatched at this task may do, when this task wants something "
-            "other than its project's default. Bounded by the project's machine-local "
-            "ceiling: a value above it is clamped, never honoured (task-308)."
+            "Whether a run dispatched at this task stops for review or merges itself, when "
+            "this task wants something other than its project's default. Bounded by the "
+            "project's machine-local ceiling: `automerge` on a project that does not allow "
+            "it is clamped to `review`, never honoured (task-308, task-602)."
         ),
     )
-    """This task's request for a dispatch envelope. A request, not a grant.
+    """This task's request for a merge mode. A request, not a grant.
 
     The only field on this model that says anything about what may *execute*, so it is
     worth being explicit about why that is safe. A task record is a git-tracked file that
@@ -1795,16 +1932,23 @@ class Task(StrictModel):
     named it as one on 2026-08-21 before the field existed.
 
     What makes it safe is that it is not authoritative. ``dispatch.yaml`` on the machine
-    doing the dispatching declares a ``max_posture`` per project; ``dispatch.config
-    .resolve_posture`` clamps this to it. A task asking for ``autonomous`` on a project
-    capped at ``auto`` gets ``auto``, and the run's dispatch entry records that it was
-    cut down and what asked. Nothing checks *who* wrote this, deliberately: a provenance
+    doing the dispatching declares ``allow_automerge`` per project; ``dispatch.config
+    .resolve_merge_mode`` clamps this to it. A task asking for ``automerge`` on a project
+    that does not allow it gets ``review``, and the run's dispatch entry records that it
+    was cut down and what asked. Nothing checks *who* wrote this, deliberately: a provenance
     check is only as good as the identity machinery behind it, and a ceiling in a file
     no AgentJobs surface writes needs no such trust. See task-308's decision entry.
 
     ``None`` -- the ordinary case, and every task that existed before this field -- means
-    the task expresses no preference and the project's default is used.
+    the task expresses no preference and the project's default is used. A record written
+    before task-602 names the field ``posture``; it reads through the legacy map.
     """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_legacy_posture_field(cls, data: Any) -> Any:
+        """A record exported before task-602 names its merge mode ``posture``."""
+        return rename_legacy_merge_mode_keys(data)
 
     spec: Spec
     acceptance: List[AcceptanceCriterion] = Field(default_factory=list)
@@ -2103,9 +2247,9 @@ class TaskSummary(StrictModel):
     assignment: Assignment = Field(default_factory=Assignment)
     parent: Optional[str] = Field(default=None, description="Task id of the umbrella task, if any.")
 
-    posture: Optional[DispatchPosture] = Field(
+    merge_mode: Optional[MergeMode] = Field(
         default=None,
-        description="This task's request for a dispatch envelope. A request, not a grant.",
+        description="This task's request for a merge mode. A request, not a grant.",
     )
 
     dependencies: List[Dependency] = Field(default_factory=list)

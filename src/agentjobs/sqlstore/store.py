@@ -282,7 +282,7 @@ class SqlTaskStore:
     _SUMMARY_COLUMNS = (
         "task_id, title, created_at, updated_at, lifecycle, ball, ball_reason, "
         "ball_prompt, outcome, archived, priority, queue_position, category, effort, "
-        "owner, parent_id, posture, kind, eligible_json"
+        "owner, parent_id, merge_mode, kind, eligible_json"
     )
 
     def _load_task_cards(self) -> List[TaskCard]:
@@ -779,7 +779,7 @@ class SqlTaskStore:
             ("queue_position", "queue_position"),
             ("effort", "effort"),
             ("parent", "parent_id"),
-            ("posture", "posture"),
+            ("merge_mode", "merge_mode"),
             ("kind", "kind"),
         ):
             if row[column] is not None:
@@ -912,7 +912,7 @@ class SqlTaskStore:
             "agent": run["agent"],
             "runner": run["runner"],
             "mode": run["mode"],
-            "posture": run["posture"],
+            "merge_mode": run["merge_mode"],
             "trigger": run["trigger"],
             "caused_by": run["caused_by"],
             "argv": json.loads(run["argv_json"]),
@@ -920,15 +920,16 @@ class SqlTaskStore:
             "git_head": run["git_head"],
         }
         for key in (
-            "posture_source",
-            "posture_ceiling",
-            "posture_requested",
+            "merge_mode_source",
+            "merge_mode_requested",
             "session_id",
             "playbook",
             "playbook_hash",
         ):
             if run[key] is not None:
                 payload[key] = run[key]
+        if run["allow_automerge"] is not None:
+            payload["allow_automerge"] = bool(run["allow_automerge"])
         if run["selection_json"] is not None:
             payload["selection"] = json.loads(run["selection_json"])
         return payload
@@ -1045,7 +1046,7 @@ class SqlTaskStore:
             """INSERT INTO task (
                  project_id, task_id, seq, title, created_at, updated_at, revision,
                  lifecycle, ball, ball_reason, ball_prompt, outcome, archived,
-                 priority, queue_position, category, effort, owner, parent_id, posture,
+                 priority, queue_position, category, effort, owner, parent_id, merge_mode,
                  kind,
                  spec_summary, spec_intent, spec_description, spec_constraints,
                  spec_out_of_scope, spec_context_json, links_json, eligible_json,
@@ -1059,7 +1060,7 @@ class SqlTaskStore:
                  outcome=excluded.outcome, archived=excluded.archived,
                  priority=excluded.priority, queue_position=excluded.queue_position,
                  category=excluded.category, effort=excluded.effort, owner=excluded.owner,
-                 parent_id=excluded.parent_id, posture=excluded.posture,
+                 parent_id=excluded.parent_id, merge_mode=excluded.merge_mode,
                  kind=excluded.kind,
                  spec_summary=excluded.spec_summary, spec_intent=excluded.spec_intent,
                  spec_description=excluded.spec_description,
@@ -1090,7 +1091,7 @@ class SqlTaskStore:
                 task.effort,
                 task.assignment.owner,
                 task.parent,
-                _enum(task.posture),
+                _enum(task.merge_mode),
                 _enum(task.kind),
                 task.spec.summary,
                 task.spec.intent,
@@ -1326,8 +1327,8 @@ class SqlTaskStore:
             return
         connection.execute(
             """INSERT OR IGNORE INTO task_run(
-                 project_id, run_id, task_id, agent, runner, mode, posture,
-                 posture_source, posture_ceiling, posture_requested, trigger, caused_by,
+                 project_id, run_id, task_id, agent, runner, mode, merge_mode,
+                 merge_mode_source, allow_automerge, merge_mode_requested, trigger, caused_by,
                  playbook, playbook_hash, session_id, git_head, cwd, argv_json,
                  selection_json, started_at)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -1338,10 +1339,10 @@ class SqlTaskStore:
                 data.get("agent", ""),
                 data.get("runner", ""),
                 data.get("mode", "session"),
-                data.get("posture", "auto"),
-                data.get("posture_source"),
-                data.get("posture_ceiling"),
-                data.get("posture_requested"),
+                data.get("merge_mode", "review"),
+                data.get("merge_mode_source"),
+                data.get("allow_automerge"),
+                data.get("merge_mode_requested"),
                 data.get("trigger", "manual"),
                 int(data.get("caused_by", 1) or 1),
                 data.get("playbook"),

@@ -82,7 +82,7 @@ def _dispatch_yaml(home: Path, fake_cli: Path, *, project_id: str = "sandbox") -
                     project_id: {
                         "enabled": True,
                         "runner": "fake",
-                        "posture": "autonomous",
+                        "merge_mode": "automerge",
                         "require_clean_tree": False,
                     }
                 },
@@ -161,7 +161,7 @@ def _seed_previous_session_run(home: Path, task_id: str, *, session_id: str = "a
             "task_id": task_id,
             "project_id": "sandbox",
             "mode": "session",
-            "posture": "autonomous",
+            "merge_mode": "automerge",
             "status": "finished",
             "session_id": session_id,
             "dispatch_entry_id": 3,

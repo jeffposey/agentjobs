@@ -21,7 +21,7 @@ from agentjobs.models_v2 import (
     ContextPointer,
     Deliverable,
     Dependency,
-    DispatchPosture,
+    MergeMode,
     Lifecycle,
     Link,
     LiveFinishState,
@@ -1014,12 +1014,13 @@ class TaskUpdateRequest(RevisionedRequest):
     effort: Optional[str] = None
     tags: Optional[List[str]] = None
     parent: Optional[str] = None
-    posture: Optional[DispatchPosture] = Field(
+    merge_mode: Optional[MergeMode] = Field(
         default=None,
         description=(
-            "What a run dispatched at this task may do. Content, not a state axis: it "
-            "is a request bounded by the project's machine-local ceiling, never a "
-            "grant, so it needs no verb of its own (task-308). Send null to clear it."
+            "`review` or `automerge` for a run dispatched at this task. Content, not a "
+            "state axis: it is a request bounded by the project's machine-local "
+            "`allow_automerge`, never a grant, so it needs no verb of its own (task-308). "
+            "Send null to clear it."
         ),
     )
     spec: Optional[Spec] = None
@@ -1639,14 +1640,14 @@ class DispatchRequestBody(BaseModel):
             "exclusive with caused_by."
         ),
     )
-    posture: Optional[DispatchPosture] = Field(
+    merge_mode: Optional[MergeMode] = Field(
         default=None,
         description=(
-            "What this one run may do, overriding both the project default and any "
-            "posture on the task record. Refused with 'posture_above_ceiling' when it "
-            "exceeds the project's machine-local max_posture -- populate a chooser "
-            "from the dispatch state view's 'offerable_postures' so the refusal is "
-            "never reachable by clicking (task-308)."
+            "`review` or `automerge` for this one run, overriding both the project "
+            "default and the task record's own. Refused with 'automerge_not_allowed' "
+            "when the project's machine-local dispatch.yaml does not allow automerge -- "
+            "populate a chooser from the dispatch state view's 'offerable_merge_modes' "
+            "so the refusal is never reachable by clicking (task-308)."
         ),
     )
     note: Optional[str] = Field(
@@ -1855,11 +1856,19 @@ class DispatchStarted(BaseModel):
         description="Session mode only, and assigned by the CLI rather than by us.",
     )
     mode: str = Field(..., description="session or batch. Empty while a dispatch is queued.")
-    posture: str = Field(
+    merge_mode: str = Field(
         ...,
         description=(
-            "What the run is permitted to do. Empty while a dispatch is queued: the "
-            "posture is resolved by the gates when it starts, not when it was queued."
+            "`review` or `automerge`. Empty while a dispatch is queued: the merge mode "
+            "is resolved by the gates when it starts, not when it was queued."
+        ),
+    )
+    merge_mode_phrase: str = Field(
+        default="",
+        description=(
+            "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges "
+            "itself on a green gate'. Composed on the server so no client keeps its own "
+            "copy (task-602). Empty when `merge_mode` is."
         ),
     )
     task_id: str = Field(..., description="The task the run is working.")

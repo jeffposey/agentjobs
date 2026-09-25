@@ -59,7 +59,7 @@ from .models_v2 import (
     DispatchSelectionData,
     DispatchMode,
     DispatchOutcome,
-    DispatchPosture,
+    MergeMode,
     DispatchResultData,
     DispatchTrigger,
     Lifecycle,
@@ -3049,10 +3049,10 @@ class TaskManager:
         agent: str,
         runner: str,
         mode: DispatchMode,
-        posture: DispatchPosture,
-        posture_source: Optional[str] = None,
-        posture_ceiling: Optional[str] = None,
-        posture_requested: Optional[str] = None,
+        merge_mode: MergeMode,
+        merge_mode_source: Optional[str] = None,
+        allow_automerge: Optional[bool] = None,
+        merge_mode_requested: Optional[str] = None,
         trigger: DispatchTrigger,
         caused_by: int,
         argv: List[str],
@@ -3082,11 +3082,11 @@ class TaskManager:
         playbook as its brief (playbooks design section 4.3). They pin *which brief*, as
         distinct from ``git_head``'s *which commit*.
 
-        ``posture_source`` and its two companions say *where* ``posture`` came from
-        (task-308). They are optional so that a caller written before per-task postures
+        ``merge_mode_source`` and its two companions say *where* ``merge_mode`` came
+        from (task-308). They are optional so that a caller written before per-task modes
         existed still records exactly the entry it always did; the constraint they exist
-        to satisfy is that a reader of this entry can answer "why did this run get that
-        envelope" without opening a machine-local file they may not have.
+        to satisfy is that a reader of this entry can answer "why did this run merge
+        itself" without opening a machine-local file they may not have.
         """
         payload = DispatchData(
             run_id=run_id,
@@ -3094,10 +3094,10 @@ class TaskManager:
             runner=runner,
             runner_source=runner_source,
             mode=mode,
-            posture=posture,
-            posture_source=posture_source,
-            posture_ceiling=posture_ceiling,
-            posture_requested=posture_requested,
+            merge_mode=merge_mode,
+            merge_mode_source=merge_mode_source,
+            allow_automerge=allow_automerge,
+            merge_mode_requested=merge_mode_requested,
             trigger=trigger,
             caused_by=caused_by,
             argv=list(argv),

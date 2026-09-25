@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence
+from agentjobs.models_v2 import merge_mode_text
 
 
 class CodexResumeFailure(str, Enum):
@@ -446,7 +447,6 @@ class CodexAppServerProcess:
                     "approvalPolicy": self.settings.approval_policy,
                     "sandboxPolicy": {
                         "type": {
-                            "read-only": "readOnly",
                             "workspace-write": "workspaceWrite",
                             "danger-full-access": "dangerFullAccess",
                         }[self.settings.sandbox]
@@ -514,7 +514,7 @@ class CodexAppServerProcess:
 
 
 def parse_session_settings(
-    argv: Sequence[str], *, posture: str, project_root: Path
+    argv: Sequence[str], *, merge_mode: str, project_root: Path
 ) -> CodexSessionSettings:
     """Extract model/effort from a configured Codex session recipe.
 
@@ -536,15 +536,15 @@ def parse_session_settings(
             effort = element.split("=", 1)[1].strip("\"'")
         if element.startswith("service_tier="):
             service_tier = element.split("=", 1)[1].strip("\"'")
+    # A retired posture spelling (a run started before task-602) maps to the mode it
+    # meant, so `auto` is `review` here and never `automerge`.
     sandbox = {
-        "read_only": "read-only",
-        "auto": "workspace-write",
-        "autonomous": "danger-full-access",
-        "supervised": "workspace-write",
-    }.get(posture)
+        "review": "workspace-write",
+        "automerge": "danger-full-access",
+    }.get(merge_mode_text(merge_mode))
     if sandbox is None:
-        raise CodexAppServerError(f"Unsupported AgentJobs posture for Codex session: {posture}")
-    approval = "on-request" if posture == "supervised" else "never"
+        raise CodexAppServerError(f"Unsupported merge mode for Codex session: {merge_mode}")
+    approval = "never"
     writable_roots: tuple[str, ...] = ()
     if sandbox == "workspace-write":
         # Codex's managed workspace profile intentionally makes .git read-only.

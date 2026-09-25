@@ -135,7 +135,7 @@ def seed_run(
         "task_id": task_id,
         "project_id": "sandbox",
         "mode": mode,
-        "posture": "supervised",
+        "merge_mode": "review",
         "status": status,
         "started_at": started_at,
         "caused_by": 1,
@@ -159,7 +159,7 @@ def seed_run(
 
 def dispatch_entry(manager: TaskManager, task_id: str, run_id: str) -> int:
     """Write the dispatch entry a terminal result will thread back to."""
-    from agentjobs.models_v2 import DispatchMode, DispatchPosture, DispatchTrigger
+    from agentjobs.models_v2 import DispatchMode, MergeMode, DispatchTrigger
 
     updated = manager.record_dispatch(
         task_id,
@@ -168,7 +168,7 @@ def dispatch_entry(manager: TaskManager, task_id: str, run_id: str) -> int:
         agent="claude",
         runner="claude",
         mode=DispatchMode.SESSION,
-        posture=DispatchPosture.SUPERVISED,
+        merge_mode=MergeMode.REVIEW,
         trigger=DispatchTrigger.MANUAL,
         caused_by=1,
         argv=["claude", "--bg"],

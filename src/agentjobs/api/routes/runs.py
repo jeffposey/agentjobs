@@ -62,7 +62,14 @@ from agentjobs.dispatch.journal import journal
 from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.execution.store import QueuedDispatch, Supervision
 from agentjobs.exposure import Visibility, readable_by
-from agentjobs.models_v2 import LandingEstimate, Outcome, StatusCategory, closed_status
+from agentjobs.models_v2 import (
+    LandingEstimate,
+    Outcome,
+    StatusCategory,
+    closed_status,
+    merge_mode_phrase,
+    merge_mode_text,
+)
 from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
 
@@ -95,7 +102,15 @@ class LiveRunView(BaseModel):
     )
     mode: str
     session: bool = Field(..., description="A session run, as opposed to a batch one.")
-    posture: str
+    merge_mode: str
+    merge_mode_phrase: str = Field(
+        default="",
+        description=(
+            "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges "
+            "itself on a green gate'. Composed on the server so no client keeps its own "
+            "copy (task-602). Empty when `merge_mode` is."
+        ),
+    )
     status: str = Field(..., description="The ledger's own word. Prefer `health` for display.")
     health: str = Field(
         ...,
@@ -374,8 +389,16 @@ class ArmedProjectView(BaseModel):
     starts_left: Optional[int] = Field(
         default=None, description="Runs it may still start, or null when the bound is a moment."
     )
-    posture: Optional[str] = Field(
-        default=None, description="The envelope pulled runs get, or null for the project default."
+    merge_mode: Optional[str] = Field(
+        default=None, description="The merge mode pulled runs get, or null for the project default."
+    )
+    merge_mode_phrase: str = Field(
+        default="",
+        description=(
+            "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges "
+            "itself on a green gate'. Composed on the server so no client keeps its own "
+            "copy (task-602). Empty when `merge_mode` is."
+        ),
     )
     next_task_id: str = Field(
         default="",
@@ -718,7 +741,8 @@ def _run_view(
         project_name=project.name if project else record.project_id,
         mode=record.mode,
         session=record.is_session,
-        posture=record.posture,
+        merge_mode=record.merge_mode,
+        merge_mode_phrase=merge_mode_phrase(record.merge_mode),
         status=record.status,
         health=health,
         started_at=record.started_at.isoformat() if record.started_at else None,
@@ -980,7 +1004,7 @@ def _unheld_finish_views(
 ) -> List[MachineHolderView]:
     """A card for each live finish that nothing else on the board draws (task-533).
 
-    A finish is drawn by its own ``kind=finish`` lock, or -- under ``--posture-release``,
+    A finish is drawn by its own ``kind=finish`` lock, or -- under ``--merge-mode-release``,
     which keeps the run's lock and adopts no finish one -- by that run's tile reading
     ``finishing``. What neither covers is a finish holding no lock of its own yet: the
     second between a spawn and its process taking one, or a finish run by hand from a
@@ -1041,7 +1065,8 @@ def _armed_view(
         armed_at=arming.armed_at,
         bound=dispatch_pull.bound_sentence(arming),
         starts_left=arming.starts_left,
-        posture=arming.posture,
+        merge_mode=merge_mode_text(arming.merge_mode) or None,
+        merge_mode_phrase=merge_mode_phrase(arming.merge_mode),
         next_task_id=task.id if task else "",
         next_task_title=task.title if task else "",
         next_task_url=_task_url(arming.project_id, task.id) if task else "",

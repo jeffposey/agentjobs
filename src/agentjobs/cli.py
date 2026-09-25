@@ -28,7 +28,7 @@ from .dispatch.config import (
     DispatchConfig,
     clear_sentinel,
     DispatchError,
-    Posture,
+    MergeMode,
     assert_dispatch_permitted,
     dispatch_config_path,
     load_dispatch_config,
@@ -1753,12 +1753,13 @@ def dispatch_run(
         "--group",
         help="Runner group to pick from, overriding the project's. Must already exist.",
     ),
-    posture: Optional[str] = typer.Option(
+    merge_mode: Optional[str] = typer.Option(
         None,
-        "--posture",
+        "--merge-mode",
         help=(
-            "Posture for this run only, overriding the project default and the task's "
-            "own field. Refused above the project's max_posture."
+            "`review` or `automerge` for this run only, overriding the project default "
+            "and the task's own field. Automerge is refused where the project does not "
+            "allow it."
         ),
     ),
     queue: bool = typer.Option(
@@ -1822,10 +1823,12 @@ def dispatch_run(
         raise typer.Exit(code=1)
 
     try:
-        chosen_posture = Posture(posture) if posture else None
+        chosen_merge_mode = MergeMode(merge_mode) if merge_mode else None
     except ValueError:
-        names = ", ".join(sorted(item.value for item in Posture))
-        typer.secho(f"--posture must be one of {names}, not {posture!r}.", fg=typer.colors.RED)
+        names = ", ".join(sorted(item.value for item in MergeMode))
+        typer.secho(
+            f"--merge-mode must be one of {names}, not {merge_mode!r}.", fg=typer.colors.RED
+        )
         raise typer.Exit(code=1) from None
 
     try:
@@ -1838,7 +1841,7 @@ def dispatch_run(
                 caused_by=caused_by,
                 runner=runner,
                 group=group,
-                posture=chosen_posture,
+                merge_mode=chosen_merge_mode,
                 if_full=IF_FULL_QUEUE if queue else IF_FULL_REFUSE,
                 # Honoured here because a CLI verb is served as the owner (task-332), who
                 # holds `dispatch.over_ceiling`. The HTTP path checks the capability; a
@@ -1879,8 +1882,8 @@ def dispatch_run(
     # Always, not only when something overrode the default: "which of the three sources
     # decided what this run may do" is the question task-308 exists so that nobody has
     # to reconstruct, and a line that appears only sometimes trains a reader to skim it.
-    if handle.posture is not None:
-        typer.echo(f"   Envelope: {handle.posture.describe()}.")
+    if handle.merge_mode is not None:
+        typer.echo(f"   Envelope: {handle.merge_mode.describe()}.")
     # Printed because a wrong address is otherwise silent: the agent cannot read its
     # task, so it cannot report that it could not read its task. There is no HTTP
     # request here to derive one from, so this is AGENTJOBS_API_BASE, or `api_base:` in
@@ -1994,12 +1997,12 @@ def dispatch_walk(
             "limits.max_concurrent_runs, and can only narrow it."
         ),
     ),
-    posture: Optional[str] = typer.Option(
+    merge_mode: Optional[str] = typer.Option(
         None,
-        "--posture",
+        "--merge-mode",
         help=(
-            "Posture to start every child of this walk at, overriding what the epic "
-            "would pass down. Refused above the project's max_posture."
+            "`review` or `automerge` for every child of this walk, overriding what the "
+            "epic would pass down. Automerge is refused where the project does not allow it."
         ),
     ),
     dry_run: bool = typer.Option(
@@ -2035,9 +2038,9 @@ def dispatch_walk(
     loop that is not mechanical. The walk writes what every child did onto the parent and
     hands back; you decide.
 
-    **Children inherit the epic's posture without being told to** (task-316): if a
-    person dispatched this parent at a posture, that is what its children are started
-    at, and the line printed before the walk says so. ``--posture`` is for the case
+    **Children inherit the epic's merge mode without being told to** (task-316): if a
+    person dispatched this parent at a merge mode, that is what its children are started
+    at, and the line printed before the walk says so. ``--merge-mode`` is for the case
     where there is nothing to inherit -- a walk run from a shell against an epic nobody
     dispatched -- and it wins over the inherited value when both exist. It is refused
     above the project's ``max_posture``, exactly as ``dispatch --posture`` is.
@@ -2052,7 +2055,7 @@ def dispatch_walk(
         EpicError,
         describe_settings,
         frontier,
-        inherited_posture,
+        inherited_merge_mode,
         inherited_runner,
         open_children,
         utc_stamp,
@@ -2073,10 +2076,12 @@ def dispatch_walk(
         raise typer.Exit(code=2)
 
     try:
-        chosen_posture = Posture(posture) if posture else None
+        chosen_merge_mode = MergeMode(merge_mode) if merge_mode else None
     except ValueError:
-        names = ", ".join(sorted(item.value for item in Posture))
-        typer.secho(f"--posture must be one of {names}, not {posture!r}.", fg=typer.colors.RED)
+        names = ", ".join(sorted(item.value for item in MergeMode))
+        typer.secho(
+            f"--merge-mode must be one of {names}, not {merge_mode!r}.", fg=typer.colors.RED
+        )
         raise typer.Exit(code=2) from None
 
     # The walk's own writes are an agent's, not a human's, so they are attributed to the
@@ -2127,8 +2132,8 @@ def dispatch_walk(
     typer.echo(f"  open children: {', '.join(c.id for c in remaining) or 'none'}")
     for line in describe_settings(
         settings,
-        posture=chosen_posture,
-        inherited=inherited_posture(parent),
+        merge_mode=chosen_merge_mode,
+        inherited=inherited_merge_mode(parent),
         inherited_runner=inherited_runner(parent),
     ):
         typer.echo(f"  {line}")
@@ -2155,7 +2160,7 @@ def dispatch_walk(
                 parent_id=parent.id,
                 home=home,
                 settings=settings,
-                posture=chosen_posture,
+                merge_mode=chosen_merge_mode,
                 actor=actor,
             )
         except EpicError as exc:
@@ -2176,7 +2181,7 @@ def dispatch_walk(
             parent_id=parent.id,
             home=home,
             settings=settings,
-            posture=chosen_posture,
+            merge_mode=chosen_merge_mode,
             actor=actor,
             on_event=lambda message: typer.echo(f"  {utc_stamp()} {message}"),
         )
@@ -2214,7 +2219,7 @@ def dispatch_walk(
 
     if result.stop.is_success:
         # What happens next was decided by `record_walk_outcome` above and depends on the
-        # epic's posture, so it is read back off the record rather than asserted here: an
+        # epic's merge mode, so it is read back off the record rather than asserted here: an
         # autonomous epic has just had an evaluation run dispatched at it, and every other
         # one is now somebody's to read. Printing one of those sentences unconditionally
         # is how a CLI comes to describe a state it did not produce.
@@ -2425,8 +2430,10 @@ def dispatch_arm(
     open_ended: bool = typer.Option(
         False, "--until-disarmed", help="No bound but a person pressing Disarm."
     ),
-    posture: Optional[str] = typer.Option(
-        None, "--posture", help="Envelope for the pulled runs. Defaults to the project's."
+    merge_mode: Optional[str] = typer.Option(
+        None,
+        "--merge-mode",
+        help="`review` or `automerge` for the pulled runs. Defaults to the project's.",
     ),
 ) -> None:
     """Arm the pull mode: fill free slots with what the queue says is next (task-462).
@@ -2463,10 +2470,10 @@ def dispatch_arm(
             bound_kind=bound_kind,
             bound_starts=starts,
             bound_until=until,
-            posture=Posture(posture) if posture else None,
+            merge_mode=MergeMode(merge_mode) if merge_mode else None,
         )
     except ValueError as exc:
-        typer.secho(f"{posture!r} is not a posture: {exc}", fg=typer.colors.RED)
+        typer.secho(f"{merge_mode!r} is not a merge mode: {exc}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
     except (ProjectError, DispatchError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
@@ -2500,6 +2507,8 @@ def dispatch_disarm(
 def dispatch_pull_status() -> None:
     """Which projects are armed, how much of each bound is left, and what starts next."""
     home = default_home()
+    from agentjobs.models_v2 import merge_mode_text
+
     live = dispatch_pull.armings(home)
     if not live:
         typer.echo("No project is armed for the pull mode.")
@@ -2509,7 +2518,7 @@ def dispatch_pull_status() -> None:
         typer.echo(
             f"{arming.project_id}: armed by {arming.armed_by} at {arming.armed_at} — "
             f"{dispatch_pull.bound_sentence(arming)}"
-            + (f", posture {arming.posture}" if arming.posture else "")
+            + (f", merge mode {merge_mode_text(arming.merge_mode)}" if arming.merge_mode else "")
         )
         try:
             manager = dispatch_manager_for(registry.get(arming.project_id))
@@ -2717,9 +2726,8 @@ def dispatch_show_config(
         )
         typer.echo(
             f"  {pid:20} {state}  {against}  "
-            f"posture={settings.posture.value}  "
-            f"max_posture={settings.ceiling.value}  "
-            f"merge={settings.posture.merge_policy.value}  push={settings.push}  "
+            f"merge_mode={settings.merge_mode.value}  "
+            f"allow_automerge={settings.automerge_allowed}  push={settings.push}  "
             f"finish={'on' if settings.finish.enabled else 'off'}  "
             f"finish_escalation="
             f"{'dispatches' if settings.finish.dispatch_on_escalation else 'parks'}  "
@@ -2777,11 +2785,10 @@ def dispatch_show_config(
             via = f" from group '{chosen.group}' ({chosen.source.value})" if chosen else ""
             typer.echo(
                 f"{project_id}: permitted - runner '{resolution.runner.name}'{via} "
-                f"({resolution.runner.mode.value}), posture "
-                f"{resolution.settings.posture.value} (max "
-                f"{resolution.settings.ceiling.value}), merge "
-                f"{resolution.settings.posture.merge_policy.value}, push "
-                f"{resolution.settings.push}"
+                f"({resolution.runner.mode.value}), merge mode "
+                f"{resolution.settings.merge_mode.value} (automerge "
+                f"{'allowed' if resolution.settings.automerge_allowed else 'not allowed'}), "
+                f"push {resolution.settings.push}"
             )
             if chosen:
                 for candidate in chosen.candidates:
@@ -4753,10 +4760,16 @@ def finish(
     approver: Optional[str] = typer.Option(
         None, "--approver", help="Who approved this, for the merge message and the log."
     ),
-    posture_release: bool = typer.Option(
+    automerge_release: bool = typer.Option(
+        False,
+        "--automerge-release",
+        help="Merge on this run's automerge grant rather than on a human approval (task-021).",
+    ),
+    legacy_posture_release: bool = typer.Option(
         False,
         "--posture-release",
-        help="Merge on the project's posture rather than on a human approval (task-021).",
+        hidden=True,
+        help="The pre-task-602 spelling of --automerge-release, for a run told it before.",
     ),
     resumed_from: str = typer.Option(
         "",
@@ -4782,12 +4795,13 @@ def finish(
     1 means it stopped and the task says where; 2 means the task was never a candidate
     and nothing happened.
 
-    Without ``--posture-release`` it merges only what a person approved. With it, a
-    dispatched run merges its own work on the strength of the project's posture, and the
-    posture is checked here: anything but ``autonomous`` exits 2 having touched nothing.
-    See ALLAGENTS.md on the merge gate for when that is the right flag to be passing.
+    Without ``--automerge-release`` it merges only what a person approved. With it, a
+    dispatched run merges its own work on the strength of its ``automerge`` grant, and
+    the grant is checked here: a ``review`` run exits 2 having touched nothing. See
+    ALLAGENTS.md on the merge gate for when that is the right flag to be passing.
     """
-    from agentjobs.dispatch.finish import APPROVAL, DECLINED, ESCALATED, POSTURE, finish_task
+    automerge_release = automerge_release or legacy_posture_release
+    from agentjobs.dispatch.finish import APPROVAL, DECLINED, ESCALATED, AUTOMERGE, finish_task
     from agentjobs.dispatch.phases import RUN_ID_ENV
 
     registry = ProjectRegistry()
@@ -4798,12 +4812,12 @@ def finish(
         raise typer.Exit(code=1) from exc
 
     if approver is None:
-        # A posture release has no approver, so it must not default to a word that reads
+        # A merge mode release has no approver, so it must not default to a word that reads
         # like one. It names the run instead, which is what a reader of the merge would
         # go and look up. The run id is in the environment of anything a dispatch spawned.
-        run_id = os.environ.get(RUN_ID_ENV) if posture_release else None
+        run_id = os.environ.get(RUN_ID_ENV) if automerge_release else None
         approver = (
-            f"run {run_id}" if run_id else ("a dispatched run" if posture_release else "a human")
+            f"run {run_id}" if run_id else ("a dispatched run" if automerge_release else "a human")
         )
 
     manager = task_manager_for(project)
@@ -4812,7 +4826,7 @@ def finish(
         project=project,
         task_id=task_id,
         approver=approver,
-        authority=POSTURE if posture_release else APPROVAL,
+        authority=AUTOMERGE if automerge_release else APPROVAL,
         resumed_from=resumed_from,
         speculative=speculative,
     )

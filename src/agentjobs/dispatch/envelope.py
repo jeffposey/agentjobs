@@ -1,6 +1,6 @@
 """The execution envelope: what one accepted dispatch was granted, frozen (task-375).
 
-A dispatch is admitted with an envelope -- runner, group, posture, push, the exact policy
+A dispatch is admitted with an envelope -- runner, group, merge mode, push, the exact policy
 clause the agent is told -- and that envelope is recorded in the execution journal before
 any worker exists. This module builds it, and decides when a later dispatch **continues**
 an earlier grant rather than making a new one.
@@ -9,21 +9,21 @@ an earlier grant rather than making a new one.
 A retry or resume therefore ran whatever the project default had become: task-410's
 big-dawg run on ``claude-fable-5-1`` came back on ``claude-opus-5`` when its feedback was
 delivered, and nothing on the record said the model had changed. The same re-reading let
-a record say ``autonomous`` about a resumed session that had only ever been told ``auto``
+a record say ``automerge`` about a resumed session that had only ever been told ``auto``
 (task-358's child task-273).
 
 **Continuation versus new grant.** The line is who acted, not which code path ran:
 
 - A dispatch the *machine* starts on a human's handback -- trigger ``auto``, naming no
-  runner, group, posture, authoriser or epic -- continues the newest execution
-  for that task. It reuses the recorded runner, group and posture, and says so with
+  runner, group, merge mode, authoriser or epic -- continues the newest execution
+  for that task. It reuses the recorded runner, group and merge mode, and says so with
   source ``history``.
 - A person's click or command is a new grant and resolves against configuration as it
   stands now. Treating it as history would let a fresh click inherit an old epic's
-  ``autonomous`` without anyone choosing it again.
+  ``automerge`` without anyone choosing it again.
 - An epic child started on its parent's authorisation is a new grant too, but its runner,
-  group and posture are read off the *parent's* dispatch entry rather than resolved
-  from configuration (task-316 for the posture, task-453 for the runner), with source
+  group and merge mode are read off the *parent's* dispatch entry rather than resolved
+  from configuration (task-316 for the merge mode, task-453 for the runner), with source
   ``epic``. On 2026-09-18 a walk resolving the runner locally started a ``big-dawg``
   epic's child on the project default, which is this module's own incident reached by
   another path.
@@ -50,12 +50,15 @@ from agentjobs.__version__ import __version__
 from agentjobs.dispatch.config import (
     DispatchError,
     DispatchResolution,
-    Posture,
-    ResolvedPosture,
+    MergeMode,
+    ResolvedMergeMode,
 )
 from agentjobs.execution.reducer import WORKFLOW_VERSION
 from agentjobs.execution.store import PROVENANCE_NATIVE, Execution, ExecutionStore
-from agentjobs.models_v2 import DispatchTrigger
+from agentjobs.models_v2 import (
+    DispatchTrigger,
+    recorded_merge_mode,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - guards imports this module
     from agentjobs.dispatch.guards import DispatchRequest
@@ -90,7 +93,7 @@ class History:
     """The execution whose grant this chain of continuations started from."""
     runner: str
     group: Optional[str]
-    posture: Posture
+    merge_mode: MergeMode
     push: Optional[bool]
     """``None`` for an envelope recorded before push was frozen."""
     stop: Optional[Dict[str, Any]]
@@ -107,7 +110,7 @@ def is_continuation(request: "DispatchRequest") -> bool:
         request.trigger is DispatchTrigger.AUTO
         and not request.runner
         and not request.group
-        and request.posture is None
+        and request.merge_mode is None
         and not (request.authorized_by or "").strip()
         and not request.on_behalf_of_parent
         and request.pull_arming_id is None
@@ -129,7 +132,7 @@ def continuation_history(
     this project/task, as task-375 built it for a handback.
 
     ``None`` when there is nothing to continue: no execution at all, a legacy import, or
-    an envelope that never recorded a runner and a valid posture. Those resolve as a new
+    an envelope that never recorded a runner and a valid merge mode. Those resolve as a new
     dispatch did before this module; a missing field is never filled in from today's
     configuration, because that is exactly the silent substitution this exists to stop.
     """
@@ -155,8 +158,10 @@ def continuation_history(
     envelope = execution.envelope
     runner = envelope.get("runner")
     try:
-        posture = Posture(str(envelope.get("posture")))
+        merge_mode = recorded_merge_mode(envelope)
     except ValueError:
+        return None
+    if merge_mode is None:
         return None
     if not isinstance(runner, str) or not runner:
         return None
@@ -169,7 +174,7 @@ def continuation_history(
         root_execution_id=str(grant.get("root_execution_id") or execution.execution_id),
         runner=runner,
         group=group if isinstance(group, str) and group else None,
-        posture=posture,
+        merge_mode=merge_mode,
         push=push if isinstance(push, bool) else None,
         stop=_stop_request(store, execution),
     )
@@ -203,7 +208,7 @@ def settings_digest(resolution: DispatchResolution) -> str:
 
 def build_envelope(
     resolution: DispatchResolution,
-    posture: ResolvedPosture,
+    merge_mode: ResolvedMergeMode,
     request: "DispatchRequest",
     *,
     push: bool,
@@ -245,10 +250,9 @@ def build_envelope(
             if selection is not None
             else []
         ),
-        "posture": posture.posture.value,
-        **posture.as_data(),
+        "merge_mode": merge_mode.merge_mode.value,
+        **merge_mode.as_data(),
         "push": push,
-        "merge_policy": posture.posture.merge_policy.value,
         "policy_clause": policy_clause,
         "settings_digest": settings_digest(resolution),
         "trigger": request.trigger.value,

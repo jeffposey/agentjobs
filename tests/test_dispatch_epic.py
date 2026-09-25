@@ -32,7 +32,7 @@ from typing import Dict, List, Optional
 import pytest
 import yaml
 
-from agentjobs.dispatch.config import Posture
+from agentjobs.dispatch.config import MergeMode
 from agentjobs.dispatch.epic import (
     CHILD_ATTEMPT_LIMIT,
     ChildAttempt,
@@ -49,7 +49,7 @@ from agentjobs.dispatch.epic import (
     count_attempts,
     describe_settings,
     frontier,
-    inherited_posture,
+    inherited_merge_mode,
     next_eligible_child,
     parent_authorizing_entry,
     resolve_epic_authorization,
@@ -69,7 +69,6 @@ from agentjobs.models_v2 import (
     Ball,
     BallReason,
     DispatchMode,
-    DispatchPosture,
     DispatchTrigger,
     Lifecycle,
     LogEntryType,
@@ -113,8 +112,8 @@ def make_parent(
     manager: TaskManager,
     *,
     dispatched: bool = True,
-    posture: DispatchPosture = DispatchPosture.AUTONOMOUS,
-    posture_source: Optional[str] = None,
+    merge_mode: MergeMode = MergeMode.AUTOMERGE,
+    merge_mode_source: Optional[str] = None,
 ) -> str:
     """An active epic whose dispatch a human authorised, as a real one looks.
 
@@ -147,8 +146,8 @@ def make_parent(
             agent="claude",
             runner="fake",
             mode=DispatchMode.SESSION,
-            posture=posture,
-            posture_source=posture_source,
+            merge_mode=merge_mode,
+            merge_mode_source=merge_mode_source,
             trigger=DispatchTrigger.MANUAL,
             caused_by=human_entry,
             argv=["fake"],
@@ -209,7 +208,7 @@ def drive(
     script: Dict[str, List[str]],
     run_status: Optional[Dict[str, str]] = None,
     settings: Optional[WalkSettings] = None,
-    posture: Optional[Posture] = None,
+    merge_mode: Optional[MergeMode] = None,
 ):
     """Run a walk whose children behave according to ``script``.
 
@@ -260,7 +259,7 @@ def drive(
         project_config=PROJECT_CONFIG,
         parent_id=parent_id,
         settings=settings or WalkSettings(poll_seconds=0.0, child_timeout_seconds=1000.0),
-        posture=posture,
+        merge_mode=merge_mode,
         dispatch=dispatcher,
         read_run_status=read_status,
         sleep=tick,
@@ -461,7 +460,7 @@ class TestAttemptBudget:
             agent="claude",
             runner="fake",
             mode=DispatchMode.SESSION,
-            posture=DispatchPosture.AUTONOMOUS,
+            merge_mode=MergeMode.AUTOMERGE,
             trigger=DispatchTrigger.MANUAL,
             caused_by=parent.log[-1].id,
             argv=["fake"],
@@ -785,11 +784,11 @@ class TestWhichPostureSourcesCrossTheBoundary:
 
     def test_a_dispatch_time_posture_is_inherited(self, manager: TaskManager) -> None:
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
         )
         parent = manager.get_task(parent_id)
         assert parent is not None
-        assert inherited_posture(parent) is Posture.AUTONOMOUS
+        assert inherited_merge_mode(parent) is MergeMode.AUTOMERGE
 
     def test_an_already_inherited_posture_crosses_a_second_generation(
         self, manager: TaskManager
@@ -800,10 +799,10 @@ class TestWhichPostureSourcesCrossTheBoundary:
         somebody happened to shape the tree, which is the opposite of the predictability
         the whole feature claims.
         """
-        parent_id = make_parent(manager, posture=DispatchPosture.AUTONOMOUS, posture_source="epic")
+        parent_id = make_parent(manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="epic")
         parent = manager.get_task(parent_id)
         assert parent is not None
-        assert inherited_posture(parent) is Posture.AUTONOMOUS
+        assert inherited_merge_mode(parent) is MergeMode.AUTOMERGE
 
     def test_a_posture_from_the_parents_task_record_does_not_cross(
         self, manager: TaskManager
@@ -816,48 +815,48 @@ class TestWhichPostureSourcesCrossTheBoundary:
         once -- and on a project whose ceiling is already ``autonomous``, the clamp that
         bounds that source bounds nothing.
         """
-        parent_id = make_parent(manager, posture=DispatchPosture.AUTONOMOUS, posture_source="task")
+        parent_id = make_parent(manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="task")
         parent = manager.get_task(parent_id)
         assert parent is not None
-        assert inherited_posture(parent) is None
+        assert inherited_merge_mode(parent) is None
 
     def test_the_project_default_does_not_cross(self, manager: TaskManager) -> None:
         """It already reaches every child on its own; relabelling it would only mislead."""
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="project"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="project"
         )
         parent = manager.get_task(parent_id)
         assert parent is not None
-        assert inherited_posture(parent) is None
+        assert inherited_merge_mode(parent) is None
 
     def test_an_entry_written_before_postures_had_sources_reads_as_the_project(
         self, manager: TaskManager
     ) -> None:
         """An absent ``posture_source`` is 'project', never 'unknown' -- so, no inheritance."""
-        parent_id = make_parent(manager, posture=DispatchPosture.AUTONOMOUS)
+        parent_id = make_parent(manager, merge_mode=MergeMode.AUTOMERGE)
         parent = manager.get_task(parent_id)
         assert parent is not None
-        assert inherited_posture(parent) is None
+        assert inherited_merge_mode(parent) is None
 
     def test_an_epic_nobody_dispatched_has_nothing_to_pass_down(self, manager: TaskManager) -> None:
         parent_id = make_parent(manager, dispatched=False)
         parent = manager.get_task(parent_id)
         assert parent is not None
-        assert inherited_posture(parent) is None
+        assert inherited_merge_mode(parent) is None
 
     def test_the_authorisation_carries_it_and_names_it_on_the_childs_record(
         self, manager: TaskManager
     ) -> None:
         """The child's own record is where the human's name and the envelope meet."""
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
         )
         child_id = make_child(manager, parent_id, "First")
         child = manager.get_task(child_id)
         assert child is not None
         authorization = resolve_epic_authorization(manager, PROJECT_CONFIG, child)
-        assert authorization.posture is Posture.AUTONOMOUS
-        assert "posture `autonomous`" in authorization.describe()
+        assert authorization.merge_mode is MergeMode.AUTOMERGE
+        assert "merge mode `automerge`" in authorization.describe()
 
     def test_an_uninherited_epic_says_nothing_about_postures(self, manager: TaskManager) -> None:
         parent_id = make_parent(manager)
@@ -865,8 +864,8 @@ class TestWhichPostureSourcesCrossTheBoundary:
         child = manager.get_task(child_id)
         assert child is not None
         authorization = resolve_epic_authorization(manager, PROJECT_CONFIG, child)
-        assert authorization.posture is None
-        assert "posture" not in authorization.describe()
+        assert authorization.merge_mode is None
+        assert "merge_mode" not in authorization.describe()
 
 
 class TestTheWalkSaysWhatEnvelopeItWillUse:
@@ -874,20 +873,20 @@ class TestTheWalkSaysWhatEnvelopeItWillUse:
 
     def test_it_names_an_inherited_posture(self, manager: TaskManager) -> None:
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
         )
         parent = manager.get_task(parent_id)
         assert parent is not None
-        lines = describe_settings(WalkSettings(), inherited=inherited_posture(parent))
-        assert any("autonomous (inherited from the epic" in line for line in lines)
+        lines = describe_settings(WalkSettings(), inherited=inherited_merge_mode(parent))
+        assert any("automerge (inherited from the epic" in line for line in lines)
 
     def test_a_walk_level_choice_is_named_as_such(self) -> None:
-        lines = describe_settings(WalkSettings(), posture=Posture.SUPERVISED)
-        assert any("supervised (chosen for this walk)" in line for line in lines)
+        lines = describe_settings(WalkSettings(), merge_mode=MergeMode.REVIEW)
+        assert any("review (chosen for this walk)" in line for line in lines)
 
     def test_nothing_overriding_still_states_what_will_happen(self) -> None:
         lines = describe_settings(WalkSettings())
-        assert any("posture children start at: the project default" in line for line in lines)
+        assert any("merge mode children start at: the project default" in line for line in lines)
 
 
 class RecordingDispatcher(Dispatcher):
@@ -895,10 +894,10 @@ class RecordingDispatcher(Dispatcher):
 
     def __init__(self, manager: TaskManager) -> None:
         super().__init__(manager)
-        self.postures: List[Optional[Posture]] = []
+        self.merge_modes: List[Optional[MergeMode]] = []
 
     def __call__(self, **kwargs):
-        self.postures.append(kwargs["request"].posture)
+        self.merge_modes.append(kwargs["request"].merge_mode)
         return super().__call__(**kwargs)
 
 
@@ -918,10 +917,10 @@ class TestAWalkLevelPostureReachesEveryChild:
             parent_id,
             dispatcher=dispatcher,
             script={first: ["complete"], second: ["complete"]},
-            posture=Posture.SUPERVISED,
+            merge_mode=MergeMode.REVIEW,
         )
         assert result.stop is WalkStop.ALL_CHILDREN_DONE
-        assert dispatcher.postures == [Posture.SUPERVISED, Posture.SUPERVISED]
+        assert dispatcher.merge_modes == [MergeMode.REVIEW, MergeMode.REVIEW]
 
     def test_a_walk_that_names_none_leaves_each_child_to_resolve_its_own(
         self, manager: TaskManager, project: Project
@@ -933,7 +932,7 @@ class TestAWalkLevelPostureReachesEveryChild:
         there is nothing here for a caller to get wrong or forge.
         """
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
         )
         child_id = make_child(manager, parent_id, "First")
         dispatcher = RecordingDispatcher(manager)
@@ -945,7 +944,7 @@ class TestAWalkLevelPostureReachesEveryChild:
             script={child_id: ["complete"]},
         )
         assert result.stop is WalkStop.ALL_CHILDREN_DONE
-        assert dispatcher.postures == [None]
+        assert dispatcher.merge_modes == [None]
 
 
 class TestRealDispatchInheritsAuthorization:
@@ -1079,7 +1078,7 @@ class TestRealDispatchInheritsAuthorization:
                 agent="fake",
                 runner="fake",
                 mode=DispatchMode.BATCH,
-                posture=DispatchPosture.SUPERVISED,
+                merge_mode=MergeMode.REVIEW,
                 trigger=DispatchTrigger.CHILD,
                 caused_by=1,
                 argv=["python", "-c", "pass"],
@@ -1152,8 +1151,8 @@ class TestARealChildRunGetsTheEpicsEnvelope:
                     "enabled": True,
                     "runner": "fake",
                     "require_clean_tree": False,
-                    "posture": "auto",
-                    "max_posture": "autonomous",
+                    "merge_mode": "review",
+                    "allow_automerge": True,
                 }
             },
         }
@@ -1186,25 +1185,25 @@ class TestARealChildRunGetsTheEpicsEnvelope:
         self, manager: TaskManager, project: Project, home: Path, configured: Path
     ) -> None:
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
         )
         child_id = make_child(manager, parent_id, "First")
         handle, entry = self.start(manager, project, home, child_id)
-        assert entry["posture"] == "autonomous"
-        assert handle.posture is not None
-        assert handle.posture.posture is Posture.AUTONOMOUS
+        assert entry["merge_mode"] == "automerge"
+        assert handle.merge_mode is not None
+        assert handle.merge_mode.merge_mode is MergeMode.AUTOMERGE
 
     def test_the_childs_record_says_the_posture_came_from_the_epic(
         self, manager: TaskManager, project: Project, home: Path, configured: Path
     ) -> None:
         """ac-3. ``project`` is what the defect wrote and it pointed at the wrong file."""
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
         )
         child_id = make_child(manager, parent_id, "First")
         _handle, entry = self.start(manager, project, home, child_id)
-        assert entry["posture_source"] == "epic"
-        assert entry["posture_ceiling"] == "autonomous"
+        assert entry["merge_mode_source"] == "epic"
+        assert entry["allow_automerge"] is True
 
     def test_the_prompt_the_child_is_given_matches_what_the_supervisor_was_told(
         self, manager: TaskManager, project: Project, home: Path, configured: Path
@@ -1217,7 +1216,7 @@ class TestARealChildRunGetsTheEpicsEnvelope:
         posture -- so this is the end of the chain the defect broke.
         """
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
         )
         child_id = make_child(manager, parent_id, "First")
         _handle, entry = self.start(manager, project, home, child_id)
@@ -1229,22 +1228,22 @@ class TestARealChildRunGetsTheEpicsEnvelope:
         self, manager: TaskManager, project: Project, home: Path, configured: Path
     ) -> None:
         """The other half of the claim: nothing is widened that was not chosen."""
-        parent_id = make_parent(manager, posture=DispatchPosture.AUTO, posture_source="project")
+        parent_id = make_parent(manager, merge_mode=MergeMode.REVIEW, merge_mode_source="project")
         child_id = make_child(manager, parent_id, "First")
         _handle, entry = self.start(manager, project, home, child_id)
-        assert entry["posture"] == "auto"
-        assert entry["posture_source"] == "project"
+        assert entry["merge_mode"] == "review"
+        assert entry["merge_mode_source"] == "project"
         assert "Do not merge." in entry["argv"][-1]
 
     def test_a_posture_written_on_the_parents_record_does_not_widen_its_children(
         self, manager: TaskManager, project: Project, home: Path, configured: Path
     ) -> None:
         """The refusal that keeps one agent-written field from widening a dozen runs."""
-        parent_id = make_parent(manager, posture=DispatchPosture.AUTONOMOUS, posture_source="task")
+        parent_id = make_parent(manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="task")
         child_id = make_child(manager, parent_id, "First")
         _handle, entry = self.start(manager, project, home, child_id)
-        assert entry["posture"] == "auto"
-        assert entry["posture_source"] == "project"
+        assert entry["merge_mode"] == "review"
+        assert entry["merge_mode_source"] == "project"
 
     def test_the_childs_own_record_still_loses_to_the_epics_choice(
         self, manager: TaskManager, project: Project, home: Path, configured: Path
@@ -1255,13 +1254,13 @@ class TestARealChildRunGetsTheEpicsEnvelope:
         record -- must not now mean something different from the epic it belongs to.
         """
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
         )
         child_id = make_child(manager, parent_id, "First")
-        manager.update_task(child_id, actor="claude", posture=DispatchPosture.SUPERVISED)
+        manager.update_task(child_id, actor="claude", merge_mode=MergeMode.REVIEW)
         _handle, entry = self.start(manager, project, home, child_id)
-        assert entry["posture"] == "autonomous"
-        assert entry["posture_source"] == "epic"
+        assert entry["merge_mode"] == "automerge"
+        assert entry["merge_mode_source"] == "epic"
 
 
 class TestTheWatcherReadsLivenessFirst:
@@ -1671,8 +1670,8 @@ class TestAResumedChildIsNotSilentlyAuto:
                     "enabled": True,
                     "runner": "fake",
                     "require_clean_tree": False,
-                    "posture": "auto",
-                    "max_posture": "autonomous",
+                    "merge_mode": "review",
+                    "allow_automerge": True,
                 }
             },
         }
@@ -1680,7 +1679,7 @@ class TestAResumedChildIsNotSilentlyAuto:
         path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
         return path
 
-    def seed_previous_session(self, home: Path, cli: Path, child_id: str, posture: str) -> None:
+    def seed_previous_session(self, home: Path, cli: Path, child_id: str, merge_mode: str) -> None:
         from agentjobs.dispatch.runner import RunDirectory
         from test_dispatch_wake import set_sessions, stopped_row
 
@@ -1693,8 +1692,8 @@ class TestAResumedChildIsNotSilentlyAuto:
                 "project_id": "sandbox",
                 "mode": "session",
                 "driver": "claude",
-                "posture": posture,
-                "posture_source": "project",
+                "merge_mode": merge_mode,
+                "merge_mode_source": "project",
                 "status": "finished",
                 "session_id": "c3b3a806",
                 "started_at": "2026-09-07T01:00:00+00:00",
@@ -1724,10 +1723,10 @@ class TestAResumedChildIsNotSilentlyAuto:
         from test_dispatch_wake import ran_argv, ran_stdin
 
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
         )
         child_id = make_child(manager, parent_id, "First")
-        self.seed_previous_session(home, cli, child_id, posture="auto")
+        self.seed_previous_session(home, cli, child_id, merge_mode="review")
 
         entry = self.start_child(manager, project, home, child_id)
 
@@ -1736,10 +1735,10 @@ class TestAResumedChildIsNotSilentlyAuto:
         assert ran_stdin(cli.parent) == ""
         assert any("releases the merge gate" in element for element in argv)
         data = dict(entry.data or {})
-        assert data["posture"] == "autonomous"
-        assert data["posture_source"] == "epic"
-        assert data["delivery"]["posture_delivered"] is True
-        assert "posture `auto`" in data["delivery"]["resume_refused"]
+        assert data["merge_mode"] == "automerge"
+        assert data["merge_mode_source"] == "epic"
+        assert data["delivery"]["merge_mode_delivered"] is True
+        assert "merge mode `review`" in data["delivery"]["resume_refused"]
         assert "Resumed" not in (entry.body or "")
 
     def test_a_child_session_already_at_autonomous_is_resumed_and_told_again(
@@ -1748,10 +1747,10 @@ class TestAResumedChildIsNotSilentlyAuto:
         from test_dispatch_wake import ran_argv, ran_stdin
 
         parent_id = make_parent(
-            manager, posture=DispatchPosture.AUTONOMOUS, posture_source="dispatch"
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
         )
         child_id = make_child(manager, parent_id, "First")
-        self.seed_previous_session(home, cli, child_id, posture="autonomous")
+        self.seed_previous_session(home, cli, child_id, merge_mode="automerge")
 
         entry = self.start_child(manager, project, home, child_id)
 
@@ -1759,4 +1758,4 @@ class TestAResumedChildIsNotSilentlyAuto:
         assert "releases the merge gate" in ran_stdin(cli.parent)
         data = dict(entry.data or {})
         assert data["delivery"]["channel"] == "stdin"
-        assert data["delivery"]["posture_delivered"] is True
+        assert data["delivery"]["merge_mode_delivered"] is True

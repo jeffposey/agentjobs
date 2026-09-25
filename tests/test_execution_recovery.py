@@ -42,7 +42,7 @@ def must(value: Optional[_T]) -> _T:
 
 ENVELOPE = {
     "runner": "claude-opus-5",
-    "posture": "auto",
+    "merge_mode": "review",
     "retry_policy": dict(DEFAULT_RETRY_POLICY),
 }
 

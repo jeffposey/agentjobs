@@ -87,12 +87,12 @@ from agentjobs.dispatch.budget import (
 from agentjobs.dispatch.config import (
     DispatchError,
     DispatchResolution,
-    Posture,
-    PostureSource,
+    MergeMode,
+    MergeModeSource,
     SelectionSource,
     assert_dispatch_permitted,
     dispatch_config_path,
-    resolve_posture,
+    resolve_merge_mode,
 )
 from agentjobs.dispatch.config import DispatchRunner as ConfigRunner
 from agentjobs.dispatch.envelope import (
@@ -540,8 +540,8 @@ def compose_authorization_body(
     actor: Actor,
     surface: Optional[str] = None,
     *,
-    raised_from: Optional[Posture] = None,
-    raised_to: Optional[Posture] = None,
+    raised_from: Optional[MergeMode] = None,
+    raised_to: Optional[MergeMode] = None,
 ) -> str:
     """The sentence written when a human dispatches without typing anything.
 
@@ -560,7 +560,7 @@ def compose_authorization_body(
     that is not true. "... authorised a dispatch" is true either way: the human did
     authorise it, and whether a run followed is what the entries after it say.
 
-    **``raised_to`` is what escalation costs** (task-307). When the posture chosen for
+    **``raised_to`` is what escalation costs** (task-307). When the merge mode chosen for
     this one dispatch is wider than the project's own default, this entry names it, so
     the human's own entry shows they *chose* the envelope rather than inheriting it.
 
@@ -571,14 +571,14 @@ def compose_authorization_body(
     later with neither of them in mind. It is cheaper to say it once, here, where the
     human's name already is.
 
-    Deliberately *not* said when a posture on the task record does the widening: that
+    Deliberately *not* said when a merge mode on the task record does the widening: that
     writer need not be a human at all, which is the whole reason task-308 bounds it with
     a ceiling instead of trusting provenance. Attributing it to whoever happened to click
     Dispatch afterwards would be the one sentence here that is actively misleading.
     """
     where = f" from {surface}" if surface else ""
     raised = (
-        f" They chose posture `{raised_to.value}` for this run, above this project's "
+        f" They chose merge mode `{raised_to.value}` for this run, above this project's "
         f"`{raised_from.value}`."
         if raised_to is not None and raised_from is not None
         else ""
@@ -1020,7 +1020,7 @@ class DispatchRequest:
     """Where the click happened, for the composed sentence. Prose for a reader, never
     read back by any check."""
 
-    posture: Optional[Posture] = None
+    merge_mode: Optional[MergeMode] = None
     """A posture chosen for this one dispatch, when somebody chose one (task-308).
 
     The narrowest of the four sources and the one that wins, because it is the only one
@@ -1258,7 +1258,7 @@ def dispatch_task(
     if request.continues_execution_id is not None and not is_continuation(request):
         raise ConflictingAuthorizationError(
             f"This dispatch names execution {request.continues_execution_id} to continue and "
-            "also makes choices of its own (a trigger, runner, group, posture, authoriser or "
+            "also makes choices of its own (a trigger, runner, group, merge mode, authoriser or "
             "epic). A retry within an execution reuses what that execution was granted."
         )
     if is_continuation(request):
@@ -1284,10 +1284,10 @@ def dispatch_task(
     # gates resolve has to *be* the epic's, or a refusal. It is read here and judged
     # below, once the gates have opened, so that naming an epic still routes past none
     # of them; and it is read off the stored record rather than taken from the request,
-    # for the same reason the posture is -- there is no input here a walk could get
+    # for the same reason the merge mode is -- there is no input here a walk could get
     # wrong. Observed 2026-09-18: an epic dispatched on `claude-fable-5-1` started its
     # first child on `claude-opus-5`, the project default, with `posture_source: epic`
-    # on the child's record proving inheritance was wired for posture and nothing else.
+    # on the child's record proving inheritance was wired for merge mode and nothing else.
     inherited: Optional["EpicAuthorization"] = None
     if request.on_behalf_of_parent:
         from agentjobs.dispatch.epic import resolve_epic_authorization
@@ -1357,10 +1357,10 @@ def dispatch_task(
     # the other read like a special case of it.
     granted_note: Optional[str] = None
     granted_data: Optional[Dict[str, object]] = None
-    granted_posture: Optional[Posture] = None
+    granted_merge_mode: Optional[MergeMode] = None
     if request.pull_arming_id is not None:
         from agentjobs.dispatch.journal import journal as _journal
-        from agentjobs.dispatch.pull import posture_of, resolve_pull_authorization
+        from agentjobs.dispatch.pull import merge_mode_of, resolve_pull_authorization
 
         pulled = resolve_pull_authorization(
             project_config, _journal(machine_home).pull_arming(request.pull_arming_id)
@@ -1384,12 +1384,12 @@ def dispatch_task(
         authorizer = pulled.actor
         granted_note = pulled.describe()
         granted_data = pulled.data()
-        # The posture the person chose when they armed, carried the way an epic's is:
+        # The merge mode the person chose when they armed, carried the way an epic's is:
         # read off a stored row rather than taken from the request, and put through
         # `resolve_posture` and its ceiling like every other source. Arming refuses a
-        # posture above the ceiling where a person is waiting for the answer; this is
+        # merge mode above the ceiling where a person is waiting for the answer; this is
         # what happens if the ceiling is lowered afterwards, and it refuses too.
-        granted_posture = posture_of(pulled.arming)
+        granted_merge_mode = merge_mode_of(pulled.arming)
     elif inherited is not None:
         from agentjobs.dispatch.epic import assert_attempts_remain
 
@@ -1408,10 +1408,10 @@ def dispatch_task(
         granted_data = inherited.data()
         # Read off the parent's stored record rather than taken from the request, for
         # the same reason the identity above is: there is no input here a caller could
-        # get wrong or forge. A `DispatchRequest.posture` field would have made the
+        # get wrong or forge. A `DispatchRequest.merge mode` field would have made the
         # child's envelope something the walk asserts; this makes it something the
         # parent's own dispatch entry already says (task-316).
-        granted_posture = inherited.posture
+        granted_merge_mode = inherited.merge_mode
     elif authorizer_id is None:
         causing = resolve_causing_entry(task, request.caused_by)
         assert_human_clocked(project_config, causing)
@@ -1527,12 +1527,12 @@ def dispatch_task(
     # belong above the ones that take locks and write records. Read from the task as it
     # stands now -- the claim below does not touch this field, so re-reading afterwards
     # would only widen the window in which it could change.
-    posture = resolve_posture(
+    merge_mode = resolve_merge_mode(
         resolution.settings,
-        task=Posture(task.posture.value) if task.posture is not None else None,
-        requested=request.posture,
-        inherited=granted_posture,
-        history=history.posture if history is not None else None,
+        task=MergeMode(task.merge_mode.value) if task.merge_mode is not None else None,
+        requested=request.merge_mode,
+        inherited=granted_merge_mode,
+        history=history.merge_mode if history is not None else None,
     )
     # Push only ever narrows across a continuation, like the ceiling: a project that has
     # since switched it off wins, and one that has since switched it on grants nothing to
@@ -1567,7 +1567,7 @@ def dispatch_task(
         home=machine_home,
         api_base=api_base,
         playbook=request.playbook,
-        posture=posture,
+        merge_mode=merge_mode,
         push=push,
         history=history,
         over_ceiling=request.over_ceiling,
@@ -1618,7 +1618,7 @@ def dispatch_task(
             hourly_limit=resolution.limits.dispatches_per_hour,
             envelope=build_envelope(
                 resolution,
-                posture,
+                merge_mode,
                 request,
                 push=push,
                 policy_clause=runner.policy_clause_for(task.id),
@@ -1686,12 +1686,13 @@ def dispatch_task(
 
     try:
         if authorizer is not None:
-            # Only a posture chosen *for this dispatch* counts as the human's choice.
-            # One inherited from the task record widens the envelope just as much, and
-            # is deliberately not attributed to them -- see `compose_authorization_body`.
+            # Only a merge mode chosen *for this dispatch* counts as the human's choice.
+            # One inherited from the task record widens it just as much, and is
+            # deliberately not attributed to them -- see `compose_authorization_body`.
             escalated = (
-                posture.source is PostureSource.DISPATCH
-                and posture.posture.rank > resolution.settings.posture.rank
+                merge_mode.source is MergeModeSource.DISPATCH
+                and merge_mode.merge_mode is MergeMode.AUTOMERGE
+                and resolution.settings.merge_mode is MergeMode.REVIEW
             )
             task, causing = _write_authorizing_entry(
                 manager,
@@ -1700,8 +1701,8 @@ def dispatch_task(
                 note=granted_note or note,
                 surface=request.surface,
                 data=granted_data,
-                raised_from=resolution.settings.posture if escalated else None,
-                raised_to=posture.posture if escalated else None,
+                raised_from=resolution.settings.merge_mode if escalated else None,
+                raised_to=merge_mode.merge_mode if escalated else None,
             )
         if causing is None:  # pragma: no cover - one branch or the other always sets it
             raise DispatchRefused(f"{task.id} produced no causing entry to dispatch on.")
@@ -1819,8 +1820,8 @@ def _write_authorizing_entry(
     note: Optional[str],
     surface: Optional[str],
     data: Optional[Dict[str, object]] = None,
-    raised_from: Optional[Posture] = None,
-    raised_to: Optional[Posture] = None,
+    raised_from: Optional[MergeMode] = None,
+    raised_to: Optional[MergeMode] = None,
 ) -> tuple[Task, LogEntry]:
     """Record the human's authorisation, then read it back out of storage.
 

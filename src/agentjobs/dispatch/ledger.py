@@ -60,7 +60,15 @@ from agentjobs.dispatch.pids import (  # noqa: F401 - re-exported; see the note 
 from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.execution.store import Attempt
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import Ball, BallReason, DispatchMode, DispatchOutcome, LogEntryType
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    DispatchMode,
+    DispatchOutcome,
+    legacy_allow_automerge,
+    LogEntryType,
+    merge_mode_text,
+)
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
 from agentjobs.taskfiles import load_yaml
 from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
@@ -957,11 +965,15 @@ class RunRecord:
     field, and every reader treats empty as "unknown" rather than as a claim.
     """
 
-    posture: str = ""
-    posture_source: str = ""
-    posture_ceiling: str = ""
-    posture_requested: str = ""
-    """How this run's posture was arrived at, as ``ResolvedPosture.as_data`` wrote it.
+    merge_mode: str = ""
+    merge_mode_source: str = ""
+    allow_automerge: Optional[bool] = None
+    merge_mode_requested: str = ""
+    """How this run's merge mode was arrived at, as ``ResolvedMergeMode.as_data`` wrote it.
+
+    A meta written before task-602 names these ``posture*`` and stores the retired
+    spellings; they are read through the legacy map, so ``merge_mode`` here is always a
+    current value or empty.
 
     The dispatcher has recorded these since task-308 and nothing read them back until
     task-315, when the finisher needed to know what *this run* was authorised to do
@@ -1132,10 +1144,14 @@ def read_run(directory: Path) -> RunRecord:
         project_id=str(meta.get("project_id") or ""),
         mode=str(meta.get("mode") or ""),
         agent=str(meta.get("agent") or ""),
-        posture=str(meta.get("posture") or ""),
-        posture_source=str(meta.get("posture_source") or ""),
-        posture_ceiling=str(meta.get("posture_ceiling") or ""),
-        posture_requested=str(meta.get("posture_requested") or ""),
+        merge_mode=merge_mode_text(meta.get("merge_mode") or meta.get("posture")),
+        merge_mode_source=str(meta.get("merge_mode_source") or meta.get("posture_source") or ""),
+        allow_automerge=legacy_allow_automerge(
+            meta["allow_automerge"] if "allow_automerge" in meta else meta.get("posture_ceiling")
+        ),
+        merge_mode_requested=merge_mode_text(
+            meta.get("merge_mode_requested") or meta.get("posture_requested")
+        ),
         status=str(meta.get("status") or "unknown"),
         outcome=str(meta["outcome"]) if meta.get("outcome") else None,
         session_id=str(meta["session_id"]) if meta.get("session_id") else None,
@@ -1314,7 +1330,7 @@ def run_health(record: RunRecord, *, finishing: bool = False) -> str:
 
       **It outranks everything, ``handback`` and ``parked`` included**, which is
       ``derived_display_status``'s rule for the task and deliberately the same one. A
-      finish starts only on an approval or on the run's own ``--posture-release``, so
+      finish starts only on an approval or on the run's own ``--merge-mode-release``, so
       feedback that was waiting has been superseded by the time one is live; and a
       finish holds the task's lock and does not need the session, so a parked prompt
       or a quiet one (a four-minute gate prints nothing the poller sees) is not what is
@@ -2284,7 +2300,7 @@ class DispatchLedger:
             run_id=record.run_id,
             manager=manager,
         ):
-            # The run died inside its own posture finish, which has been started again
+            # The run died inside its own merge mode finish, which has been started again
             # to carry on (task-443). That finish is what acts next.
             return None
         return (

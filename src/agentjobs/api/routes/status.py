@@ -35,7 +35,7 @@ from agentjobs.dispatch.chains import (
     revoke_chain,
 )
 from agentjobs.dispatch.checks import NoChecksError, evaluate_task
-from agentjobs.dispatch.config import DispatchError, Posture
+from agentjobs.dispatch.config import DispatchError, MergeMode
 from agentjobs.dispatch import queue as dispatch_queue
 from agentjobs.dispatch.guards import DispatchRequest, actor_kind, assert_authorizer_is_human
 from agentjobs.dispatch.queue import dispatch_or_queue
@@ -43,7 +43,13 @@ from agentjobs.execution.store import QueuedDispatch
 from agentjobs.dispatch.interactive import settle_for_task, start_interactive_run
 from agentjobs.dispatch.runner import DispatchRunError
 from agentjobs.manager import MoveOutcome, TaskManager, TaskNotFoundError
-from agentjobs.models_v2 import CheckOutcome, LogEntryType, Task
+from agentjobs.models_v2 import (
+    CheckOutcome,
+    LogEntryType,
+    merge_mode_phrase,
+    merge_mode_text,
+    Task,
+)
 from agentjobs.operations import OperationConflictError, RevisionConflictError
 from agentjobs.projects import Project, default_home
 from agentjobs.session_identity import SessionIdentity
@@ -825,7 +831,7 @@ _DISPATCH_STATUS: dict = {
     "cooldown": status.HTTP_409_CONFLICT,
     "machine_per_hour": status.HTTP_409_CONFLICT,
     "dirty_tree": status.HTTP_409_CONFLICT,
-    "posture_above_ceiling": status.HTTP_403_FORBIDDEN,
+    "automerge_not_allowed": status.HTTP_403_FORBIDDEN,
     "claim_lost": status.HTTP_409_CONFLICT,
     "owner_mismatch": status.HTTP_409_CONFLICT,
 }
@@ -877,10 +883,10 @@ _DISPATCH_ACTION: dict = {
         "if you meant to change what it will run."
     ),
     "dirty_tree": "Commit or stash the working tree, then dispatch.",
-    "posture_above_ceiling": (
-        "Choose a posture at or below the project's ceiling, or raise "
-        "projects.<id>.max_posture in ~/.agentjobs/dispatch.yaml by hand. Nothing "
-        "reachable over the network writes that file, which is the point of it."
+    "automerge_not_allowed": (
+        "Dispatch at merge mode review, or set projects.<id>.allow_automerge: true in "
+        "~/.agentjobs/dispatch.yaml by hand. Nothing reachable over the network writes "
+        "that file, which is the point of it."
     ),
     "claim_lost": "Someone else took it. Re-read the task before deciding again.",
     "owner_mismatch": "Release the task, or dispatch the runner that owns it.",
@@ -1004,7 +1010,7 @@ async def dispatch_task_endpoint(
                 # Converted rather than passed through: the API and the dispatch layer
                 # keep separate enums that mirror each other, and the mirror is checked
                 # here rather than by the two happening to agree.
-                posture=Posture(payload.posture.value) if payload.posture else None,
+                merge_mode=MergeMode(payload.merge_mode.value) if payload.merge_mode else None,
                 # Never read by a gate. It decides only what happens to a dispatch the
                 # ceiling refuses: told to the caller, or recorded as waiting for a slot.
                 if_full=payload.if_full,
@@ -1037,7 +1043,7 @@ async def dispatch_task_endpoint(
         return DispatchStarted(
             run_id=handle.queue_id,
             mode="",
-            posture="",
+            merge_mode="",
             task_id=task_id,
             caused_by=0,
             queued=True,
@@ -1050,7 +1056,8 @@ async def dispatch_task_endpoint(
         run_id=handle.run_id,
         session_id=handle.session_id,
         mode=handle.mode.value,
-        posture=str(meta.get("posture") or ""),
+        merge_mode=merge_mode_text(meta.get("merge_mode") or meta.get("posture")),
+        merge_mode_phrase=merge_mode_phrase(meta.get("merge_mode") or meta.get("posture")),
         task_id=task_id,
         caused_by=_as_int(meta.get("caused_by")),
         runner=handle.runner,

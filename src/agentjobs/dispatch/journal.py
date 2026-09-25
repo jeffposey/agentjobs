@@ -44,7 +44,10 @@ from agentjobs.execution.store import (
     OutboxItem,
     SourceEvent,
 )
-from agentjobs.models_v2 import DispatchOutcome
+from agentjobs.models_v2 import (
+    DispatchOutcome,
+    rename_legacy_merge_mode_keys,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - ledger and runner import this module
     from agentjobs.dispatch.ledger import RunRecord
@@ -870,10 +873,10 @@ LEGACY_ENVELOPE_FIELDS = (
     "mode",
     "group",
     "selection_source",
-    "posture",
-    "posture_source",
-    "posture_ceiling",
-    "posture_requested",
+    "merge_mode",
+    "merge_mode_source",
+    "allow_automerge",
+    "merge_mode_requested",
     "agent",
     "trigger",
 )
@@ -904,9 +907,12 @@ def migrate_legacy_runs(home: Path, *, dry_run: bool = False) -> List[LegacyImpo
     store = journal(home)
     results: List[LegacyImport] = []
     for record in reversed(list_runs(home)):
-        meta = _read_meta(record)
-        envelope = {key: meta[key] for key in LEGACY_ENVELOPE_FIELDS if meta.get(key)}
-        unknown = tuple(key for key in LEGACY_ENVELOPE_FIELDS if not meta.get(key))
+        # A run directory written before task-602 names these `posture*`.
+        meta = rename_legacy_merge_mode_keys(_read_meta(record))
+        envelope = {
+            key: meta[key] for key in LEGACY_ENVELOPE_FIELDS if meta.get(key) not in (None, "")
+        }
+        unknown = tuple(key for key in LEGACY_ENVELOPE_FIELDS if meta.get(key) in (None, ""))
         if not record.project_id or not record.task_id:
             results.append(LegacyImport(record.run_id, "unattributable", unknown))
             continue

@@ -100,7 +100,7 @@ def meta_for(task_id: str = "task-001", **overrides: Any) -> Dict[str, Any]:
         "finished_at": ts(6),
         "seconds": 360.0,
         "merge_commit": "abc123",
-        "authority": "posture",
+        "authority": "merge_mode",
         "run_id": "run_11111111",
     }
     base.update(overrides)
@@ -302,7 +302,7 @@ class TestMigration:
             agent="claude",
             runner="claude",
             mode="session",  # type: ignore[arg-type]
-            posture="auto",  # type: ignore[arg-type]
+            merge_mode="review",  # type: ignore[arg-type]
             trigger="manual",  # type: ignore[arg-type]
             caused_by=1,
             argv=["x"],

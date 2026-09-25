@@ -173,17 +173,17 @@ class TestSpawnFinishGrantsRatherThanInherits:
         assert env is not None, "None would hand the child the server's whole environment"
         assert not set(RUN_IDENTITY_VARS) & set(env)
         assert env.get("PATH") == os.environ.get("PATH")
-        assert "--posture-release" not in captured[0]["argv"]
+        assert "--automerge-release" not in captured[0]["argv"]
 
     def test_a_posture_finish_is_granted_only_its_own_run_id(
         self, tmp_path: Path, captured: List[Dict[str, Any]]
     ) -> None:
-        self.spawn(tmp_path, posture_run_id="run_9bf70b6d")
+        self.spawn(tmp_path, automerge_run_id="run_9bf70b6d")
 
         env = captured[0]["env"]
         assert env[RUN_ID_ENV] == "run_9bf70b6d"
         assert RUN_DIR_ENV not in env and CREDENTIAL_ENV not in env
-        assert "--posture-release" in captured[0]["argv"]
+        assert "--automerge-release" in captured[0]["argv"]
 
 
 class TestTheServerIsNeverARun:

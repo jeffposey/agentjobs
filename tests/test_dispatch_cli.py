@@ -103,7 +103,7 @@ class TestDispatchCli:
         assert "claude" in result.output
         assert "batch" in result.output
         assert "session" in result.output
-        assert "posture=auto" in result.output
+        assert "merge_mode=review" in result.output
         assert "max_concurrent_runs=1" in result.output
 
     def test_config_for_one_project_reports_the_refusing_gate(self) -> None:
@@ -120,7 +120,7 @@ class TestDispatchCli:
         result = runner.invoke(app, ["dispatch", "config", "--project", "agentjobs"])
 
         assert "permitted" in result.output
-        assert "posture=auto" in result.output
+        assert "merge_mode=review" in result.output
 
     def test_config_reports_whether_the_scripted_finish_is_on(self) -> None:
         """task-305: the bundle's prose about the finish is conditional, and an agent
@@ -626,7 +626,7 @@ class TestDispatchWalkPosture:
         parent_id = self.seed_epic(root)
 
         result = runner.invoke(
-            app, ["dispatch", "walk", parent_id, "--project", "alpha", "--posture", "yolo"]
+            app, ["dispatch", "walk", parent_id, "--project", "alpha", "--merge-mode", "yolo"]
         )
 
         assert result.exit_code == 2
@@ -634,7 +634,7 @@ class TestDispatchWalkPosture:
 
     def test_a_dry_run_names_the_posture_inherited_from_the_epic(self, tmp_path: Path) -> None:
         root = TestDispatchRun().make_project(tmp_path, "alpha")
-        parent_id = self.seed_epic(root, posture_source="dispatch")
+        parent_id = self.seed_epic(root, merge_mode_source="dispatch")
         write_config(
             runners={
                 "fake": {
@@ -646,8 +646,8 @@ class TestDispatchWalkPosture:
                 "alpha": {
                     "enabled": True,
                     "runner": "fake",
-                    "posture": "auto",
-                    "max_posture": "autonomous",
+                    "merge_mode": "review",
+                    "allow_automerge": True,
                 }
             },
         )
@@ -657,7 +657,7 @@ class TestDispatchWalkPosture:
         )
 
         assert result.exit_code == 0, result.output
-        assert "posture children start at: autonomous (inherited from the epic" in result.output
+        assert "merge mode children start at: automerge (inherited from the epic" in result.output
         assert "nothing was started" in result.output.lower()
 
     def test_a_dry_run_says_so_when_nothing_is_inherited(self, tmp_path: Path) -> None:
@@ -678,7 +678,7 @@ class TestDispatchWalkPosture:
         )
 
         assert result.exit_code == 0, result.output
-        assert "posture children start at: the project default" in result.output
+        assert "merge mode children start at: the project default" in result.output
 
     def test_a_walk_refused_for_a_live_walker_says_so_stamped_and_writes_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -727,11 +727,11 @@ class TestDispatchWalkPosture:
 
     # ----- helpers -----
 
-    def seed_epic(self, root: Path, *, posture_source: str | None = None) -> str:
+    def seed_epic(self, root: Path, *, merge_mode_source: str | None = None) -> str:
         """An active epic with one ready child, dispatched at ``autonomous`` by a human."""
         from agentjobs.models_v2 import (
             DispatchMode,
-            DispatchPosture,
+            MergeMode,
             DispatchTrigger,
             Lifecycle,
             LogEntryType,
@@ -759,8 +759,8 @@ class TestDispatchWalkPosture:
             agent="claude",
             runner="fake",
             mode=DispatchMode.SESSION,
-            posture=DispatchPosture.AUTONOMOUS,
-            posture_source=posture_source,
+            merge_mode=MergeMode.AUTOMERGE,
+            merge_mode_source=merge_mode_source,
             trigger=DispatchTrigger.MANUAL,
             caused_by=stored.log[-1].id,
             argv=["fake"],

@@ -5,7 +5,7 @@ right now and why not, what runs exist for a task, and how to stop one. This mod
 those three, and deliberately nothing more.
 
 **What is missing here is the point.** There is no endpoint that writes a runner, edits
-an argv, sets a posture, or flips the master switch. Dispatch turns an unauthenticated
+an argv, sets a merge mode, or flips the master switch. Dispatch turns an unauthenticated
 localhost API into remote code execution on this machine, so the browser-reachable
 surface may switch a capability that a human already wrote into
 ``~/.agentjobs/dispatch.yaml`` on and off, and may never widen it (design section 6,
@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 from agentjobs.dispatch.config import (
     DispatchConfig,
     DispatchError,
-    Posture,
+    MergeMode,
     SelectionSource,
     assert_dispatch_permitted,
     dispatch_config_path,
@@ -75,7 +75,7 @@ from agentjobs.dispatch.transcript import (
     read_structured_transcript,
 )
 from agentjobs.manager import TaskManager
-from agentjobs.models_v2 import LandingEstimate
+from agentjobs.models_v2 import MERGE_MODE_PHRASES, LandingEstimate, merge_mode_phrase
 from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
 
@@ -139,37 +139,36 @@ class DispatchStateView(BaseModel):
     group: Optional[str] = Field(
         default=None, description="Runner group this project is pointed at, if any."
     )
-    posture: Optional[str] = Field(
-        default=None, description="What a run here gets when nothing else names a posture."
-    )
-    max_posture: Optional[str] = Field(
+    merge_mode: Optional[str] = Field(
         default=None,
+        description="`review` or `automerge`: what a run here gets when nothing else names one.",
+    )
+    allow_automerge: bool = Field(
+        default=False,
         description=(
-            "The widest posture any run here may get, whatever asks for it (task-308). "
-            "Equal to `posture` on a project that has not set a ceiling of its own, "
-            "because that is the only default that cannot silently widen an existing "
-            "machine."
+            "Whether any run here may merge itself, whatever asks for it (task-308, "
+            "task-602). Off on a project whose default is `review` and that has not "
+            "turned it on, because that is the only default that cannot silently widen "
+            "an existing machine."
         ),
     )
-    offerable_postures: List[str] = Field(
+    offerable_merge_modes: List[str] = Field(
         default_factory=list,
         description=(
-            "Every posture at or below `max_posture`, narrowest first. Sent rather "
-            "than derived, for the same reason `resolved_from` is: a browser that "
+            "Every merge mode this project allows, `review` first. Sent rather than "
+            "derived, for the same reason `resolved_from` is: a browser that "
             "re-implements the ceiling is the one place in the system that could offer "
             "a choice the dispatch API will refuse."
         ),
     )
-    posture_merge_policies: Dict[str, str] = Field(
+    merge_mode_phrases: Dict[str, str] = Field(
         default_factory=dict,
         description=(
-            "What each posture does to the *branch*, keyed by posture value (task-021: "
-            "`read_only` -> none, `auto`/`supervised` -> review, `autonomous` -> "
-            "automatic). Sent rather than hardcoded in the client for the same reason "
-            "`offerable_postures` is, and the stake is higher: this is the difference "
-            "between 'stops for your review' and 'merges without you', so a browser "
-            "that carried its own copy could tell an operator the opposite of what the "
-            "posture they picked will actually do."
+            "What each merge mode does, in the words every surface shows, keyed by mode. "
+            "Sent rather than hardcoded in the client (task-309, task-602): this is the "
+            "difference between 'Hands off for your review' and 'Merges itself on a "
+            "green gate', so a browser carrying its own copy could tell an operator the "
+            "opposite of what the mode they picked will do."
         ),
     )
     finish_enabled: bool = Field(
@@ -178,14 +177,14 @@ class DispatchStateView(BaseModel):
             "Whether the scripted finish (task-241) is on for this project, which is "
             "what an autonomous merge runs through. task-021 accepted the consequence "
             "that without it there is no sanctioned mechanism for one -- so a chooser "
-            "offers `autonomous` disabled here rather than granting an envelope whose "
+            "offers `automerge` disabled here rather than granting an envelope whose "
             "merge cannot be performed."
         ),
     )
     push: bool = Field(
         default=False,
         description=(
-            "Whether this project permits pushing. Per project and never a posture "
+            "Whether this project permits pushing. Per project and never a merge mode "
             "property (task-021), and false everywhere today. Surfaced because 'this "
             "project will merge my work without asking me, and publish it' is the one "
             "thing worth knowing beside a Dispatch button."
@@ -321,9 +320,17 @@ class PullModeView(BaseModel):
         default=None,
         description="Runs it may still start, or null when the bound is not a count.",
     )
-    posture: Optional[str] = Field(
+    merge_mode: Optional[str] = Field(
         default=None,
-        description="The envelope pulled runs get, or null for the project's own default.",
+        description="The merge mode pulled runs get, or null for the project's own default.",
+    )
+    merge_mode_phrase: str = Field(
+        default="",
+        description=(
+            "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges "
+            "itself on a green gate'. Composed on the server so no client keeps its own "
+            "copy (task-602). Empty when `merge_mode` is."
+        ),
     )
     next_task_id: str = Field(
         default="",
@@ -353,7 +360,15 @@ class DispatchRunView(BaseModel):
     task_id: str
     project_id: str
     mode: str
-    posture: str
+    merge_mode: str
+    merge_mode_phrase: str = Field(
+        default="",
+        description=(
+            "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges "
+            "itself on a green gate'. Composed on the server so no client keeps its own "
+            "copy (task-602). Empty when `merge_mode` is."
+        ),
+    )
     status: str
     outcome: Optional[str] = None
     session_id: Optional[str] = None
@@ -643,12 +658,12 @@ class PullArmRequest(BaseModel):
     until: Optional[str] = Field(
         default=None, description="An ISO-8601 moment to stop at, for an `until` bound."
     )
-    posture: Optional[str] = Field(
+    merge_mode: Optional[str] = Field(
         default=None,
         description=(
-            "The envelope pulled runs get. Omitted, they get the project's own default. "
-            "Refused here, where a person is waiting for the answer, when it exceeds this "
-            "project's machine-local ceiling."
+            "`review` or `automerge` for the runs it pulls. Omitted, they get the "
+            "project's own default. Refused here, where a person is waiting for the "
+            "answer, when it asks for automerge on a project that does not allow it."
         ),
     )
     user: Optional[str] = Field(
@@ -678,7 +693,8 @@ def _run_view(record: RunRecord, project: Project) -> DispatchRunView:
         task_id=record.task_id,
         project_id=record.project_id,
         mode=record.mode,
-        posture=record.posture,
+        merge_mode=record.merge_mode,
+        merge_mode_phrase=merge_mode_phrase(record.merge_mode),
         status=record.status,
         outcome=record.outcome,
         session_id=record.session_id,
@@ -901,12 +917,14 @@ def _state(project: Project) -> DispatchStateView:
         project_enabled=bool(settings and settings.enabled),
         runner=settings.runner if settings else None,
         group=settings.group if settings else None,
-        posture=settings.posture.value if settings else None,
-        max_posture=settings.ceiling.value if settings else None,
-        offerable_postures=(
-            [posture.value for posture in settings.offerable_postures()] if settings else []
+        merge_mode=settings.merge_mode.value if settings else None,
+        allow_automerge=bool(settings and settings.automerge_allowed),
+        offerable_merge_modes=(
+            [merge_mode.value for merge_mode in settings.offerable_merge_modes()]
+            if settings
+            else []
         ),
-        posture_merge_policies={posture.value: posture.merge_policy.value for posture in Posture},
+        merge_mode_phrases=dict(MERGE_MODE_PHRASES),
         finish_enabled=bool(settings and settings.finish.enabled),
         push=bool(settings and settings.push),
         auto_dispatch=bool(settings and settings.auto_dispatch),
@@ -1039,7 +1057,7 @@ def _pull_view(project: Project) -> PullModeView:
         bound=dispatch_pull.bound_sentence(arming),
         starts_used=arming.started,
         starts_left=arming.starts_left,
-        posture=arming.posture,
+        merge_mode=arming.merge_mode,
         next_task_id=next_task.id if next_task else "",
         next_task_title=next_task.title if next_task else "",
     )
@@ -1075,12 +1093,12 @@ async def arm_pull_mode(
             )
         )
     try:
-        posture = Posture(payload.posture) if payload.posture else None
+        merge_mode = MergeMode(payload.merge_mode) if payload.merge_mode else None
     except ValueError as exc:
         raise _refusal_error(
             dispatch_pull.PullArmingError(
-                f"{payload.posture!r} is not a posture. This project offers: "
-                + ", ".join(item.value for item in Posture)
+                f"{payload.merge_mode!r} is not a merge mode. This project offers: "
+                + ", ".join(item.value for item in MergeMode)
             )
         ) from exc
     try:
@@ -1092,7 +1110,7 @@ async def arm_pull_mode(
             bound_kind=payload.bound_kind or "",
             bound_starts=payload.starts,
             bound_until=payload.until,
-            posture=posture,
+            merge_mode=merge_mode,
         )
     except DispatchError as exc:
         raise _refusal_error(exc) from exc
