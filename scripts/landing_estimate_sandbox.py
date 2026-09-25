@@ -129,9 +129,7 @@ def replay(store: Any, manager: Any, rng: random.Random) -> int:
         slower = 170.0 if week >= 3 else 0.0  # the gate gets slower in the fourth week
         waited = 240.0 if rng.random() < 0.06 else 0.0
         retried = rng.random() < 0.05
-        landing(
-            store, task.id, f"fin_hist{count:04d}", moment, rng, slower, waited, retried, count
-        )
+        landing(store, task.id, f"fin_hist{count:04d}", moment, rng, slower, waited, retried, count)
         count += 1
         moment += timedelta(hours=rng.uniform(6, 30))
     return count
