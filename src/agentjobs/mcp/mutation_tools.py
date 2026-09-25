@@ -152,6 +152,9 @@ CONTENT_FIELDS: Dict[str, Any] = {
     "title": {"type": "string", "minLength": 1},
     "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
     "category": {"type": "string", "minLength": 1},
+    # What the task is, not what may run or merge: it grants nothing, which is why any
+    # actor may set it (task-592). Null clears it back to the default, implementation.
+    "kind": {"type": ["string", "null"], "enum": ["design", "implementation", None]},
     "effort": {"type": "string"},
     "tags": {"type": "array", "items": {"type": "string"}},
     "parent": {"type": ["string", "null"]},
@@ -371,6 +374,11 @@ _CREATE_PROPERTIES: Dict[str, Any] = {
     },
     "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
     "category": {"type": "string"},
+    "kind": {
+        "type": "string",
+        "enum": ["design", "implementation"],
+        "description": "'design' when filing a design pass. Omit for implementation work.",
+    },
     "eligible": {"type": "array", "items": {"type": "string"}},
     "effort": {"type": "string"},
     "tags": {"type": "array", "items": {"type": "string"}},
@@ -1262,14 +1270,15 @@ def mutation_tool_definitions(client: TaskClient) -> List[ToolDefinition]:
             "task_update_content",
             "Update task content",
             (
-                "Edit authoring content: title, priority, category, effort, tags, "
+                "Edit authoring content: title, priority, category, kind, effort, tags, "
                 "parent, posture, spec, acceptance, deliverables, dependencies, "
                 "links, branches. The state axes and the log are absent from the "
                 "schema, not merely rejected -- they move only through the domain "
                 "verbs. Whole nested collections are replaced, matching the REST "
                 "patch contract. `posture` asks for a wider or narrower dispatch "
                 "envelope for this task and is bounded by the project's machine-local "
-                "ceiling, so it is a request and never a grant."
+                "ceiling, so it is a request and never a grant. `kind` says whether "
+                "this is a design pass, and grants nothing either."
             ),
             _verb_schema(
                 revision=True,

@@ -282,7 +282,7 @@ class SqlTaskStore:
     _SUMMARY_COLUMNS = (
         "task_id, title, created_at, updated_at, lifecycle, ball, ball_reason, "
         "ball_prompt, outcome, archived, priority, queue_position, category, effort, "
-        "owner, parent_id, posture, eligible_json"
+        "owner, parent_id, posture, kind, eligible_json"
     )
 
     def _load_task_cards(self) -> List[TaskCard]:
@@ -780,6 +780,7 @@ class SqlTaskStore:
             ("effort", "effort"),
             ("parent", "parent_id"),
             ("posture", "posture"),
+            ("kind", "kind"),
         ):
             if row[column] is not None:
                 document[key] = row[column]
@@ -1045,10 +1046,11 @@ class SqlTaskStore:
                  project_id, task_id, seq, title, created_at, updated_at, revision,
                  lifecycle, ball, ball_reason, ball_prompt, outcome, archived,
                  priority, queue_position, category, effort, owner, parent_id, posture,
+                 kind,
                  spec_summary, spec_intent, spec_description, spec_constraints,
                  spec_out_of_scope, spec_context_json, links_json, eligible_json,
                  closed_at, first_claimed_at, last_activity_at, log_count)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(project_id, task_id) DO UPDATE SET
                  seq=excluded.seq, title=excluded.title, created_at=excluded.created_at,
                  updated_at=excluded.updated_at, revision=excluded.revision,
@@ -1058,6 +1060,7 @@ class SqlTaskStore:
                  priority=excluded.priority, queue_position=excluded.queue_position,
                  category=excluded.category, effort=excluded.effort, owner=excluded.owner,
                  parent_id=excluded.parent_id, posture=excluded.posture,
+                 kind=excluded.kind,
                  spec_summary=excluded.spec_summary, spec_intent=excluded.spec_intent,
                  spec_description=excluded.spec_description,
                  spec_constraints=excluded.spec_constraints,
@@ -1088,6 +1091,7 @@ class SqlTaskStore:
                 task.assignment.owner,
                 task.parent,
                 _enum(task.posture),
+                _enum(task.kind),
                 task.spec.summary,
                 task.spec.intent,
                 task.spec.description,

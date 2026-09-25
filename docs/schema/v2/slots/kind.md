@@ -5,11 +5,6 @@ search:
 
 # Slot: kind 
 
-
-_What kind of party this is. Lives in config only -- never copied into a task file, which is the whole point of D4._
-
-
-
 <div data-search-exclude markdown="1">
 
 
@@ -25,6 +20,7 @@ URI: [aj:slot/kind](https://github.com/jeffposey/agentjobs/schema/v2/slot/kind)
 
 | Name | Description | Modifies Slot |
 | --- | --- | --- |
+| [Task](../classes/Task.md) | A unit of work, stored as one record in the project's database and exported a... |  no  |
 | [Actor](../classes/Actor.md) | A party that can act on tasks |  no  |
 
 
@@ -38,21 +34,13 @@ URI: [aj:slot/kind](https://github.com/jeffposey/agentjobs/schema/v2/slot/kind)
 
 | Property | Value |
 | --- | --- |
-| Range | [ActorKind](../enums/ActorKind.md) |
-| Domain Of | [Actor](../classes/Actor.md) |
+| Range | [String](../types/String.md) |
+| Domain Of | [Task](../classes/Task.md), [Actor](../classes/Actor.md) |
 
 ### Cardinality and Requirements
 
 | Property | Value |
 | --- | --- |
-| Required | Yes |
-### Slot Characteristics
-
-| Property | Value |
-| --- | --- |
-| Owner | [Actor](../classes/Actor.md) |
-
-
 
 
 
@@ -66,13 +54,6 @@ URI: [aj:slot/kind](https://github.com/jeffposey/agentjobs/schema/v2/slot/kind)
 ## Identifier and Mapping Information
 
 
-
-
-
-### Schema Source
-
-
-* from schema: https://github.com/jeffposey/agentjobs/schema/v2
 
 
 
@@ -92,15 +73,10 @@ URI: [aj:slot/kind](https://github.com/jeffposey/agentjobs/schema/v2/slot/kind)
 <details>
 ```yaml
 name: kind
-description: What kind of party this is. Lives in config only -- never copied into
-  a task file, which is the whole point of D4.
-from_schema: https://github.com/jeffposey/agentjobs/schema/v2
-rank: 1000
-owner: Actor
 domain_of:
+- Task
 - Actor
-range: ActorKind
-required: true
+range: string
 
 ```
 </details></div>

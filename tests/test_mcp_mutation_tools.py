@@ -261,6 +261,7 @@ class TestPublishedSurface:
             "title",
             "priority",
             "category",
+            "kind",
             "effort",
             "tags",
             "parent",

@@ -9346,6 +9346,17 @@
             "title": "Id",
             "type": "string"
           },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether this is a design pass or an implementation task. Absent means implementation. Grants nothing: what an approval authorises is the gate's business, not this field's (task-592)."
+          },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle",
             "default": "draft"
@@ -9543,6 +9554,17 @@
             "description": "Unique task identifier.",
             "title": "Id",
             "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Design pass or implementation. Absent means implementation."
           },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle",
@@ -9812,6 +9834,17 @@
             "description": "Unique task identifier.",
             "title": "Id",
             "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Design pass or implementation. Absent means implementation."
           },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle",
@@ -10123,6 +10156,17 @@
             ],
             "description": "Why the task exists (spec.intent).",
             "title": "Intent"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "'design' for a design pass. Omit it for an implementation task: absent means implementation (task-592)."
           },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle",
@@ -10443,6 +10487,15 @@
         "title": "TaskFinishView",
         "type": "object"
       },
+      "TaskKind": {
+        "description": "What a task *is*: a design pass or the building of something (task-592).\n\nAbsent means ``implementation``. It changes how a task is shown and how an approval\nis worded, and never what an approval authorises -- the handoff's gate does that --\nwhich is why any actor may edit it. See docs/task-kind-design.md section 1.",
+        "enum": [
+          "design",
+          "implementation"
+        ],
+        "title": "TaskKind",
+        "type": "string"
+      },
       "TaskRead-Input": {
         "additionalProperties": false,
         "description": "Task plus server-computed dependency state for read surfaces.",
@@ -10549,6 +10602,17 @@
             "description": "Unique task identifier.",
             "title": "Id",
             "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether this is a design pass or an implementation task. Absent means implementation. Grants nothing: what an approval authorises is the gate's business, not this field's (task-592)."
           },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle",
@@ -10848,6 +10912,17 @@
             "title": "Id",
             "type": "string"
           },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether this is a design pass or an implementation task. Absent means implementation. Grants nothing: what an approval authorises is the gate's business, not this field's (task-592)."
+          },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle",
             "default": "draft"
@@ -11126,6 +11201,17 @@
             "title": "Id",
             "type": "string"
           },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Design pass or implementation. Absent means implementation."
+          },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle",
             "default": "draft"
@@ -11384,6 +11470,17 @@
             "description": "Unique task identifier.",
             "title": "Id",
             "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Design pass or implementation. Absent means implementation."
           },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle",
@@ -11653,6 +11750,17 @@
             ],
             "description": "The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.",
             "title": "Expected Revision"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Design pass or implementation. Any actor may change it: it grants nothing, because what an approval authorises is the gate's business (task-592). Send null to clear it back to implementation."
           },
           "links": {
             "anyOf": [
@@ -15317,6 +15425,24 @@
               "description": "Return only the children of this umbrella task.",
               "title": "Parent"
             }
+          },
+          {
+            "description": "Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TaskKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.",
+              "title": "Kind"
+            }
           }
         ],
         "responses": {
@@ -15622,6 +15748,24 @@
               ],
               "description": "Return only the children of this umbrella task.",
               "title": "Parent"
+            }
+          },
+          {
+            "description": "Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TaskKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.",
+              "title": "Kind"
             }
           }
         ],
@@ -18870,6 +19014,24 @@
               "description": "Return only the children of this umbrella task.",
               "title": "Parent"
             }
+          },
+          {
+            "description": "Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TaskKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.",
+              "title": "Kind"
+            }
           }
         ],
         "responses": {
@@ -19125,6 +19287,24 @@
               ],
               "description": "Return only the children of this umbrella task.",
               "title": "Parent"
+            }
+          },
+          {
+            "description": "Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TaskKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.",
+              "title": "Kind"
             }
           }
         ],

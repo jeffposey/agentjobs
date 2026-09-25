@@ -58,6 +58,7 @@ Name: agentjobs-v2
 | [body](slots/body.md) | The human-readable content |
 | [branches](slots/branches.md) | Git branches associated with the task |
 | [category](slots/category.md) | Validated against the project config vocabulary at save time, not enumerated ... |
+| [check](slots/check.md) | Optional argv list whose exit code decides this criterion: 0 is met, anything... |
 | [constraints](slots/constraints.md) | Hard requirements and prohibitions |
 | [context](slots/context.md) | Curated read-this-first pointers, each with a reason |
 | [created](slots/created.md) | Creation timestamp |
@@ -69,7 +70,7 @@ Name: agentjobs-v2
 | [eligible](slots/eligible.md) | Who may claim this task |
 | [id](slots/id.md) | Unique task identifier (e |
 | [intent](slots/intent.md) | WHY this task exists |
-| [kind](slots/kind.md) | What kind of party this is |
+| [kind](slots/kind.md) | Design pass or implementation; absent means implementation |
 | [label](slots/label.md) | Accessible label; alt text wherever it renders |
 | [lifecycle](slots/lifecycle.md) | Where the task is in its life |
 | [links](slots/links.md) | External references |
@@ -101,7 +102,7 @@ Name: agentjobs-v2
 | [type](slots/type.md) |  |
 | [updated](slots/updated.md) | Last update timestamp |
 | [url](slots/url.md) | Target URL |
-| [verify](slots/verify.md) | Optional machine-checkable hint -- a command that demonstrates the criterion |
+| [verify](slots/verify.md) | Optional prose for a person: how somebody would satisfy themselves this crite... |
 | [why](slots/why.md) | What the reader will find there |
 
 
@@ -121,6 +122,7 @@ Name: agentjobs-v2
 | [LogEntryType](enums/LogEntryType.md) | What kind of event a log entry records (section 4) |
 | [Outcome](enums/Outcome.md) | How the task ended |
 | [Priority](enums/Priority.md) | Relative priority weighting |
+| [TaskKind](enums/TaskKind.md) | What a task is |
 
 
 ## Types

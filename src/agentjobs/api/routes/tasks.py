@@ -39,6 +39,7 @@ from agentjobs.models_v2 import (
     Outcome,
     Priority,
     Task,
+    TaskKind,
     TaskSummary,
 )
 
@@ -166,6 +167,13 @@ async def list_tasks(
     parent: Optional[str] = Query(
         default=None, description="Return only the children of this umbrella task."
     ),
+    kind: Optional[TaskKind] = Query(
+        default=None,
+        description=(
+            "Return only tasks of this kind. 'implementation' includes tasks with no "
+            "kind set, because absent means implementation."
+        ),
+    ),
     manager: TaskManager = Depends(get_task_manager),
 ) -> List[TaskSummaryRead]:
     """List tasks filtered along the state axes, as listing rows.
@@ -186,7 +194,7 @@ async def list_tasks(
     asks for by name, so a new surface that never thought about it gets the cheap one.
     """
     summaries, facts = manager.listing_rows(
-        lifecycle=lifecycle, ball=ball, priority=priority_filter, parent=parent
+        lifecycle=lifecycle, ball=ball, priority=priority_filter, parent=parent, kind=kind
     )
     return TaskSummaryRead.from_summaries(facts, summaries)
 
@@ -198,6 +206,13 @@ async def list_full_tasks(
     priority_filter: Optional[Priority] = Query(default=None, alias="priority"),
     parent: Optional[str] = Query(
         default=None, description="Return only the children of this umbrella task."
+    ),
+    kind: Optional[TaskKind] = Query(
+        default=None,
+        description=(
+            "Return only tasks of this kind. 'implementation' includes tasks with no "
+            "kind set, because absent means implementation."
+        ),
     ),
     manager: TaskManager = Depends(get_task_manager),
 ) -> List[TaskRead]:
@@ -214,7 +229,7 @@ async def list_full_tasks(
     id.
     """
     tasks = manager.list_tasks(
-        lifecycle=lifecycle, ball=ball, priority=priority_filter, parent=parent
+        lifecycle=lifecycle, ball=ball, priority=priority_filter, parent=parent, kind=kind
     )
     return TaskRead.from_tasks(manager, tasks)
 

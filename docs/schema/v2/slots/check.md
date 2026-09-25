@@ -3,10 +3,10 @@ search:
   boost: 5.0
 ---
 
-# Slot: verify 
+# Slot: check 
 
 
-_Optional prose for a person: how somebody would satisfy themselves this criterion holds. Never executed -- an executable check is `check`._
+_Optional argv list whose exit code decides this criterion: 0 is met, anything else is failed, including a timeout and a command that cannot be started (task-147). A list, never a string -- nothing splits it and no shell sees it. Changing it resets `status` to pending on every write path, because a status is a claim about a check having been run._
 
 
 
@@ -14,7 +14,7 @@ _Optional prose for a person: how somebody would satisfy themselves this criteri
 
 
 
-URI: [aj:slot/verify](https://github.com/jeffposey/agentjobs/schema/v2/slot/verify)
+URI: [aj:slot/check](https://github.com/jeffposey/agentjobs/schema/v2/slot/check)
 <!-- no inheritance hierarchy -->
 
 
@@ -45,6 +45,7 @@ URI: [aj:slot/verify](https://github.com/jeffposey/agentjobs/schema/v2/slot/veri
 
 | Property | Value |
 | --- | --- |
+| Multivalued | Yes |
 ### Slot Characteristics
 
 | Property | Value |
@@ -80,8 +81,8 @@ URI: [aj:slot/verify](https://github.com/jeffposey/agentjobs/schema/v2/slot/veri
 
 | Mapping Type | Mapped Value |
 | ---  | ---  |
-| self | aj:verify |
-| native | aj:verify |
+| self | aj:check |
+| native | aj:check |
 
 
 
@@ -90,15 +91,19 @@ URI: [aj:slot/verify](https://github.com/jeffposey/agentjobs/schema/v2/slot/veri
 
 <details>
 ```yaml
-name: verify
-description: 'Optional prose for a person: how somebody would satisfy themselves this
-  criterion holds. Never executed -- an executable check is `check`.'
+name: check
+description: 'Optional argv list whose exit code decides this criterion: 0 is met,
+  anything else is failed, including a timeout and a command that cannot be started
+  (task-147). A list, never a string -- nothing splits it and no shell sees it. Changing
+  it resets `status` to pending on every write path, because a status is a claim about
+  a check having been run.'
 from_schema: https://github.com/jeffposey/agentjobs/schema/v2
 rank: 1000
 owner: AcceptanceCriterion
 domain_of:
 - AcceptanceCriterion
 range: string
+multivalued: true
 
 ```
 </details></div>

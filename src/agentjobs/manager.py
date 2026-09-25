@@ -73,7 +73,9 @@ from .models_v2 import (
     RecentLogEntry,
     Task,
     TaskCard,
+    TaskKind,
     TaskSummary,
+    kind_of,
     utcnow,
 )
 from .queue import (
@@ -534,6 +536,7 @@ class TaskManager:
         ball: Optional[Ball] = None,
         priority: Optional[Priority] = None,
         parent: Optional[str] = None,
+        kind: Optional[TaskKind] = None,
     ) -> List[Task]:
         """Return all tasks optionally filtered along the state axes, in queue order.
 
@@ -561,6 +564,8 @@ class TaskManager:
             tasks = [task for task in tasks if task.priority == priority]
         if parent is not None:
             tasks = [task for task in tasks if task.parent == parent]
+        if kind is not None:
+            tasks = [task for task in tasks if kind_of(task) is kind]
         return sorted(tasks, key=listing_key)
 
     def list_task_summaries(
@@ -570,6 +575,7 @@ class TaskManager:
         ball: Optional[Ball] = None,
         priority: Optional[Priority] = None,
         parent: Optional[str] = None,
+        kind: Optional[TaskKind] = None,
     ) -> List[TaskSummary]:
         """:meth:`list_tasks`, projected -- same filters, same order, no prose or log.
 
@@ -578,7 +584,9 @@ class TaskManager:
         and the cost this exists to remove was never the ``WHERE`` clause. It was the
         seven joined child tables, and the projection has already left those behind.
         """
-        return self._filtered(self.storage.list_task_summaries(), lifecycle, ball, priority, parent)
+        return self._filtered(
+            self.storage.list_task_summaries(), lifecycle, ball, priority, parent, kind
+        )
 
     def list_task_cards(self) -> List[TaskCard]:
         """:meth:`list_task_summaries` plus the two fields a dashboard card draws.
@@ -604,6 +612,7 @@ class TaskManager:
         ball: Optional[Ball] = None,
         priority: Optional[Priority] = None,
         parent: Optional[str] = None,
+        kind: Optional[TaskKind] = None,
     ) -> Tuple[List[TaskSummary], Dict[str, DependencyFacts]]:
         """The rows a listing draws, and the corpus-wide facts each row needs, in one read.
 
@@ -615,7 +624,7 @@ class TaskManager:
         """
         corpus = self.storage.list_task_summaries()
         facts = self.dependency_facts(corpus, corpus=corpus)
-        return self._filtered(corpus, lifecycle, ball, priority, parent), facts
+        return self._filtered(corpus, lifecycle, ball, priority, parent, kind), facts
 
     @staticmethod
     def _filtered(
@@ -624,6 +633,7 @@ class TaskManager:
         ball: Optional[Ball],
         priority: Optional[Priority],
         parent: Optional[str],
+        kind: Optional[TaskKind] = None,
     ) -> List[TaskSummary]:
         """The state-axis filters and the listing order, applied once for both callers."""
         if lifecycle is not None:
@@ -634,6 +644,8 @@ class TaskManager:
             summaries = [task for task in summaries if task.priority == priority]
         if parent is not None:
             summaries = [task for task in summaries if task.parent == parent]
+        if kind is not None:
+            summaries = [task for task in summaries if kind_of(task) is kind]
         return sorted(summaries, key=listing_key)
 
     def load_errors(self) -> List[TaskLoadError]:

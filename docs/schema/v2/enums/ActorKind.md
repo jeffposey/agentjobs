@@ -27,12 +27,6 @@ URI: [aj:enum/ActorKind](https://github.com/jeffposey/agentjobs/schema/v2/enum/A
 
 
 
-## Slots
-
-| Name | Description |
-| ---  | --- |
-| [kind](../slots/kind.md) | What kind of party this is |
-
 
 
 

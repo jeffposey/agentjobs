@@ -1243,6 +1243,15 @@ with TaskClient() as client:
 agent-only field. Both audiences use the same record: the summary provides orientation;
 the description supplies detail.
 
+**Filing a design pass? Set `kind: design`** — on `task_create_ready` or
+`task_create_draft`, `create --kind design`, or `kind` in the REST body. A design pass is a
+task whose deliverable is a decision, a design doc or a plan rather than built code.
+Leave it out for everything else: absent means `implementation`, which is what almost
+every task is. If you find a design pass filed without it, set it with
+`task_update_content`; any actor may, because the field grants nothing — it changes how
+the task is shown, never what an approval of it authorises. See
+[task-schema.md](task-schema.md#fields).
+
 ## Notifications and Future Extension
 
 AgentJobs currently relies on the active host's available channel--chat and, when

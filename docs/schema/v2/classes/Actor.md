@@ -136,8 +136,8 @@ attributes:
     description: What kind of party this is. Lives in config only -- never copied
       into a task file, which is the whole point of D4.
     from_schema: https://github.com/jeffposey/agentjobs/schema/v2
-    rank: 1000
     domain_of:
+    - Task
     - Actor
     range: ActorKind
     required: true
@@ -177,9 +177,9 @@ attributes:
     description: What kind of party this is. Lives in config only -- never copied
       into a task file, which is the whole point of D4.
     from_schema: https://github.com/jeffposey/agentjobs/schema/v2
-    rank: 1000
     owner: Actor
     domain_of:
+    - Task
     - Actor
     range: ActorKind
     required: true

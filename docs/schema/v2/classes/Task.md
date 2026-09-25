@@ -113,6 +113,17 @@ URI: [aj:class/Task](https://github.com/jeffposey/agentjobs/schema/v2/class/Task
         
       Task : id
         
+      Task : kind
+        
+          
+    
+        
+        
+        Task --> "0..1" TaskKind : kind
+        click TaskKind href "../../enums/TaskKind/"
+    
+
+        
       Task : lifecycle
         
           
@@ -224,6 +235,7 @@ URI: [aj:class/Task](https://github.com/jeffposey/agentjobs/schema/v2/class/Task
 | [priority](../slots/priority.md) | 0..1 <br/> [Priority](../enums/Priority.md) |  | direct |
 | [queue_position](../slots/queue_position.md) | 0..1 <br/> [Integer](../types/Integer.md) | Explicit order within the priority band | direct |
 | [category](../slots/category.md) | 1 <br/> [String](../types/String.md) | Validated against the project config vocabulary at save time, not enumerated ... | direct |
+| [kind](../slots/kind.md) | 0..1 <br/> [TaskKind](../enums/TaskKind.md) | Design pass or implementation; absent means implementation | direct |
 | [tags](../slots/tags.md) | * <br/> [String](../types/String.md) | Also validated against the config vocabulary at save | direct |
 | [effort](../slots/effort.md) | 0..1 <br/> [String](../types/String.md) | Free text; renamed from estimated_effort | direct |
 | [assignment](../slots/assignment.md) | 0..1 <br/> [Assignment](../classes/Assignment.md) | Live ownership plus authoring-time eligibility | direct |
@@ -482,6 +494,16 @@ attributes:
     domain_of:
     - Task
     required: true
+  kind:
+    name: kind
+    description: Design pass or implementation; absent means implementation. Any actor
+      may change it, because it grants nothing -- the handoff's gate does.
+    from_schema: https://github.com/jeffposey/agentjobs/schema/v2
+    rank: 1000
+    domain_of:
+    - Task
+    - Actor
+    range: TaskKind
   tags:
     name: tags
     description: Also validated against the config vocabulary at save.
@@ -869,6 +891,17 @@ attributes:
     - Task
     range: string
     required: true
+  kind:
+    name: kind
+    description: Design pass or implementation; absent means implementation. Any actor
+      may change it, because it grants nothing -- the handoff's gate does.
+    from_schema: https://github.com/jeffposey/agentjobs/schema/v2
+    rank: 1000
+    owner: Task
+    domain_of:
+    - Task
+    - Actor
+    range: TaskKind
   tags:
     name: tags
     description: Also validated against the config vocabulary at save.

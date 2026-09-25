@@ -414,6 +414,27 @@ class Priority(ValueEnum):
     CRITICAL = "critical"
 
 
+class TaskKind(ValueEnum):
+    """What a task *is*: a design pass or the building of something (task-592).
+
+    Absent means ``implementation``. It changes how a task is shown and how an approval
+    is worded, and never what an approval authorises -- the handoff's gate does that --
+    which is why any actor may edit it. See docs/task-kind-design.md section 1.
+    """
+
+    DESIGN = "design"
+    IMPLEMENTATION = "implementation"
+
+
+def kind_of(task: Any) -> TaskKind:
+    """A task's kind with the default applied: absent reads as ``implementation``.
+
+    The one place the default is spelled, so a filter or a label never has to decide
+    for itself what a task with no ``kind`` is.
+    """
+    return task.kind or TaskKind.IMPLEMENTATION
+
+
 PRIORITY_RANK = {
     Priority.CRITICAL: 0,
     Priority.HIGH: 1,
@@ -1739,6 +1760,14 @@ class Task(StrictModel):
         description="Order within the priority band. Present if and only if the task is open.",
     )
     category: str = Field(..., description="Project taxonomy; validated against config.")
+    kind: Optional[TaskKind] = Field(
+        default=None,
+        description=(
+            "Whether this is a design pass or an implementation task. Absent means "
+            "implementation. Grants nothing: what an approval authorises is the gate's "
+            "business, not this field's (task-592)."
+        ),
+    )
     tags: List[str] = Field(default_factory=list)
     effort: Optional[str] = Field(
         default=None, description="Free text. An estimate, not a contract."
@@ -2060,6 +2089,10 @@ class TaskSummary(StrictModel):
         description="Order within the priority band. Present if and only if the task is open.",
     )
     category: str = Field(..., description="Project taxonomy; validated against config.")
+    kind: Optional[TaskKind] = Field(
+        default=None,
+        description="Design pass or implementation. Absent means implementation.",
+    )
     tags: List[str] = Field(default_factory=list)
     effort: Optional[str] = Field(
         default=None, description="Free text. An estimate, not a contract."

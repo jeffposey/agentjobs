@@ -832,6 +832,10 @@
                     "description": "Unique task identifier (e.g. task-050-schema-v2-models).",
                     "type": "string"
                 },
+                "kind": {
+                    "$ref": "#/$defs/TaskKind",
+                    "description": "Design pass or implementation; absent means implementation. Any actor may change it, because it grants nothing -- the handoff's gate does."
+                },
                 "lifecycle": {
                     "$ref": "#/$defs/Lifecycle",
                     "description": "Where the task is in its life."
@@ -919,6 +923,15 @@
             ],
             "title": "Task",
             "type": "object"
+        },
+        "TaskKind": {
+            "description": "What a task is. Absent means implementation. Changes how a task is shown and how an approval is worded, never what an approval authorises (task-592).",
+            "enum": [
+                "design",
+                "implementation"
+            ],
+            "title": "TaskKind",
+            "type": "string"
         }
     },
     "$id": "https://github.com/jeffposey/agentjobs/schema/v2",
@@ -1235,6 +1248,10 @@
         "id": {
             "description": "Unique task identifier (e.g. task-050-schema-v2-models).",
             "type": "string"
+        },
+        "kind": {
+            "$ref": "#/$defs/TaskKind",
+            "description": "Design pass or implementation; absent means implementation. Any actor may change it, because it grants nothing -- the handoff's gate does."
         },
         "lifecycle": {
             "$ref": "#/$defs/Lifecycle",
