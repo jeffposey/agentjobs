@@ -774,6 +774,33 @@ class TestChildSelection:
 # ----- the real dispatcher, not a stand-in ------------------------------------
 
 
+def resume(
+    manager: TaskManager,
+    parent_id: str,
+    *,
+    merge_mode: MergeMode,
+    run_id: str = "run_resumed",
+) -> None:
+    """A second dispatch of the parent that continues its execution, as a resume records it."""
+    parent = manager.get_task(parent_id)
+    assert parent is not None
+    manager.record_dispatch(
+        parent_id,
+        actor="Jeff Posey",
+        run_id=run_id,
+        agent="claude",
+        runner="fake",
+        mode=DispatchMode.SESSION,
+        merge_mode=merge_mode,
+        merge_mode_source="history",
+        trigger=DispatchTrigger.MANUAL,
+        caused_by=parent.log[0].id,
+        argv=["fake"],
+        cwd=".",
+        git_head="0000000",
+    )
+
+
 class TestWhichPostureSourcesCrossTheBoundary:
     """Only a posture a person chose for the epic reaches its children (task-316).
 
@@ -819,6 +846,49 @@ class TestWhichPostureSourcesCrossTheBoundary:
         parent = manager.get_task(parent_id)
         assert parent is not None
         assert inherited_merge_mode(parent) is None
+
+    def test_a_resumed_supervisor_hands_on_the_merge_mode_a_person_chose(
+        self, manager: TaskManager
+    ) -> None:
+        """task-475: a resume records ``history``, and that is not a reason to drop it.
+
+        The grant the resume continues was a person's click, so the children of the
+        resumed supervisor get what that click chose -- not the project default.
+        """
+        parent_id = make_parent(
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
+        )
+        resume(manager, parent_id, merge_mode=MergeMode.AUTOMERGE)
+        resume(manager, parent_id, merge_mode=MergeMode.AUTOMERGE, run_id="run_resumed_again")
+        parent = manager.get_task(parent_id)
+        assert parent is not None
+        assert inherited_merge_mode(parent) is MergeMode.AUTOMERGE
+        assert any(
+            "automerge (inherited from the epic" in line
+            for line in describe_settings(WalkSettings(), inherited=inherited_merge_mode(parent))
+        )
+
+    def test_a_resume_does_not_launder_a_task_record_into_an_inheritable_grant(
+        self, manager: TaskManager
+    ) -> None:
+        """The reason ``history`` is looked through rather than simply admitted."""
+        parent_id = make_parent(manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="task")
+        resume(manager, parent_id, merge_mode=MergeMode.AUTOMERGE)
+        parent = manager.get_task(parent_id)
+        assert parent is not None
+        assert inherited_merge_mode(parent) is None
+
+    def test_a_resume_clamped_since_hands_on_what_it_now_runs_at(
+        self, manager: TaskManager
+    ) -> None:
+        """A lowered ceiling binds the continuation, and so its children."""
+        parent_id = make_parent(
+            manager, merge_mode=MergeMode.AUTOMERGE, merge_mode_source="dispatch"
+        )
+        resume(manager, parent_id, merge_mode=MergeMode.REVIEW)
+        parent = manager.get_task(parent_id)
+        assert parent is not None
+        assert inherited_merge_mode(parent) is MergeMode.REVIEW
 
     def test_the_project_default_does_not_cross(self, manager: TaskManager) -> None:
         """It already reaches every child on its own; relabelling it would only mislead."""

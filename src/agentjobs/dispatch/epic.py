@@ -114,6 +114,7 @@ from agentjobs.models_v2 import (
     LogEntryType,
     Outcome,
     recorded_merge_mode,
+    rename_legacy_merge_mode_keys,
     Task,
 )
 from agentjobs.store_factory import TaskManagerLike
@@ -327,9 +328,9 @@ def parent_authorizing_entry(parent: Task) -> Optional[LogEntry]:
 
 
 INHERITABLE_MERGE_MODE_SOURCES = frozenset({MergeModeSource.DISPATCH, MergeModeSource.EPIC})
-"""Which sources of a parent run's posture cross into its children (task-316).
+"""Which sources of a parent run's merge mode cross into its children (task-316).
 
-**Only a posture a person chose at the moment they authorised the epic**, and the
+**Only a merge mode a person chose at the moment they authorised the epic**, and the
 ``EPIC`` entry is that same choice one generation further down -- an epic whose child is
 itself an epic passes the original click on rather than dropping it at the second level.
 
@@ -348,6 +349,15 @@ The two that are deliberately absent are the whole decision:
   "inheriting" it would only relabel a run's ``posture_source`` as ``epic`` while
   changing nothing about what the run may do. That relabelling is worse than useless: it
   would point a reader at the parent for an answer that is in ``dispatch.yaml``.
+
+``HISTORY`` -- a resumed parent -- is not in the set, and is not refused either: it is
+*looked through* (task-475). A resume records ``history`` whatever the original grant
+was, so the question is what that grant was. :func:`inherited_merge_mode` walks back to
+the dispatch entry that started the execution the resume continues and applies this
+set to *its* source. A supervisor dispatched ``automerge`` and later resumed keeps
+handing ``automerge`` to its children; one whose grant came from its own task record
+still hands nothing down. Admitting ``history`` outright, as the runner set does, would
+let a resume launder a ``TASK`` source into an inheritable one.
 
 The principle is the one the walk's *authorisation* already runs on: what crosses the
 parent/child boundary is a human's act, and only that.
@@ -385,16 +395,46 @@ def inherited_merge_mode(parent: Task) -> Optional[MergeMode]:
     entry = parent_dispatch_entry(parent)
     if entry is None or not isinstance(entry.data, dict):
         return None
-    try:
-        source = MergeModeSource(entry.data.get("merge_mode_source"))
-    except ValueError:
-        return None
+    source = _grant_source(parent, entry)
     if source not in INHERITABLE_MERGE_MODE_SOURCES:
         return None
     try:
         return recorded_merge_mode(entry.data)
     except ValueError:
         return None
+
+
+def _grant_source(parent: Task, newest: LogEntry) -> Optional[MergeModeSource]:
+    """Where the merge mode the newest dispatch runs at was originally granted from.
+
+    Its own source, unless that is ``history`` (task-475): then the source of the dispatch
+    entry that started the execution it continues -- the newest earlier entry that is not
+    itself a continuation. A new grant always starts a new execution, so that entry is the
+    grant. The mode *returned* is still the newest entry's, which a lowered ceiling may
+    have clamped since.
+    """
+
+    def source_of(entry: LogEntry) -> Optional[MergeModeSource]:
+        data = entry.data if isinstance(entry.data, dict) else {}
+        try:
+            return MergeModeSource(rename_legacy_merge_mode_keys(data).get("merge_mode_source"))
+        except ValueError:
+            return None
+
+    source = source_of(newest)
+    if source is not MergeModeSource.HISTORY:
+        return source
+    earlier = False
+    for entry in reversed(parent.log):
+        if entry is newest:
+            earlier = True
+            continue
+        if not earlier or entry.type is not LogEntryType.DISPATCH:
+            continue
+        found = source_of(entry)
+        if found is not MergeModeSource.HISTORY:
+            return found
+    return None
 
 
 INHERITABLE_RUNNER_SOURCES = frozenset(
