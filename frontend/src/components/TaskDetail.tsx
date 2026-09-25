@@ -22,6 +22,7 @@ import {
 } from "./QuestionForm";
 import { DependencyGraph } from "./DependencyGraph";
 import { ArchivedTag, DependencyState } from "./DependencyState";
+import { KindMark, kindName } from "./KindMark";
 import { PriorityMark } from "./PriorityMark";
 import { StatusChip, taskMotion } from "./StatusChip";
 import { ChainPanel } from "./ChainPanel";
@@ -280,6 +281,12 @@ type PanelVerbs = {
   secondary: SendBackVerb | null;
   /** Re-brief and stop. Offered only where work is underway; see verbsFor. */
   extras: Array<SendBackVerb>;
+  /**
+   * A design task at a result gate (task-593). The heading says so and carries the kind
+   * mark, so the reader knows they are judging a design before reading the title. Copy
+   * only: what Approve says and writes is task-001's, and is left alone here.
+   */
+  design: boolean;
 };
 
 function verbsFor(task: TaskRead, hasOpenQuestions = false): PanelVerbs {
@@ -303,6 +310,7 @@ function verbsFor(task: TaskRead, hasOpenQuestions = false): PanelVerbs {
         hint: "Recorded as a revision: the spec comes back to you when it has been changed.",
       },
       extras: [],
+      design: false,
     };
   }
   const heading = `${task.display_status} — the ball is with you`;
@@ -332,6 +340,7 @@ function verbsFor(task: TaskRead, hasOpenQuestions = false): PanelVerbs {
       primary: null,
       secondary: hasOpenQuestions ? null : answering,
       extras,
+      design: false,
     };
   }
   if (task.ball_reason === "spec") {
@@ -347,15 +356,19 @@ function verbsFor(task: TaskRead, hasOpenQuestions = false): PanelVerbs {
         placeholder: "Explain what the spec still needs...",
       },
       extras,
+      design: false,
     };
   }
+  // The result gate: what comes back here is finished work to judge.
+  const design = kindName(task.kind) === "design";
   return {
     label: "Review actions",
-    heading,
+    heading: design ? "Design review — the ball is with you" : heading,
     guidance,
     primary: { kind: "approve", text: "✓ Approve — agent may merge" },
     secondary: requesting,
     extras,
+    design,
   };
 }
 
@@ -547,7 +560,10 @@ function ReviewPanel({
 
   return (
     <section className={`space-y-4 rounded-xl border-2 border-yellow-600/50 bg-yellow-950/30 p-4 @min-[768px]:p-6 ${MEASURE}`} aria-label={label}>
-      <h2 className="text-lg font-semibold text-yellow-300">{held ? "On hold — nothing will run until you release it" : verbs.heading}</h2>
+      <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-yellow-300">
+        {!held && verbs.design && <KindMark kind="design" className="text-sm font-normal" />}
+        <span>{held ? "On hold — nothing will run until you release it" : verbs.heading}</span>
+      </h2>
       {/* The prompt with its link lines taken out, and them, below it. The prose no
           longer carries the addresses at all -- see ReviewLinks.tsx for the rule and
           the review that produced it. Above the identity line and everything under it,
@@ -910,6 +926,46 @@ export type TaskDetailProps = {
   walk?: EpicWalkView | null;
 };
 
+/**
+ * What a design task and its implementation say about each other (task-593).
+ *
+ * Derived from dependencies, never stored: an implementation that `needs` a design task
+ * reads *Implements*, and a design task names what is waiting on it. The other task's
+ * kind comes on the dependency read model, so this fetches nothing.
+ */
+function KindLinks({ detail, projectId }: { detail: TaskDetailResponse; projectId: string }) {
+  const link = (taskId: string) => (
+    <Link className="font-mono text-blue-300 hover:underline" to={taskPath(projectId, taskId)}>{taskId}</Link>
+  );
+  if (kindName(detail.task.kind) === "design") {
+    const waiting = detail.blocks.filter((relation) => relation.exists);
+    if (waiting.length === 0) return null;
+    return (
+      <p className="mt-2 text-sm text-dark-muted" data-field="implemented-by">
+        Implemented by:{" "}
+        {waiting.map((relation, index) => (
+          <span key={`${relation.task_id}-${index}`}>{index > 0 && ", "}{link(relation.task_id)}</span>
+        ))}{" "}
+        ({waiting.length} waiting on this)
+      </p>
+    );
+  }
+  const designs = detail.needs.filter((relation) => kindName(relation.kind) === "design");
+  if (designs.length === 0) return null;
+  return (
+    <p className="mt-2 text-sm text-dark-muted" data-field="implements">
+      Implements:{" "}
+      {designs.map((relation, index) => (
+        <span key={relation.task_id}>
+          {index > 0 && "; "}
+          {link(relation.task_id)}
+          {relation.title ? ` — ${relation.title}` : ""}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 export function TaskDetail(props: TaskDetailProps) {
   const { detail, projectId } = props;
   const { task } = detail;
@@ -953,7 +1009,7 @@ export function TaskDetail(props: TaskDetailProps) {
         }`}
         data-pinned={pinned ? "yes" : "no"}
       >
-        <div className="min-w-0"><div className="select-all font-mono text-sm text-blue-300">{task.id}</div><h1 className="break-words text-2xl font-bold @min-[768px]:text-3xl">{task.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2"><StatusChip category={task.status_category} label={task.display_status} motion={taskMotion(task)} />{task.archived && <ArchivedTag />}<PriorityMark priority={task.priority} /><span className="text-sm text-dark-muted">{task.category}</span>{task.tags?.map((tag) => <span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 text-xs" key={tag}>{tag}</span>)}</div></div>
+        <div className="min-w-0"><div className="select-all font-mono text-sm text-blue-300">{task.id}</div><h1 className="break-words text-2xl font-bold @min-[768px]:text-3xl">{task.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2"><StatusChip category={task.status_category} label={task.display_status} motion={taskMotion(task)} />{task.archived && <ArchivedTag />}<KindMark kind={task.kind} /><PriorityMark priority={task.priority} /><span className="text-sm text-dark-muted">{task.category}</span>{task.tags?.map((tag) => <span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 text-xs" key={tag}>{tag}</span>)}</div><KindLinks detail={detail} projectId={projectId} /></div>
         <Link to={`/p/${encodeURIComponent(projectId)}/tasks`} className="touch-target shrink-0 rounded-lg border border-dark-border bg-dark-surface px-4 text-sm hover:bg-dark-border">← Back to Tasks</Link>
       </header>
 
