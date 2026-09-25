@@ -630,7 +630,7 @@ class TestDispatchWalkPosture:
         )
 
         assert result.exit_code == 2
-        assert "--posture must be one of" in result.output
+        assert "--merge-mode must be one of" in result.output
 
     def test_a_dry_run_names_the_posture_inherited_from_the_epic(self, tmp_path: Path) -> None:
         root = TestDispatchRun().make_project(tmp_path, "alpha")
