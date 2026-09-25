@@ -810,6 +810,17 @@ class HumanActionResponse(BaseModel):
     task: Task
 
 
+class DeliverableDocument(BaseModel):
+    """One Markdown deliverable, read at the head of the task's active branch (task-594)."""
+
+    index: int = Field(description="Position in the task's deliverables[].")
+    path: str = Field(description="Repository-relative path, as the record lists it.")
+    branch: str = Field(description="The active branch it was read from.")
+    commit: str = Field(description="Short id of the commit the branch pointed at.")
+    size: int = Field(description="Size of the file in bytes.")
+    text: str = Field(description="The file's text, unrendered.")
+
+
 class SafeMutationRequest(BaseModel):
     """Fields every mutation may carry to make a retry safe.
 

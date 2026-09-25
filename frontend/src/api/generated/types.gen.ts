@@ -1462,6 +1462,50 @@ export type Deliverable = {
 };
 
 /**
+ * DeliverableDocument
+ *
+ * One Markdown deliverable, read at the head of the task's active branch (task-594).
+ */
+export type DeliverableDocument = {
+    /**
+     * Branch
+     *
+     * The active branch it was read from.
+     */
+    branch: string;
+    /**
+     * Commit
+     *
+     * Short id of the commit the branch pointed at.
+     */
+    commit: string;
+    /**
+     * Index
+     *
+     * Position in the task's deliverables[].
+     */
+    index: number;
+    /**
+     * Path
+     *
+     * Repository-relative path, as the record lists it.
+     */
+    path: string;
+    /**
+     * Size
+     *
+     * Size of the file in bytes.
+     */
+    size: number;
+    /**
+     * Text
+     *
+     * The file's text, unrendered.
+     */
+    text: string;
+};
+
+/**
  * DeliverableStatus
  *
  * State of one deliverable.
@@ -12061,6 +12105,44 @@ export type MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverabl
 
 export type MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchResponse = MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchResponses[keyof MarkDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesDeliverablePathPatchResponses];
 
+export type GetDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Index
+         */
+        index: number;
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tasks/{task_id}/deliverables/{index}';
+};
+
+export type GetDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetError = GetDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetErrors[keyof GetDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetErrors];
+
+export type GetDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeliverableDocument;
+};
+
+export type GetDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetResponse = GetDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetResponses[keyof GetDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetResponses];
+
 export type GetTaskDetailApiProjectsProjectIdTasksTaskIdDetailGetData = {
     body?: never;
     path: {
@@ -13994,6 +14076,40 @@ export type MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchRespons
 };
 
 export type MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchResponse = MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchResponses[keyof MarkDeliverableApiTasksTaskIdDeliverablesDeliverablePathPatchResponses];
+
+export type GetDeliverableApiTasksTaskIdDeliverablesIndexGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Index
+         */
+        index: number;
+    };
+    query?: never;
+    url: '/api/tasks/{task_id}/deliverables/{index}';
+};
+
+export type GetDeliverableApiTasksTaskIdDeliverablesIndexGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDeliverableApiTasksTaskIdDeliverablesIndexGetError = GetDeliverableApiTasksTaskIdDeliverablesIndexGetErrors[keyof GetDeliverableApiTasksTaskIdDeliverablesIndexGetErrors];
+
+export type GetDeliverableApiTasksTaskIdDeliverablesIndexGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeliverableDocument;
+};
+
+export type GetDeliverableApiTasksTaskIdDeliverablesIndexGetResponse = GetDeliverableApiTasksTaskIdDeliverablesIndexGetResponses[keyof GetDeliverableApiTasksTaskIdDeliverablesIndexGetResponses];
 
 export type GetTaskDetailApiTasksTaskIdDetailGetData = {
     body?: never;
