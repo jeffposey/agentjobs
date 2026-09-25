@@ -96,7 +96,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
@@ -1616,6 +1616,55 @@ def _walk_epic(
                 "have been eligible."
             )
 
+    def finishing(child: Task, run_id: Optional[str]) -> bool:
+        return _handed_to_finish(ledger_home, project.id, child, run_id)
+
+    def settle_closed(child_id: str) -> bool:
+        """Land a child that closed after the walk last judged it. True if it had.
+
+        task-596: a child parked for review, approved, and closed by the scripted finish
+        was last recorded here as parked -- or, when the approval's handback outlived its
+        session, as dead and owed a retry. Neither is what happened. Its record is the
+        signal, as everywhere else in the walk, so a closed child is landed on its
+        outcome: ``completed`` counts, and anything else grounds exactly as it would
+        have had the walk been watching when it closed.
+        """
+        child = manager.get_task(child_id)
+        if child is None:
+            return False
+        closed = _closed_verdict(child)
+        if closed is None:
+            return False
+        verdict, detail = closed
+        previous = next(
+            (attempt for attempt in reversed(result.attempts) if attempt.child_id == child_id),
+            None,
+        )
+        attempt = ChildAttempt(
+            child_id=child_id,
+            attempt=previous.attempt if previous is not None else 0,
+            run_id=previous.run_id if previous is not None else None,
+            verdict=verdict,
+            detail=(
+                f"{detail} (after the walk had recorded it {previous.verdict.value})"
+                if previous is not None
+                else detail
+            ),
+        )
+        while child_id in retries:
+            retries.remove(child_id)
+        result.attempts.append(attempt)
+        announce(attempt.describe())
+        if supervision is not None:
+            supervision.land(
+                attempt,
+                status="landed" if verdict.is_clean else "grounded",
+                revision=_revision(manager, child_id),
+            )
+        if not verdict.is_clean:
+            ground(WalkStop.CHILD_CLOSED_UNRESOLVED, detail, child_id)
+        return True
+
     while True:
         # **Every run status for this tick is read before the corpus snapshot it will be
         # judged against, and that ordering is a correctness argument rather than a
@@ -1647,6 +1696,16 @@ def _walk_epic(
         # walk's reads reads.
         manager.storage.refresh()
 
+        # ----- land whatever closed while nobody was flying it -----------------
+        last_verdicts = {attempt.child_id: attempt.verdict for attempt in result.attempts}
+        for child_id, last in last_verdicts.items():
+            if child_id in in_flight or last in (
+                ChildVerdict.COMPLETED,
+                ChildVerdict.CLOSED_UNRESOLVED,
+            ):
+                continue
+            settle_closed(child_id)
+
         # ----- land whatever has finished -------------------------------------
         for child_id in list(in_flight):
             flight = in_flight[child_id]
@@ -1656,6 +1715,7 @@ def _walk_epic(
                 settings=settings,
                 status=statuses.get(child_id),
                 now=now,
+                finishing=finishing,
             )
             if attempt is None:
                 continue
@@ -1771,6 +1831,11 @@ def _walk_epic(
                 if candidate is None:
                     retries.pop(0)
                     continue
+                if not candidate.is_open:
+                    # Closed since it was owed the retry -- by the scripted finish, on the
+                    # approval that outlived its session. Landed, not restarted (task-596).
+                    settle_closed(candidate.id)
+                    continue
             else:
                 available = frontier(
                     manager, parent_id, exclude=tuple(in_flight) + tuple(contended)
@@ -1837,6 +1902,15 @@ def _walk_epic(
                 )
                 continue
             except DispatchError as exc:
+                manager.storage.refresh()
+                reread = manager.get_task(candidate.id)
+                if reread is not None and not reread.is_open:
+                    # Refused `task_closed`: the child closed between this tick's read and
+                    # the dispatch. That is a landing, not a failed start (task-596).
+                    if supervision is not None:
+                        supervision.refuse(candidate.id, operation_id)
+                    settle_closed(candidate.id)
+                    continue
                 # `DispatchRefused` and the configuration refusals alike (task-453). The
                 # one that matters here is `recorded_runner_unavailable`: the epic's
                 # runner has been switched off since it was dispatched, and the walk
@@ -2006,6 +2080,63 @@ def _is_being_walked(manager: TaskManagerLike, child_id: str) -> bool:
     return any(child.is_open for child in children)
 
 
+def _closed_verdict(child: Task) -> Optional[Tuple[ChildVerdict, str]]:
+    """What a closed child's outcome says about it, or ``None`` while it is open."""
+    if child.lifecycle is not Lifecycle.CLOSED:
+        return None
+    outcome = child.outcome
+    if outcome is Outcome.COMPLETED:
+        return (
+            ChildVerdict.COMPLETED,
+            "closed completed; its own gate ran and its own merge happened",
+        )
+    return (
+        ChildVerdict.CLOSED_UNRESOLVED,
+        f"closed with outcome {outcome.value if outcome else 'none'}, which is a "
+        "deliberate act by whoever closed it and not something to walk past",
+    )
+
+
+def _handed_to_finish(home: Path, project_id: str, child: Task, run_id: Optional[str]) -> bool:
+    """Whether the scripted finish owns this child now, so its ended run is not a death.
+
+    Two signals, both written by the finish rather than inferred (task-596). A live
+    finish holds the child's task lock. Before it takes that lock it stands the child's
+    session down, and the stand-down is on record against the run -- which covers the
+    seconds between the session ending and the lock changing hands. A stand-down stops
+    speaking for the finish once anything has handed the child off since it, because a
+    finish that stops writes a handoff saying why, and from then on the child's ball
+    means what it says.
+
+    Never raises: an unreadable lock or journal is "cannot tell", and the walk then
+    judges the child by its run as it always did.
+    """
+    from agentjobs.dispatch import journal as journal_module
+    from agentjobs.dispatch.ledger import read_task_lock_holder, stale_lock_reason
+
+    try:
+        holder = read_task_lock_holder(home, child.id, project_id=project_id)
+        if holder is not None and holder.is_finish and stale_lock_reason(home, holder) is None:
+            return True
+        request = journal_module.stand_down(home, run_id) if run_id else None
+    except Exception:  # noqa: BLE001 - see the docstring
+        return False
+    if not request:
+        return False
+    try:
+        requested = datetime.fromisoformat(str(request.get("requested_at") or ""))
+    except ValueError:
+        return False
+    if requested.tzinfo is None:
+        requested = requested.replace(tzinfo=timezone.utc)
+
+    def after(entry: LogEntry) -> bool:
+        moment = entry.ts if entry.ts.tzinfo else entry.ts.replace(tzinfo=timezone.utc)
+        return moment > requested
+
+    return not any(entry.type is LogEntryType.HANDOFF and after(entry) for entry in child.log)
+
+
 def _poll_child(
     *,
     manager: TaskManagerLike,
@@ -2013,6 +2144,7 @@ def _poll_child(
     settings: WalkSettings,
     status: Optional[str],
     now: Callable[[], float],
+    finishing: Optional[Callable[[Task, Optional[str]], bool]] = None,
 ) -> Optional[ChildAttempt]:
     """One look at one child: its verdict, or ``None`` while it is still flying.
 
@@ -2052,18 +2184,9 @@ def _poll_child(
             ChildVerdict.DIED, "The task record disappeared while the walk was watching it."
         )
 
-    if child.lifecycle is Lifecycle.CLOSED:
-        outcome = child.outcome
-        if outcome is Outcome.COMPLETED:
-            return verdict(
-                ChildVerdict.COMPLETED,
-                "closed completed; its own gate ran and its own merge happened",
-            )
-        return verdict(
-            ChildVerdict.CLOSED_UNRESOLVED,
-            f"closed with outcome {outcome.value if outcome else 'none'}, which is a "
-            "deliberate act by whoever closed it and not something to walk past",
-        )
+    closed = _closed_verdict(child)
+    if closed is not None:
+        return verdict(*closed)
 
     if child.ball is not Ball.AGENT and _recovering(child, status):
         # Parked on a login or quota refusal that auth recovery resumes by itself
@@ -2091,6 +2214,18 @@ def _poll_child(
         and status in TERMINAL_RUN_STATUSES
         and not _is_being_walked(manager, child_id)
     ):
+        if finishing is not None and finishing(child, run_id):
+            # The run ended because an approval transferred the child to the scripted
+            # finish (task-596). The finish lands it -- closed completed, or a handoff
+            # saying why not -- and until it does the child is not dead: a retry here is
+            # a second session on a task the finish is merging.
+            if now() >= flight.deadline:
+                return verdict(
+                    ChildVerdict.TIMED_OUT,
+                    "handed to the scripted finish, which had not landed it when the "
+                    "child's ceiling ran out",
+                )
+            return None
         return verdict(
             ChildVerdict.DIED,
             f"run ended {status!r} with the child still open and its ball still with the "

@@ -1237,3 +1237,133 @@ class TestAWaitIsNotAnAsk:
         parent = walk.machine.manager.get_task(walk.parent_id)
         assert parent is not None
         assert parent.ball is Ball.HUMAN and parent.ball_reason is BallReason.DECISION
+
+
+# ----- task-596: a child the scripted finish closes is a landing, not a death ------------
+
+
+class TestAnApprovedChildLands:
+    """task-596. On 2026-09-25 task-555's walk ended because it tried to restart a child
+    the scripted finish had just closed ``completed``.
+
+    task-556 parked for review; the approval handed its ball back to agent/work and the
+    finish stood its session down. The walk read an ended run on an open, agent-held
+    child as a death, owed it a retry, and the retry was refused ``task_closed`` a few
+    minutes later when the finish had merged and closed it. That refusal grounded the
+    walk, so the epic stopped with its next children ready and nothing to start them.
+    """
+
+    def after(self, walk: Epic, title: str, blocker: str) -> str:
+        return TestAWaitIsNotAnAsk().after(walk, title, blocker)
+
+    def approve(self, walk: Epic, child_id: str) -> None:
+        """The approval's handback: the ball returns to the agent for the finish."""
+        walk.machine.manager.handoff(
+            child_id,
+            actor="Jeff Posey",
+            ball=Ball.AGENT,
+            ball_reason=BallReason.WORK,
+            ball_prompt="Approved; the scripted finish merges it.",
+            data={"approval": {"approver": "Jeff Posey"}},
+        )
+
+    def test_park_approve_finish_closes_then_the_next_sibling_takes_off(self, walk: Epic) -> None:
+        """ac-1, hosted: the path every server-advanced walk takes."""
+        waits = TestAWaitIsNotAnAsk()
+        resolve = waits.resolve(walk)
+        first = walk.child("First")
+        second = self.after(walk, "Second", first)
+        _dispatch_epic(walk)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+        waits.park(walk, first)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+
+        self.approve(walk, first)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+        assert walk.sessions_named(second) == [], "the finish has not landed it yet"
+
+        walk.machine.manager.close_task(first, actor="finisher", outcome=Outcome.COMPLETED)
+        advance_hosted_walks(walk.machine.home, resolve=resolve)
+
+        assert len(walk.sessions_named(second)) == 1, "the epic did not take off again"
+        assert len(walk.sessions_named(first)) == 1, "the closed child was started again"
+        [record] = journal(walk.machine.home).open_walks()
+        landed = {
+            child.child_task_id: [entry.get("verdict") for entry in child.history]
+            for child in journal(walk.machine.home).supervised_children(record.walk_id)
+        }
+        assert landed[first][-1] == "completed", landed
+
+    def test_a_session_stood_down_for_the_finish_is_not_a_death(self, walk: Epic) -> None:
+        """The task-556 sequence: the run ends while the finish still holds the child."""
+        from agentjobs.dispatch import journal as journal_module
+        from agentjobs.dispatch.ledger import find_run
+
+        first = walk.child("First")
+        second = self.after(walk, "Second", first)
+        ended: Dict[str, str] = {}
+
+        def status(run_id: str) -> Optional[str]:
+            return ended.get(run_id, "running")
+
+        def on_sleep(tick: int) -> None:
+            if tick == 1:
+                [attempt] = journal(walk.machine.home).live_attempts()
+                self.approve(walk, first)
+                journal_module.request_stand_down(
+                    walk.machine.home,
+                    find_run(walk.machine.home, attempt.run_id),
+                    requester="finisher",
+                    source="approval",
+                    reason="approved",
+                    transfer_to="finish",
+                )
+                ended[attempt.run_id] = "finished"
+            elif tick == 3:
+                # The finish merged: minutes later in life, two ticks later here.
+                walk.machine.manager.close_task(first, actor="finisher", outcome=Outcome.COMPLETED)
+            elif tick > 3:
+                walk.complete_active()
+
+        walk.status_of = status  # type: ignore[method-assign]
+        result = walk.walk(on_sleep=on_sleep)
+
+        assert result is not None and result.stop is WalkStop.ALL_CHILDREN_DONE, result.summary()
+        verdicts = [(a.child_id, a.verdict.value) for a in result.attempts]
+        assert verdicts == [(first, "completed"), (second, "completed")], verdicts
+        assert walk.epic_attempts(first) == 1
+
+    def test_a_retry_refused_because_the_child_closed_lands_it(self, walk: Epic) -> None:
+        """The refusal that ended task-555's walk: ``task_closed`` on a retry."""
+        from agentjobs.dispatch.guards import dispatch_task
+
+        first = walk.child("First")
+        second = self.after(walk, "Second", first)
+        ended: Dict[str, str] = {}
+        calls: List[str] = []
+
+        def status(run_id: str) -> Optional[str]:
+            return ended.get(run_id, "running")
+
+        def dispatch(**kwargs: Any) -> Any:
+            child_id = kwargs["request"].task_id
+            calls.append(child_id)
+            if child_id == first and calls.count(first) == 2:
+                # The finish closes it between the walk's read and its dispatch.
+                walk.machine.manager.close_task(first, actor="finisher", outcome=Outcome.COMPLETED)
+            return dispatch_task(**kwargs)
+
+        def on_sleep(tick: int) -> None:
+            if tick == 1:
+                [attempt] = journal(walk.machine.home).live_attempts()
+                ended[attempt.run_id] = "finished"
+            else:
+                walk.complete_active()
+
+        walk.status_of = status  # type: ignore[method-assign]
+        result = walk.walk(on_sleep=on_sleep, dispatch=dispatch)
+
+        assert result is not None and result.stop is WalkStop.ALL_CHILDREN_DONE, result.summary()
+        verdicts = [(a.child_id, a.verdict.value) for a in result.attempts]
+        assert verdicts[-2:] == [(first, "completed"), (second, "completed")], verdicts
+        assert first in result.merged_children
