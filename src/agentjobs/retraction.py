@@ -45,7 +45,7 @@ import re
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence
 
-from .models_v2 import Ball, BallReason, LogEntryType, Task
+from .models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Task
 
 __all__ = [
     "CHILD_REFERENCE",
@@ -135,12 +135,19 @@ def _successor(children: Sequence[Task]) -> Optional[Task]:
     A child still parked on a person comes first -- correcting one stale ask into a
     second one aimed at the same person would be the original defect again -- and an
     agent's live child next.
+
+    **Live means claimed.** A ``ready`` child also holds an agent ball, but nobody is
+    working it: it is either claimable, which is work waiting for a walk, or blocked on
+    a sibling, which is the same wait one step removed. Naming one parked task-555 on
+    2026-09-25 as ``external``/``dependency`` "waiting on task-001" while task-001
+    waited only on a ready sibling -- Blocked with nothing blocking it, and no Dispatch
+    offered (task-596). Such a parent belongs with ``agent``/``available`` instead.
     """
     for child in children:
         if child.is_open and child.ball is Ball.HUMAN:
             return child
     for child in children:
-        if child.is_open and child.ball is Ball.AGENT:
+        if child.ball is Ball.AGENT and child.lifecycle is Lifecycle.ACTIVE:
             return child
     return None
 

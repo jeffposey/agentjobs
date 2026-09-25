@@ -238,6 +238,47 @@ class TestTheSweepTakesItBack:
         assert second.id in (corrected.ball_prompt or "")
         assert waiting_on_stamp(corrected) == second.id, "the correction stamps its own wait"
 
+    def test_a_parent_whose_other_children_are_only_ready_is_left_dispatchable(
+        self, manager: TaskManager
+    ) -> None:
+        """task-596: a ready child is not a wait, blocked or not.
+
+        task-555 was parked ``external``/``dependency`` on task-001, whose only unmet
+        need was a ready sibling. Nothing was working anything, so Blocked was false and
+        withheld the Dispatch button that would have started the next walk.
+        """
+        from agentjobs.models_v2 import Dependency, DependencyType
+
+        parent = epic(manager)
+        first = child(manager, parent, "First")
+        ready = manager.create_task(
+            title="Ready",
+            category="general",
+            summary="Ready.",
+            description="Do it.",
+            lifecycle=Lifecycle.READY,
+            parent=parent.id,
+        )
+        manager.create_task(
+            title="Blocked",
+            category="general",
+            summary="Blocked.",
+            description="Do it after Ready.",
+            lifecycle=Lifecycle.READY,
+            parent=parent.id,
+            dependencies=[Dependency(task=ready.id, type=DependencyType.NEEDS)],
+        )
+        park(manager, first)
+        ask_about(manager, parent, first.id, stamped=True)
+        manager.close_task(first.id, actor="Jeff Posey", outcome=Outcome.COMPLETED)
+
+        self.sweep(manager)
+
+        corrected = manager.get_task(parent.id)
+        assert corrected is not None
+        assert corrected.ball is Ball.AGENT and corrected.ball_reason is BallReason.AVAILABLE
+        assert waiting_on_stamp(corrected) is None
+
     def test_a_parent_whose_children_have_all_closed_is_left_with_the_person(
         self, manager: TaskManager
     ) -> None:
