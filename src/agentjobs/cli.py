@@ -7,13 +7,16 @@ import json
 import os
 import sys
 from contextlib import suppress
+from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, NoReturn, Optional, Sequence, Tuple
 
 import typer
 import yaml
+from pydantic import ValidationError
 
-from .actors import actor_kinds
+from .actors import UnknownActorError, actor_kinds, validate_actor
+from .client import TaskClientError
 from .exposure import Visibility, visibility_of
 from .dispatch.auth import read_auth_stall
 from .dispatch.address import (
@@ -57,11 +60,14 @@ from .models_v2 import (
     DEFAULT_CHAIN_WALL_CLOCK_SECONDS,
     MAX_CHAIN_ITERATIONS,
     Ball,
+    BallReason,
     DispatchMode,
     Lifecycle,
+    LogEntryType,
     Outcome,
     Priority,
     QueuedDispatchState,
+    Task,
     TaskKind,
     kind_of,
     queued_display_status,
@@ -4494,6 +4500,208 @@ def promote(
         raise typer.Exit(code=1)
 
     typer.echo(f"✅ Promoted {task.id}: {task.display_status}")
+
+
+# ----- the agent's loop: claim, log, handoff, release, close, inbox (task-053) ---------
+#
+# These exist so an agent with a shell and no MCP connection can work the whole loop.
+# Unlike `promote` and `queue move`, every mutating verb here takes --actor as a
+# required option with no default_user fallback: a person runs those two, an agent runs
+# these, and defaulting to the owner would write an agent's work into the log under his
+# name.
+
+_ACTOR_HELP = "Your actor id, as the project names it. Required: there is no default."
+
+
+class AuthoredLogType(str, Enum):
+    """The log entry types a caller may write. The rest are the manager's own."""
+
+    PROGRESS = "progress"
+    DECISION = "decision"
+    QUESTION = "question"
+    ANSWER = "answer"
+    NOTE = "note"
+    INSTRUCTION = "instruction"
+
+
+def _agent_verb_context(actor: str) -> Tuple[TaskManagerLike, str]:
+    """The manager, and the actor checked against the project's vocabulary.
+
+    The check is the API's own (``validate_actor``), made here as well so that an
+    unregistered project -- which the CLI answers for itself -- refuses a typo'd actor
+    exactly as the service would, rather than writing it into an append-only log.
+    """
+    base_dir = Path.cwd()
+    config = _load_config(base_dir)
+    try:
+        resolved = validate_actor(config, actor)
+    except UnknownActorError as error:
+        typer.secho(str(error), fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    return _build_manager(base_dir), resolved
+
+
+def _refused(error: Exception) -> NoReturn:
+    """Report a refused verb and exit 1: an expected answer, not a traceback.
+
+    ``ValueError`` is the local manager's refusal (a missing task, a transition the
+    schema forbids); ``TaskClientError`` is the same refusal arriving from the service
+    when the project is registered and this process is its client. A schema refusal is
+    a pydantic ``ValidationError``, whose ``str`` dumps the whole record; only its
+    sentences are printed, since those are what say what to change.
+    """
+    if isinstance(error, ValidationError):
+        message = "\n".join(str(detail["msg"]) for detail in error.errors())
+    else:
+        message = str(error)
+    typer.secho(message, fg=typer.colors.RED)
+    raise typer.Exit(code=1)
+
+
+def _state_line(task: Task) -> str:
+    ball = f"{task.ball.value}/{task.ball_reason.value}" if task.ball and task.ball_reason else "-"
+    return f"{task.id}: {task.lifecycle.value}, ball {ball}"
+
+
+@app.command()
+def claim(
+    task_id: str = typer.Argument(..., help="Ready task to claim."),
+    actor: str = typer.Option(..., "--actor", help=_ACTOR_HELP),
+) -> None:
+    """Claim a ready task. One winner; anyone else is refused."""
+    manager, resolved = _agent_verb_context(actor)
+    try:
+        task = manager.claim_task(task_id, agent=resolved)
+    except (ValueError, TaskClientError) as error:
+        _refused(error)
+    typer.echo(f"✅ Claimed {_state_line(task)}")
+
+
+@app.command()
+def handoff(
+    task_id: str = typer.Argument(..., help="Task whose ball to move."),
+    actor: str = typer.Option(..., "--actor", help=_ACTOR_HELP),
+    ball: Ball = typer.Option(..., "--ball", help="Who acts next."),
+    reason: BallReason = typer.Option(..., "--reason", help="Why they hold it."),
+    prompt: Optional[str] = typer.Option(
+        None,
+        "--prompt",
+        help="What they are being asked to do. Required except for agent/available.",
+    ),
+    note: Optional[str] = typer.Option(
+        None, "--note", help="Log body, when it should say more than the prompt."
+    ),
+) -> None:
+    """Move the ball, with its ask.
+
+    **Refuses a task at human/review.** Approving or sending back a review goes through
+    the approve route, which records the approval receipt and starts the scripted finish
+    (task-241, task-312); a handoff from here would skip both, and nothing on the command
+    line is capability-checked.
+    """
+    manager, resolved = _agent_verb_context(actor)
+    try:
+        current = manager.get_task(task_id)
+    except (ValueError, TaskClientError) as error:
+        _refused(error)
+    if current is None:
+        _refused(ValueError(f"Task '{task_id}' not found"))
+    if current.ball is Ball.HUMAN and current.ball_reason is BallReason.REVIEW:
+        typer.secho(
+            f"{task_id} is waiting on a human review. A review is answered with Approve "
+            "or Request changes in the task page, which records the approval and starts "
+            "the finish; a handoff from the command line would skip both.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+    try:
+        task = manager.handoff(
+            task_id,
+            actor=resolved,
+            ball=ball,
+            ball_reason=reason,
+            ball_prompt=prompt,
+            body=note,
+        )
+    except (ValueError, TaskClientError) as error:
+        _refused(error)
+    typer.echo(f"✅ Handed off {_state_line(task)}")
+
+
+@app.command("log")
+def log_entry(
+    task_id: str = typer.Argument(..., help="Task to write to."),
+    body: str = typer.Argument(..., help="The entry. Write it for a reader with no context."),
+    actor: str = typer.Option(..., "--actor", help=_ACTOR_HELP),
+    entry_type: AuthoredLogType = typer.Option(..., "--type", help="What kind of entry."),
+    re: Optional[int] = typer.Option(
+        None, "--re", help="The entry this one answers or follows up (its log id)."
+    ),
+) -> None:
+    """Append one entry to the task's log: progress, a decision, a question, an answer."""
+    if not body.strip():
+        typer.secho("An empty entry says nothing; write a body.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    manager, resolved = _agent_verb_context(actor)
+    try:
+        task = manager.add_log_entry(
+            task_id,
+            actor=resolved,
+            type=LogEntryType(entry_type.value),
+            body=body,
+            re=re,
+        )
+    except (ValueError, TaskClientError) as error:
+        _refused(error)
+    typer.echo(f"✅ Recorded {entry_type.value} entry {task.log[-1].id} on {task.id}.")
+
+
+@app.command()
+def release(
+    task_id: str = typer.Argument(..., help="Claimed task to put back."),
+    actor: str = typer.Option(..., "--actor", help=_ACTOR_HELP),
+    note: Optional[str] = typer.Option(None, "--note", help="Why you are letting it go."),
+) -> None:
+    """Bow out of a claimed task: it goes back to ready, unclaimed and available."""
+    manager, resolved = _agent_verb_context(actor)
+    try:
+        task = manager.release_task(task_id, actor=resolved, body=note)
+    except (ValueError, TaskClientError) as error:
+        _refused(error)
+    typer.echo(f"✅ Released {_state_line(task)}")
+
+
+@app.command()
+def close(
+    task_id: str = typer.Argument(..., help="Task to close."),
+    actor: str = typer.Option(..., "--actor", help=_ACTOR_HELP),
+    outcome: Outcome = typer.Option(..., "--outcome", help="How it ended."),
+    note: Optional[str] = typer.Option(None, "--note", help="Log body for the close."),
+) -> None:
+    """End the task with an outcome."""
+    manager, resolved = _agent_verb_context(actor)
+    try:
+        task = manager.close_task(task_id, actor=resolved, outcome=outcome, body=note)
+    except (ValueError, TaskClientError) as error:
+        _refused(error)
+    typer.echo(f"✅ Closed {task.id}: {outcome.value}")
+
+
+@app.command()
+def inbox() -> None:
+    """Every open task waiting on a human, with what each one is asking for."""
+    manager = _build_manager(Path.cwd())
+    waiting = [task for task in manager.list_tasks(ball=Ball.HUMAN) if task.is_open]
+    if not waiting:
+        typer.echo("Nothing is waiting on a human.")
+        return
+    for task in waiting:
+        reason = task.ball_reason.value if task.ball_reason else "-"
+        typer.echo(f"{task.id}  [{reason}]")
+        typer.echo(f"  {_fit(task.title, _WIDTH - 2)}")
+        # The prompt is printed whole: it is the ask, and a clipped ask is a different one.
+        for line in (task.ball_prompt or "(no prompt)").splitlines() or [""]:
+            typer.echo(f"{_INDENT}{line}")
 
 
 @app.command()

@@ -225,16 +225,20 @@ a particular desktop operating system.
   machine-local runner configuration, per-project enablement, a run ledger with
   cancellation and startup reconciliation, and four safety gates. Optionally, an approval
   can run the whole rebase/gate/merge/restart close-out with no agent in the loop
-- A CLI covering create, list, show, next, promote, work, validate, the queue and
-  dispatch command groups, project registration, the MCP server, and server control
+- A CLI covering create, list, show, next, promote, the agent's loop (claim, log,
+  handoff, release, close, inbox), work, validate, the queue and dispatch command
+  groups, project registration, the MCP server, and server control
 - Markdown-to-YAML and schema-v1-to-v2 migration tools
 - **Per-project storage.** Every project's records are rows in a SQLite database of its
   own beside the server, with preview, one-way import of an existing YAML corpus,
   verified backup, restore and export under the same command group
 
-The Python client and REST API expose the full schema-v2 state verbs. The CLI has no
-dedicated `claim`/`handoff`/`release`/`close` command — those remain backlog work, and
-agents reach them over MCP; the React application is the primary human interface.
+The Python client, the REST API and the CLI expose the full schema-v2 state verbs, so
+an agent with a shell and no MCP connection can still work the whole loop. The CLI's
+`claim`, `log`, `handoff`, `release` and `close` require `--actor`, with no fallback
+to the project's `default_user`, and `handoff` will not move a task off human review:
+that is Approve or Request changes in the task page. The React application is the
+primary human interface.
 
 ## The design is part of the product
 
@@ -304,6 +308,7 @@ poetry run agentjobs list --lifecycle ready
 poetry run agentjobs show task-001
 poetry run agentjobs next --why          # what to work on, and why not the other one
 poetry run agentjobs work --agent my-agent
+poetry run agentjobs inbox              # everything waiting on a human, with its ask
 
 poetry run agentjobs status
 poetry run agentjobs restart --reload
