@@ -75,6 +75,7 @@ nav:
       - Attention and notifications: attention.md
       - Mobile push: push.md
       - Queue position design: task-selection-design.md
+      - Design and implementation tasks: task-kind-design.md
       - Task schema reference: task-schema.md
       - API reference: api-reference.md
       - Measuring performance: performance.md
