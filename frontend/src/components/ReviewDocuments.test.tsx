@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { client } from "../api/generated/client.gen";
 import type { TaskRead } from "../api/types";
@@ -89,13 +89,29 @@ const DOCUMENT = {
   text: DESIGN,
 };
 
+/**
+ * How long a wait that includes rendering a document may take (flake register row 22).
+ *
+ * Waiting for the heading means waiting for a fetch, a Suspense boundary and a Markdown
+ * parse. Under the gate's full vitest run the first such test took 840-1002 ms even
+ * with the renderer preloaded, and 1561 ms without, so testing-library's 1 s default
+ * turned CPU contention into a red. These tests check what renders, not how fast.
+ */
+const RENDERED = { timeout: 5_000 };
+
 describe("ReviewDocuments", () => {
+  // The renderer is a lazy chunk. Loading it here, once, takes its import (143 ms on an
+  // idle machine) out of every wait below rather than charging it to the first test.
+  beforeAll(async () => {
+    await import("./MarkdownDocument");
+  });
+
   it("renders a Markdown deliverable with where it was read from", async () => {
     serveDocument(DOCUMENT);
     renderDocuments(reviewTask());
 
     const section = screen.getByRole("region", { name: "Documents under review" });
-    expect(await within(section).findByRole("heading", { name: "The design" })).toBeInTheDocument();
+    expect(await within(section).findByRole("heading", { name: "The design" }, RENDERED)).toBeInTheDocument();
     expect(within(section).getByText("decision").tagName).toBe("STRONG");
     expect(within(section).getByRole("cell", { name: "Rejected" })).toBeInTheDocument();
     expect(section).toHaveTextContent("Read from feat/task-594-design at ab12cd34");
@@ -105,7 +121,7 @@ describe("ReviewDocuments", () => {
     serveDocument(DOCUMENT);
     renderDocuments(reviewTask());
     const section = screen.getByRole("region", { name: "Documents under review" });
-    await within(section).findByRole("heading", { name: "The design" });
+    await within(section).findByRole("heading", { name: "The design" }, RENDERED);
 
     expect(within(section).getByRole("link", { name: "the spec" })).toHaveAttribute("href", "https://example.com/spec");
     expect(within(section).queryByRole("link", { name: "a sibling" })).toBeNull();
@@ -119,7 +135,7 @@ describe("ReviewDocuments", () => {
     const requests = serveDocument(DOCUMENT);
     renderDocuments(reviewTask());
     const section = screen.getByRole("region", { name: "Documents under review" });
-    await within(section).findByRole("heading", { name: "The design" });
+    await within(section).findByRole("heading", { name: "The design" }, RENDERED);
 
     expect(section).toHaveTextContent("src/app.pyNot Markdown; listed, not rendered.");
     expect(requests()).toBe(1);
@@ -135,7 +151,7 @@ describe("ReviewDocuments", () => {
     expect(requests()).toBe(0);
 
     fireEvent.click(within(section).getByText("docs/design.md"));
-    expect(await within(section).findByRole("heading", { name: "The design" })).toBeInTheDocument();
+    expect(await within(section).findByRole("heading", { name: "The design" }, RENDERED)).toBeInTheDocument();
     expect(requests()).toBe(1);
   });
 
@@ -169,7 +185,7 @@ describe("ReviewDocuments", () => {
 
     fireEvent.click(maximize);
     const view = screen.getByRole("dialog", { name: "docs/design.md" });
-    expect(await within(view).findByRole("heading", { name: "The design" })).toBeInTheDocument();
+    expect(await within(view).findByRole("heading", { name: "The design" }, RENDERED)).toBeInTheDocument();
     expect(view).toHaveTextContent("Read from feat/task-594-design at ab12cd34");
     const close = within(view).getByRole("button", { name: "Close full screen" });
     expect(close).toHaveFocus();
@@ -189,7 +205,7 @@ describe("ReviewDocuments", () => {
     renderDocuments(reviewTask());
 
     fireEvent.click(screen.getByRole("button", { name: "Read docs/design.md full screen" }));
-    await within(screen.getByRole("dialog")).findByRole("heading", { name: "The design" });
+    await within(screen.getByRole("dialog")).findByRole("heading", { name: "The design" }, RENDERED);
     fireEvent.keyDown(document, { key: "Escape" });
 
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -206,6 +222,6 @@ describe("ReviewDocuments", () => {
   it.each(["approval", "plan"])("appears at the %s gate", async (reason) => {
     serveDocument(DOCUMENT);
     renderDocuments(reviewTask({ ball_reason: reason } as Partial<TaskRead>));
-    expect(await screen.findByRole("heading", { name: "The design" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "The design" }, RENDERED)).toBeInTheDocument();
   });
 });
