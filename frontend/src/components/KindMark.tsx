@@ -6,15 +6,16 @@
  *
  * * **status** -- a solid-filled, squared box, sentence case.
  * * **priority** -- rising bars with no box, UPPERCASE.
- * * **kind** -- a **fully rounded, outlined pill** with only a faint tint, holding the
- *   word in semibold sentence case. The word is always present.
+ * * **kind** -- a **fully rounded, tinted pill with no outline**, holding the word in
+ *   semibold sentence case. The word is always present.
  *
  * **Yellow, a word, and legible** (owner's reviews of task-593). Violet is the landing's
  * colour (`LandingProgress`). Yellow is the colour of work that is not yet code -- the
  * Draft chip is filled with it -- so a design mark sits in that family, told apart from
- * Draft by being an outline over a faint tint rather than a solid fill. No icon: beside
- * the word it said nothing the word did not. And no dashed border, and no shrinking in
- * a list row: both made the mark too hard to read at the size it is drawn.
+ * Draft by a translucent tint and no border, where Draft is a solid fill inside a box.
+ * No icon: beside the word it said nothing the word did not. No dashed border and no
+ * shrinking in a list row: both made the mark too hard to read. The owner chose this
+ * form from four auditions in the review sandbox (option C of the second round).
  *
  * Where it appears is the caller's choice, and deliberately differs: the list marks only
  * `design` (implementation is most rows, and a mark on all of them is noise), while the
@@ -37,17 +38,17 @@ export function kindName(value: string | null | undefined): KindName {
 
 const LABEL: Record<KindName, string> = { design: "Design", implementation: "Implementation" };
 
-/** The Draft chip's yellow (status_vocabulary.json), as an outline over a faint tint. */
-const COLOURS: Record<KindName, { border: string; text: string; fill: string }> = {
-  design: { border: "#facc15", text: "#fde047", fill: "rgba(250, 204, 21, 0.12)" },
-  implementation: { border: "#64748b", text: "#cbd5e1", fill: "rgba(100, 116, 139, 0.12)" },
+/** The Draft chip's yellow (status_vocabulary.json), as a translucent tint. */
+const COLOURS: Record<KindName, { text: string; fill: string }> = {
+  design: { text: "#fde047", fill: "rgba(250, 204, 21, 0.22)" },
+  implementation: { text: "#cbd5e1", fill: "rgba(100, 116, 139, 0.22)" },
 };
 
 export function kindLabel(value: string | null | undefined): string {
   return LABEL[kindName(value)];
 }
 
-/** The kind mark: a rounded, outlined pill holding the word. */
+/** The kind mark: a rounded, tinted pill holding the word. */
 export function KindMark({
   kind,
   className = "",
@@ -61,8 +62,8 @@ export function KindMark({
     <span
       data-kind={name}
       title={`Kind: ${LABEL[name].toLowerCase()}`}
-      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2 text-xs font-semibold leading-5 ${className}`}
-      style={{ borderColor: colours.border, color: colours.text, backgroundColor: colours.fill }}
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 text-xs font-semibold leading-5 ${className}`}
+      style={{ color: colours.text, backgroundColor: colours.fill }}
     >
       {LABEL[name]}
     </span>

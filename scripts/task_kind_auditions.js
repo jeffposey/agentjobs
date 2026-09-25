@@ -8,9 +8,15 @@
   "use strict";
   var KEY = "task-kind-audition";
 
-  // Round two: nothing dashed (too hard to read), every option at full text size.
+  // Round two: nothing dashed (too hard to read), every option at full text size. The owner
+  // chose C, so C is now the shipped mark and the others restyle it.
   var AUDITIONS = {
-    a: { name: "A. Solid outline, faint tint (shipped)", css: "" },
+    a: {
+      name: "A. Solid outline, faint tint",
+      css:
+        '[data-kind="design"]{box-shadow:inset 0 0 0 1px #facc15;' +
+        "background:rgba(250,204,21,0.12)!important}",
+    },
     b: {
       name: "B. Bold yellow word, no box",
       css:
@@ -18,7 +24,7 @@
         "padding-left:0!important;padding-right:0!important;font-weight:700!important}",
     },
     c: {
-      name: "C. Tint only, no outline",
+      name: "C. Tint only, no outline (shipped)",
       css:
         '[data-kind]{border-color:transparent!important}' +
         '[data-kind="design"]{background:rgba(250,204,21,0.22)!important}',
@@ -40,7 +46,7 @@
     } catch (e) {
       /* storage unavailable: fall back to the shipped mark */
     }
-    return "a";
+    return "c";
   }
 
   var style = document.createElement("style");

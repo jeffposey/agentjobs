@@ -44,25 +44,25 @@ const design = task("task-design", { kind: "design", title: "Decide the shape" }
 const build = task("task-build", { title: "Build the shape" });
 
 describe("KindMark", () => {
-  it("draws the word for both kinds in a solid, rounded outline, never colour alone", () => {
+  it("draws the word for both kinds in a tinted pill with no outline, never colour alone", () => {
     render(<><KindMark kind="design" /><KindMark kind={null} /></>);
     const marks = [...document.querySelectorAll<HTMLElement>("[data-kind]")];
     expect(marks.map((mark) => [mark.getAttribute("data-kind"), mark.textContent])).toEqual([
       ["design", "Design"],
       ["implementation", "Implementation"],
     ]);
-    // The owner's review: the word alone, no icon beside it.
+    // The owner's reviews: the word alone, no icon, and no outline of any kind.
     for (const mark of marks) {
       expect(mark.querySelector("svg")).toBeNull();
-      // A dashed line was too hard to read (owner's second review).
+      expect(mark).not.toHaveClass("border");
       expect(mark).not.toHaveClass("border-dashed");
-      expect(mark).toHaveClass("rounded-full", "border", "font-semibold");
+      expect(mark).toHaveClass("rounded-full", "font-semibold");
     }
-    // Design is the Draft chip's yellow, as an outline over a tint; never the landing's violet.
+    // Design is the Draft chip's yellow as a translucent tint; never the landing's violet.
     const designMark = marks[0] as HTMLElement;
     expect(designMark.style.color).toBe("rgb(253, 224, 71)");
-    expect(designMark.style.borderColor).toBe("rgb(250, 204, 21)");
-    expect(designMark.style.backgroundColor).toBe("rgba(250, 204, 21, 0.12)");
+    expect(designMark.style.backgroundColor).toBe("rgba(250, 204, 21, 0.22)");
+    expect(designMark.style.borderColor).toBe("");
   });
 
   it("reads an absent or unknown kind as implementation", () => {
