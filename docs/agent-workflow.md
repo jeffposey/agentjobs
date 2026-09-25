@@ -931,8 +931,8 @@ At any human-decision point:
 
 1. Record what changed, decisions made, verification performed, and remaining risk in
    the task log.
-2. Call `handoff_task()` with `ball="human"`, the precise reason (`review`, `approval`,
-   `decision`, `input`, or `spec`), and a self-contained `ball_prompt`.
+2. Call `handoff_task()` with `ball="human"`, the precise reason (`review`, `plan`,
+   `approval`, `decision`, `input`, or `spec`), and a self-contained `ball_prompt`.
 3. Notify through whatever interactive channel is available today: the chat reply and,
    when the host provides it, push notification. The notification is only a wake-up
    signal; all substance belongs in the task record.
@@ -941,6 +941,21 @@ At any human-decision point:
 **A task whose output is a document lists it in `deliverables[]`**, as a repository-relative
 `.md` path, so the review panel can render it as it stands on the task's active branch
 (task-594).
+
+#### Asking for a go-ahead before you build: `human/plan`
+
+**When you want a plan, design or approach approved before implementing it, hand off to
+`human/plan`, not `human/review`** (task-001). `review` is the final gate: its Approve
+means *cleared to merge*, and since task-312 it is a receipt the scripted finish acts on
+— on a project with `finish=on`, approving at `review` starts a merge of whatever your
+branch holds. At `plan` the panel reads *Approve plan — agent proceeds*, the approval
+comes back to you as `agent/work` with a prompt to build the plan, and nothing anywhere
+treats it as merge authority. When the work is built, hand off to `human/review` as
+usual; that is a second, separate approval.
+
+A `kind: design` task's final review is still `human/review`: approving it merges the
+design document, and says that it authorises no implementation work. What Approve
+writes at each gate is tabled in [task-schema.md](task-schema.md#the-change-everything-follows-from).
 
 #### Name your links, and write them on their own lines
 

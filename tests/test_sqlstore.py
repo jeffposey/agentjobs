@@ -381,6 +381,135 @@ class TestTheAuthorizationTypeMigration:
         assert at_five.writer.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
+class TestThePlanReasonMigration:
+    """Migration 012 widens ``task``'s reason CHECK in place rather than rebuilding it.
+
+    Thirteen tables cascade off ``task``, so a rebuild would have had to park every one
+    of them the way 006 parked ``attachment``. Instead the CHECK's text is edited under
+    ``writable_schema`` -- which is only safe because it widens, and only visible to
+    other connections because the schema cookie moves. Both are asserted here against a
+    store holding rows, since an edit that lost the cookie bump looks fine from the
+    connection that made it.
+    """
+
+    @pytest.fixture()
+    def at_eleven(self, tmp_path: Path) -> Iterator[Database]:
+        """A store stopped at version 11, holding a task, a log entry and an attachment.
+
+        Raw SQL against v11's frozen schema, for the reason ``at_five`` gives.
+        """
+        database = Database(tmp_path / "agentjobs.db")
+        writer = database.writer
+        for migration in available():
+            if migration.version > 11:
+                break
+            writer.executescript(
+                "BEGIN IMMEDIATE;\n"
+                + migration.sql()
+                + f"\nPRAGMA user_version = {migration.version};"
+            )
+            writer.execute("COMMIT")
+        writer.execute("BEGIN IMMEDIATE")
+        writer.execute(
+            "INSERT INTO project(project_id, root, created_at, reporting_tz) "
+            "VALUES ('demo', '/tmp/demo', '2026-01-01T00:00:00Z', 'UTC')"
+        )
+        writer.execute(
+            "INSERT INTO task(project_id, task_id, title, created_at, updated_at, "
+            "lifecycle, ball, ball_reason, ball_prompt, owner, priority, queue_position, "
+            "category, spec_summary, spec_description, last_activity_at, first_claimed_at) "
+            "VALUES ('demo', 'task-001', 'Title for task-001', '2026-01-01T00:00:00Z', "
+            "'2026-01-01T00:00:00Z', 'active', 'human', 'review', 'Please review.', "
+            "'claude', 'medium', 100, 'engineering', 'A summary.', 'A description.', "
+            "'2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+        )
+        writer.execute(
+            "INSERT INTO log_entry(project_id, task_id, entry_id, ts, actor, type, body) "
+            "VALUES ('demo', 'task-001', 1, '2026-01-01T00:00:00Z', 'bot', 'note', 'Hi')"
+        )
+        writer.execute(
+            "INSERT INTO blob(sha256, media_type, size_bytes, content) "
+            "VALUES ('abc', 'image/png', 1, X'00')"
+        )
+        writer.execute(
+            "INSERT INTO attachment(project_id, task_id, entry_id, ord, sha256, label) "
+            "VALUES ('demo', 'task-001', 1, 0, 'abc', 'the screenshot')"
+        )
+        writer.execute("COMMIT")
+        yield database
+        database.close()
+
+    @staticmethod
+    def hand_to(connection: sqlite3.Connection, ball: str, reason: str) -> None:
+        connection.execute(
+            "UPDATE task SET ball = ?, ball_reason = ?, ball_prompt = 'Look at this.' "
+            "WHERE project_id = 'demo' AND task_id = 'task-001'",
+            (ball, reason),
+        )
+
+    def test_v11_refuses_plan_and_v12_accepts_it(self, at_eleven: Database) -> None:
+        with pytest.raises(sqlite3.IntegrityError, match="CHECK constraint failed"):
+            self.hand_to(at_eleven.writer, "human", "plan")
+
+        upgrade(at_eleven, agentjobs_version="test", snapshot_before=False)
+
+        self.hand_to(at_eleven.writer, "human", "plan")
+        with pytest.raises(sqlite3.IntegrityError, match="CHECK constraint failed"):
+            self.hand_to(at_eleven.writer, "agent", "plan")
+        with pytest.raises(sqlite3.IntegrityError, match="CHECK constraint failed"):
+            self.hand_to(at_eleven.writer, "human", "invented")
+
+    def test_a_connection_opened_before_the_upgrade_sees_the_wider_check(
+        self, at_eleven: Database
+    ) -> None:
+        """The cookie bump: without it this connection keeps enforcing v11's list."""
+        other = sqlite3.connect(str(at_eleven.path), isolation_level=None)
+        try:
+            other.execute("SELECT count(*) FROM task").fetchone()  # load its schema cache
+            upgrade(at_eleven, agentjobs_version="test", snapshot_before=False)
+            self.hand_to(other, "human", "plan")
+        finally:
+            other.close()
+
+    def test_it_moves_no_rows_and_leaves_the_file_consistent(self, at_eleven: Database) -> None:
+        def counts() -> List[int]:
+            return [
+                at_eleven.writer.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+                for table in ("task", "log_entry", "attachment", "log_feed")
+            ]
+
+        before = counts()
+        upgrade(at_eleven, agentjobs_version="test", snapshot_before=False)
+
+        assert counts() == before == [1, 1, 1, 1]
+        assert at_eleven.writer.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert at_eleven.writer.execute("PRAGMA foreign_key_check").fetchall() == []
+        leftover = at_eleven.writer.execute(
+            "SELECT count(*) FROM sqlite_master WHERE name = 'migration_012_widened'"
+        ).fetchone()[0]
+        assert leftover == 0
+
+    def test_the_reason_constraint_admits_exactly_the_pairs_the_model_declares(
+        self, at_eleven: Database
+    ) -> None:
+        """The duplication between ``BALL_REASONS`` and rule 2b, enforced in one place.
+
+        The sibling of the log-type test in ``TestSchema``: a new reason that reaches the
+        model without a migration fails here rather than at its first write.
+        """
+        from agentjobs.models_v2 import BALL_REASONS
+
+        upgrade(at_eleven, agentjobs_version="test", snapshot_before=False)
+        for ball, reasons in BALL_REASONS.items():
+            for reason in BallReason:
+                admitted = True
+                try:
+                    self.hand_to(at_eleven.writer, ball.value, reason.value)
+                except sqlite3.IntegrityError:
+                    admitted = False
+                assert admitted == (reason in reasons), (ball.value, reason.value)
+
+
 class TestRoundTrip:
     """A task goes in and comes back out as the same document."""
 

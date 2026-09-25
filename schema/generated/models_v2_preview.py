@@ -195,6 +195,10 @@ class BallReason(str, Enum):
     """
     human: work product needs review (v1's under_review).
     """
+    plan = "plan"
+    """
+    human: a plan, design or approach awaits a go-ahead; nothing is built yet. Approving it sends the task back to be implemented and never authorises a merge.
+    """
     decision = "decision"
     """
     human: a choice is blocking progress.
@@ -425,10 +429,11 @@ class Task(ConfiguredBaseModel):
                     'preconditions': {'slot_conditions': {'ball': {'equals_string': 'agent',
                                                                    'name': 'ball'}}},
                     'title': 'agent_ball_reason_vocabulary'},
-                   {'description': 'Rule 2, human side: spec | review | decision | '
-                                   'approval | input.',
+                   {'description': 'Rule 2, human side: spec | review | plan | '
+                                   'decision | approval | input.',
                     'postconditions': {'slot_conditions': {'ball_reason': {'any_of': [{'equals_string': 'spec'},
                                                                                       {'equals_string': 'review'},
+                                                                                      {'equals_string': 'plan'},
                                                                                       {'equals_string': 'decision'},
                                                                                       {'equals_string': 'approval'},
                                                                                       {'equals_string': 'input'}],

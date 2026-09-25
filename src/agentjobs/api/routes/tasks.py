@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
+from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
@@ -14,6 +14,8 @@ from agentjobs.actors import UnknownActorError, validate_actor
 from agentjobs.principals import Principal
 from agentjobs.attachments import AttachmentError, AttachmentPayload
 from agentjobs.dispatch.approval import (
+    FINAL_GATE,
+    PLAN_GATE,
     accept_signals,
     approval_data,
     approval_in,
@@ -794,6 +796,28 @@ class NoteActionRequest(HumanActionRequest):
     )
 
 
+class ApproveActionRequest(NoteActionRequest):
+    """An approval, plus the gate the person believed they were approving (task-001).
+
+    ``gate`` is a guard, never a source. The route derives the gate from the record's
+    ``ball_reason`` and refuses with 409 when this disagrees, so a page rendered at a plan
+    gate and clicked after the agent re-handed to review cannot merge on a button that
+    said *proceed* -- and the reverse cannot turn a merge approval into a plan approval.
+    Omitted, the derived gate is accepted, which is exactly what the route did before the
+    field existed.
+    """
+
+    gate: Optional[Literal["plan", "final"]] = Field(
+        None,
+        description=(
+            "The gate the approver was shown: `plan` at human/plan, `final` at "
+            "human/review or human/approval. Refused with 409 when it disagrees with "
+            "the record; omitted, the record decides."
+        ),
+        examples=["final"],
+    )
+
+
 class RejectActionRequest(HumanActionRequest):
     """Reject task with reason."""
 
@@ -902,7 +926,7 @@ APPROVAL_CLEARANCE = (
     "the branch merged in branches[], and close this task completed. "
     "No merge has happened yet: the UI records approval, it does not run git."
 )
-"""The sentence every approval carries, note or no note.
+"""The sentence every final approval of an implementation task carries, note or no note.
 
 Named rather than written twice so the with-note branch cannot drift from the
 without-note one. An approval that quietly lost its merge clearance because somebody
@@ -910,12 +934,49 @@ attached a sentence to it would produce exactly the round trip this route pair e
 to remove.
 """
 
+DESIGN_APPROVAL_CLEARANCE = (
+    "Design approved -- cleared to merge the design document. Rebase onto main, "
+    "merge --no-ff, mark the branch merged in branches[], and close this task "
+    "completed. Approving the design authorises no implementation work: that is its "
+    "own tasks. No merge has happened yet: the UI records approval, it does not run git."
+)
+"""What a final approval says on a ``kind: design`` task (task-001, task-592).
+
+Still merge clearance -- the document has to land -- and still finishable. What it adds
+is the limit: the person approved a design, and an agent reading this must not take it
+as leave to start building what the design describes.
+"""
+
+PLAN_APPROVAL = (
+    "Plan approved -- implement it. This is not merge clearance and this task is not "
+    "finished: nothing has been built yet. Build what the approved plan describes, "
+    "then hand off to human/review for the result."
+)
+"""What an approval at ``human/plan`` says (task-001).
+
+Never finishable and never merge authority: the receipt records ``gate: plan`` and
+``approval_in`` refuses it, so the finish, the poller and ``standing_approval`` all see
+no approval. The final review is a separate click on work that exists by then.
+"""
+
+
+def approval_gate(task: Optional[Task]) -> str:
+    """The gate a task is at, read off its ``ball_reason``: ``plan`` or ``final``.
+
+    Only ``human/plan`` is a plan gate. Everything else is ``final``, which is what every
+    approval was before task-001, so the route's behaviour anywhere but a plan gate is
+    unchanged.
+    """
+    if task is not None and task.ball_reason is BallReason.PLAN:
+        return PLAN_GATE
+    return FINAL_GATE
+
 
 @router.post("/{task_id}/approve", response_model=HumanActionResponse)
 async def approve_task(
     task_id: str,
     request: Request,
-    payload: NoteActionRequest,
+    payload: ApproveActionRequest,
     manager: TaskManager = Depends(get_task_manager),
     project: Any = Depends(get_project),
 ) -> HumanActionResponse:
@@ -934,10 +995,28 @@ async def approve_task(
     a fresh review round has inverted the point of attaching one. Before this, an
     approval carrying a sentence had to go through Request Changes: a round trip the
     human did not ask for, and a record that said `revise` about work that was approved.
+
+    **Which gate the task is at decides what the approval says** (task-001). At
+    ``human/plan`` nothing is built yet, so it writes ``PLAN_APPROVAL``, records
+    ``gate: plan`` on the receipt and is never finishable: the approval goes through
+    ``deliver_handback`` like a Request Changes does. Anywhere else it is the final gate
+    and writes ``APPROVAL_CLEARANCE`` as before -- or ``DESIGN_APPROVAL_CLEARANCE`` on a
+    ``kind: design`` task, which merges the document and authorises nothing further.
+    ``payload.gate`` only guards against a stale page; see ``ApproveActionRequest``.
     """
     user = acting_user(request, project, payload.user)
     note = (payload.note or "").strip()
     current = manager.get_task(task_id)
+    gate = approval_gate(current)
+    if current is not None and payload.gate is not None and payload.gate != gate:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"{task_id} is at the {gate} gate, not the {payload.gate} gate: the page "
+                "was showing an older state of this task. Nothing was recorded; reload "
+                "and look again before approving."
+            ),
+        )
     root = getattr(project, "root", None)
     # The receipt (task-312): who approved, the note verbatim, and the branch heads they
     # were looking at, on the source event itself rather than inferred later from prose.
@@ -945,7 +1024,24 @@ async def approve_task(
         approver=user,
         note=note,
         reviewed=reviewed_branches(root, current) if current is not None and root else [],
+        gate=gate,
     )
+    plan = gate == PLAN_GATE
+    if plan:
+        clearance = PLAN_APPROVAL
+        after_note = (
+            "That note is part of the approved plan: build it in, then hand off to "
+            "human/review. This is still not merge clearance."
+        )
+        verb = "Plan approved"
+    else:
+        design = current is not None and current.kind is TaskKind.DESIGN
+        clearance = DESIGN_APPROVAL_CLEARANCE if design else APPROVAL_CLEARANCE
+        after_note = (
+            "That note is context to carry into the merge, not another "
+            + "review round: you are still cleared to merge."
+        )
+        verb = "Approved"
     try:
         task = manager.handoff(
             task_id,
@@ -953,29 +1049,20 @@ async def approve_task(
             ball=Ball.AGENT,
             ball_reason=BallReason.WORK,
             ball_prompt=(
-                (
-                    APPROVAL_CLEARANCE
-                    + NL2
-                    + f"Note from {user}:"
-                    + NL2
-                    + note
-                    + NL2
-                    + "That note is context to carry into the merge, not another "
-                    + "review round: you are still cleared to merge."
-                )
+                (clearance + NL2 + f"Note from {user}:" + NL2 + note + NL2 + after_note)
                 if note
-                else APPROVAL_CLEARANCE
+                else clearance
             ),
             body=(
-                f"Approved by {user} through the web UI:" + NL2 + note
+                f"{verb} by {user} through the web UI:" + NL2 + note
                 if note
-                else f"Approved by {user} through the web UI."
+                else f"{verb} by {user} through the web UI."
             ),
             data=receipt,
         )
         return HumanActionResponse(
             task=after_human_handoff(
-                manager, project, task, request, finishable=True, approver=user
+                manager, project, task, request, finishable=not plan, approver=user
             )
         )
     except ValueError as exc:

@@ -210,6 +210,7 @@ def owes_notification(episode: Optional[Episode], last_notified_id: Optional[str
 
 ASK_PHRASES = {
     BallReason.REVIEW: "Needs review",
+    BallReason.PLAN: "Needs plan approval",
     BallReason.DECISION: "Needs a decision",
     BallReason.APPROVAL: "Needs approval",
     BallReason.INPUT: "Needs your input",

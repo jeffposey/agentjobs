@@ -600,6 +600,58 @@
         "title": "AnswerSubmission",
         "type": "object"
       },
+      "ApproveActionRequest": {
+        "description": "An approval, plus the gate the person believed they were approving (task-001).\n\n``gate`` is a guard, never a source. The route derives the gate from the record's\n``ball_reason`` and refuses with 409 when this disagrees, so a page rendered at a plan\ngate and clicked after the agent re-handed to review cannot merge on a button that\nsaid *proceed* -- and the reverse cannot turn a merge approval into a plan approval.\nOmitted, the derived gate is accepted, which is exactly what the route did before the\nfield existed.",
+        "properties": {
+          "gate": {
+            "anyOf": [
+              {
+                "enum": [
+                  "plan",
+                  "final"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The gate the approver was shown: `plan` at human/plan, `final` at human/review or human/approval. Refused with 409 when it disagrees with the record; omitted, the record decides.",
+            "examples": [
+              "final"
+            ],
+            "title": "Gate"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional note, recorded verbatim in the handoff prompt and the log.",
+            "examples": [
+              "Fold the naming nit in before you merge."
+            ],
+            "title": "Note"
+          },
+          "user": {
+            "description": "User performing the action",
+            "examples": [
+              "jeff"
+            ],
+            "title": "User",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "ApproveActionRequest",
+        "type": "object"
+      },
       "ArmedProjectView": {
         "description": "One project the pull mode is armed for, as the slot board draws it (task-462).\n\nMachine-wide, beside the runs and the waiting dispatches, because that is the scope\nof the thing being described: the pull mode competes for the same `max_concurrent_runs`\nevery other row here is about, and a board that learned \"armed\" from a per-project\ncall would show an arming that is not the one taking the slot in front of it.",
         "properties": {
@@ -955,6 +1007,7 @@
           "hold",
           "spec",
           "review",
+          "plan",
           "decision",
           "approval",
           "input",
@@ -16259,7 +16312,7 @@
     },
     "/api/projects/{project_id}/tasks/{task_id}/approve": {
       "post": {
-        "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").\n\n``note`` is optional and strictly additive (task-228). With none, this writes byte\nfor byte what it wrote before the field existed. With one, the note rides *after*\nthe merge clearance, verbatim and unsummarised, followed by a sentence saying it is\ncontext to carry into the merge -- because an agent that reads an approval note as\na fresh review round has inverted the point of attaching one. Before this, an\napproval carrying a sentence had to go through Request Changes: a round trip the\nhuman did not ask for, and a record that said `revise` about work that was approved.",
+        "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").\n\n``note`` is optional and strictly additive (task-228). With none, this writes byte\nfor byte what it wrote before the field existed. With one, the note rides *after*\nthe merge clearance, verbatim and unsummarised, followed by a sentence saying it is\ncontext to carry into the merge -- because an agent that reads an approval note as\na fresh review round has inverted the point of attaching one. Before this, an\napproval carrying a sentence had to go through Request Changes: a round trip the\nhuman did not ask for, and a record that said `revise` about work that was approved.\n\n**Which gate the task is at decides what the approval says** (task-001). At\n``human/plan`` nothing is built yet, so it writes ``PLAN_APPROVAL``, records\n``gate: plan`` on the receipt and is never finishable: the approval goes through\n``deliver_handback`` like a Request Changes does. Anywhere else it is the final gate\nand writes ``APPROVAL_CLEARANCE`` as before -- or ``DESIGN_APPROVAL_CLEARANCE`` on a\n``kind: design`` task, which merges the document and authorises nothing further.\n``payload.gate`` only guards against a stale page; see ``ApproveActionRequest``.",
         "operationId": "approve_task_api_projects__project_id__tasks__task_id__approve_post",
         "parameters": [
           {
@@ -16285,7 +16338,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NoteActionRequest"
+                "$ref": "#/components/schemas/ApproveActionRequest"
               }
             }
           },
@@ -19805,7 +19858,7 @@
     },
     "/api/tasks/{task_id}/approve": {
       "post": {
-        "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").\n\n``note`` is optional and strictly additive (task-228). With none, this writes byte\nfor byte what it wrote before the field existed. With one, the note rides *after*\nthe merge clearance, verbatim and unsummarised, followed by a sentence saying it is\ncontext to carry into the merge -- because an agent that reads an approval note as\na fresh review round has inverted the point of attaching one. Before this, an\napproval carrying a sentence had to go through Request Changes: a round trip the\nhuman did not ask for, and a record that said `revise` about work that was approved.",
+        "description": "Record human approval and hand the ball back to the agent (agent/work).\n\nNothing here merges anything. The GUI cannot run git, and a button that implied\notherwise would lie. It records the approval in the task record -- which is the\npoint, since approvals used to live only in chat -- and moves the ball: the agent\nmust now rebase, merge --no-ff, mark the branch merged, and close the task\n(ENGINEERING.md, \"The Merge Gate\").\n\n``note`` is optional and strictly additive (task-228). With none, this writes byte\nfor byte what it wrote before the field existed. With one, the note rides *after*\nthe merge clearance, verbatim and unsummarised, followed by a sentence saying it is\ncontext to carry into the merge -- because an agent that reads an approval note as\na fresh review round has inverted the point of attaching one. Before this, an\napproval carrying a sentence had to go through Request Changes: a round trip the\nhuman did not ask for, and a record that said `revise` about work that was approved.\n\n**Which gate the task is at decides what the approval says** (task-001). At\n``human/plan`` nothing is built yet, so it writes ``PLAN_APPROVAL``, records\n``gate: plan`` on the receipt and is never finishable: the approval goes through\n``deliver_handback`` like a Request Changes does. Anywhere else it is the final gate\nand writes ``APPROVAL_CLEARANCE`` as before -- or ``DESIGN_APPROVAL_CLEARANCE`` on a\n``kind: design`` task, which merges the document and authorises nothing further.\n``payload.gate`` only guards against a stale page; see ``ApproveActionRequest``.",
         "operationId": "approve_task_api_tasks__task_id__approve_post",
         "parameters": [
           {
@@ -19822,7 +19875,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NoteActionRequest"
+                "$ref": "#/components/schemas/ApproveActionRequest"
               }
             }
           },

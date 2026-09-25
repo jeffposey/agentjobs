@@ -294,7 +294,7 @@ URI: [aj:class/Task](https://github.com/jeffposey/agentjobs/schema/v2/class/Task
 
 | Rule Applied | Preconditions | Postconditions | Elseconditions |
 |--------------|---------------|----------------|----------------|
-| slot_conditions |```{'ball': {'equals_string': 'human'}}``` |```{'ball_reason': {'any_of': [{'equals_string': 'spec'}, {'equals_string': 'review'}, {'equals_string': 'decision'}, {'equals_string': 'approval'}, {'equals_string': 'input'}]}}``` | |
+| slot_conditions |```{'ball': {'equals_string': 'human'}}``` |```{'ball_reason': {'any_of': [{'equals_string': 'spec'}, {'equals_string': 'review'}, {'equals_string': 'plan'}, {'equals_string': 'decision'}, {'equals_string': 'approval'}, {'equals_string': 'input'}]}}``` | |
 
 
 
@@ -701,10 +701,11 @@ rules:
         any_of:
         - equals_string: spec
         - equals_string: review
+        - equals_string: plan
         - equals_string: decision
         - equals_string: approval
         - equals_string: input
-  description: 'Rule 2, human side: spec | review | decision | approval | input.'
+  description: 'Rule 2, human side: spec | review | plan | decision | approval | input.'
   title: human_ball_reason_vocabulary
 - preconditions:
     slot_conditions:
@@ -1119,10 +1120,11 @@ rules:
         any_of:
         - equals_string: spec
         - equals_string: review
+        - equals_string: plan
         - equals_string: decision
         - equals_string: approval
         - equals_string: input
-  description: 'Rule 2, human side: spec | review | decision | approval | input.'
+  description: 'Rule 2, human side: spec | review | plan | decision | approval | input.'
   title: human_ball_reason_vocabulary
 - preconditions:
     slot_conditions:

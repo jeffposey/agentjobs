@@ -51,6 +51,17 @@ approval it was. It has no reviewed heads, and says so (``legacy``)."""
 
 GIT_TIMEOUT_SECONDS = 10
 
+PLAN_GATE = "plan"
+"""A plan, design or approach was approved before anything was built (task-001).
+
+Recorded on the receipt so the entry says what was approved, and **never merge
+authority**: ``approval_in`` answers ``None`` for it, so ``standing_approval``, the finish
+and the poller all see a plan approval as no approval at all. The work it approved does
+not exist yet."""
+
+FINAL_GATE = "final"
+"""The finished work was approved: the merge gate every approval meant before task-001."""
+
 
 @dataclass(frozen=True)
 class ReviewedBranch:
@@ -136,14 +147,23 @@ def _branch_head(root: Path, name: str) -> Optional[str]:
 
 
 def approval_data(
-    *, approver: str, note: str, reviewed: Sequence[ReviewedBranch]
+    *,
+    approver: str,
+    note: str,
+    reviewed: Sequence[ReviewedBranch],
+    gate: str = FINAL_GATE,
 ) -> Dict[str, Any]:
-    """The ``data`` an approve handoff carries. The note is verbatim, never summarised."""
+    """The ``data`` an approve handoff carries. The note is verbatim, never summarised.
+
+    ``gate`` says which kind of approval this was; a receipt without one predates
+    task-001 and was a final approval, since that was the only kind there was.
+    """
     return {
         APPROVAL_KEY: {
             "approver": approver,
             "note": note,
             "reviewed": [branch.as_data() for branch in reviewed],
+            "gate": gate,
         }
     }
 
@@ -154,13 +174,21 @@ def approval_data(
 def approval_in(
     entry: Optional[LogEntry], *, project_id: str, task_id: str
 ) -> Optional[ApprovalReceipt]:
-    """The approval this entry records, or ``None`` when it records none."""
+    """The approval this entry records, or ``None`` when it records none.
+
+    **A plan approval records none**, as far as every reader of this is concerned: each
+    of them is asking whether a merge is authorised, and approving a plan authorises
+    building it, not merging it (task-001). It is refused here, before the legacy
+    fallback, so no reader has to remember to ask.
+    """
     if entry is None or entry.type is not LogEntryType.HANDOFF:
         return None
     data = entry.data or {}
     if data.get("ball") != Ball.AGENT.value or data.get("ball_reason") != BallReason.WORK.value:
         return None
     raw = data.get(APPROVAL_KEY)
+    if isinstance(raw, Mapping) and raw.get("gate") == PLAN_GATE:
+        return None
     if isinstance(raw, Mapping):
         reviewed = tuple(
             ReviewedBranch(str(item.get("name") or ""), item.get("head") or None)

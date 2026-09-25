@@ -228,7 +228,7 @@ describe("TaskDetail resumption contract", () => {
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     // null, not "": an approval with nothing attached must write exactly the record it
     // wrote before the note existed.
-    await waitFor(() => expect(actions.onApprove).toHaveBeenCalledWith(null));
+    await waitFor(() => expect(actions.onApprove).toHaveBeenCalledWith(null, "final"));
 
     fireEvent.click(screen.getByRole("button", { name: /Request Changes/ }));
     fireEvent.change(screen.getByLabelText("Feedback or questions"), { target: { value: "Tighten the layout." } });
@@ -629,8 +629,52 @@ describe("TaskDetail review panel offers only verbs that are true", () => {
     // Trimmed, and it goes through approve. Before this it had to go through Request
     // Changes, which recorded approved work as `revise` and asked for a round trip
     // nobody wanted.
-    await waitFor(() => expect(actions.onApprove).toHaveBeenCalledWith("Fold the naming nit in first."));
+    await waitFor(() =>
+      expect(actions.onApprove).toHaveBeenCalledWith("Fold the naming nit in first.", "final"),
+    );
     expect(actions.onSendBack).not.toHaveBeenCalled();
+  });
+
+  // task-001: the plan gate. Nothing is built at human/plan, so nothing in the panel
+  // may say merge -- and the approval it sends has to name the plan gate, or the
+  // server cannot tell a stale page from a real one.
+  it("offers a plan approval at human/plan that never mentions merging", async () => {
+    const actions = renderDetail(
+      atReason("plan", { display_status: "Needs plan approval", ball_prompt: "Here is the plan." }),
+    );
+
+    const panel = screen.getByRole("region", { name: "Review actions" });
+    expect(within(panel).getByRole("heading", { name: "Plan to approve — nothing is built yet" })).toBeVisible();
+    expect(within(panel).queryByText(/merge/i)).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /agent may merge/ })).not.toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "✓ Approve plan — agent proceeds" }));
+    expect(within(panel).getByLabelText("Approval note (optional) — becomes part of the plan")).toBeVisible();
+    expect(within(panel).queryByText(/merge/i)).not.toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Approve plan" }));
+
+    await waitFor(() => expect(actions.onApprove).toHaveBeenCalledWith(null, "plan"));
+  });
+
+  it("says a design task's final Approve merges the doc, and sends the final gate", async () => {
+    const actions = renderDetail(atReason("review", { display_status: "Needs review", kind: "design" }));
+
+    const panel = screen.getByRole("region", { name: "Review actions" });
+    expect(within(panel).getByRole("heading", { level: 2 })).toHaveTextContent("Design review — the ball is with you");
+    expect(within(panel).queryByRole("button", { name: "✓ Approve — agent may merge" })).not.toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "✓ Approve design — merge the doc" }));
+    fireEvent.click(within(panel).getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => expect(actions.onApprove).toHaveBeenCalledWith(null, "final"));
+  });
+
+  it("keeps the implementation wording at the final gate", () => {
+    renderDetail(atReason("review", { display_status: "Needs review", kind: "implementation" }));
+
+    const panel = screen.getByRole("region", { name: "Review actions" });
+    expect(within(panel).getByRole("heading", { name: "Needs review — the ball is with you" })).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "✓ Approve — agent may merge" })).toBeVisible();
+    expect(within(panel).queryByRole("button", { name: /Approve plan|Approve design/ })).not.toBeInTheDocument();
   });
 });
 

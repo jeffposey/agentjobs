@@ -116,6 +116,11 @@ enums:
         description: "human: the spec needs human completion or refinement."
       review:
         description: "human: work product needs review (v1's under_review)."
+      plan:
+        description: >-
+          human: a plan, design or approach awaits a go-ahead; nothing is built yet.
+          Approving it sends the task back to be implemented and never authorises a
+          merge.
       decision:
         description: "human: a choice is blocking progress."
       approval:
@@ -516,7 +521,8 @@ classes:
                 - equals_string: hold
 
       - title: human_ball_reason_vocabulary
-        description: "Rule 2, human side: spec | review | decision | approval | input."
+        description: >-
+          Rule 2, human side: spec | review | plan | decision | approval | input.
         preconditions:
           slot_conditions:
             ball:
@@ -527,6 +533,7 @@ classes:
               any_of:
                 - equals_string: spec
                 - equals_string: review
+                - equals_string: plan
                 - equals_string: decision
                 - equals_string: approval
                 - equals_string: input

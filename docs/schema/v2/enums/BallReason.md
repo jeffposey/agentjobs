@@ -28,6 +28,7 @@ URI: [aj:enum/BallReason](https://github.com/jeffposey/agentjobs/schema/v2/enum/
 | hold | None | agent: stopped by a human, with the release condition stated in ball_prompt |
 | spec | None | human: the spec needs human completion or refinement |
 | review | None | human: work product needs review (v1's under_review) |
+| plan | None | human: a plan, design or approach awaits a go-ahead; nothing is built yet |
 | decision | None | human: a choice is blocking progress |
 | approval | None | human: a gate -- merge, spend, publish |
 | input | None | human: missing information only a human has |
@@ -106,6 +107,11 @@ permissible_values:
   review:
     text: review
     description: 'human: work product needs review (v1''s under_review).'
+  plan:
+    text: plan
+    description: 'human: a plan, design or approach awaits a go-ahead; nothing is
+      built yet. Approving it sends the task back to be implemented and never authorises
+      a merge.'
   decision:
     text: decision
     description: 'human: a choice is blocking progress.'

@@ -66,6 +66,7 @@
     "finishing": { "label": "Landing", "category": "finishing", "icon": "plane-landing" },
     "needs_spec": { "label": "Needs spec", "category": "needs_you", "icon": "pencil-ruler" },
     "needs_review": { "label": "Needs review", "category": "needs_you", "icon": "eye" },
+    "needs_plan_approval": { "label": "Needs plan approval", "category": "needs_you", "icon": "map" },
     "needs_decision": { "label": "Needs decision", "category": "needs_you", "icon": "split" },
     "needs_approval": { "label": "Needs approval", "category": "needs_you", "icon": "check-check" },
     "needs_input": { "label": "Needs input", "category": "needs_you", "icon": "message-circle-question-mark" },

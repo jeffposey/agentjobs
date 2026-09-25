@@ -175,6 +175,7 @@
                 "hold",
                 "spec",
                 "review",
+                "plan",
                 "decision",
                 "approval",
                 "input",
@@ -691,6 +692,9 @@
                                         "const": "review"
                                     },
                                     {
+                                        "const": "plan"
+                                    },
+                                    {
                                         "const": "decision"
                                     },
                                     {
@@ -1105,6 +1109,9 @@
                             },
                             {
                                 "const": "review"
+                            },
+                            {
+                                "const": "plan"
                             },
                             {
                                 "const": "decision"

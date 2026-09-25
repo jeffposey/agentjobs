@@ -136,6 +136,7 @@ class BallReason(ValueEnum):
     # ball: human
     SPEC = "spec"
     REVIEW = "review"
+    PLAN = "plan"
     DECISION = "decision"
     APPROVAL = "approval"
     INPUT = "input"
@@ -159,6 +160,7 @@ BALL_REASONS: Dict[Ball, frozenset[BallReason]] = {
         {
             BallReason.SPEC,
             BallReason.REVIEW,
+            BallReason.PLAN,
             BallReason.DECISION,
             BallReason.APPROVAL,
             BallReason.INPUT,
@@ -2297,6 +2299,7 @@ def status_named(key: str) -> TaskStatus:
 _HUMAN_STATUS: Dict[BallReason, str] = {
     BallReason.SPEC: "needs_spec",
     BallReason.REVIEW: "needs_review",
+    BallReason.PLAN: "needs_plan_approval",
     BallReason.DECISION: "needs_decision",
     BallReason.APPROVAL: "needs_approval",
     BallReason.INPUT: "needs_input",
