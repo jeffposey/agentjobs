@@ -24,12 +24,14 @@ What to look at:
     so its row reads "Ns so far, no estimate yet" and its page says why.
   * **Analytics** of `Sandbox: landing`, the "Finishes and gates" panel, "How good the
     landing estimate was": six weeks of landings replayed through the real checkpoint
-    path. The correction factor starts at none, settles near ×1.2 -- the gate's stages
-    are right-skewed, so the sum of their medians under-predicts a landing, which the
-    per-step medians cannot see and the correction can -- then jumps when the gate gets
-    slower in the fourth week and relaxes as the medians catch up. The solid line (the
-    estimate shown) sits under the dashed one (the medians alone). The reset button
-    works; it deletes nothing.
+    path. The correction factor starts at none and settles near ×1.2: the steps after
+    the gate are each quick three landings in five and slow in two, never the same two,
+    so a landing always takes longer than the sum of their medians -- which the medians
+    cannot see and the correction can. In the fourth week the gate gets slower; that is
+    drift, the rolling medians absorb it, and the factor does not chase it (learning it
+    as well is what double-counted it in the first version -- see the task log). The
+    solid line (the estimate shown) sits under the dashed one (the medians alone). The
+    reset button works; it deletes nothing.
 
 Everything is the real server: the history rows and every recorded prediction are
 written through the store's own methods in time order, each prediction made from only
@@ -77,6 +79,14 @@ STEPS: Dict[str, float] = {
     "branch": 0.4,
 }
 
+AFTER_GATE = list(STEPS)[list(STEPS).index("gate") + 1 :]
+SLOW_STEP_S = 40.0
+"""What a step after the gate costs when it is slow. Each is slow in two landings of
+every five, never the same two, so every step's median is its quick time while every
+landing has three or four slow steps: it always takes longer than the sum of the
+medians. That is the miss the correction exists for, and it is what the chart shows the
+factor converging on."""
+
 STAGES: List[Tuple[str, float, float]] = [
     # name, typical seconds, the extra an unlucky run pays (right skew)
     ("black", 1.3, 0.5),
@@ -119,7 +129,9 @@ def replay(store: Any, manager: Any, rng: random.Random) -> int:
         slower = 170.0 if week >= 3 else 0.0  # the gate gets slower in the fourth week
         waited = 240.0 if rng.random() < 0.06 else 0.0
         retried = rng.random() < 0.05
-        landing(store, task.id, f"fin_hist{count:04d}", moment, rng, slower, waited, retried)
+        landing(
+            store, task.id, f"fin_hist{count:04d}", moment, rng, slower, waited, retried, count
+        )
         count += 1
         moment += timedelta(hours=rng.uniform(6, 30))
     return count
@@ -134,6 +146,7 @@ def landing(
     slower: float,
     waited: float,
     retried: bool,
+    index: int,
 ) -> None:
     steps: List[Dict[str, Any]] = []
 
@@ -155,6 +168,8 @@ def landing(
                 at = gate(store, finish_id, at, rng, slower, second=True)
         else:
             base = STEPS[name] + (waited if name == "runway" else 0.0)
+            if name in AFTER_GATE and (index + AFTER_GATE.index(name)) % 5 < 2:
+                base += SLOW_STEP_S
             at += timedelta(seconds=base * rng.uniform(0.8, 1.3))
         steps.append(
             {"seq": seq, "step": name, "ok": True, "skipped": name == "catch_up", "ts": stamp(at)}

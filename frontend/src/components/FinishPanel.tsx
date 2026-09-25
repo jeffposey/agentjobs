@@ -260,7 +260,7 @@ function LandingEstimateLine({ finish }: { finish: TaskFinishView }) {
   return (
     <div className="space-y-1" data-landing-estimate={estimate.kind} title={estimate.basis}>
       {estimate.kind !== "no_history" && (
-        <LandingBar estimate={estimate} size="wide" label="Landing progress, an estimate" />
+        <LandingBar estimate={estimate} size="wide" label="Estimated progress of this landing" />
       )}
       <p className="text-sm text-indigo-100" data-landing-sentence="">
         {landingSentence(estimate)}

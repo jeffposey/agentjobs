@@ -348,7 +348,29 @@ tr[data-drop-side="after"] > .responsive-table-cell {
 
 /* Reduced motion: nothing moves, and a moving chip keeps one still cue -- an outer ring in
    its own tint -- so it can still be told apart from a chip that does not move. */
+/* A landing waiting for the merge runway (task-586): an indeterminate bar, a third of
+   the track sliding across it. No number is shown because none is known, and the
+   motion says the wait is live rather than stuck. */
+.landing-bar-waiting {
+  width: 33%;
+  animation: landing-bar-slide 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes landing-bar-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(200%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .landing-bar-waiting {
+    width: 100%;
+    animation: none;
+    opacity: 0.4;
+  }
   .chip-motion,
   .chip-motion::before {
     animation: none;

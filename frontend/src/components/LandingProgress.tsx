@@ -130,7 +130,7 @@ export function LandingBar({
   return (
     <div
       role="progressbar"
-      aria-label={label ?? "Landing progress, an estimate"}
+      aria-label={label ?? "Estimated progress of this landing"}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={percent ?? undefined}
@@ -142,7 +142,7 @@ export function LandingBar({
       className={`relative w-full overflow-hidden rounded-full bg-dark-border ${height}`}
     >
       {runway ? (
-        <div className="absolute inset-y-0 left-0 w-1/3 animate-pulse rounded-full bg-violet-400/60" />
+        <div className="landing-bar-waiting absolute inset-y-0 left-0 rounded-full bg-violet-400/60" />
       ) : (
         <div
           className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${
