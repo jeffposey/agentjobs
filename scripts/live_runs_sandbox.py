@@ -1,8 +1,8 @@
 """Stand up the machine-wide live-run surfaces on their own port, with fake runs.
 
 task-328 added a Runs tab with a count badge; task-588 retired the tab and folded the
-badge into the header's one status readout on the Dashboard tab -- slots used, a red dot
-for what is waiting on you, a green dot for what is being worked. The runs half reads
+badge into the Dashboard tab itself -- a red dot for what is waiting on you, a green dot
+for what is being worked. The runs half reads
 ``GET /api/runs/live``, which is machine-wide -- so the thing worth seeing is a run from
 one project counting while you are looking at another, and that is what this seeds.
 
@@ -13,14 +13,14 @@ Two projects, and every state the surfaces can render:
     sandbox-beta      two tasks, one with a live run and one being merged by a
                       scripted finish, plus that repository's merge runway
 
-So the readout says ``2/3`` slots, 2 waiting on you and 3 being worked (two runs and the
-finish) on every page of Alpha, and ``/app/p/sandbox-alpha/runs`` lands on the Dashboard.
+So the Dashboard tab says 2 waiting on you and 3 being worked (two runs and the finish)
+on every page of Alpha, and ``/app/p/sandbox-alpha/runs`` lands on the Dashboard.
 
     python scripts/live_runs_sandbox.py [port] [--idle]
 
 ``--idle`` seeds no runs and hands nothing to a human, which is the other half of the
-comparison: every part of the readout must read **0** rather than disappear. Run one of each side by side on two ports to compare them
-without constructing either state by hand.
+comparison: both counts must read **0** rather than disappear. Run one of each side by
+side on two ports to compare them without constructing either state by hand.
 
 Nothing here touches the live corpus or the 8876 dashboard. Everything lives under a
 temporary directory with its own ``AGENTJOBS_HOME`` registry, deleted when this process
