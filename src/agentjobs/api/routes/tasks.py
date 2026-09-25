@@ -92,6 +92,7 @@ def _relation(
     return DependencyRelation(
         task_id=task_id,
         title=target.title if target else None,
+        kind=target.kind if target else None,
         exists=target is not None,
         state="missing" if target is None else ("open" if target.is_open else "done"),
         note=note,

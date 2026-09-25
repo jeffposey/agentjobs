@@ -2039,6 +2039,17 @@
             "title": "Exists",
             "type": "boolean"
           },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The other task's kind, so a detail page can say what a design task is implemented by without fetching every task. Null when unset or missing; absent means implementation (task-593)."
+          },
           "note": {
             "anyOf": [
               {

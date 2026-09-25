@@ -1544,6 +1544,10 @@ export type DependencyRelation = {
      */
     exists: boolean;
     /**
+     * The other task's kind, so a detail page can say what a design task is implemented by without fetching every task. Null when unset or missing; absent means implementation (task-593).
+     */
+    kind?: TaskKind | null;
+    /**
      * Note
      */
     note: string | null;

@@ -8,6 +8,7 @@ import type {
   TaskSummaryRead,
 } from "../api/types";
 import { ArchivedTag, DependencyState, dependencyState } from "./DependencyState";
+import { KindMark, kindName } from "./KindMark";
 import { PriorityMark, PRIORITY_COLOURS, priorityName } from "./PriorityMark";
 import { LandingProgress } from "./LandingProgress";
 import { STATUSES, StatusChip } from "./StatusChip";
@@ -79,6 +80,7 @@ export function undoMove(placement: QueueMovePlacement | null): QueueMove | null
 const STATUS_FILTERS = new Set(["all", "open", "attention", "draft", "ready", "active", "finishing", "human", "external", "reset", "closed"]);
 const PRIORITY_FILTERS = new Set(["all", "critical", "high", "medium", "low"]);
 const SCOPE_FILTERS = new Set(["all", "project", "test"]);
+const KIND_FILTERS = new Set(["all", "design", "implementation"]);
 /**
  * The band header a sidebar row sits under, or null when it continues the group above.
  *
@@ -174,7 +176,7 @@ const FILTER_BUTTON_ID = "task-filter-button";
 const FILTER_POPOVER_ID = "task-filter-popover";
 
 /**
- * The three selects behind the button, with the value each is at when nothing is set.
+ * The selects behind the button, with the value each is at when nothing is set.
  *
  * One list read twice: it is what the closed button counts, and it is what "clear"
  * clears. The point of the single list is that a fourth filter -- task-156's
@@ -185,6 +187,7 @@ const POPOVER_FILTERS = [
   { key: "status", label: "Status", fallback: "open" },
   { key: "priority", label: "Priority", fallback: "all" },
   { key: "scope", label: "Scope", fallback: "all" },
+  { key: "kind", label: "Kind", fallback: "all" },
 ] as const;
 
 /**
@@ -257,6 +260,7 @@ function matchesTask(
   priority: string,
   scope: string,
   waiting: ReadonlySet<string>,
+  kind = "all",
 ) {
   const term = search.trim().toLowerCase();
   // The id is searched as well as the title because the id is what people quote:
@@ -272,7 +276,9 @@ function matchesTask(
   const tags = task.tags ?? [];
   const isTest = tags.includes("test") || tags.includes("example");
   const scopeMatches = scope === "all" || (scope === "test" ? isTest : !isTest);
-  return titleMatches && statusMatches && priorityMatches && scopeMatches;
+  // Absent is implementation, as the server's own `?kind=` filter reads it (task-592).
+  const kindMatches = kind === "all" || kindName(task.kind) === kind;
+  return titleMatches && statusMatches && priorityMatches && scopeMatches && kindMatches;
 }
 
 function filterValue(params: URLSearchParams, key: string, allowed: Set<string>, fallback: string) {
@@ -447,16 +453,18 @@ export function TaskList({
   const status = filterValue(params, "status", STATUS_FILTERS, "open");
   const priority = filterValue(params, "priority", PRIORITY_FILTERS, "all");
   const scope = filterValue(params, "scope", SCOPE_FILTERS, "all");
-  const flattened = search.trim() !== "" || status !== "all" || priority !== "all" || scope !== "all";
-  const activeFilters = activeFilterSummary({ status, priority, scope });
+  const kind = filterValue(params, "kind", KIND_FILTERS, "all");
+  const flattened =
+    search.trim() !== "" || status !== "all" || priority !== "all" || scope !== "all" || kind !== "all";
+  const activeFilters = activeFilterSummary({ status, priority, scope, kind });
   const anyFilterSet = activeFilters.length > 0 || search !== "";
 
   const signature = useMemo(() => orderSignature(tasks), [tasks]);
   const ordered = pending && pending.signature === signature ? pending.tasks : tasks;
 
   const matching = useMemo(
-    () => ordered.filter((task) => matchesTask(task, search, status, priority, scope, waitingOnYou)),
-    [ordered, search, status, priority, scope, waitingOnYou],
+    () => ordered.filter((task) => matchesTask(task, search, status, priority, scope, waitingOnYou, kind)),
+    [ordered, search, status, priority, scope, waitingOnYou, kind],
   );
   // Two groupings of the same rows, and the difference is *what is grouped*.
   //
@@ -474,7 +482,7 @@ export function TaskList({
   const visibleRows = tree
     ? unfoldedRows(treeRows, isFolded)
     : tableRows.filter((row) => {
-        if (!matchesTask(row.task, search, status, priority, scope, waitingOnYou)) return false;
+        if (!matchesTask(row.task, search, status, priority, scope, waitingOnYou, kind)) return false;
         return flattened || row.ancestors.every((ancestor) => expanded.has(ancestor));
       });
 
@@ -1192,6 +1200,9 @@ export function TaskList({
                     <StatusChip category={state.category} label={state.label} motion={state.motion} />
                     {task.archived && <ArchivedTag />}
                   </span>
+                  {/* Only design is marked in a list (task-556): implementation is most
+                      rows, and a mark on every one of them trains the eye to skip it. */}
+                  {kindName(task.kind) === "design" && <KindMark kind="design" />}
                   {/* A fold must not hide work silently. The count is on the row
                       itself, not only inside the control's accessible name, so a reader
                       scanning a folded backlog can see that nine open tasks are under
@@ -1248,7 +1259,10 @@ export function TaskList({
             </ResponsiveCell>
             <ResponsiveCell label="Task" style={!flattened ? { paddingLeft: `${0.5 + row.depth * 1.5}rem` } : undefined}>
               <Link to={rowTarget(row.task.id)} className="touch-target block overflow-hidden">
-                <span className="block font-mono text-xs text-blue-400">{row.task.id}</span>
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-mono text-xs text-blue-400">{row.task.id}</span>
+                  {kindName(row.task.kind) === "design" && <KindMark kind="design" />}
+                </span>
                 {/* The title is the one line that gets cut, so it is the one that
                     needs somewhere to say the rest. The id and the category below
                     wrap instead: they are short, and truncating them would cut
@@ -1360,6 +1374,10 @@ export function TaskList({
                 <label className="sr-only" htmlFor="scope-filter">Scope</label>
                 <select id="scope-filter" aria-label="Scope" value={scope} onChange={(event) => updateParam("scope", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
                   <option value="all">All Tasks</option><option value="project">Project Tasks</option><option value="test">Test/Examples</option>
+                </select>
+                <label className="sr-only" htmlFor="kind-filter">Kind</label>
+                <select id="kind-filter" aria-label="Kind" value={kind} onChange={(event) => updateParam("kind", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
+                  <option value="all">All Kinds</option><option value="design">Design</option><option value="implementation">Implementation</option>
                 </select>
                 <button
                   type="button"
