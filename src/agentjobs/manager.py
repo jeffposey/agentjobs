@@ -847,11 +847,20 @@ class TaskManager:
         Raises TaskNotFoundError for an id that is not a task. "No children" and "no
         such task" are different answers and an empty list conflates them -- which
         matters most for the caller most likely to get the id wrong, a URL.
+
+        Only the children are loaded whole. The ids come from the listing projection,
+        because finding them in whole records paid for every task's spec and log in the
+        project to return a handful of them: it was half of the task detail endpoint's
+        cost (task-483).
         """
         self._ensure_task_exists(task_id)
-        children = [task for task in self.storage.list_tasks() if task.parent == task_id]
-        children.sort(key=lambda task: task.id)
-        return children
+        child_ids = sorted(
+            summary.id
+            for summary in self.storage.list_task_summaries()
+            if summary.parent == task_id
+        )
+        children = [self.storage.load_task(child_id) for child_id in child_ids]
+        return [child for child in children if child is not None]
 
     def _open_children(self) -> Dict[str, List[str]]:
         """Parent task id -> ids of its children that are still open, sorted.
