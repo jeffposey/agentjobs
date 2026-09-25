@@ -226,14 +226,17 @@ function SpecText({
  *   (draft)            ▲ Promote — make it claimable    ✎ Send feedback   -> revise
  *   review             ✓ Approve — agent may merge      ✎ Request Changes -> revise
  *   approval           ✓ Approve — agent may merge      ✎ Request Changes -> revise
+ *   plan               ✓ Approve plan — agent proceeds  ✎ Request Changes -> revise
  *   decision, input    none                             ✎ Answer Questions -> answer
  *   spec (not draft)   none                             ✎ Send feedback   -> revise
  *
- * `approval` keeps Approve and keeps the merge wording, which is deliberate rather than
- * an oversight: approve writes one fixed merge clearance for every gate there is, and
- * splitting that -- so a design gate can be approved without implying merge -- is
- * task-001's question, not this one's. The label matching what the route writes is the
- * property being preserved here.
+ * The label matching what the route writes is the property being preserved. The route
+ * writes a different sentence per gate (task-001), so the label does too: `plan` is the
+ * plan gate, where nothing is built yet and approving clears nothing to merge; `review`
+ * and `approval` are the final gate, where it does -- and on a `kind: design` task the
+ * final Approve says it merges the doc, because that is all it authorises. Every approve
+ * sends the gate it showed, so a page left open across a re-handoff is refused rather
+ * than approving a gate it never displayed.
  *
  * task-017 adds one row's worth to that table without changing any of it: a task holding
  * an open question is answerable whatever its ball_reason, because the same rule makes
@@ -266,11 +269,19 @@ const HOLD_VERB: SendBackVerb = {
   hint: "Stops the task. No agent can be dispatched at it, automatically or by hand, until you release it here.",
 };
 
+/** Which approval a panel is offering; the approve route refuses a mismatch (task-001). */
+export type ApprovalGate = "plan" | "final";
+
+type ApproveCopy = { label: string; placeholder: string };
+
 type PanelVerbs = {
   label: string;
   heading: string;
   guidance: string;
-  primary: { kind: "approve" | "promote"; text: string } | null;
+  primary:
+    | { kind: "promote"; text: string }
+    | { kind: "approve"; text: string; gate: ApprovalGate; note: ApproveCopy }
+    | null;
   /**
    * The send-back this phase leads with, or null where the phase has none.
    *
@@ -359,13 +370,53 @@ function verbsFor(task: TaskRead, hasOpenQuestions = false): PanelVerbs {
       design: false,
     };
   }
+  if (task.ball_reason === "plan") {
+    // Nothing is built yet, so nothing on this row may say merge -- not the label, not
+    // the guidance, not the note form. The route writes PLAN_APPROVAL and never starts
+    // a finish here, and the copy has to be as true as that.
+    return {
+      label: "Review actions",
+      heading: "Plan to approve — nothing is built yet",
+      guidance:
+        "These actions update the task record. Approving the plan sends the task back to be built, and the result comes back to you for review; nothing here runs git.",
+      primary: {
+        kind: "approve",
+        text: "✓ Approve plan — agent proceeds",
+        gate: "plan",
+        note: {
+          label: "Approval note (optional) — becomes part of the plan",
+          placeholder: "Anything to build in. Left empty, this is exactly a plain plan approval.",
+        },
+      },
+      secondary: {
+        ...requesting,
+        placeholder: "Explain what the plan needs to change...",
+        hint: "Recorded as a revision: the agent changes the plan and brings it back to you before building.",
+      },
+      extras,
+      design: false,
+    };
+  }
   // The result gate: what comes back here is finished work to judge.
   const design = kindName(task.kind) === "design";
+  const mergeNote: ApproveCopy = {
+    label: "Approval note (optional) — does not block the merge",
+    placeholder: "Anything to carry into the merge. Left empty, this is exactly a plain approval.",
+  };
   return {
     label: "Review actions",
     heading: design ? "Design review — the ball is with you" : heading,
-    guidance,
-    primary: { kind: "approve", text: "✓ Approve — agent may merge" },
+    // A design task's approval merges the document and nothing more (task-001): the
+    // route writes DESIGN_APPROVAL_CLEARANCE, and the button says what it writes.
+    guidance: design
+      ? "These actions update the task record. Approving merges the design document only; building what it describes is its own tasks. Nothing here runs git."
+      : guidance,
+    primary: {
+      kind: "approve",
+      text: design ? "✓ Approve design — merge the doc" : "✓ Approve — agent may merge",
+      gate: "final",
+      note: mergeNote,
+    },
     secondary: requesting,
     extras,
     design,
@@ -542,6 +593,7 @@ function ReviewPanel({
   const working = Boolean(busy) || Boolean(promoteBusy);
   const prompt = reviewPromptFor(detail.task);
   const verbs = verbsFor(detail.task, questions.length > 0);
+  const approving = verbs.primary?.kind === "approve" ? verbs.primary : null;
   const reset = () => { setMode("none"); setSendVerb(null); setFeedback(""); setAttachments([]); };
   const toggle = (next: "promote" | "approve" | "resume" | "reject") => {
     setSendVerb(null);
@@ -616,16 +668,16 @@ function ReviewPanel({
               onCancel={reset}
             />
           )}
-          {mode === "approve" && (
+          {mode === "approve" && approving && (
             <NoteForm
               id="approve-note"
-              label="Approval note (optional) — does not block the merge"
-              placeholder="Anything to carry into the merge. Left empty, this is exactly a plain approval."
-              submitText="Approve"
+              label={approving.note.label}
+              placeholder={approving.note.placeholder}
+              submitText={approving.gate === "plan" ? "Approve plan" : "Approve"}
               value={feedback}
               working={working}
               onChange={setFeedback}
-              onSubmit={(note) => void onApprove(note)}
+              onSubmit={(note) => void onApprove(note, approving.gate)}
               onCancel={reset}
             />
           )}
@@ -850,8 +902,10 @@ export type TaskDetailProps = {
   promoteError?: string | null;
   // A note, because approving and saying something about it are one act, not two
   // (task-228). null means no note, and the record is then byte-identical to the
-  // one approve wrote before the parameter existed.
-  onApprove: (note: string | null) => Promise<void> | void;
+  // one approve wrote before the parameter existed. `gate` is the gate the panel showed,
+  // sent so the server can refuse an approval of a gate the record has since left
+  // (task-001).
+  onApprove: (note: string | null, gate: ApprovalGate) => Promise<void> | void;
   // One prop rather than four near-identical ones. Every send-back is the same act --
   // a note, and the ball moving to the agent -- and the reason is what differs, so the
   // component's contract mirrors the vocabulary instead of paraphrasing it.

@@ -12,6 +12,9 @@ the friction that makes a UI change get approved unseen. So the states are seede
     task-105  human/spec        past draft: no Approve, no Promote, feedback only
     task-106  draft             Promote — make it claimable, and nothing about merging
     task-107  agent/hold        the held panel: the release condition, and Resume
+    task-108  human/plan        Approve plan — agent proceeds; nothing says merge (task-001)
+    task-109  human/review      a design task: Approve design — merge the doc (task-001)
+    task-110  human/plan        a design task at the plan gate: a plan approval all the same
 
 Every one of them is throwaway. Click anything, including the destructive controls --
 nothing here touches the live corpus, the 8876 dashboard, or its registry. The data
@@ -34,6 +37,13 @@ What to look for, since "it renders" is not the property under review:
     approval always produced; typing in it must not turn the approval into a revision.
   * task-107 offers Resume and no review verbs, and its Dispatch button is gone --
     a held task refuses a dispatch, so offering the button would be a lie.
+  * task-108 and task-110 say "Plan to approve — nothing is built yet" and **nothing on
+    them mentions merging**, including the note box. After Approve plan, the record
+    reads agent/work with a prompt to build the plan and hand back to human/review.
+  * task-109 is a design task at the final gate: its Approve says it merges the doc,
+    and the prompt afterwards says the approval authorises no implementation work.
+  * Compare task-101 with task-108: the same Approve button position, different words,
+    and a different record afterwards.
 """
 
 from __future__ import annotations
@@ -148,6 +158,33 @@ def seed(manager) -> None:
         ),
     )
 
+    make("task-108", "Plan: move the gate cache into the store", "")
+    park(
+        "task-108",
+        BallReason.PLAN,
+        "Nothing is built yet. The plan: add a gate_cache table, write it from the gate, "
+        "read it from --since-gate. Approve the plan and I will build it, then hand the "
+        "result back for review.",
+    )
+
+    make("task-109", "Design: how a task is known to be a design task", "")
+    manager.update_task("task-109", actor="claude", kind="design")
+    park(
+        "task-109",
+        BallReason.REVIEW,
+        "The design document is on the branch. Approving merges the doc only; the "
+        "implementation is filed as its own tasks.",
+    )
+
+    make("task-110", "Design: the notification retry policy, approach first", "")
+    manager.update_task("task-110", actor="claude", kind="design")
+    park(
+        "task-110",
+        BallReason.PLAN,
+        "Before I write the design doc: exponential backoff capped at an hour, three "
+        "attempts, then park on the human. Is that the approach you want written up?",
+    )
+
 
 def build(root: Path, *, project_id: str, name: str) -> Path:
     from agentjobs.manager import TaskManager
@@ -172,6 +209,9 @@ STATES = [
     ("task-105", "human/spec", "past draft: no Approve, no Promote"),
     ("task-106", "draft", "Promote, and nothing about merging"),
     ("task-107", "agent/hold", "the release condition, Resume, no Dispatch"),
+    ("task-108", "human/plan", "Approve plan — agent proceeds; no merge anywhere"),
+    ("task-109", "human/review", "design task: Approve design — merge the doc"),
+    ("task-110", "human/plan", "design task at the plan gate: still a plan approval"),
 ]
 
 

@@ -222,8 +222,9 @@ describe("the review panel for a design", () => {
     const heading = within(panel).getByRole("heading", { level: 2 });
     expect(heading).toHaveTextContent("Design review — the ball is with you");
     expect(heading.querySelector("[data-kind]")).toHaveAttribute("data-kind", "design");
-    // Copy only: the Approve button is task-001's and is unchanged.
-    expect(within(panel).getByRole("button", { name: "✓ Approve — agent may merge" })).toBeVisible();
+    // The Approve button's words are task-001's: a design task's final approval merges
+    // the document and authorises no implementation, and the label says so.
+    expect(within(panel).getByRole("button", { name: "✓ Approve design — merge the doc" })).toBeVisible();
   });
 
   it("leaves an implementation task's panel as it was", () => {

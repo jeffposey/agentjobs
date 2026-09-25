@@ -53,7 +53,7 @@ are not representable:
 | `ball` | permitted `ball_reason` |
 |---|---|
 | `agent` | `available` · `work` · `revise` · `answer` · `redirect` · `hold` |
-| `human` | `spec` · `review` · `decision` · `approval` · `input` |
+| `human` | `spec` · `review` · `plan` · `decision` · `approval` · `input` |
 | `external` | `dependency` · `service` |
 
 **The agent-side reasons say what a human meant when they sent the task back**, which
@@ -72,6 +72,23 @@ a manual dispatch at a held task is refused (`task_on_hold`). Whether a *questio
 answered or a *blocker* was cleared is read off the state the ball came from — the
 preceding handoff entry says `human/decision` or `external/dependency` — rather than
 from a second reason value that could disagree with it.
+
+**What Approve does depends on the gate the task is at**, and the gate is its
+`ball_reason` (task-001, [task-kind-design.md §3](task-kind-design.md#3-functional-differences)):
+
+| gate | `ball_reason` | Approve writes | merge authority | finish |
+|---|---|---|---|---|
+| plan | `plan` | *Plan approved — implement it*, then hand back to `human/review` | **never** | never |
+| final | `review`, `approval` | *Approved — cleared to merge* | yes | yes, where `finish=on` |
+| final, `kind: design` | `review`, `approval` | *Design approved — cleared to merge the design document*; authorises no implementation | yes | yes |
+
+**Hand off to `human/plan` when you want a go-ahead before building** — a plan, a
+design, an approach. Nothing is built at that point, so approving it must not read as
+clearance to merge, and it does not: the receipt on the approve entry records
+`gate: plan`, and `standing_approval` never counts it. The finished work goes to
+`human/review` as usual and needs its own approval. The approve payload may carry
+`gate: "plan" | "final"`, the gate the page showed; the server refuses a mismatch with
+409 and writes nothing, so a stale page cannot approve a gate it never displayed.
 
 ### Fields
 
@@ -663,7 +680,7 @@ nothing else, so any coloured chip is a live task.
 | `queued` | brown | `Queued`, `Starting` |
 | `working` | blue | `Working` |
 | `finishing` | purple | `Landing` |
-| `needs_you` | red | `Needs spec`, `Needs review`, `Needs decision`, `Needs approval`, `Needs input`, `Error` (a `needs` cycle) |
+| `needs_you` | red | `Needs spec`, `Needs review`, `Needs plan approval`, `Needs decision`, `Needs approval`, `Needs input`, `Error` (a `needs` cycle) |
 | `not_now` | pink | `Blocked`, `On hold`, `Quota` |
 | `draft` | yellow | `Draft` |
 | `closed` | grey, solid | `Completed` |

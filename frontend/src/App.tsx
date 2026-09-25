@@ -953,7 +953,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
         }
         await refresh();
       }}
-      onApprove={async (note) => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
+      onApprove={async (note, gate) => { if (!user) return; await approve.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note, gate } }); await refresh(); }}
       onResume={async (note) => { if (!user) return; await resume.mutateAsync({ path: { project_id: projectId, task_id: taskId }, body: { user, note } }); await refresh(); }}
       onSendBack={async (reason, feedback, attachments, answers) => {
         if (!user) return;
