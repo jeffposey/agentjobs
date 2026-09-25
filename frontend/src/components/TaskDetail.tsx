@@ -32,7 +32,7 @@ import { linkSegments } from "./linkify";
 import { NoteComposer } from "./NoteComposer";
 import { ReviewLinks, cardUrls, reviewPromptFor } from "./ReviewLinks";
 import { TaskFields, type TaskFieldsPatch } from "./TaskFields";
-import { TaskWalkChip, TaskWalkPanel } from "./TaskWalk";
+import { TaskWalkPanel } from "./TaskWalk";
 import { useWideShell } from "./shellLayout";
 
 /**
@@ -948,7 +948,7 @@ export function TaskDetail(props: TaskDetailProps) {
         }`}
         data-pinned={pinned ? "yes" : "no"}
       >
-        <div className="min-w-0"><div className="select-all font-mono text-sm text-blue-300">{task.id}</div><h1 className="break-words text-2xl font-bold @min-[768px]:text-3xl">{task.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2"><StatusChip category={task.status_category} label={task.display_status} motion={taskMotion(task)} />{props.walk && <TaskWalkChip walk={props.walk} />}{task.archived && <ArchivedTag />}<PriorityMark priority={task.priority} /><span className="text-sm text-dark-muted">{task.category}</span>{task.tags?.map((tag) => <span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 text-xs" key={tag}>{tag}</span>)}</div></div>
+        <div className="min-w-0"><div className="select-all font-mono text-sm text-blue-300">{task.id}</div><h1 className="break-words text-2xl font-bold @min-[768px]:text-3xl">{task.title}</h1><div className="mt-3 flex flex-wrap items-center gap-2"><StatusChip category={task.status_category} label={task.display_status} motion={taskMotion(task)} />{task.archived && <ArchivedTag />}<PriorityMark priority={task.priority} /><span className="text-sm text-dark-muted">{task.category}</span>{task.tags?.map((tag) => <span className="rounded border border-dark-border bg-dark-bg px-2 py-0.5 text-xs" key={tag}>{tag}</span>)}</div></div>
         <Link to={`/p/${encodeURIComponent(projectId)}/tasks`} className="touch-target shrink-0 rounded-lg border border-dark-border bg-dark-surface px-4 text-sm hover:bg-dark-border">← Back to Tasks</Link>
       </header>
 
@@ -1038,7 +1038,9 @@ export function TaskDetail(props: TaskDetailProps) {
           // briefly pressable on a branch that is already mid-merge, which is the
           // window somebody who just pressed Approve is actually looking at.
           finishLive={Boolean(task.live_finish) || Boolean(props.finish?.live)}
-          walkOpen={Boolean(props.walk)}
+          // Either answer means a walk is open, as with `finishLive`: the record's
+          // `live_walk` arrives with the page, and the card's detail a moment later.
+          walkOpen={Boolean(task.live_walk) || Boolean(props.walk)}
           // The same field the server checks, so the page and the guard agree without a
           // second round trip. `spec.description` is the working specification; an empty
           // one is the only state that means there is nothing here to work from. Notably

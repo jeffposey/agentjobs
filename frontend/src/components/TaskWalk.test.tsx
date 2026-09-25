@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import type { EpicWalkView } from "../api/types";
-import { TaskWalkChip, TaskWalkPanel, walkChipLabel, walkForTask } from "./TaskWalk";
+import { TaskWalkPanel, walkBadge, walkForTask } from "./TaskWalk";
 
 function walk(overrides: Partial<EpicWalkView> = {}): EpicWalkView {
   return {
@@ -36,7 +36,6 @@ const taskPath = (id: string) => `/p/alpha/tasks/${id}`;
 function renderPanel(value: EpicWalkView) {
   render(
     <MemoryRouter>
-      <TaskWalkChip walk={value} />
       <TaskWalkPanel walk={value} taskPath={taskPath} />
     </MemoryRouter>,
   );
@@ -58,10 +57,14 @@ describe("finding this task's walk", () => {
 });
 
 describe("the walk on the epic's own page", () => {
-  it("says a walking epic is being walked, with its counts and the child in flight", () => {
+  it("says a walking epic is being walked, with a moving Running badge, its counts and the child in flight", () => {
     renderPanel(walk());
 
-    expect(screen.getByTestId("task-walk-chip")).toHaveTextContent("Walking");
+    expect(screen.getByRole("heading", { name: "Being walked" })).toBeInTheDocument();
+    // "Running", not a second "Walking": the task's own chip already says that.
+    const badge = screen.getByTestId("task-walk-badge");
+    expect(badge).toHaveTextContent("Running");
+    expect(badge).toHaveAttribute("data-motion", "orbit");
     expect(screen.getByTestId("task-walk-counts")).toHaveTextContent(
       "0 of 2 children done · 1 in flight · 1 to come",
     );
@@ -89,8 +92,10 @@ describe("the walk on the epic's own page", () => {
       }),
     );
 
-    // Prefixed, so it cannot be read as the task's own status.
-    expect(screen.getByTestId("task-walk-chip")).toHaveTextContent("Walk waiting");
+    // Stands still: nothing is being started while it waits.
+    const badge = screen.getByTestId("task-walk-badge");
+    expect(badge).toHaveTextContent("Waiting");
+    expect(badge).not.toHaveAttribute("data-motion");
     expect(screen.getByTestId("task-walk-state")).toHaveTextContent(
       "Waiting on task-556: a child needs a person. It takes off again on its own when that clears.",
     );
@@ -105,7 +110,7 @@ describe("the walk on the epic's own page", () => {
       grounded_word: "a child closed unresolved",
     });
 
-    expect(walkChipLabel(value)).toBe("Walk grounded");
+    expect(walkBadge(value)).toBe("Grounded");
     renderPanel(value);
     expect(screen.getByTestId("task-walk-state")).toHaveTextContent(
       "Grounded: a child closed unresolved. Nothing more takes off until a person acts.",
