@@ -135,10 +135,11 @@ def build(root: Path, *, project_id: str) -> tuple[Path, str]:
     # Tasks are ignored rather than committed: this sandbox writes to them on every
     # click, and a clean-tree gate that shuts the moment you press a button is not one.
     (project_root / ".gitignore").write_text(".agentjobs/\ntasks/\n", encoding="utf-8")
-    task_id = seed(
-        TaskManager(sandbox_store(project_root / "tasks", project_id=project_id)),
-        title=f"Dispatch me ({name})",
-    )
+    manager = TaskManager(sandbox_store(project_root / "tasks", project_id=project_id))
+    task_id = seed(manager, title=f"Dispatch me ({name})")
+    # A second task for the seeded live run to hold, so the first keeps its Dispatch
+    # button and the chooser under review stays on screen.
+    seed(manager, title=f"Already running ({name})")
 
     for command in (
         ["git", "init"],
@@ -149,6 +150,10 @@ def build(root: Path, *, project_id: str) -> tuple[Path, str]:
     ):
         subprocess.run(command, cwd=project_root, capture_output=True, check=True)
     return project_root, task_id
+
+
+RUNNING_TASK = "task-002"
+"""The second task each project gets, which the seeded runs hold."""
 
 
 def write_dispatch_config(home: Path, root: Path) -> None:
@@ -187,6 +192,15 @@ def seed_run(home: Path, *, run_id: str, **meta: Any) -> None:
     (directory / "meta.yaml").write_text(yaml.safe_dump(body), encoding="utf-8")
 
 
+def seed_lock(home: Path, name: str, run_id: str) -> None:
+    """The run's own dispatch lock, held by this process, so reconcile keeps it live."""
+    directory = home / "runs" / ".locks"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"{name}.lock").write_text(
+        f"pid={os.getpid()} run={run_id} kind=dispatch", encoding="utf-8"
+    )
+
+
 def seed_runs(home: Path, tasks: Dict[str, str]) -> None:
     """Two live runs, deferred until the server has reconciled the ledger at boot.
 
@@ -196,19 +210,20 @@ def seed_runs(home: Path, tasks: Dict[str, str]) -> None:
     seed_run(
         home,
         run_id="run_review01",
-        task_id=tasks[ALLOWED],
+        task_id=RUNNING_TASK,
         project_id=ALLOWED,
         mode="session",
         merge_mode="review",
         status="running",
         session_id="review01",
     )
+    seed_lock(home, f"{ALLOWED}~{RUNNING_TASK}", "run_review01")
     # Written the way a run directory from before task-602 is: `posture`, and the old
     # value. It must read as automerge, which is what `autonomous` meant.
     seed_run(
         home,
         run_id="run_legacy01",
-        task_id=tasks[LEGACY],
+        task_id=RUNNING_TASK,
         project_id=LEGACY,
         mode="session",
         posture="autonomous",
@@ -216,7 +231,27 @@ def seed_runs(home: Path, tasks: Dict[str, str]) -> None:
         session_id="legacy01",
         started_at=_ago(900),
     )
+    seed_lock(home, f"{LEGACY}~{RUNNING_TASK}", "run_legacy01")
     print("[review] seeded a review run and a legacy automerge run", flush=True)
+
+
+def seed_once_up(port: int, home: Path, tasks: Dict[str, str]) -> None:
+    """Seed the runs only after the server answers and its boot reconcile has run.
+
+    A fixed delay raced the boot: seeded first, the runs were concluded as interrupted
+    before the first page loaded.
+    """
+    import time
+    import urllib.request
+
+    for _ in range(120):
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/api/projects", timeout=2)
+            break
+        except OSError:
+            time.sleep(0.5)
+    time.sleep(3.0)
+    seed_runs(home, tasks)
 
 
 def serve(port: int) -> None:
@@ -244,7 +279,7 @@ def serve(port: int) -> None:
         )
 
     write_dispatch_config(home, root)
-    threading.Timer(2.0, seed_runs, args=(home, tasks)).start()
+    threading.Thread(target=seed_once_up, args=(port, home, tasks), daemon=True).start()
 
     from sandbox_serve import serve  # type: ignore[import-not-found]
 
