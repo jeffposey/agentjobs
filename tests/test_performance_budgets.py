@@ -675,9 +675,9 @@ class TestAResponseIsSizedByWhatItDraws:
         response = budget_client.get(path, headers={"Accept-Encoding": "gzip"})
         assert response.status_code == 200, response.text
         wire, decoded = response.num_bytes_downloaded, len(response.content)
-        assert response.headers.get("content-encoding") == "gzip", (
-            f"{path} sent {decoded:,} bytes uncompressed to a client that asked for gzip."
-        )
+        assert (
+            response.headers.get("content-encoding") == "gzip"
+        ), f"{path} sent {decoded:,} bytes uncompressed to a client that asked for gzip."
         assert wire * 3 < decoded, (
             f"{path} sent {wire:,} bytes on the wire for {decoded:,} of JSON, which is "
             "not what compressing a listing of near-identical rows looks like."
