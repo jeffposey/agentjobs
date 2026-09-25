@@ -280,7 +280,7 @@ class TestOnlyALiveFinishGetsTheLabel:
         self, machine: Machine, served: TestClient
     ) -> None:
         """The finish closes the task at its ``close`` step and then spends a second or
-        two removing the worktree and deleting the branch. "Completed" is the useful
+        two stopping the worktree's processes, removing it and deleting the branch. "Completed" is the useful
         truth in that window -- the merge has landed, which is the whole question -- and
         "Finishing" would replace an answer with a process."""
         task_id = machine.task()
@@ -293,9 +293,9 @@ class TestOnlyALiveFinishGetsTheLabel:
         row = listing(served)[task_id]
 
         assert row["display_status"] == "Completed"
-        # The structure is still carried: a surface with room to draw the last two steps
+        # The structure is still carried: a surface with room to draw the last steps
         # may, it just does not get to overwrite the sentence.
-        assert row["live_finish"]["current_step"] == "worktree"
+        assert row["live_finish"]["current_step"] == "teardown"
 
     def test_a_closed_task_with_a_finish_that_closed_nothing_reads_completed(
         self, machine: Machine, served: TestClient

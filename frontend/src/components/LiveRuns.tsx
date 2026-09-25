@@ -249,6 +249,7 @@ export const FINISH_STEP_LABELS: Record<string, string> = {
   restart: "Restarting the server",
   verify: "Checking the merge is live",
   close: "Closing the task",
+  teardown: "Stopping review sandboxes",
   worktree: "Removing the worktree",
   branch: "Deleting the branch",
   // The server's word for a finish whose record it could not read: the lock is held,

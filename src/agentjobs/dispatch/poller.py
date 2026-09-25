@@ -163,6 +163,7 @@ def poll_live_sessions(
         results.extend(follow_session(home, record, registry=registry, managers=managers))
 
     results.extend(_release_finished_slots(home, registry, managers))
+    results.extend(_end_closed_sessions(home, registry, managers))
     results.extend(_shadow_journal(home, registry, managers))
     results.extend(_drive_controller(home, registry, managers))
     results.extend(_recover_parked(home, registry, managers))
@@ -192,6 +193,85 @@ def _release_finished_slots(
     except Exception as exc:  # noqa: BLE001 - the sweep must never take the poller down
         return [PollResult("slot-release", None, f"failed: {exc}")]
     return [PollResult(item.run_id, None, item.detail) for item in released]
+
+
+def _end_closed_sessions(
+    home: Path, registry: ProjectRegistry, managers: Dict[str, TaskManagerLike]
+) -> List[PollResult]:
+    """Stop a session still open, idle and unaddressed after its task closed (task-566).
+
+    After the slot release, which is what marks a run's task as closed, and after the
+    session polls, so a session that exited by itself this tick -- the ordinary case -- is
+    already settled and never reaches the backstop. The conditions are in
+    :mod:`agentjobs.dispatch.closed_sessions`; this only supplies the machine and the store.
+    """
+    from agentjobs.dispatch import closed_sessions
+    from agentjobs.dispatch.ledger import DispatchLedger
+    from agentjobs.models_v2 import DispatchOutcome, LogEntryType
+
+    def manager_for(record: RunRecord) -> Optional[TaskManagerLike]:
+        manager = managers.get(record.project_id)
+        if manager is not None:
+            return manager
+        project = _project_for(registry, record)
+        if project is None:
+            return None
+        manager = dispatch_manager_for(project)
+        managers[record.project_id] = manager
+        return manager
+
+    def task(record: RunRecord) -> object:
+        manager = manager_for(record)
+        return manager.get_task(record.task_id) if manager is not None else None
+
+    def transcript(record: RunRecord) -> Optional[Path]:
+        project = _project_for(registry, record)
+        cwd = Path(record.cwd) if record.cwd else (project.root if project else record.path)
+        return closed_sessions.TRANSCRIPT_FINDER(record.session_id or "", cwd)
+
+    def stop(record: RunRecord) -> tuple:
+        ledger = DispatchLedger(home, registry=registry)
+        result = ledger._stop_session(record)  # noqa: SLF001 - same subsystem, task-548's stop
+        return result.stopped, result.detail
+
+    def conclude(record: RunRecord, body: str) -> None:
+        manager = manager_for(record)
+        project = _project_for(registry, record)
+        handle = handle_from_record(home, record)
+        if manager is None or project is None or handle is None:
+            return
+        resolution = resolve_for_observation(record.project_id, home)
+        runner = DispatchRunner(
+            manager=manager, resolution=resolution, project_root=project.root, home=home
+        )
+        runner._finish_session(  # noqa: SLF001 - the one writer of a session's result
+            handle, DispatchOutcome.COMPLETED, body=body, reap=False
+        )
+
+    def note(record: RunRecord, body: str, data: Dict[str, object]) -> None:
+        manager = manager_for(record)
+        if manager is not None:
+            manager.add_log_entry(
+                record.task_id, actor="dispatcher", type=LogEntryType.NOTE, body=body, data=data
+            )
+
+    def meta(record: RunRecord) -> Dict[str, object]:
+        return RunDirectory(path=record.path).read_meta()
+
+    deps = closed_sessions.Deps(
+        task=task,
+        transcript=transcript,
+        stop=stop,
+        conclude=conclude,
+        note=note,
+        meta=meta,
+        runs=closed_sessions.live_session_runs(home),
+    )
+    try:
+        outcomes = closed_sessions.sweep(deps)
+    except Exception as exc:  # noqa: BLE001 - the sweep must never take the poller down
+        return [PollResult("closed-sessions", None, f"failed: {exc}")]
+    return [PollResult(run_id, None, detail) for run_id, detail in outcomes]
 
 
 RETRACTION_SWEEP_SECONDS = 300.0

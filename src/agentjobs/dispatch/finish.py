@@ -2434,6 +2434,30 @@ def remove_worktree(plan: Plan) -> StepResult:
     ``--force`` already refuses uncommitted or untracked work, and this refuses unmerged
     commits on top of that, so recovery can never be what discards somebody's work.
     """
+    kept = worktree_kept(plan)
+    if kept is not None:
+        return kept
+    result = git(plan.root, ["worktree", "remove", str(plan.worktree)])
+    if result.returncode != 0:
+        return StepResult(
+            "worktree",
+            True,
+            f"could not remove {plan.worktree}: {tail(result.stderr, 3)} -- left in place",
+            0.0,
+        )
+    leftover = _remove_empty_root(plan.worktree)
+    if leftover:
+        return StepResult("worktree", True, f"removed {plan.worktree}, but {leftover}", 0.0)
+    return StepResult("worktree", True, f"removed {plan.worktree}", 0.0)
+
+
+def worktree_kept(plan: Plan) -> Optional[StepResult]:
+    """The worktree step's answer when the worktree is not to be removed, else None.
+
+    Shared by the removal and by the teardown that precedes it, so the processes in a
+    worktree are stopped exactly when the worktree itself is about to go -- never for one
+    that is left in place because it holds commits the base does not.
+    """
     if not plan.has_worktree or not plan.worktree.exists():
         return StepResult("worktree", True, f"{plan.worktree} is already gone", 0.0, skipped=True)
     worktree_head = git_out(plan.worktree, ["rev-parse", "HEAD"])
@@ -2445,15 +2469,52 @@ def remove_worktree(plan: Plan) -> StepResult:
             "-- left in place",
             0.0,
         )
-    result = git(plan.root, ["worktree", "remove", str(plan.worktree)])
-    if result.returncode != 0:
-        return StepResult(
-            "worktree",
-            True,
-            f"could not remove {plan.worktree}: {tail(result.stderr, 3)} -- left in place",
-            0.0,
-        )
-    return StepResult("worktree", True, f"removed {plan.worktree}", 0.0)
+    return None
+
+
+EMPTY_ROOT_ATTEMPTS = 5
+
+
+def _remove_empty_root(path: Path) -> str:
+    """Delete the directory ``git worktree remove`` left behind, only if it is empty.
+
+    Git unregisters the worktree and deletes its contents, and on Windows then fails to
+    delete the root itself while any process has it as a current directory -- which is how
+    task-557's empty root outlived its sandboxes (task-566). ``rmdir`` refuses a directory
+    with anything in it, so this can never delete work. Returns what is still wrong, or "".
+    """
+    for attempt in range(EMPTY_ROOT_ATTEMPTS):
+        if not path.exists():
+            return ""
+        try:
+            path.rmdir()
+            return ""
+        except OSError as exc:
+            if attempt == EMPTY_ROOT_ATTEMPTS - 1:
+                return f"its directory is still there ({exc.strerror or exc})"
+            time.sleep(1.0)
+    return ""
+
+
+def stop_worktree_processes(plan: Plan) -> StepResult:
+    """Stop what is running out of the worktree, before the worktree goes (task-566).
+
+    Review sandboxes are the common case: they exist for the review, and the review ended
+    at the approval that started this finish. Left running they serve a deleted checkout,
+    pin its directory, and keep the session that started them from exiting. See
+    :mod:`agentjobs.dispatch.worktree_teardown` for what counts and what is never stopped.
+
+    Reported, never escalated, for ``remove_worktree``'s reason: the merge is in and the
+    task is closed by now.
+    """
+    from agentjobs.dispatch import worktree_teardown  # local: only the finish needs it
+
+    kept = worktree_kept(plan)
+    if kept is not None:
+        return StepResult("teardown", True, "no worktree to remove", 0.0, skipped=True)
+    started = time.monotonic()
+    result = worktree_teardown.stop_residents(plan.worktree)
+    return StepResult("teardown", True, result.sentence(), time.monotonic() - started)
 
 
 def delete_branch(plan: Plan) -> StepResult:
@@ -4662,14 +4723,19 @@ def _deliver(
 
 
 def _clean_up(plan: Plan, receipts: FinishReceipts, finish_id: str, key: str) -> List[StepResult]:
-    """Retire the worktree, then the branch. In that order: see ``delete_branch``."""
+    """Stop the worktree's processes, retire it, then the branch (task-566, ``delete_branch``).
+
+    The processes first, because a process with its cwd in the worktree is what leaves the
+    directory behind, and a review sandbox is what keeps its session from exiting.
+    """
+    teardown = stop_worktree_processes(plan)
     _intend_quietly(receipts, finish_id, "worktree", key, path=str(plan.worktree))
     worktree = remove_worktree(plan)
     receipts.settle(finish_id, "worktree", key, APPLIED, detail=worktree.detail)
     _intend_quietly(receipts, finish_id, "branch", key, branch=plan.branch)
     branch = delete_branch(plan)
     receipts.settle(finish_id, "branch", key, APPLIED, detail=branch.detail)
-    return [worktree, branch]
+    return [teardown, worktree, branch]
 
 
 # ----- escalating into a dispatched (and therefore woken) session --------------
