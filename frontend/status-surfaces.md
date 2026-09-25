@@ -58,3 +58,4 @@ map, and when a word the chip used to be rewritten to ("Actionable now", "In fli
 | `App.tsx` | Tells the queue's dispatch card (`QueueDispatch`) a task is finishing | `live_finish` |
 | `components/LiveRuns.tsx` | The Runs tab, health words and the finish badge | `health` |
 | `components/SlotBoard.tsx` | The dashboard slot board's run tiles and finish cards | `health` |
+| `components/NavStatus.tsx` | The Dashboard tab's waiting, working and landing dots, in their category colours (counts from `runCounts`) | `health` |

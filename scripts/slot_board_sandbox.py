@@ -583,16 +583,42 @@ def main() -> None:
         )
         print("[board] seeded two live runs, a finish and a runway", flush=True)
 
-    if attended:
-        threading.Timer(2.0, seed_attended).start()
-    elif work_done:
-        threading.Timer(2.0, seed_work_done).start()
-    elif finishing:
-        threading.Timer(2.0, seed_finishing).start()
-    elif self_finishing:
-        threading.Timer(2.0, seed_self_finishing).start()
-    elif not idle:
-        threading.Timer(2.0, seed_activity).start()
+    def seed_once_serving(seed: Any) -> None:
+        """Seed once the server answers, rather than on a fixed delay.
+
+        The fixed two seconds this used to wait stopped being enough when startup began
+        doing more before it reconciles; by 2026-09-25 the seeded session runs landed
+        *before* the sweep and were concluded as interrupted before the first page load
+        -- the same rot ``live_runs_sandbox`` fixed the same way. Answering a request
+        means the sweep is behind it.
+        """
+        import time
+        import urllib.request
+
+        for _ in range(120):
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/version", timeout=1):
+                    break
+            except OSError:
+                time.sleep(0.5)
+        time.sleep(1.0)
+        seed()
+
+    seed = (
+        seed_attended
+        if attended
+        else seed_work_done
+        if work_done
+        else seed_finishing
+        if finishing
+        else seed_self_finishing
+        if self_finishing
+        else None
+        if idle
+        else seed_activity
+    )
+    if seed is not None:
+        threading.Thread(target=seed_once_serving, args=(seed,), daemon=True).start()
 
     from sandbox_serve import serve  # type: ignore[import-not-found]
 

@@ -14,9 +14,10 @@ import {
   IDLE_POLL_MS,
   capacitySentence,
   finishDetail,
+  landingCount,
   liveFinishes,
   liveRunsPollInterval,
-  runningCount,
+  runCounts,
   unexplainedRunways,
 } from "./LiveRuns";
 
@@ -185,8 +186,10 @@ describe("the capacity sentence", () => {
 describe("what counts as running", () => {
   it("counts dispatched runs and finishes, and nothing else", () => {
     const holders = [holder(), holder({ kind: "runway", lock_name: "runway-abc", task_id: "" })];
-    expect(runningCount(body({ runs: [run()], occupied: 1, holders }))).toBe(2);
-    expect(runningCount(null)).toBe(0);
+    expect(runCounts(body({ runs: [run()], occupied: 1, holders }))).toEqual({
+      working: 1,
+      landing: 1,
+    });
     expect(liveFinishes(body({ holders }))).toHaveLength(1);
   });
 
@@ -201,24 +204,65 @@ describe("what counts as running", () => {
   });
 });
 
-describe("the running count", () => {
-  // What the header's green dot shows (task-588; the Runs tab's badge before it). The
-  // rendering is NavStatus.test.tsx's; the count is this file's.
-  it("counts every run", () => {
-    expect(runningCount(body({ runs: [run(), run({ run_id: "run_b" })] }))).toBe(2);
+describe("the working and landing counts", () => {
+  // What the header's blue and violet dots show (task-608; task-588's one green dot
+  // before it, the Runs tab's badge before that). The rendering is NavStatus.test.tsx's;
+  // the counts are this file's.
+  it("counts every run that is not landing as working", () => {
+    expect(runCounts(body({ runs: [run(), run({ run_id: "run_b" })] }))).toEqual({
+      working: 2,
+      landing: 0,
+    });
   });
 
   it("is zero when nothing is running", () => {
-    expect(runningCount(body())).toBe(0);
+    expect(runCounts(body())).toEqual({ working: 0, landing: 0 });
   });
 
-  it("counts a finish in progress as running", () => {
+  it("counts a finish in progress as landing", () => {
     // task-352: the badge read 0 through the whole of task-092's gate.
-    expect(runningCount(body({ holders: [holder()] }))).toBe(1);
+    expect(runCounts(body({ holders: [holder()] }))).toEqual({ working: 0, landing: 1 });
+  });
+
+  it("counts working and landing runs disjointly", () => {
+    // A run finishing itself (task-533) keeps its run row. Before task-608 the one count
+    // was runs plus finishes, so it sat there as working; now it is landing only, and a
+    // finish holder beside it is a second landing, never a working run.
+    const live = body({
+      runs: [
+        run(),
+        run({ run_id: "run_b", task_id: "task-003", health: "finishing" }),
+        run({ run_id: "run_c", task_id: "task-004", health: "parked" }),
+      ],
+      holders: [holder(), holder({ kind: "runway", lock_name: "runway-abc", task_id: "" })],
+    });
+    expect(runCounts(live)).toEqual({ working: 2, landing: 2 });
+    // The same classification the capacity sentence and the board use.
+    expect(landingCount(live)).toBe(2);
+    expect(capacitySentence(live)).toContain("2 merging");
+  });
+
+  it("moves a landing that fails back to working, without a double count or a drop", () => {
+    // The same task between two polls: its run finishing itself, then the gate goes red
+    // and the run is back at work.
+    const landing = run({ run_id: "run_b", task_id: "task-003", health: "finishing" });
+    const before = runCounts(body({ runs: [run(), landing] }));
+    const after = runCounts(body({ runs: [run(), { ...landing, health: "working" }] }));
+    expect(before).toEqual({ working: 1, landing: 1 });
+    expect(after).toEqual({ working: 2, landing: 0 });
+    expect(after.working + after.landing).toBe(before.working + before.landing);
+  });
+
+  it("counts an overtaken finish in neither", () => {
+    // Its task is already closed (task-514): nothing is being worked and nothing lands.
+    expect(runCounts(body({ holders: [holder({ overtaken: true })] }))).toEqual({
+      working: 0,
+      landing: 0,
+    });
   });
 
   it("is zero before the first answer arrives", () => {
-    expect(runningCount(null)).toBe(0);
+    expect(runCounts(null)).toEqual({ working: 0, landing: 0 });
   });
 });
 
