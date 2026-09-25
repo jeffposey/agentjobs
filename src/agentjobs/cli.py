@@ -468,14 +468,62 @@ def serve(
     _drop_inherited_run_identity()
     typer.echo(f"🚀 Starting AgentJobs server at http://{host}:{port}")
     _warn_if_bundle_missing()
+    _run_server(host, port, reload)
+
+
+LOOPBACK_ADDRESSES = ("127.0.0.1", "::1")
+
+
+def _is_loopback_host(host: str) -> bool:
+    """Whether ``host`` names this machine's loopback interface and nothing else."""
+    from ipaddress import ip_address
+
+    unwrapped = host[1:-1] if host.startswith("[") and host.endswith("]") else host
+    if unwrapped.lower() == "localhost":
+        return True
+    try:
+        return ip_address(unwrapped).is_loopback
+    except ValueError:
+        return False
+
+
+def _loopback_sockets(port: int) -> List[Any]:
+    """Listening sockets on both loopback families, or on IPv4 alone where IPv6 is absent.
+
+    A browser asked for ``localhost`` tries ``::1`` first and gives IPv4 only after its
+    Happy Eyeballs timer, so a server bound to 127.0.0.1 alone cost Chromium ~305 ms on
+    every new connection -- measured 2026-09-24 against the dashboard on 8876, where
+    127.0.0.1 connected in 0 ms (task-483). Uvicorn drops an idle connection after five
+    seconds, so a 15-second poll and any click after a pause paid it again. Both
+    addresses are loopback, so this widens nothing the ``--host`` check exists to guard.
+    """
+    import socket
+
+    sockets = [socket.create_server(("127.0.0.1", port), family=socket.AF_INET)]
+    try:
+        sockets.append(socket.create_server(("::1", port), family=socket.AF_INET6))
+    except OSError as exc:
+        typer.echo(
+            f"Listening on 127.0.0.1 only: ::1 could not be bound ({exc}). A browser "
+            "asked for localhost will wait out its IPv6 attempt on each new connection.",
+            err=True,
+        )
+    return sockets
+
+
+def _run_server(host: str, port: int, reload: bool) -> None:
+    """Serve the app: on both loopback families for a loopback host, else as asked.
+
+    ``--reload`` keeps the plain single-address path, because uvicorn's reloader owns
+    its own socket and takes no list of them.
+    """
     import uvicorn
 
-    uvicorn.run(
-        "agentjobs.api.main:app",
-        host=host,
-        port=port,
-        reload=reload,
-    )
+    if reload or not _is_loopback_host(host):
+        uvicorn.run("agentjobs.api.main:app", host=host, port=port, reload=reload)
+        return
+    config = uvicorn.Config("agentjobs.api.main:app", host=host, port=port)
+    uvicorn.Server(config).run(sockets=_loopback_sockets(port))
 
 
 @app.command()
@@ -869,14 +917,7 @@ def restart(
     _drop_inherited_run_identity()
     typer.echo(f"🚀 Starting AgentJobs server at http://{host}:{port}")
     _warn_if_bundle_missing()
-    import uvicorn
-
-    uvicorn.run(
-        "agentjobs.api.main:app",
-        host=host,
-        port=port,
-        reload=reload,
-    )
+    _run_server(host, port, reload)
 
 
 @app.command()

@@ -141,6 +141,54 @@ def test_serve_command_args(monkeypatch) -> None:
         )
 
 
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1", "[::1]"])
+def test_a_loopback_host_is_served_on_both_loopback_families(host: str) -> None:
+    """A browser asked for localhost tries ::1 first; an IPv4-only server cost ~305 ms
+    per new connection in Chromium (task-483). Both families are loopback, so nothing
+    is exposed that the host check refuses."""
+    with (
+        patch("uvicorn.run") as plain_run,
+        patch("uvicorn.Server.run") as server_run,
+        patch("agentjobs.cli._loopback_sockets", return_value=["v4", "v6"]) as sockets,
+    ):
+        result = runner.invoke(app, ["serve", "--host", host, "--port", "9001"])
+
+    assert result.exit_code == 0, result.output
+    plain_run.assert_not_called()
+    sockets.assert_called_once_with(9001)
+    server_run.assert_called_once_with(sockets=["v4", "v6"])
+
+
+def test_a_named_interface_is_served_exactly_as_asked() -> None:
+    with patch("uvicorn.run") as plain_run, patch("uvicorn.Server.run") as server_run:
+        result = runner.invoke(app, ["serve", "--host", "192.168.1.25", "--port", "9002"])
+
+    assert result.exit_code == 0, result.output
+    server_run.assert_not_called()
+    plain_run.assert_called_once_with(
+        "agentjobs.api.main:app", host="192.168.1.25", port=9002, reload=False
+    )
+
+
+def test_loopback_sockets_listen_on_both_families() -> None:
+    import socket
+
+    from agentjobs.cli import _loopback_sockets
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    sockets = _loopback_sockets(port)
+    try:
+        families = {sock.family for sock in sockets}
+        assert socket.AF_INET in families
+        if socket.has_ipv6:
+            assert socket.AF_INET6 in families
+    finally:
+        for sock in sockets:
+            sock.close()
+
+
 def test_open_targets_react_app_on_existing_server() -> None:
     with (
         patch("agentjobs.cli._find_process_by_port", return_value=1234),

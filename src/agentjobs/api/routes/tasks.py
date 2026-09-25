@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
@@ -39,6 +39,7 @@ from agentjobs.models_v2 import (
     Outcome,
     Priority,
     Task,
+    TaskSummary,
 )
 
 from .status import acting_actor, classify_refusal, get_acting_project, serving_api_base
@@ -72,7 +73,7 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 def _relation(
     task_id: str,
     *,
-    by_id: Dict[str, Task],
+    by_id: Mapping[str, Union[Task, TaskSummary]],
     note: Optional[str],
     reason: str,
 ) -> DependencyRelation:
@@ -87,7 +88,7 @@ def _relation(
     )
 
 
-def _needs_reason(task_id: str, *, by_id: Dict[str, Task]) -> str:
+def _needs_reason(task_id: str, *, by_id: Mapping[str, Union[Task, TaskSummary]]) -> str:
     """Say, in words, why a prerequisite is or is not satisfied.
 
     A closed prerequisite used to read "it is done" whatever its outcome, so a task
@@ -327,10 +328,14 @@ async def get_task_detail(
             detail=f"Task {task_id} not found",
         )
     identity = current_identity(project, principal)
-    tasks = manager.list_tasks()
+    # The listing projection, not whole records: every other task is here only for its
+    # title, state and edges. Reading them whole paid for the spec and log of every task
+    # in the project on each click, and was most of click-to-detail (task-483).
+    tasks = manager.list_task_summaries()
     by_id = {candidate.id: candidate for candidate in tasks}
-    facts = manager.dependency_facts(tasks)
+    facts = manager.dependency_facts(tasks, corpus=tasks)
     children = manager.get_subtasks(task_id)
+    parent_task = manager.get_task(task.parent) if task.parent in by_id else None
     child_ids = {child.id for child in children}
     needs = [
         _relation(
@@ -404,8 +409,8 @@ async def get_task_detail(
     return TaskDetailResponse(
         task=TaskRead.from_task(task, facts[task.id]),
         parent_task=(
-            TaskRead.from_task(by_id[task.parent], facts[task.parent])
-            if task.parent and task.parent in by_id
+            TaskRead.from_task(parent_task, facts[parent_task.id])
+            if parent_task is not None
             else None
         ),
         children=[TaskRead.from_task(child, facts[child.id]) for child in children],

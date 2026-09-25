@@ -200,7 +200,7 @@ class TestTheServerIsNeverARun:
         def fake_run(*args: Any, **kwargs: Any) -> None:
             seen.update({name: os.environ.get(name) for name in RUN_IDENTITY_VARS})
 
-        monkeypatch.setattr("uvicorn.run", fake_run)
+        monkeypatch.setattr("agentjobs.cli._run_server", fake_run)
 
         outcome = CliRunner().invoke(app, ["serve", "--port", "18999"])
 

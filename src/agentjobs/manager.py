@@ -847,11 +847,20 @@ class TaskManager:
         Raises TaskNotFoundError for an id that is not a task. "No children" and "no
         such task" are different answers and an empty list conflates them -- which
         matters most for the caller most likely to get the id wrong, a URL.
+
+        Only the children are loaded whole. The ids come from the listing projection,
+        because finding them in whole records paid for every task's spec and log in the
+        project to return a handful of them: it was half of the task detail endpoint's
+        cost (task-483).
         """
         self._ensure_task_exists(task_id)
-        children = [task for task in self.storage.list_tasks() if task.parent == task_id]
-        children.sort(key=lambda task: task.id)
-        return children
+        child_ids = sorted(
+            summary.id
+            for summary in self.storage.list_task_summaries()
+            if summary.parent == task_id
+        )
+        children = [self.storage.load_task(child_id) for child_id in child_ids]
+        return [child for child in children if child is not None]
 
     def _open_children(self) -> Dict[str, List[str]]:
         """Parent task id -> ids of its children that are still open, sorted.
@@ -1015,9 +1024,16 @@ class TaskManager:
         reason -- dependencies say what *may* run and the queue says what *does*, and
         collapsing the two would leave the stored order with no effect on the one
         consumer that spends money acting on it.
+
+        The winner is chosen over the listing projection and only it is loaded whole:
+        every claimability rule reads a field a ``TaskSummary`` carries, and choosing over
+        whole records cost ~230 ms of every task's spec and log on a 580-task backlog to
+        return one of them (task-483).
         """
-        candidates = self.claimable_tasks(priority, agent=agent, parent=parent)
-        return candidates[0] if candidates else None
+        candidates = self.claimable_over(
+            self.storage.list_task_summaries(), priority, agent=agent, parent=parent
+        )
+        return self.storage.load_task(candidates[0].id) if candidates else None
 
     def explain_next(
         self,
@@ -1036,8 +1052,11 @@ class TaskManager:
         ``skipped`` covers only tasks ahead of the winner, which is also why the
         integrity check reaches past the claimable candidates: the explanation asserts
         an order over those tasks, so their positions have to be trustworthy too.
+
+        Over the listing projection, for the reason :meth:`_skip_reason` gives: every rule
+        reads a summary field, and whole records made this ~230 ms (task-483).
         """
-        tasks = self.storage.list_tasks()
+        tasks: Sequence[LabelledTask] = self.storage.list_task_summaries()
         states = self._dependency_states()
         open_children = self._open_children()
         if parent is not None:
@@ -1048,7 +1067,7 @@ class TaskManager:
             tasks = [task for task in tasks if task.parent == parent]
         candidates = self._claimable(tasks, priority, agent, states, open_children)
 
-        winner: Optional[Task] = None
+        winner: Optional[LabelledTask] = None
         if candidates:
             winning_rank = min(task.priority_rank() for task in candidates)
             self.assert_queue_integrity(bands_at_or_above(winning_rank))

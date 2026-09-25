@@ -665,6 +665,24 @@ class TestAResponseIsSizedByWhatItDraws:
             "draw a list. Send the fields the surface reads and fetch the rest on open."
         )
 
+    @pytest.mark.parametrize("path", sorted(PAYLOAD_BUDGETS))
+    def test_a_listing_is_compressed_on_the_wire(self, budget_client, path: str) -> None:
+        """The budgets above count decoded JSON, which is what a regression grows.
+
+        What a phone on the tailnet waits for is the wire, and that was the same number:
+        nothing compressed anything, so 580 rows went out as 540 KB (task-483).
+        """
+        response = budget_client.get(path, headers={"Accept-Encoding": "gzip"})
+        assert response.status_code == 200, response.text
+        wire, decoded = response.num_bytes_downloaded, len(response.content)
+        assert (
+            response.headers.get("content-encoding") == "gzip"
+        ), f"{path} sent {decoded:,} bytes uncompressed to a client that asked for gzip."
+        assert wire * 3 < decoded, (
+            f"{path} sent {wire:,} bytes on the wire for {decoded:,} of JSON, which is "
+            "not what compressing a listing of near-identical rows looks like."
+        )
+
     @pytest.mark.parametrize("path", sorted(FIXED_PAYLOAD_BUDGETS))
     def test_a_single_record_response_stays_one_record(
         self, budget_client, count_sql: StatementLog, path: str
@@ -725,10 +743,12 @@ class TestAPayloadDoesNotGrowWithTheBacklog:
 #: that is 480 rather than 32, so the ceilings are set for headroom on a route that
 #: grows an honest query or two, not for a fan-out.
 #:
-#: Two of the measured numbers are worse than they need to be and are recorded rather
-#: than fixed -- fixing an endpoint is out of scope for the task that wrote this file
-#: (task-486). ``/detail`` assembles the whole corpus twice; ``/dashboard`` asks
-#: ``import_quarantine`` four separate times.
+#: ``/dashboard`` asks ``import_quarantine`` four separate times, which is recorded
+#: rather than fixed -- fixing an endpoint was out of scope for the task that wrote this
+#: file (task-486). ``/detail`` was 32 while it assembled the whole corpus twice; it reads
+#: the listing projection and one whole record now, and is 23 (task-483). Its children are
+#: each loaded whole, so a parent's detail grows by one record's statements per child --
+#: a count of that task's children, never of the corpus.
 #:
 #: ``/search`` fell from 17 to 11 when task-495 narrowed it: a search of tasks that are
 #: not parked on a service reads no ``log_entry`` rows at all, and the six statements it
@@ -737,9 +757,10 @@ QUERY_BUDGETS: Dict[str, Tuple[int, int]] = {
     # path                                  measured  ceiling
     f"{LOCAL}/tasks": (5, 12),
     f"{LOCAL}/dashboard": (10, 24),
-    f"{LOCAL}/tasks/{SAMPLE_TASK}/detail": (32, 48),
+    f"{LOCAL}/tasks/{SAMPLE_TASK}/detail": (23, 40),
     f"{LOCAL}/search?q=generated": (11, 20),
-    f"{LOCAL}/tasks/next": (11, 20),
+    # 11 -> 14 in task-483: the listing read plus one record, instead of every record.
+    f"{LOCAL}/tasks/next": (14, 20),
     f"{LOCAL}/tasks/broken": (1, 8),
     f"{LOCAL}/revision": (1, 4),
     # Measured over the attention corpus, not the shared one -- see `SHAPE_FOR`. Both of
@@ -856,6 +877,14 @@ LOG_ROWS_BUDGET: Dict[str, Tuple[int, int]] = {
     # Before that work, over this corpus: 414 rows at 60 records and 3,312 at 480 -- the
     # whole log, plus the six entries of each candidate loaded again by `get_subtasks`.
     f"{LOCAL}/attention": (ATTENTION_STALLED, 32),
+    # One task's detail page wants that task's log. It read the whole project's -- 2,880
+    # rows over this corpus, 5,428+ on the real backlog -- to learn the titles and states
+    # of its neighbours, which the listing projection answers without a log row. That
+    # was most of click-to-detail on a real store (task-483).
+    f"{LOCAL}/tasks/{SAMPLE_TASK}/detail": (6, 32),
+    # The winner's log, and nobody else's. Choosing it over whole records read all of
+    # them -- ~230 ms on the real backlog -- to return one (task-483).
+    f"{LOCAL}/tasks/next": (6, 32),
 }
 
 

@@ -237,12 +237,29 @@ task row until the task's specification region is visible. Click to *rendered*, 
 click to response — a fast endpoint behind a component that paints nothing until every
 field arrives still feels slow, and only the rendered timing notices.
 
-It reports two figures:
+It reports three figures:
 
-- **warm app** — the app is already open and a row is clicked. This is the interaction
-  users complain about.
+- **click event -> detail painted (in page)** — the warm interaction, timed inside the
+  page from the click reaching the document to the frame after the detail region
+  appears. This is the headline.
+- **warm app** — the same click timed from Playwright's side. Kept under its old name so
+  reports stay comparable with earlier runs.
 - **cold load** — a fresh navigation to the list, which also pays for the bundle and
   the first list fetch.
+
+**Why the in-page figure exists (task-483).** Playwright's `getByRole` locators and
+`toBeVisible()` polling build an accessibility tree of the page, and they do it on the
+page's own main thread. Over a 580-row list a CPU profile put ~400 ms of a 636 ms
+click there, and because it shares the thread, polling during the render slowed the app
+as well as the measurement: the same code read 680 ms polled and 439 ms unpolled. The
+spec now waits on the in-page clock before anything polls. A larger list makes this
+worse, so treat any Node-side browser timing in this repository with that in mind.
+
+**Use `127.0.0.1`, not `localhost`, in any timing command.** Before task-483 the server
+bound IPv4 only, and a client asked for `localhost` tried `::1` first: ~305 ms per new
+connection in Chromium and ~210 ms in curl. The server now listens on both loopback
+families, but a figure from an older server, or from a `curl localhost` against one,
+carries that cost.
 
 It needs the frontend built and a browser installed:
 

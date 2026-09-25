@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, AsyncIterator
 from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette import status
 
@@ -357,6 +358,13 @@ app.add_middleware(
     # frontend served from the Vite dev server could not read its own timings.
     expose_headers=[MEASUREMENT_HEADER, PARSE_COUNT_HEADER, CORPUS_LOAD_HEADER],
 )
+
+# Compressed for whoever asks, which every browser does. Nothing was: the task list went
+# to the phone over the tailnet as 540 KB of JSON for 580 rows, and the app bundle as
+# 640 KB of JavaScript. Level 5 took the list to 82 KB in 7 ms on this machine; level 9
+# saved 3 KB more for 12 ms (task-483). Starlette leaves ``text/event-stream`` alone,
+# and bodies under a kilobyte are not worth the header.
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)
 
 
 @app.exception_handler(ProjectError)
