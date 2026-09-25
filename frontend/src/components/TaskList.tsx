@@ -11,7 +11,7 @@ import { ArchivedTag, DependencyState, dependencyState } from "./DependencyState
 import { PriorityMark, PRIORITY_COLOURS, priorityName } from "./PriorityMark";
 import { LandingProgress } from "./LandingProgress";
 import { STATUSES, StatusChip } from "./StatusChip";
-import { startDragAutoScroll } from "./dragAutoScroll";
+import { nearestScroller, startDragAutoScroll } from "./dragAutoScroll";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 import {
   applyMove,
@@ -303,6 +303,21 @@ type BandChange = { taskId: string; from: string; to: string; before: string };
 type DropSide = "before" | "after";
 /** The row an insertion line is currently drawn on, and which edge of it. */
 type DropTarget = { id: string; side: DropSide };
+/**
+ * A finger on a grip. `started` flips once it has travelled far enough to be a drag
+ * rather than a tap, and `x`/`y` are its latest position in viewport coordinates.
+ */
+type FingerDrag = {
+  pointerId: number;
+  taskId: string;
+  startX: number;
+  startY: number;
+  x: number;
+  y: number;
+  started: boolean;
+};
+/** How far a finger has to travel on a grip before it is a drag and not a tap. */
+const TOUCH_DRAG_SLOP_PX = 4;
 /** Where focus goes after the next render, and whether to scroll it into view. */
 type FocusTarget = { elementId: string; reveal: boolean };
 
@@ -378,6 +393,17 @@ export function TaskList({
   // side is not a fact about the pointer: it depends on which way the dragged task is
   // travelling, and only `dropSide` knows that.
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  // Whether the drag under way is a finger's rather than a mouse's (task-589). A touch
+  // browser will not start an HTML5 drag from a finger, so the grip runs its own on
+  // pointer events; `dragging` and `dropTarget` are shared, and this only says which
+  // events the edge auto-scroll has to listen to.
+  const [pointerDrag, setPointerDrag] = useState(false);
+  // The finger on a grip, from `pointerdown` until it lifts. A ref, because every
+  // `pointermove` reads and writes it and none of that is anything to render.
+  const fingerRef = useRef<FingerDrag | null>(null);
+  // Re-reads what is under a finger that has stopped moving while the list scrolls
+  // under it. Replaced every render, so the scroll listener always sees current rows.
+  const retargetRef = useRef<() => void>(() => undefined);
   // What should hold focus after the next render.
   const restoreFocus = useRef<FocusTarget | null>(null);
   // The selection whose ancestors have already been unfolded, so a reader who folds the
@@ -475,8 +501,18 @@ export function TaskList({
     // surface that is the list's own scroll container and the page does not scroll at
     // all; in the stacked shell there is no scrollable ancestor and it falls back to
     // the window, which is what it always did.
-    return startDragAutoScroll({ within: rootRef.current });
-  }, [dragging]);
+    if (!pointerDrag) return startDragAutoScroll({ within: rootRef.current });
+    // A finger held still at the edge fires no events while the rows scroll beneath
+    // it, so the insertion line is re-read on every scroll rather than left on the row
+    // that was under the finger when it stopped.
+    const stop = startDragAutoScroll({ within: rootRef.current, source: "pointer" });
+    const onScroll = () => retargetRef.current();
+    document.addEventListener("scroll", onScroll, true);
+    return () => {
+      stop();
+      document.removeEventListener("scroll", onScroll, true);
+    };
+  }, [dragging, pointerDrag]);
 
   // Put focus back where the last gesture left it.
   //
@@ -811,6 +847,64 @@ export function TaskList({
     return from < to ? "after" : "before";
   };
 
+  /**
+   * Point the insertion line at `task`, or clear it if `task` would not take the drop,
+   * and answer whether it would. Shared by the mouse's `dragover` and a finger's move.
+   */
+  const aimAt = (task: TaskSummaryRead | null) => {
+    const side = task ? dropSide(task) : null;
+    if (!task || !side) {
+      setDropTarget((current) => (current === null ? current : null));
+      return false;
+    }
+    setDropTarget((current) =>
+      current && current.id === task.id && current.side === side ? current : { id: task.id, side },
+    );
+    return true;
+  };
+
+  /**
+   * The row under a viewport point, if it is one of this list's tasks.
+   *
+   * A finger drag has no `dragover` to tell each row it is being hovered: the grip holds
+   * the pointer for the whole gesture, so every move arrives at the grip. The row is
+   * found by asking the document what is at that point instead.
+   *
+   * The point is held inside the list first. A finger pressed to the bottom of a tablet
+   * to scroll the list sits on the page's padding below the scrollport, and a finger
+   * that strays sideways sits on the detail pane; in both the reader is still aiming at
+   * the row nearest that edge, and the auto-scroll is still running, so the line has
+   * to stay on a row rather than vanish.
+   */
+  const taskAt = (x: number, y: number) => {
+    const root = rootRef.current;
+    if (!root) return null;
+    const across = root.getBoundingClientRect();
+    const port = nearestScroller(root)?.getBoundingClientRect() ?? {
+      top: 0,
+      bottom: window.innerHeight,
+    };
+    const within = (value: number, low: number, high: number) =>
+      Math.min(Math.max(value, low + 1), high - 1);
+    const row = document
+      .elementFromPoint(within(x, across.left, across.right), within(y, port.top, port.bottom))
+      ?.closest<HTMLElement>("[data-task]");
+    if (!row || !rootRef.current?.contains(row)) return null;
+    return ordered.find((candidate) => candidate.id === row.dataset.task) ?? null;
+  };
+
+  retargetRef.current = () => {
+    const finger = fingerRef.current;
+    if (finger?.started) aimAt(taskAt(finger.x, finger.y));
+  };
+
+  const endFingerDrag = () => {
+    fingerRef.current = null;
+    setPointerDrag(false);
+    setDragging(null);
+    setDropTarget(null);
+  };
+
   const onRowDrop = (task: TaskSummaryRead) => {
     const side = dropSide(task);
     const sourceId = dragging;
@@ -844,7 +938,68 @@ export function TaskList({
       type="button"
       id={gripId(task.id)}
       draggable
+      // A finger (or a pen) drags on pointer events, task-589. Touch browsers do not
+      // start an HTML5 drag from a finger, or start one only after a long-press that
+      // then fights the page scroll, so a mouse keeps the HTML5 path below and anything
+      // else takes this one. `touch-action: none` on the grip alone -- `.queue-grip` in
+      // styles.css -- is what stops the browser claiming this finger for a scroll,
+      // while a finger anywhere else on the row still scrolls the list.
+      onPointerDown={(event) => {
+        if (event.pointerType === "mouse" || !handlers || fingerRef.current) return;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        fingerRef.current = {
+          pointerId: event.pointerId,
+          taskId: task.id,
+          startX: event.clientX,
+          startY: event.clientY,
+          x: event.clientX,
+          y: event.clientY,
+          started: false,
+        };
+      }}
+      onPointerMove={(event) => {
+        const finger = fingerRef.current;
+        if (!finger || finger.pointerId !== event.pointerId) return;
+        finger.x = event.clientX;
+        finger.y = event.clientY;
+        if (!finger.started) {
+          const travelled = Math.hypot(finger.x - finger.startX, finger.y - finger.startY);
+          if (travelled < TOUCH_DRAG_SLOP_PX) return;
+          finger.started = true;
+          setPointerDrag(true);
+          setDragging(finger.taskId);
+          // `dropSide` reads `dragging`, which is not set until the next render, so the
+          // next move aims the line. A finger that has come this far moves again long
+          // before a frame without one could be noticed.
+          return;
+        }
+        aimAt(taskAt(finger.x, finger.y));
+      }}
+      onPointerUp={(event) => {
+        const finger = fingerRef.current;
+        if (!finger || finger.pointerId !== event.pointerId) return;
+        if (!finger.started) {
+          fingerRef.current = null;
+          return;
+        }
+        const target = taskAt(event.clientX, event.clientY);
+        fingerRef.current = null;
+        setPointerDrag(false);
+        // `onRowDrop` clears `dragging` and the line itself, and runs exactly the move
+        // or the band-change prompt a mouse drop onto the same row would.
+        if (target) onRowDrop(target);
+        else endFingerDrag();
+      }}
+      onPointerCancel={(event) => {
+        if (fingerRef.current?.pointerId === event.pointerId) endFingerDrag();
+      }}
       onDragStart={(event) => {
+        // A long-press can still start the browser's own HTML5 drag under a finger that
+        // is already dragging on pointer events. One gesture, one drag.
+        if (fingerRef.current) {
+          event.preventDefault();
+          return;
+        }
         // What is being dragged is held in state, not read back out of the payload: a
         // browser hides `dataTransfer` data during dragover, which is exactly when the
         // drop target has to decide whether it will accept.
@@ -883,7 +1038,7 @@ export function TaskList({
       aria-label={`Reorder ${task.id}, ${bandOf(task)} band, position ${task.queue_position}`}
       aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End"
       aria-describedby={REORDER_HELP_ID}
-      className="touch-target cursor-grab rounded px-1 text-dark-muted hover:bg-dark-border hover:text-dark-text"
+      className="queue-grip touch-target cursor-grab rounded px-1 text-dark-muted hover:bg-dark-border hover:text-dark-text"
     >
       <span aria-hidden="true">⠿</span>
     </button>
@@ -903,17 +1058,7 @@ export function TaskList({
    */
   const dragProps = (task: TaskSummaryRead) => ({
     onDragOver: (event: React.DragEvent) => {
-      const side = dropSide(task);
-      if (!side) {
-        setDropTarget((current) => (current === null ? current : null));
-        return;
-      }
-      event.preventDefault();
-      setDropTarget((current) =>
-        current && current.id === task.id && current.side === side
-          ? current
-          : { id: task.id, side },
-      );
+      if (aimAt(task)) event.preventDefault();
     },
     onDrop: (event: React.DragEvent) => {
       event.preventDefault();
