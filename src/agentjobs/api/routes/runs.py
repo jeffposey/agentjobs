@@ -1397,9 +1397,10 @@ def _stop_state() -> EmergencyStopState:
 
 
 def _who(principal: Optional[Principal]) -> str:
+    """The name the sentinel and every note give the person who pressed it."""
     if principal is None:
         return "an unidentified caller"
-    return principal.actor_id or principal.login or principal.kind.value
+    return principal.actor_id or principal.login or f"the {principal.kind.value}"
 
 
 @router.get("/emergency-stop", response_model=EmergencyStopState)

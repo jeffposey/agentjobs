@@ -1865,7 +1865,7 @@ class DispatchLedger:
         except ExecutionStoreError as exc:
             return [StopResult("walks", False, f"open walks unreadable: {exc}", "walk")]
         for walk in walks:
-            detail = f"Ended by the emergency stop ({who})."
+            detail = f"Ended by the emergency stop, pressed by {who}."
             try:
                 store.update_walk(
                     walk.walk_id,
@@ -1889,8 +1889,8 @@ class DispatchLedger:
         if manager is None:
             return
         prompt = (
-            f"The emergency stop ({who}) ended this epic's walk; no further child will "
-            "start. Children already running were stopped with it. Once dispatch is "
+            f"The emergency stop, pressed by {who}, ended this epic's walk; no further "
+            "child will start. Children already running were stopped with it. Once dispatch is "
             "resumed, dispatch this parent again to restart the walk -- it re-reads each "
             "child's record, so nothing already merged is redone."
         )
