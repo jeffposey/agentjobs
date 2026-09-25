@@ -45,18 +45,21 @@ const panel = () => document.getElementById("primary-nav-destinations");
  */
 const BAR_DESTINATIONS = ["Dashboard", "Tasks"] as const;
 
-function renderWithStatus(at = "/p/demo/tasks") {
+function renderWithStatus(at = "/p/demo/tasks", onDashboardFollow = () => {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[at]}>
-        <PrimaryNav projectId="demo" status={<span data-testid="status">2/3</span>} />
+        <PrimaryNav
+          projectId="demo"
+          status={<span data-testid="status">counts</span>}
+          statusLabel="2 waiting on you · 3 being worked"
+          onDashboardFollow={onDashboardFollow}
+        />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
-
-
 
 describe("PrimaryNav", () => {
   it("starts closed, and says so to a screen reader", () => {
@@ -141,31 +144,48 @@ describe("PrimaryNav", () => {
     }
   });
 
-  it("puts the status readout on the Dashboard tab when the row is inline", () => {
-    // task-588: the readout is attached to the Dashboard entry -- a sibling of its
-    // link, since the readout is a link of its own -- and is mounted exactly once.
-    // jsdom's default 1024px viewport is above the breakpoint.
+  it("draws the counts inside the one Dashboard link when the row is inline", () => {
+    // task-588, after review: the first cut put the counts in a pill link beside the
+    // Dashboard link -- two links to one page. There is one link now, and the counts
+    // are inside it. jsdom's default 1024px viewport is above the breakpoint.
     renderWithStatus();
 
-    const dashboard = screen.getByRole("link", { name: "Dashboard" });
-    expect(dashboard.parentElement).toContainElement(screen.getByTestId("status"));
-    expect(dashboard).not.toContainElement(screen.getByTestId("status"));
+    const dashboards = screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("href") === "/p/demo");
+    expect(dashboards).toHaveLength(1);
+    expect(dashboards[0]).toContainElement(screen.getByTestId("status"));
+    expect(dashboards[0]).toHaveAccessibleName("Dashboard · 2 waiting on you · 3 being worked");
     expect(screen.getAllByTestId("status")).toHaveLength(1);
   });
 
-  it("keeps the status readout out of the collapsible group below the breakpoint", () => {
-    // The load-bearing property of task-338, carried into task-588's readout: every
-    // destination disappears behind the burger below the breakpoint, so a readout hung
-    // on the Dashboard tab there would be invisible on the phone, the surface that needs
-    // it most. Asserted as structure, because jsdom applies no stylesheet; that it is
-    // genuinely visible at a phone width is measured in e2e/attention-badge.spec.ts.
+  it("acknowledges through the Dashboard link that carries the counts", () => {
+    // task-422's act, which the red badge's click carried before task-588.
+    let followed = 0;
+    renderWithStatus("/p/demo/tasks", () => {
+      followed += 1;
+    });
+    fireEvent.click(screen.getByTestId("nav-status"));
+    expect(followed).toBe(1);
+    // The Tasks link is not that act.
+    fireEvent.click(screen.getByRole("link", { name: "Tasks" }));
+    expect(followed).toBe(1);
+  });
+
+  it("keeps the counts out of the collapsible group below the breakpoint", () => {
+    // The load-bearing property of task-338, carried into task-588: every destination
+    // disappears behind the burger below the breakpoint, so counts only inside the
+    // Dashboard tab would be invisible on the phone, the surface that needs them most.
+    // There the bar draws the Dashboard link as the counts alone. Asserted as structure,
+    // because jsdom applies no stylesheet; that it is genuinely visible at a phone width
+    // is measured in e2e/attention-badge.spec.ts.
     setViewport(390, 844);
     renderWithStatus();
 
-    const status = screen.getByTestId("status");
-    expect(status.parentElement).toBe(
-      screen.getByRole("navigation", { name: "Primary navigation" }),
-    );
+    const link = screen.getByTestId("nav-status");
+    expect(link.parentElement).toBe(screen.getByRole("navigation", { name: "Primary navigation" }));
+    expect(link).toHaveAttribute("href", "/p/demo");
+    expect(link).toContainElement(screen.getByTestId("status"));
     expect(panel()).toBeNull();
     // And opening the panel does not draw a second copy inside it.
     fireEvent.click(trigger());

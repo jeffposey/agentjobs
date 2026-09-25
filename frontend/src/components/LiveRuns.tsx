@@ -7,7 +7,7 @@ import { CHIP_SHAPE, RUN_HEALTH, categoryStyle, chipClasses, runMotion } from ".
 /**
  * What is running on this machine, across every project (task-328).
  *
- * Two surfaces, one query, on purpose. The header's status readout (`NavStatus`) and the
+ * Two surfaces, one query, on purpose. The Dashboard tab's green count and the
  * Dashboard's slot board render the same answer at different lengths, and react-query
  * dedupes them by key -- so a Dashboard with the header above it costs one request.
  *

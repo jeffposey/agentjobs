@@ -84,8 +84,8 @@ import { GlobalCapture } from "./components/CaptureControl";
 import { FiledNotice, type FiledOutcome } from "./components/DispatchOnCreate";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
-import { useLiveRuns } from "./components/LiveRuns";
-import { NavStatus } from "./components/NavStatus";
+import { runningCount, useLiveRuns } from "./components/LiveRuns";
+import { NavCounts, navStatusLabel } from "./components/NavStatus";
 import { IdleSessionsSection } from "./components/IdleSessions";
 import { RecentlyFinished, useRecentClosures } from "./components/RecentlyFinished";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
@@ -1307,18 +1307,18 @@ function PlaybooksPage({ projectId }: { projectId: string }) {
 }
 
 /**
- * The header, with its status readout attached.
+ * The header, with its status counts on the Dashboard tab.
  *
- * A component of its own because the readout needs a hook and `PrimaryNav` must stay
+ * A component of its own because the counts need a hook and `PrimaryNav` must stay
  * prop-driven. The live-run query is shared with the Dashboard's slot board by
  * react-query's cache, so a Dashboard costs one request rather than two.
  *
- * **One readout, where there used to be two badges.** task-338 kept the green running
- * count and the red waiting-on-you count apart on the argument that they answer
+ * **Two dots on one tab, where there used to be two badges.** task-338 kept the green
+ * running count and the red waiting-on-you count apart on the argument that they answer
  * different questions -- one machine-wide, one this project's. The owner decided on
  * task-588 that they should be read together, as one glance at what the machine is doing
- * for you. The scopes still differ, and the readout's accessible name says each part in
- * words rather than leaving a reader to infer it from a dot's colour.
+ * for you. The scopes still differ, and the Dashboard link's accessible name says each
+ * in words rather than leaving a reader to infer it from a dot's colour.
  */
 function ProjectShellNav({
   projectId,
@@ -1335,19 +1335,16 @@ function ProjectShellNav({
   onAcknowledge: (episodeId: string) => void;
 }) {
   const episodeId = attention?.episode?.id;
+  const waiting = attention?.blocking ?? null;
+  const working = runningCount(useLiveRuns());
   return (
     <PrimaryNav
       projectId={projectId}
-      status={
-        <NavStatus
-          runs={useLiveRuns()}
-          waiting={attention?.blocking ?? null}
-          projectId={projectId}
-          onAcknowledge={() => {
-            if (episodeId) onAcknowledge(episodeId);
-          }}
-        />
-      }
+      status={<NavCounts waiting={waiting} working={working} />}
+      statusLabel={navStatusLabel(waiting, working)}
+      onDashboardFollow={() => {
+        if (episodeId) onAcknowledge(episodeId);
+      }}
     />
   );
 }

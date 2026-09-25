@@ -31,7 +31,7 @@ const ONE_ROW_MAX_PX = 72;
 const DESTINATIONS = ["Dashboard", "Tasks"];
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 770;
+const NAV_INLINE_MIN_PX = 748;
 
 /**
  * One record, long enough that every viewport under test has somewhere to scroll to,
@@ -222,11 +222,9 @@ test("above the breakpoint every destination is inline and there is no burger", 
   }
   // And nothing else (task-345). A count rather than a text comparison: the defect this
   // guards is an entry somebody added and nobody subtracted, which a test looking only
-  // for the survivors misses. The status readout on the Dashboard tab (task-588) is a
-  // link too, but a readout rather than a destination, so it is the one left out.
-  await expect(nav.locator("a:not([data-testid='nav-status'])")).toHaveCount(
-    DESTINATIONS.length,
-  );
+  // for the survivors misses. Since task-588 the Dashboard link also carries the status
+  // counts, inside it rather than as a link of its own, so the count is still two.
+  await expect(nav.getByRole("link")).toHaveCount(DESTINATIONS.length);
   await expect(nav.getByTestId("nav-status")).toHaveCount(1);
 });
 

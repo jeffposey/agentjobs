@@ -26,7 +26,6 @@ test("an idle machine says so, in the readout and on the board", async ({ page }
   // one that has stopped polling, which is the failure mode this number exists to rule
   // out.
   await expect(badge(page)).toHaveText("0");
-  await expect(page.getByTestId("nav-status-slots")).toHaveText("0/2");
   // The slot board, drawn from the machine's own ceiling (task-092). Two cells because
   // this machine's `max_concurrent_runs` is two, and neither of them is a run.
   await expect(page.getByTestId("slot-board-capacity")).toContainText("0 of 2 slots busy");
@@ -75,8 +74,6 @@ test("a real run appears on both surfaces without a reload, and leaves when it e
   await expect(occupied).toContainText("Working");
   await expect(page.getByTestId("slot-cell")).toHaveCount(2);
   await expect(page.getByTestId("slot-board-capacity")).toContainText("1 of 2 slots busy");
-
-  await expect(page.getByTestId("nav-status-slots")).toHaveText("1/2");
 
   // End the run from the task page, and watch the readout there fall without a reload.
   await page.goto(taskUrl);

@@ -21,7 +21,7 @@ const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 770;
+const NAV_INLINE_MIN_PX = 748;
 
 const SURFACES = [
   ["/app/p/_local", "Dashboard"],
@@ -53,7 +53,8 @@ async function readLinks(page: Page) {
     return links.map((link) => {
       const style = getComputedStyle(link);
       return {
-        label: (link.textContent ?? "").trim(),
+        // The label's own span: since task-588 the Dashboard link also holds its counts.
+        label: (link.querySelector("span")?.textContent ?? link.textContent ?? "").trim(),
         current: link.getAttribute("aria-current") === "page",
         color: style.color,
         background: style.backgroundColor,

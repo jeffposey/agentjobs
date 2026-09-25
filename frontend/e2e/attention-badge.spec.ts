@@ -3,9 +3,9 @@ import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 /**
  * task-338: the header says work has stopped on you, wherever you are.
  *
- * Since task-588 the red badge this spec was written for is the red part of the header's
- * one combined readout (`nav-status`), which also carries slots used and what is being
- * worked. The properties below are the same ones, asserted on that readout.
+ * Since task-588 the red badge this spec was written for is the red dot inside the
+ * Dashboard link (`nav-status`), beside a green count of what is being worked. The
+ * properties below are the same ones, asserted on that link.
  *
  * The reported defect was that only the Dashboard said so, which is the one place you
  * cannot be told something you did not already go looking for. What a jsdom test can
@@ -25,7 +25,7 @@ const project = "/app/p/_local";
 /** iPhone 14/15 CSS pixels, which is where this app is read over Tailscale. */
 const PHONE = { width: 390, height: 844 };
 /** Exactly `NAV_INLINE_MIN_PX`: the narrowest width that still renders the row inline. */
-const NAV_INLINE_MIN_PX = 770;
+const NAV_INLINE_MIN_PX = 748;
 const INLINE_MIN = { width: NAV_INLINE_MIN_PX, height: 800 };
 
 /** One row is `min-h-16` plus a 1px bottom border; anything taller has wrapped. */

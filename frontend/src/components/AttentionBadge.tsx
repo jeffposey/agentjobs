@@ -25,9 +25,9 @@ import type { AttentionResponse } from "../api/types";
  * badge -- the badge tracks the waiting set, and work is still stopped after you have
  * looked at it -- it decides whether the *next* task to stop may interrupt again.
  *
- * **Since task-588 the badge is the red part of `NavStatus`**, the header's one combined
- * readout on the Dashboard tab. This module keeps the query and the cap; the rendering,
- * and the click that acknowledges, moved there.
+ * **Since task-588 the badge is the red dot inside the Dashboard tab** (`NavCounts`).
+ * This module keeps the query and the cap; the rendering moved there, and following the
+ * Dashboard tab is now the click that acknowledges.
  */
 
 /**

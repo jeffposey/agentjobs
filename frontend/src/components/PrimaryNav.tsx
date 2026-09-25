@@ -41,11 +41,10 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * in {@link ActionsMenu} now, one interaction from every page the bar is on.
  *
  * What is left is Dashboard and Tasks. task-345 kept Runs as a third; task-588 retired
- * it, because the owner never went there, and moved its count onto the Dashboard tab as
- * part of `NavStatus`'s combined readout. **Before adding a third, notice that this row
- * is the one part of the app with a documented history of growing by one good reason at
- * a time.** The menu is where a
- * link goes unless you can say what a reader is navigating *to*.
+ * it, because the owner never went there, and moved its count into the Dashboard tab
+ * (`NavCounts`). **Before adding a third, notice that this row is the one part of the app
+ * with a documented history of growing by one good reason at a time.** The menu is where
+ * a link goes unless you can say what a reader is navigating *to*.
  *
  * The burger is at the **left** end on purpose. The *actions* end is the top-right --
  * task-346's capture trigger and task-168's {@link ActionsMenu} (About, Analytics,
@@ -135,32 +134,34 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
  * destination one tap away.
  *
  * **Re-measured for task-588, which took Runs out and merged the two badges.** The
- * Runs link and the attention badge left; the status readout (`NavStatus`, about 82px
- * with every part drawn) arrived on the Dashboard tab. Unlike the red badge it is drawn
- * on every screen, so there is no rarer case to measure for. Same method as above --
+ * Runs link and the attention badge left; two counts (`NavCounts`) moved inside the
+ * Dashboard link, which is 157px wide with them. Unlike the red badge they are drawn on
+ * every screen, so there is no rarer case to measure for. Same method as above --
  * switcher pinned at 224px, links `nowrap`, breakpoint temporarily 360, 1px steps, on
- * 2026-09-24 -- and the bar last overflows at **758px**, so the constant is **770**.
+ * 2026-09-24 -- and the bar last overflows at **736px**, so the constant is **748**.
+ * (The first cut, a separate pill link with a slot fraction, measured 758 and 770; the
+ * owner rejected that pill on review.)
  *
- * Below the breakpoint the readout sits beside the switcher, and there the wordmark is
- * drawn only for a screen reader: at 390px, with it drawn, the switcher was left 19px
- * wide. Without it the switcher has 116px at 390 and 101px at 375.
+ * Below the breakpoint the Dashboard link is drawn beside the switcher as the counts
+ * alone (78px), and there the wordmark is drawn only for a screen reader. Measured with
+ * the first cut's pill, drawing it left the switcher 19px wide at 390px. Without it the
+ * switcher has 120px at 390 and 105px at 375.
  *
  * Kept as a constant beside the class names that encode it so a reader can find both
  * at once; Tailwind needs the literal in the class, so the two are checked against
  * each other by a test rather than by the compiler.
  */
-export const NAV_INLINE_MIN_PX = 770;
+export const NAV_INLINE_MIN_PX = 748;
 
 /** Shown inline above the breakpoint, and inside the panel below it. */
 const DESTINATIONS: ReadonlyArray<{
   path: string;
   label: string;
-  /** Carries the header's status readout beside it, inline. Exactly one entry does. */
+  /** Carries the header's status counts inside its link. Exactly one entry does. */
   status?: boolean;
 }> = [
-  // The status readout hangs here (task-588): its link leads to the Dashboard, which is
-  // where every number in it is broken out -- the slot board for the first and third,
-  // the "stopped on you" panel for the second.
+  // The status counts are drawn inside this link (task-588): the Dashboard is where
+  // both are broken out -- the "stopped on you" panel for red, the slot board for green.
   { path: "", label: "Dashboard", status: true },
   { path: "/tasks", label: "Tasks" },
   // Analytics is **not** here. task-465 put it in this row on 2026-09-18 because the
@@ -258,7 +259,7 @@ const currentClass = "bg-blue-500/15 text-white inset-ring-1 inset-ring-blue-400
  * {@link NAV_INLINE_MIN_PX} wide.
  *
  * Read from the same media query the classes encode, so the one place JavaScript needs
- * the answer -- where the status readout mounts -- cannot disagree with the CSS. Where
+ * the answer -- where the status counts mount -- cannot disagree with the CSS. Where
  * `matchMedia` does not exist (jsdom) the answer is the narrow layout, which puts the
  * readout outside the collapsible group: the placement that is visible at every width.
  */
@@ -281,22 +282,32 @@ function useInlineRow(): boolean {
 export function PrimaryNav({
   projectId,
   status,
+  statusLabel,
+  onDashboardFollow,
 }: {
   projectId: string;
   /**
-   * The combined status readout -- slots, waiting on you, being worked (task-588) --
-   * supplied by the shell rather than queried here, so this component stays pure
-   * presentation and its tests need no query client and no server.
+   * The status counts -- waiting on you, being worked (task-588) -- supplied by the
+   * shell rather than queried here, so this component stays pure presentation and its
+   * tests need no query client and no server. Plain content, never a link: it is drawn
+   * *inside* the Dashboard link, so the bar has one way to the Dashboard, not two.
    *
    * **It is drawn in one of two places, never both.** At or above
-   * {@link NAV_INLINE_MIN_PX} it sits on the Dashboard tab. Below it, every destination
-   * is behind the burger, and the phone -- read over Tailscale -- is where noticing that
-   * work has stopped matters most (task-338's argument for the old red badge's
-   * placement), so there it sits beside the project switcher, outside the collapsible
-   * group. One mount rather than two copies hidden by CSS, so a screen reader and a test
-   * each find exactly one.
+   * {@link NAV_INLINE_MIN_PX} it is inside the Dashboard tab, after its label. Below it
+   * every destination is behind the burger, and the phone -- read over Tailscale -- is
+   * where noticing that work has stopped matters most (task-338's argument for the old
+   * red badge's placement), so there the Dashboard link is also drawn in the bar beside
+   * the project switcher, as the counts alone. One mount either way, so a screen reader
+   * and a test each find exactly one.
    */
   status?: ReactNode;
+  /** The counts in words; the Dashboard link's accessible name becomes "Dashboard · …". */
+  statusLabel?: string;
+  /**
+   * Called when the link carrying the counts is followed. The shell acknowledges the
+   * attention episode with it (task-422), as the red badge's click did before task-588.
+   */
+  onDashboardFollow?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -345,9 +356,12 @@ export function PrimaryNav({
 
   const currentPath = currentDestinationPath(location.pathname, projectId);
 
+  const statusName = statusLabel ? `Dashboard · ${statusLabel}` : undefined;
+
   const destinations = DESTINATIONS.map((destination) => {
     const current = destination.path === currentPath;
-    const link = (
+    const carries = Boolean(destination.status && wide && status);
+    return (
       <Link
         key={destination.label}
         to={projectPath(projectId, destination.path)}
@@ -357,22 +371,22 @@ export function PrimaryNav({
         // carrying the attribute makes "which one" a question about its value.
         aria-current={current ? "page" : undefined}
         className={`${linkClass} ${current ? currentClass : restClass}`}
+        {...(carries
+          ? {
+              "data-testid": "nav-status",
+              "aria-label": statusName,
+              title: statusLabel,
+              onClick: onDashboardFollow,
+            }
+          : {})}
       >
         {/* The label is its own element so a test can address it exactly, which is how
             every destination in e2e/pinned-header.spec.ts is found. It mattered while
             Runs carried a badge inside its link (task-328 to task-588); it stays so the
             next thing put beside a label cannot quietly break those lookups. */}
         <span>{destination.label}</span>
+        {carries && <span className="ml-2.5">{status}</span>}
       </Link>
-    );
-    // A sibling of the link rather than a child: the readout is a link of its own, since
-    // following it acknowledges the attention episode and following the tab does not.
-    if (!(destination.status && wide && status)) return link;
-    return (
-      <span key={destination.label} className="flex items-center gap-1">
-        {link}
-        {status}
-      </span>
     );
   });
 
@@ -388,18 +402,18 @@ export function PrimaryNav({
       className="sticky top-0 z-30 border-b border-dark-border bg-dark-surface"
     >
       <nav
-        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[770px]:gap-4 sm:px-6 lg:px-8"
+        className="mx-auto flex min-h-16 max-w-7xl flex-nowrap items-center gap-2 px-4 py-2 min-[748px]:gap-4 sm:px-6 lg:px-8"
         aria-label="Primary navigation"
       >
         {/*
           The breakpoint lives on this wrapper rather than on the button, and that is
           not a stylistic choice. `styles.css` carries `.touch-target:not(.block) {
           display: inline-flex }`, whose specificity (0,2,0) beats a Tailwind utility's
-          (0,1,0) -- so `min-[770px]:hidden` on a `touch-target` element loses, and the
+          (0,1,0) -- so `min-[748px]:hidden` on a `touch-target` element loses, and the
           burger stays visible at every width. Caught in a browser at 1280px; jsdom
           would never have shown it.
         */}
-        <div className="shrink-0 min-[770px]:hidden">
+        <div className="shrink-0 min-[748px]:hidden">
           <button
             ref={triggerRef}
             type="button"
@@ -421,16 +435,31 @@ export function PrimaryNav({
         </div>
         {/*
           Read by a screen reader at every width, drawn only at or above the breakpoint
-          (task-588). The status readout that moved outside the collapsible group costs
-          some 80px on a phone, and measured at 390px it left the project switcher 19px
+          (task-588). The Dashboard link drawn outside the collapsible group costs
+          some 80px on a phone, and at 390px it once left the project switcher 19px
           wide -- the project's name gone, beside the product's. On a phone the name of
           the project is the one a reader needs, so the wordmark gives up the room.
         */}
-        <h1 className="sr-only text-2xl font-bold min-[770px]:not-sr-only min-[770px]:shrink-0">
+        <h1 className="sr-only text-2xl font-bold min-[748px]:not-sr-only min-[748px]:shrink-0">
           AgentJobs
         </h1>
         <ProjectSwitcher projectId={projectId} />
-        {wide ? null : status}
+        {!wide && status && (
+          // The Dashboard link, as the counts alone, where a phone can see it. The panel
+          // still lists Dashboard by name for a reader looking for the word.
+          <Link
+            to={projectPath(projectId)}
+            data-testid="nav-status"
+            aria-label={statusName}
+            title={statusLabel}
+            onClick={onDashboardFollow}
+            className={`${linkClass} shrink-0 ${
+              currentPath === "" ? currentClass : restClass
+            }`}
+          >
+            {status}
+          </Link>
+        )}
         {/*
           `gap-4`, not the `gap-6` the bar itself uses between its regions. task-465
           took it to 16px to buy width back from a row of eight; task-345 left it
@@ -439,7 +468,7 @@ export function PrimaryNav({
           point of shortening the row was to move that number down. The task's
           constraint is not to restyle the bar, and reverting this would be one.
         */}
-        <div className="hidden items-center gap-4 min-[770px]:flex">{destinations}</div>
+        <div className="hidden items-center gap-4 min-[748px]:flex">{destinations}</div>
         {/*
           The actions end: the capture trigger (task-346) and the actions menu
           (task-168), at the opposite end from the burger and present at every width.
@@ -460,7 +489,7 @@ export function PrimaryNav({
           // Absolute rather than in flow, so opening the panel overlays the page
           // instead of pushing it down under a bar that is already pinned. `sticky`
           // is a positioned value, so the header is the containing block already.
-          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[770px]:hidden"
+          className="absolute inset-x-0 top-full border-b border-dark-border bg-dark-surface shadow-lg min-[748px]:hidden"
         >
           <div
             className="mx-auto flex max-w-7xl flex-col px-4 py-2 sm:px-6"
