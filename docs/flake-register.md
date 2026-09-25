@@ -82,10 +82,18 @@ reconciliation). A row's `status` cell is what the epic's close condition reads.
 | 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone. Task-554 did not reproduce it in 19 instrumented runs, and no kill in the suite reached a sibling. It removed one producer of the signature: `_kill_tree` released its proof before `taskkill` ran | environment, or a producer not yet found | open, instrumented -- since task-561 every AgentJobs kill is journalled and the failing assertion quotes the lines naming the victim; read that message when it next fires (see below) |
 | 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | a skipping clock's stamp (up to 7190 fake seconds) left in the process-global sweep throttle read as the future against real uptime within two hours of a reboot, and the throttle skipped on a future stamp | production defect, surfaced by test state leaking between tests | **fixed** (task-546) |
 | 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | a reconcile judged a live launcher's never-launched attempt abandoned by comparing the OS creation time of `holder_pid` with an `admitted_at` written through the installed clock; under the durable-replay suite's frozen clock that clock read earlier than the holder's own start, so a live holder looked like a recycled pid and a second dispatch took its slot | production defect | **fixed** (task-549, `faed64f2`: admission records the holder's `process_identity` and both holder checks compare receipts, with the timestamp kept only as a fallback for older rows) |
-| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix. **Recurred after that fix** in 4 of 12 finish gates on 2026-09-24, and 0 of 99 runs off a finish reproduce it; cause unknown | unknown | **open** -- reopened by task-571, see below |
+| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix. **Recurred after that fix** in 4 of 12 finish gates on 2026-09-24, and 0 of 99 runs off a finish reproduce it; cause unknown | unknown | **open** -- reopened by task-571; recurred in `fin_4223dde1` with the new worker stuck in `waiting`, see below |
 | 17 | `test_dispatch_atomic_yaml.py::TestTheDocumentIsNeverHalfWritten::test_a_reader_never_sees_a_partial_document` | `461 of 1153 reads saw a document without run_id` | a refusal to open the file that outlasted the reader's 40ms retry budget answered *absent*: `read_yaml_resiliently` returned `None`, and `read_meta` turned that into `{}`. Reproduced by holding the file exclusively, as a real-time scanner would; the organic load did not reproduce it | production defect | **fixed** (task-550) -- see below |
 | 18 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | `PermissionError: [Errno 13]` reading its own `grandchild.pid`, then `Cannot operate on a closed database` | the read landed after `os.replace` made the name visible but before `MoveFileExW` closed its DELETE-access handle; a plain `open` does not share delete, so it hit a sharing violation. One writer is enough | test premise | **fixed** (task-553) -- see below |
 | 19 | `dispatch/test_durable_replay.py::TestRegressions::test_grounding_outlives_two_real_supervisor_deaths` | `WalkStop.ALREADY_SUPERVISED ... already being walked by pid 224680` at line 1662 -- a fresh walk refused by a supervisor that had exited 9 | the walk lease judged its holder alive by `process_created_after(holder_pid, updated_at)`, which allows a second of slack. The supervisor writes its walk and dies inside a second; a pid reissued inside that second (0.35 s is this machine's measured minimum) left a stranger the check took for the holder. The opposite skew let a live holder be taken over. Seen 2 of 20 in task-553's probe (`-n 13`) | production defect | **fixed (task-558)**: `supervision.holder_identity` (revision 9) records the holder's `process_identity`, and `open_walk` and the pull pass's `flying_walks` compare receipts, with the timestamp kept only for older rows -- see below |
+| 20 | `tests/dispatch/test_kill_journal.py::TestEverySiteJournals::test_runner_kill_tree_names_everything_taskkill_ended` | `assert 255 == 0` at line 84 -- taskkill's journalled output said `SUCCESS` and its return code was 255 | not named. A guess, not observed: `/T` ends the venv launcher's interpreter child as well, and a tree member that exited on its own between enumeration and termination would make taskkill report partial failure while still printing `SUCCESS` for the pid it was given. 5 of 5 green run alone on the same commit | unknown | **open** -- seen by finish `fin_4223dde1`, see below |
+
+**20 and 16 observed** 2026-09-25 00:09 UTC in task-578's finish `fin_4223dde1` on
+`6969b600`, a branch touching status-chip words, docs and one frontend dependency.
+Attempt 1 (`scripts/check.py`, `-n 26, alone on this machine`): 20 red, 5931 passed; log
+`~/.agentjobs/finishes/fin_4223dde1/gate.log`. Its retry (`--from pytest`, `-n 26, alone
+on this machine`): pytest green, then 16 red in `e2e`; log `gate-retry-1.log` beside it,
+Playwright traces in `test-results-2`. Two tests over two attempts, neither repeating.
 
 **14-16 observed** 2026-09-23 about 21:50 UTC in task-526's finish `fin_8f638f51` on
 `b6be1fd9`, a branch touching only the finisher's classification, the failure rollup and
@@ -699,6 +707,28 @@ server is serving now. The idle test also counts takeovers. The next red in a fi
 `installing` or `waiting`, the browser never handed over the tab. With a takeover and
 the old document still there, `pwa.ts` declined or the reload hung. With `servedSwLastLine`
 missing the rebuild marker, the bundle was overwritten under the test.
+
+**2026-09-25: the first instrumented red says the new worker installed and never
+activated.** Finish `fin_4223dde1` (task-578), attempt 2, trace kept in
+`~/.agentjobs/finishes/fin_4223dde1/test-results-2`. What the page could see:
+
+```
+controller  activated .../app/sw.js     installing  none
+waiting     installed .../app/sw.js     active      activated .../app/sw.js
+takeovers   0                           survived    yes
+servedSwLastLine  // rebuilt for idletab00000
+```
+
+So the rebuild was served and the browser installed it, and the new worker then stayed in
+`waiting`: no activation, no `controllerchange`, no reload. `pwa.ts` never got a chance to
+decline. That rules out the stuck-in-`installing` guess above and the bundle being
+overwritten. It leaves the question of why a worker whose `install` handler ends in
+`self.skipWaiting()` stayed waiting. One candidate, not verified: Chromium defers even a
+skip-waiting activation until the active worker's in-flight fetch events settle, and
+`service-worker.js` answers every `/api/` GET with `respondWith(fetch(request))`, so a slow
+API request through the old worker would hold the new one back. The app's polls are short,
+so this would need a request that stalled for the whole 20 seconds. Read the trace's
+network log for an `/api/` request open across the wait before acting on it.
 
 **The traces were lost, and that cost this investigation its evidence.** The finish
 leaves `frontend/test-results/` in the branch's worktree. Its own retry clears it, and
