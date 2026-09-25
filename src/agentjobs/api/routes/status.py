@@ -115,6 +115,12 @@ def _as_read(task: Task) -> TaskRead:
     return TaskRead.model_validate(task.model_dump(mode="python", exclude={"display_status"}))
 
 
+def _with_facts(task: Task, manager: TaskManager) -> TaskRead:
+    """The read model with the corpus-derived dependency facts filled in."""
+    facts = manager.dependency_facts().get(task.id)
+    return _as_read(task) if facts is None else TaskRead.from_task(task, facts)
+
+
 def _error(
     status_code: int,
     code: str,
@@ -270,6 +276,7 @@ def _run(
     project: Project,
     operation_id: Optional[str],
     envelope: bool,
+    facts_from: Optional[TaskManager] = None,
 ) -> Any:
     """Execute one manager verb and shape its result, or its refusal.
 
@@ -283,6 +290,12 @@ def _run(
     a property of the move, and a caller reading the task back a second later has no
     way to recover them. Every other verb still returns the task and lands on the
     ``else`` branch untouched.
+
+    ``facts_from`` puts the task's real dependency facts on the envelope -- its unmet
+    ``needs`` and how many open tasks need it -- where otherwise they are the read
+    model's defaults. Only the handoff passes it (task-617): the record check on a
+    handoff reads both, and with the defaults ``blocked_handoff`` could never fire and
+    ``unfiled_follow_ups`` always would. It costs a corpus read, so no other verb pays it.
     """
     before = _log_length(task_id, project) if envelope and operation_id else -1
     try:
@@ -305,7 +318,7 @@ def _run(
         project_id=project.id,
         operation_id=operation_id,
         replayed=operation_id is not None and len(task.log) == before,
-        task=_as_read(task),
+        task=_as_read(task) if facts_from is None else _with_facts(task, facts_from),
         warnings=[],
         **advisory,
     )
@@ -419,6 +432,7 @@ async def handoff_task(
         project=project,
         operation_id=payload.operation_id,
         envelope=envelope,
+        facts_from=manager,
     )
     _settle_interactive(manager, task_id)
     return result

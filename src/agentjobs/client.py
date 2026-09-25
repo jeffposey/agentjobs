@@ -180,6 +180,17 @@ class MutationResult(BaseModel):
     #: is a fact about *other* tasks and has no business being a field on this one. The
     #: record check needs it to say that a handoff cannot lead to work.
     unmet_needs: List[str] = Field(default_factory=list)
+    #: How many open tasks `need` this one, as the service computed it (task-617).
+    #:
+    #: Lifted off the returned `TaskRead` for the same reason as `unmet_needs`: it is
+    #: the read model's `unblocks_count`, already on the wire. ``None`` when the service
+    #: did not send it, so the record check can tell "nobody needs this" from "unknown".
+    dependents: Optional[int] = None
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    """An integer the service sent, or ``None`` when it sent nothing usable."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 class TaskClientError(RuntimeError):
@@ -942,6 +953,7 @@ class TaskClient:
             ],
             queue_undo=data.get("queue_undo"),
             unmet_needs=[str(item) for item in (data["task"].get("unmet_needs") or [])],
+            dependents=_optional_int(data["task"].get("unblocks_count")),
         )
 
     def _parse_task(self, data: Dict[str, Any]) -> Task:

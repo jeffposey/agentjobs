@@ -34,7 +34,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
-from .models_v2 import Ball, BallReason, LogEntryType, Task
+from .models_v2 import Ball, BallReason, LogEntryType, Task, TaskKind
 from .quotation import SPEC_PROSE_FIELDS, scan_task
 
 __all__ = [
@@ -50,6 +50,7 @@ __all__ = [
     "STANDING_INVITATION_PHRASES",
     "SUMMARY_WORD_CEILING",
     "BLOCKED_HANDOFF",
+    "UNFILED_FOLLOW_UPS",
     "UNNAMED_REVIEW_LINK",
     "WARNING_KINDS",
     "unnamed_review_links",
@@ -83,6 +84,10 @@ STANDING_INVITATION = "standing_invitation"
 #: `needs` dependency is still open (task-150).
 BLOCKED_HANDOFF = "blocked_handoff"
 
+#: A design task went to its final review with nothing waiting on it, so the
+#: implementation it proposes has not been filed (task-617).
+UNFILED_FOLLOW_UPS = "unfiled_follow_ups"
+
 #: Every kind this module can produce. The closed set a caller may branch on.
 WARNING_KINDS: Tuple[str, ...] = (
     LONG_SUMMARY,
@@ -90,6 +95,8 @@ WARNING_KINDS: Tuple[str, ...] = (
     UNNAMED_REVIEW_LINK,
     QUOTED_REMARK,
     STANDING_INVITATION,
+    BLOCKED_HANDOFF,
+    UNFILED_FOLLOW_UPS,
 )
 
 #: The shapes that say an ask has no deadline and no act available today.
@@ -213,6 +220,7 @@ def check_record(
     *,
     verb: Optional[str] = None,
     unmet_needs: Sequence[str] = (),
+    dependents: Optional[int] = None,
 ) -> List[RecordWarning]:
     """What is wrong with this record that the write named by ``verb`` could have caused.
 
@@ -228,6 +236,10 @@ def check_record(
     tasks, so the caller -- which has the corpus, or the server's answer about it --
     supplies it. Left empty, the condition it feeds simply does not fire, which keeps the
     default behaviour of every existing caller exactly as it was.
+
+    ``dependents`` is the second such input (task-617): how many open tasks ``need``
+    this one, which is ``unblocks_count`` on the server's read model. ``None`` means the
+    caller does not know, and the condition it feeds stays silent rather than guessing.
     """
     warnings: List[RecordWarning] = []
     if verb is None or verb in SPEC_WRITING_VERBS:
@@ -238,6 +250,7 @@ def check_record(
         warnings.extend(_check_review_links(task))
         warnings.extend(_check_standing_invitation(task))
         warnings.extend(_check_blocked_handoff(task, unmet_needs))
+        warnings.extend(_check_unfiled_follow_ups(task, dependents))
     warnings.extend(_check_quotations(task, verb))
     return warnings
 
@@ -434,6 +447,42 @@ def _check_blocked_handoff(task: Task, unmet_needs: Sequence[str]) -> List[Recor
             "about the dependency, say so and use external/dependency, which is where "
             "work waiting on other work belongs. If a person genuinely has to decide "
             "something now, this is fine and worth the row.",
+        )
+    ]
+
+
+def _check_unfiled_follow_ups(task: Task, dependents: Optional[int]) -> List[RecordWarning]:
+    """A design handed to its final review with no implementation filed behind it.
+
+    **task-603 is the incident** (2026-09-25). Its design doc listed eight follow-ups and
+    said none was filed; the owner approved, the scripted finish merged and closed it, and
+    no step anywhere was going to file them. task-555 had already rejected a close-time
+    prompt on the grounds that a design files its children ``ready`` with ``needs`` on
+    itself -- so the fix is that convention, stated in the workflow guide, and this is
+    the moment it can still be followed: the session that wrote the design is in context
+    and the owner has not yet approved.
+
+    Only ``kind: design``, only a handoff to ``human/review`` (``human/plan`` approves an
+    approach and comes back to the agent, so nothing is lost there), and only when the
+    caller knows the count. Not a refusal: a design can honestly conclude that nothing
+    should be built, and saying so in the prompt is the whole fix for that case.
+    """
+    if dependents is None or dependents > 0:
+        return []
+    if task.kind is not TaskKind.DESIGN:
+        return []
+    if task.ball is not Ball.HUMAN or task.ball_reason is not BallReason.REVIEW:
+        return []
+    return [
+        RecordWarning(
+            UNFILED_FOLLOW_UPS,
+            "This is a design task at its final review, and no open task needs it. "
+            "Approving it merges the design and closes the task -- with finish=on no agent "
+            "is involved -- so any implementation it proposes would be filed by nobody. "
+            "File those tasks now, before the owner reviews: ready, with a needs "
+            "dependency on this task, under an epic, so they review the design and its "
+            "breakdown together and the approval unblocks them. If the design concludes "
+            "that nothing should be built, say so in the ball_prompt.",
         )
     ]
 
