@@ -4,7 +4,7 @@ import { expect, test, type APIRequestContext, type Page } from "./fixtures";
  * task-338: the header says work has stopped on you, wherever you are.
  *
  * Since task-588 the red badge this spec was written for is the red dot inside the
- * Dashboard link (`nav-status`), beside a green count of what is being worked. The
+ * Dashboard link (`nav-status`), beside blue and violet counts of what is being worked and what is landing (task-608). The
  * properties below are the same ones, asserted on that link.
  *
  * The reported defect was that only the Dashboard said so, which is the one place you

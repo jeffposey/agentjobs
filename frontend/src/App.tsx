@@ -85,7 +85,7 @@ import { GlobalCapture } from "./components/CaptureControl";
 import { FiledNotice, type FiledOutcome } from "./components/DispatchOnCreate";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
-import { runningCount, useLiveRuns } from "./components/LiveRuns";
+import { runCounts, useLiveRuns } from "./components/LiveRuns";
 import { walkForTask } from "./components/TaskWalk";
 import { NavCounts, navStatusLabel } from "./components/NavStatus";
 import { IdleSessionsSection } from "./components/IdleSessions";
@@ -1333,7 +1333,8 @@ function PlaybooksPage({ projectId }: { projectId: string }) {
  * different questions -- one machine-wide, one this project's. The owner decided on
  * task-588 that they should be read together, as one glance at what the machine is doing
  * for you. The scopes still differ, and the Dashboard link's accessible name says each
- * in words rather than leaving a reader to infer it from a dot's colour.
+ * in words rather than leaving a reader to infer it from a dot's colour. task-608 split
+ * landing out of working as a third dot; `runCounts` keeps the two disjoint.
  */
 function ProjectShellNav({
   projectId,
@@ -1351,12 +1352,12 @@ function ProjectShellNav({
 }) {
   const episodeId = attention?.episode?.id;
   const waiting = attention?.blocking ?? null;
-  const working = runningCount(useLiveRuns());
+  const { working, landing } = runCounts(useLiveRuns());
   return (
     <PrimaryNav
       projectId={projectId}
-      status={<NavCounts waiting={waiting} working={working} />}
-      statusLabel={navStatusLabel(waiting, working)}
+      status={<NavCounts waiting={waiting} working={working} landing={landing} />}
+      statusLabel={navStatusLabel(waiting, working, landing)}
       onDashboardFollow={() => {
         if (episodeId) onAcknowledge(episodeId);
       }}

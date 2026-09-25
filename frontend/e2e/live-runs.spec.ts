@@ -16,7 +16,7 @@ import { expect, test } from "./fixtures";
 
 const project = "/app/p/_local";
 
-/** The green part of the header's readout: what is being worked right now. */
+/** The blue part of the header's readout: what is being worked right now (task-608). */
 const badge = (page: import("./fixtures").Page) => page.getByTestId("nav-status-working");
 
 test("an idle machine says so, in the readout and on the board", async ({ page }) => {

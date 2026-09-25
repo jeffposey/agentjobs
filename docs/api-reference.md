@@ -413,8 +413,9 @@ Two of `/api/runs/live`'s fields are worth reading carefully:
   locks rather than run slots, so they are real machine activity with no run record.
   They are listed separately and are deliberately **not** in `occupied`, which counts
   exactly what the concurrency guard counts. The React app nonetheless *shows* a finish
-  as running -- in the header readout's green count and as a card on the slot board
-  (task-352) -- because a gate running for a task is running, whatever it holds; a
+  as running -- in the header readout's violet landing count (task-608; a run
+  finishing itself, `health: finishing`, counts there too and not as working) and as a
+  card on the slot board (task-352) -- because a gate running for a task is running, whatever it holds; a
   client of this endpoint should read `runs` plus the `finish` holders as "what is
   running", and `occupied` as "how many slots are taken", which are different questions.
 

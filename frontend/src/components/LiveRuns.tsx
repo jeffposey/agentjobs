@@ -7,7 +7,7 @@ import { CHIP_SHAPE, RUN_HEALTH, categoryStyle, chipClasses, runMotion } from ".
 /**
  * What is running on this machine, across every project (task-328).
  *
- * Two surfaces, one query, on purpose. The Dashboard tab's green count and the
+ * Two surfaces, one query, on purpose. The Dashboard tab's working and landing counts and the
  * Dashboard's slot board render the same answer at different lengths, and react-query
  * dedupes them by key -- so a Dashboard with the header above it costs one request.
  *
@@ -221,10 +221,36 @@ export function unexplainedRunways(body: LiveRunsView): MachineHolderView[] {
   );
 }
 
-/** What the header's green count shows: dispatched runs plus finishes in progress. */
-export function runningCount(body: LiveRunsView | null): number {
-  if (!body) return 0;
-  return body.runs.length + liveFinishes(body).length;
+/**
+ * How many merges are landing: the same classification the slot board draws as Landing.
+ *
+ * Two shapes, never both for one merge. A finish started by an approval is a finish
+ * holder and its run is gone; a run finishing itself keeps its run row, reports
+ * `health: "finishing"`, and takes no finish lock (task-533). An overtaken finish is not
+ * landing -- its task is already closed, and the board badges it Overtaken (task-514).
+ * `capacitySentence` and the Dashboard tab both count through here, so the sentence, the
+ * board and the tab cannot disagree about what is merging.
+ */
+export function landingCount(body: LiveRunsView): number {
+  return (
+    liveFinishes(body).filter((finish) => !finish.overtaken).length +
+    body.runs.filter((run) => run.health === "finishing").length
+  );
+}
+
+/**
+ * The Dashboard tab's machine-wide counts: runs being worked, and merges landing.
+ *
+ * Disjoint by construction (task-608). Until then the tab's one count was runs plus
+ * finishes, and a run finishing itself sat in it as a run; now it is landing and not
+ * working, so a landing that fails back to a working run moves from one count to the
+ * other on the next poll rather than being counted twice or dropped. An overtaken finish
+ * is in neither: nothing is being worked on a closed task, and nothing is landing.
+ */
+export function runCounts(body: LiveRunsView | null): { working: number; landing: number } {
+  if (!body) return { working: 0, landing: 0 };
+  const working = body.runs.filter((run) => run.health !== "finishing").length;
+  return { working, landing: landingCount(body) };
 }
 
 /**
@@ -307,9 +333,7 @@ export function capacitySentence(body: LiveRunsView): string {
   // Overtaken finishes are excluded rather than counted: they hold a lock and a slot on
   // the board, but "1 merging" is the word this sentence exists to make honest (task-514).
   // A run finishing itself is merging too, and holds no finish card (task-533).
-  const merging =
-    liveFinishes(body).filter((finish) => !finish.overtaken).length +
-    body.runs.filter((run) => run.health === "finishing").length;
+  const merging = landingCount(body);
   const suffix = merging > 0 ? ` · ${merging} merging` : "";
   if (!body.dispatch_configured) {
     const head =
