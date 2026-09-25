@@ -19,7 +19,7 @@ const VIEWPORT = 800;
  * given amount of elapsed time -- and a test that waited on the machine's frame rate
  * could assert neither of those.
  */
-function harness() {
+function harness(source?: "drag" | "pointer") {
   const listeners = new Map<string, Set<EventListener>>();
   const scrolled: Array<number> = [];
   let pending: ((time: number) => void) | null = null;
@@ -37,6 +37,7 @@ function harness() {
 
   const stop = startDragAutoScroll({
     events,
+    source,
     scrollBy: (dy) => scrolled.push(dy),
     viewportHeight: () => VIEWPORT,
     requestFrame: (callback) => {
@@ -193,6 +194,40 @@ describe("startDragAutoScroll", () => {
     expect(loop.listenerCount()).toBe(0);
     loop.frame(16);
     expect(loop.scrolled).toEqual([]);
+  });
+
+  it("ignores pointercancel during a mouse drag, which fires one as it starts", () => {
+    const loop = harness();
+    loop.fire("pointercancel", {});
+    loop.fire("dragover", { clientY: VIEWPORT });
+    loop.frame();
+    loop.frame(16);
+    expect(loop.scrolledTotal()).toBeGreaterThan(0);
+    loop.stop();
+  });
+
+  it("follows pointermove for a finger's drag, and ignores dragover (task-589)", () => {
+    const loop = harness("pointer");
+    loop.fire("dragover", { clientY: VIEWPORT });
+    loop.frame();
+    loop.frame(16);
+    expect(loop.scrolled).toEqual([]);
+    loop.fire("pointermove", { clientY: VIEWPORT - 2 });
+    loop.frame(16);
+    expect(loop.scrolledTotal()).toBeGreaterThan(0);
+    loop.stop();
+  });
+
+  it("tears a finger's loop down on pointerup and on pointercancel", () => {
+    for (const end of ["pointerup", "pointercancel"]) {
+      const loop = harness("pointer");
+      loop.fire("pointermove", { clientY: 0 });
+      loop.frame();
+      loop.fire(end, {});
+      expect(loop.listenerCount()).toBe(0);
+      loop.frame(16);
+      expect(loop.scrolled).toEqual([]);
+    }
   });
 
   it("is idempotent, so a caller unwinding after dragend is harmless", () => {

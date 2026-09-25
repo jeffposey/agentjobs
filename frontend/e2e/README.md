@@ -74,6 +74,7 @@ disagree, so a new spec cannot be added without classifying it.
 | `promote-draft.spec.ts` | project | Files a draft and promotes it. |
 | `queue-move-check.spec.ts` | project | Reorders the project's queue. |
 | `queue-order.spec.ts` | project | Reorders the project's queue. |
+| `queue-touch.spec.ts` | project | Files tasks and reorders the project's queue by touch. |
 | `report-issue.spec.ts` | project | Files an issue from the header control and reads the record back. |
 | `review-findability.spec.ts` | project | Files tasks waiting on review and finds them. |
 | `sidebar-weight.spec.ts` | project | Files a critical and a high task, measures the sidebar's edges and title weight, then closes them. |
