@@ -26,7 +26,7 @@ import {
  * shows the verdict and the reason, the switch that lets the poller act on it, and the
  * record of every stop with the command that brings the session back.
  *
- * Re-read once a minute rather than on the runs page's two-second clock: an inventory
+ * Re-read once a minute rather than on the live-runs query's two-second clock: an inventory
  * enumerates every process on the machine, and the threshold it judges against is hours.
  */
 export const IDLE_SESSIONS_POLL_MS = 60_000;
@@ -327,7 +327,7 @@ export function IdleSessionsPanel({
   );
 }
 
-/** The section as the Runs tab mounts it: its own query, and the switch. */
+/** The section as the Dispatch settings page mounts it (task-588): its own query, and the switch. */
 export function IdleSessionsSection() {
   const queryClient = useQueryClient();
   const query = useQuery({

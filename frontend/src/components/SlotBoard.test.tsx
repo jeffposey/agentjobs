@@ -501,7 +501,8 @@ describe("the board a person reads", () => {
     expect(cellStates()).toEqual(["finish"]);
   });
 
-  it("links to the long form on both the header and the overflow line", () => {
+  it("links nowhere near the retired Runs tab, on the header or the overflow line", () => {
+    // task-588 retired the page both links led to. The board is the long form now.
     renderBoard(
       <SlotBoard
         body={body({ max_concurrent_runs: BOARD_CELL_LIMIT + 2 })}
@@ -510,10 +511,10 @@ describe("the board a person reads", () => {
       />,
     );
 
-    expect(screen.getByRole("link", { name: "Running now →" })).toHaveAttribute(
-      "href",
-      "/p/alpha/runs",
-    );
+    expect(screen.queryByRole("link", { name: /Running now/ })).toBeNull();
+    for (const link of screen.queryAllByRole("link")) {
+      expect(link.getAttribute("href") ?? "").not.toMatch(/[/]runs$/);
+    }
     expect(screen.getByTestId("slot-board-overflow")).toHaveTextContent("+2 more slots");
   });
 });

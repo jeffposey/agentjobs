@@ -1,24 +1,21 @@
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { listLiveRunsApiRunsLiveGetOptions } from "../api/generated/@tanstack/react-query.gen";
 import type { LiveRunView, LiveRunsView, MachineHolderView } from "../api/types";
 import { CHIP_SHAPE, RUN_HEALTH, categoryStyle, chipClasses, runMotion } from "./StatusChip";
-import { formatElapsed } from "./DispatchPanel";
-import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 
 /**
  * What is running on this machine, across every project (task-328).
  *
- * Two surfaces, one query, on purpose. The Runs tab and the Dashboard's capacity row
- * render the same answer at different lengths, and react-query dedupes them by key --
- * so a Dashboard with the nav badge above it costs one request, not three.
+ * Two surfaces, one query, on purpose. The header's status readout (`NavStatus`) and the
+ * Dashboard's slot board render the same answer at different lengths, and react-query
+ * dedupes them by key -- so a Dashboard with the header above it costs one request.
  *
- * **Machine-wide, and the URL is not.** The page lives under `/p/:projectId/runs`
- * because the app shell, the header and the project switcher are all project-scoped and
- * a surface outside them would have no navigation at all. The *content* is not: every
- * row carries its own `project_id` and its own server-built `task_url`, so a row for
- * another project links into that project rather than into the one you are looking at.
+ * **There was a third surface, the Runs tab, and task-588 retired it**: the owner never
+ * opened it, and its one number moved onto the Dashboard tab. What it rendered and the
+ * slot board does not -- other projects' runs as rows -- is still in this answer, since
+ * every row carries its own `project_id` and server-built `task_url`, so a future surface
+ * that wants it needs no new endpoint. `/p/:projectId/runs` redirects to the Dashboard.
  */
 
 /** How often the runs list is re-read while something is running. */
@@ -67,7 +64,7 @@ export function liveRunsPollInterval(body: LiveRunsView | undefined): number {
   return busy ? BUSY_POLL_MS : IDLE_POLL_MS;
 }
 
-/** The machine-wide runs query, shared by the nav badge, the Dashboard and the tab. */
+/** The machine-wide runs query, shared by the header readout and the slot board. */
 export function useLiveRuns() {
   const query = useQuery({
     ...listLiveRunsApiRunsLiveGetOptions(),
@@ -224,7 +221,7 @@ export function unexplainedRunways(body: LiveRunsView): MachineHolderView[] {
   );
 }
 
-/** What the badge counts: dispatched runs plus finishes in progress. */
+/** What the header's green count shows: dispatched runs plus finishes in progress. */
 export function runningCount(body: LiveRunsView | null): number {
   if (!body) return 0;
   return body.runs.length + liveFinishes(body).length;
@@ -327,226 +324,4 @@ export function capacitySentence(body: LiveRunsView): string {
   return `${body.occupied} of ${body.max_concurrent_runs} ${
     body.max_concurrent_runs === 1 ? "slot" : "slots"
   } busy${overage}${suffix}`;
-}
-
-/*
- * The Dashboard's capacity row lived here until task-092.
- *
- * It was one line at the foot of the statistics card saying "2 of 3 slots busy" and
- * naming what was running. The slot board says all of that in its own header, one card
- * higher and with the runs drawn rather than listed, so keeping the row would have been
- * the same sentence twice on the page that has to fit one viewport (task-294). Nothing
- * it offered was lost: the sentence is `capacitySentence`, which the board's header
- * renders, and the link to the Runs tab is the board's "Running now →".
- */
-
-/**
- * The nav badge. Always a number, so zero reads as zero rather than as stale.
- *
- * It counts what is running, not what holds a slot: a finish in the gate is a one here
- * (task-352). The slot count is the capacity sentence's job.
- */
-export function LiveRunCount({ body }: { body: LiveRunsView | null }) {
-  const count = runningCount(body);
-  return (
-    <span
-      data-testid="live-run-count"
-      className={`ml-1.5 inline-flex min-w-5 justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold ${
-        count > 0 ? "bg-green-700 text-green-100" : "bg-dark-border text-dark-muted"
-      }`}
-    >
-      {count}
-    </span>
-  );
-}
-
-/** A runway lock with no finish row to explain it. See `unexplainedRunways`. */
-function RunwayRow({ holder }: { holder: MachineHolderView }) {
-  return (
-    <li className="p-4 text-sm">
-      <span className="font-medium text-dark-text">
-        Merge runway — {holder.project_name || "a checkout"}
-      </span>
-      <span className="text-dark-muted"> — {holder.detail}</span>
-      {holder.elapsed_seconds !== null && holder.elapsed_seconds !== undefined && (
-        <span className="text-dark-muted"> · {formatElapsed(holder.elapsed_seconds)}</span>
-      )}
-    </li>
-  );
-}
-
-/**
- * A finish, as a row of the same table the runs are in.
- *
- * The Task cell links where a run's does, and falls back to plain text for a finish
- * whose project the server could not attribute: the row is still worth having, and a
- * link to nowhere is worse than no link.
- */
-function FinishRow({ finish }: { finish: MachineHolderView }) {
-  const name = (
-    <>
-      <span className="font-mono text-xs">{finish.task_id || finish.lock_name}</span>
-      {finish.task_title && (
-        <span className="ml-2 text-sm text-dark-text">{finish.task_title}</span>
-      )}
-    </>
-  );
-  return (
-    <ResponsiveTableRow
-      data-finish-id={finish.finish_id}
-      data-task-id={finish.task_id}
-    >
-      <ResponsiveCell label="Task">
-        {finish.task_url ? (
-          <Link to={finish.task_url} className="text-blue-400 hover:text-blue-300">
-            {name}
-          </Link>
-        ) : (
-          <span className="text-dark-text">{name}</span>
-        )}
-      </ResponsiveCell>
-      <ResponsiveCell label="Project" className="text-sm text-dark-muted">
-        {finish.project_name}
-      </ResponsiveCell>
-      <ResponsiveCell label="State">
-        <span className="inline-flex flex-wrap items-center gap-2">
-          <FinishBadge finish={finish} />
-          <span className="text-xs text-dark-muted">
-            {finishDetail(finish.detail, finish.runway_behind)}
-          </span>
-        </span>
-      </ResponsiveCell>
-      <ResponsiveCell label="Running for" className="text-sm text-dark-muted">
-        {formatElapsed(finish.elapsed_seconds)}
-      </ResponsiveCell>
-      <ResponsiveCell label="Posture" className="text-xs text-dark-muted">
-        scripted finish
-      </ResponsiveCell>
-    </ResponsiveTableRow>
-  );
-}
-
-/**
- * The Runs tab.
- *
- * Read-only, deliberately (task-328's `out_of_scope`). There is no cancel here even
- * though the endpoint knows every run: a destructive button beside a row that a poll
- * refreshes every two seconds is a click aimed at whatever has since taken that row's
- * place, and task-312 records how badly a cancel at the wrong moment reads.
- */
-export function LiveRunsPage({ body }: { body: LiveRunsView | null }) {
-  if (!body) {
-    return (
-      <section className="rounded-lg border border-dark-border bg-dark-surface p-6">
-        <h1 className="text-xl font-semibold">Running now</h1>
-        <p className="mt-2 text-sm text-dark-muted">Reading the machine&apos;s run ledger…</p>
-      </section>
-    );
-  }
-
-  const finishes = liveFinishes(body);
-  const runways = unexplainedRunways(body);
-
-  return (
-    <div className="space-y-6">
-      <section className="rounded-lg border border-dark-border bg-dark-surface p-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h1 className="text-xl font-semibold">Running now</h1>
-          <p className="text-sm text-dark-muted" data-testid="capacity-sentence">
-            {capacitySentence(body)}
-          </p>
-        </div>
-        <p className="mt-2 text-xs text-dark-muted">
-          Every agent running on this machine, in every project — because the slots they
-          compete for are the machine&apos;s, not any one project&apos;s. Read-only: start
-          and cancel a run from its own task.
-        </p>
-      </section>
-
-      <section className="rounded-lg border border-dark-border bg-dark-surface">
-        <div className="border-b border-dark-border p-6">
-          <h2 className="text-lg font-semibold">Runs</h2>
-        </div>
-        {body.runs.length === 0 && finishes.length === 0 ? (
-          <p className="p-6 text-sm text-dark-muted" data-testid="no-live-runs">
-            Nothing is running on this machine right now.
-          </p>
-        ) : (
-          <div className="p-2">
-            {/* Task, Project, State, Running for, Posture. Only the first holds a task
-                title, so only the first is unbounded; the rest are a project name, a
-                badge, an elapsed time and a word. */}
-            <ResponsiveTable aria-label="Live runs" columns={[null, "10rem", "8rem", "8rem", "9rem"]}>
-              <thead>
-                <tr>
-                  <th scope="col">Task</th>
-                  <th scope="col">Project</th>
-                  <th scope="col">State</th>
-                  <th scope="col">Running for</th>
-                  <th scope="col">Posture</th>
-                </tr>
-              </thead>
-              <tbody>
-                {body.runs.map((run) => (
-                  <ResponsiveTableRow key={run.run_id} data-run-id={run.run_id}>
-                    <ResponsiveCell label="Task">
-                      {/* Absolute, and built by the server: this row very often belongs
-                          to another project, and a relative link would send it into
-                          whichever project the reader is currently in. */}
-                      <Link to={run.task_url} className="text-blue-400 hover:text-blue-300">
-                        <span className="font-mono text-xs">{run.task_id}</span>
-                        <span className="ml-2 text-sm text-dark-text">{run.task_title}</span>
-                      </Link>
-                    </ResponsiveCell>
-                    <ResponsiveCell label="Project" className="text-sm text-dark-muted">
-                      {run.project_name}
-                    </ResponsiveCell>
-                    <ResponsiveCell label="State">
-                      <span className="inline-flex flex-wrap items-center gap-2">
-                        <HealthBadge health={run.health} task={run} />
-                        {run.health === "finishing" && (
-                          <span className="text-xs text-dark-muted">
-                            {finishDetail(run.finish_step, run.runway_behind)}
-                          </span>
-                        )}
-                      </span>
-                    </ResponsiveCell>
-                    <ResponsiveCell label="Running for" className="text-sm text-dark-muted">
-                      {formatElapsed(run.elapsed_seconds)}
-                    </ResponsiveCell>
-                    <ResponsiveCell label="Posture" className="text-xs text-dark-muted">
-                      {runKindLabel(run)}
-                    </ResponsiveCell>
-                  </ResponsiveTableRow>
-                ))}
-                {/* Finishes after the runs: a finish is what happens to a task once
-                    its run is over, so it reads as the later thing. It holds no slot,
-                    which the capacity sentence above already says. */}
-                {finishes.map((finish) => (
-                  <FinishRow key={`finish-${finish.lock_name}`} finish={finish} />
-                ))}
-              </tbody>
-            </ResponsiveTable>
-          </div>
-        )}
-      </section>
-
-      {runways.length > 0 && (
-        <section className="rounded-lg border border-dark-border bg-dark-surface">
-          <div className="border-b border-dark-border p-6">
-            <h2 className="text-lg font-semibold">Also on this machine</h2>
-            <p className="mt-1 text-xs text-dark-muted">
-              A merge runway held by a finish this page could not read. Every other merge
-              in that repository is queued behind it.
-            </p>
-          </div>
-          <ul className="divide-y divide-dark-border">
-            {runways.map((holder) => (
-              <RunwayRow key={`runway-${holder.lock_name}`} holder={holder} />
-            ))}
-          </ul>
-        </section>
-      )}
-    </div>
-  );
 }

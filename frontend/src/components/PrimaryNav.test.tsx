@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
+import { setViewport } from "../test/viewport";
 import { currentDestinationPath, NAV_INLINE_MIN_PX, PrimaryNav } from "./PrimaryNav";
 // Vite hands the module back as text. Read through the bundler rather than through
 // node:fs so the test needs no Node type definitions and no assumption about which
@@ -39,9 +40,23 @@ const panel = () => document.getElementById("primary-nav-destinations");
  *
  * `Create` is gone, and that is task-346 rather than this task: its capture control
  * replaced the entry, so authoring stayed one interaction from every page instead of
- * becoming two. This task's own subtraction is Dispatch, Playbooks and API Docs.
+ * becoming two. This task's own subtraction is Dispatch, Playbooks and API Docs, and
+ * task-588's is Runs.
  */
-const BAR_DESTINATIONS = ["Dashboard", "Tasks", "Runs"] as const;
+const BAR_DESTINATIONS = ["Dashboard", "Tasks"] as const;
+
+function renderWithStatus(at = "/p/demo/tasks") {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[at]}>
+        <PrimaryNav projectId="demo" status={<span data-testid="status">2/3</span>} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+
 
 describe("PrimaryNav", () => {
   it("starts closed, and says so to a screen reader", () => {
@@ -88,7 +103,7 @@ describe("PrimaryNav", () => {
   it("closes when a destination is chosen", () => {
     renderNav();
     fireEvent.click(trigger());
-    fireEvent.click(within(panel() as HTMLElement).getByText("Runs"));
+    fireEvent.click(within(panel() as HTMLElement).getByText("Tasks"));
     expect(panel()).toBeNull();
   });
 
@@ -117,47 +132,45 @@ describe("PrimaryNav", () => {
     expect(panel()).not.toBeNull();
   });
 
-  it("puts the live-run badge on the Runs entry and nowhere else", () => {
-    // The badge is a node the shell supplies, so this asserts the wiring rather than
-    // the count: which destination carries it, and that nothing else does.
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/p/demo"]}>
-          <PrimaryNav projectId="demo" badge={<span data-testid="badge">7</span>} />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-
-    const runs = screen.getByRole("link", { name: /Runs/ });
-    expect(within(runs).getByTestId("badge")).toBeInTheDocument();
-    expect(runs).toHaveAttribute("href", "/p/demo/runs");
-    expect(screen.getAllByTestId("badge")).toHaveLength(1);
+  it("has no Runs destination any more (task-588)", () => {
+    renderNav();
+    fireEvent.click(trigger());
+    expect(screen.queryByRole("link", { name: /^Runs/ })).toBeNull();
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href") ?? "").not.toMatch(/\/runs$/);
+    }
   });
 
-  it("keeps the attention badge out of the collapsible group, so a phone still sees it", () => {
-    // The load-bearing property of task-338, and the only half of it jsdom can see:
-    // every destination in this bar disappears behind the burger below the
-    // breakpoint, so a badge hung on one of them -- where the legacy Jinja header hung
-    // it -- would be invisible on the surface that needs it most. Asserted as
-    // structure, because jsdom applies no stylesheet and cannot be asked whether the
-    // group is displayed. That it is genuinely visible at a phone width is measured in
-    // e2e/attention-badge.spec.ts.
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/p/demo/tasks"]}>
-          <PrimaryNav projectId="demo" attention={<span data-testid="attention">4</span>} />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
+  it("puts the status readout on the Dashboard tab when the row is inline", () => {
+    // task-588: the readout is attached to the Dashboard entry -- a sibling of its
+    // link, since the readout is a link of its own -- and is mounted exactly once.
+    // jsdom's default 1024px viewport is above the breakpoint.
+    renderWithStatus();
 
-    const attention = screen.getByTestId("attention");
-    expect(attention.parentElement).toBe(
+    const dashboard = screen.getByRole("link", { name: "Dashboard" });
+    expect(dashboard.parentElement).toContainElement(screen.getByTestId("status"));
+    expect(dashboard).not.toContainElement(screen.getByTestId("status"));
+    expect(screen.getAllByTestId("status")).toHaveLength(1);
+  });
+
+  it("keeps the status readout out of the collapsible group below the breakpoint", () => {
+    // The load-bearing property of task-338, carried into task-588's readout: every
+    // destination disappears behind the burger below the breakpoint, so a readout hung
+    // on the Dashboard tab there would be invisible on the phone, the surface that needs
+    // it most. Asserted as structure, because jsdom applies no stylesheet; that it is
+    // genuinely visible at a phone width is measured in e2e/attention-badge.spec.ts.
+    setViewport(390, 844);
+    renderWithStatus();
+
+    const status = screen.getByTestId("status");
+    expect(status.parentElement).toBe(
       screen.getByRole("navigation", { name: "Primary navigation" }),
     );
-    // And it is there without opening anything.
     expect(panel()).toBeNull();
+    // And opening the panel does not draw a second copy inside it.
+    fireEvent.click(trigger());
+    expect(within(panel() as HTMLElement).queryByTestId("status")).toBeNull();
+    expect(screen.getAllByTestId("status")).toHaveLength(1);
   });
 
   it("keeps the burger's breakpoint and the class that hides it in agreement", () => {
@@ -190,12 +203,11 @@ describe("currentDestinationPath", () => {
     // destination until task-346 replaced Create with the capture control; longest
     // match now lands on `/tasks`, which is where creating a task belongs anyway.
     ["/p/demo/tasks/new", "/tasks"],
-    ["/p/demo/runs", "/runs"],
   ])("marks %s as %s", (pathname, expected) => {
     expect(currentDestinationPath(pathname, "demo")).toBe(expected);
   });
 
-  it.each([["/p/demo/dispatch"], ["/p/demo/playbooks"], ["/p/demo/analytics"]])(
+  it.each([["/p/demo/dispatch"], ["/p/demo/playbooks"], ["/p/demo/analytics"], ["/p/demo/runs"]])(
     "marks nothing on %s, rather than lighting up the Dashboard",
     (pathname) => {
       // ac-4, and the whole reason Dashboard's `""` stopped being a catch-all. These
@@ -234,7 +246,6 @@ describe("PrimaryNav current destination", () => {
     // No Create destination since task-346: the capture control replaced it, and
     // longest-match has nothing deeper than Tasks to offer this URL.
     ["/p/demo/tasks/new", "Tasks"],
-    ["/p/demo/runs", "Runs"],
   ])("marks exactly one destination on %s, and it is %s", (at, label) => {
     renderNav(at);
     // Both halves matter. One, because the report was that nothing was marked; and
@@ -259,12 +270,12 @@ describe("PrimaryNav current destination", () => {
   );
 
   it("marks the current destination inside the burger panel too", () => {
-    renderNav("/p/demo/runs");
+    renderNav("/p/demo/tasks");
     fireEvent.click(trigger());
     const opened = panel() as HTMLElement;
     const marked = within(opened).getAllByRole("link", { current: "page" });
     expect(marked).toHaveLength(1);
-    expect(marked[0]).toHaveTextContent("Runs");
+    expect(marked[0]).toHaveTextContent("Tasks");
   });
 
   it("styles the current destination differently from every other one", () => {

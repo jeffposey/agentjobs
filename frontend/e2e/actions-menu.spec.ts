@@ -24,7 +24,7 @@ const project = "/app/p/_local";
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 800 };
 /** Mirrors `NAV_INLINE_MIN_PX`. */
-const NAV_INLINE_MIN_PX = 822;
+const NAV_INLINE_MIN_PX = 770;
 /** The app's own minimum touch target, from `.touch-target` in `styles.css`. */
 const TOUCH_TARGET_PX = 44;
 
@@ -182,11 +182,11 @@ test("the bar still fits on one line at the breakpoint the trigger moved", async
   page,
   request,
 }) => {
-  // The attention badge has to be showing, and that is not decoration. It is 34px the
-  // row spends only on the screen where work has stopped on you -- which is exactly
-  // the screen NAV_INLINE_MIN_PX has to hold for, since it is the one a person is
-  // being asked to read. Without it this measured a narrower bar than the constant
-  // claims to describe, and would have passed at any breakpoint below the real one.
+  // Something has to be waiting, and that is not decoration. Before task-588 the
+  // attention badge spent 34px only on the screen where work had stopped on you; the
+  // combined readout that replaced it is always drawn, but that is still the screen
+  // NAV_INLINE_MIN_PX has to hold for, since it is the one a person is being asked to
+  // read, so the measurement keeps the waiting count lit.
   const created = await request.post("/api/tasks", {
     data: {
       title: "The bar is measured while something waits on a person",
@@ -213,7 +213,7 @@ test("the bar still fits on one line at the breakpoint the trigger moved", async
     await page.setViewportSize({ width: NAV_INLINE_MIN_PX, height: 800 });
     await page.goto(`${project}/tasks`);
     await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
-    await expect(page.getByTestId("attention-badge")).toBeVisible();
+    await expect(page.getByTestId("nav-status-waiting")).not.toHaveAttribute("data-count", "0");
 
     const measured = await page.evaluate(() => {
       const nav = document.querySelector("nav[aria-label='Primary navigation']")!;
@@ -272,7 +272,7 @@ test("everything behind the kebab is two interactions from anywhere", async ({
 
   for (const viewport of [DESKTOP, NARROW]) {
     await page.setViewportSize(viewport);
-    for (const from of [`${project}`, `${project}/tasks`, `${project}/runs`]) {
+    for (const from of [`${project}`, `${project}/tasks`]) {
       await page.goto(from);
       await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
 

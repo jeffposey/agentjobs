@@ -275,7 +275,7 @@ export function NotificationDelivery() {
           The last desktop alert could not be raised.
         </strong>{" "}
         Notifications are allowed, so this is the browser rather than a permission —
-        reloading AgentJobs usually settles it. The red badge in the header still tracks
+        reloading AgentJobs usually settles it. The red count in the header still tracks
         everything waiting on you.
       </section>
     );
@@ -326,7 +326,7 @@ export function NotificationDelivery() {
           Open AgentJobs in Chrome, or install it as an app, for desktop alerts.
         </>
       )}{" "}
-      The red badge in the header still tracks everything waiting on you.
+      The red count in the header still tracks everything waiting on you.
     </section>
   );
 }
