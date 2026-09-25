@@ -161,6 +161,9 @@ class FinishStep:
     detail: str = ""
     seconds: float = 0.0
     meaning: str = ""
+    landed_at: str = ""
+    """When the finish recorded this step landing, from the phase record. What the landing
+    estimate measures a step by: landing to landing, so time between steps counts."""
 
 
 @dataclass(frozen=True)
@@ -181,6 +184,10 @@ class GateProgress:
     passed: Optional[bool] = None
     seconds: float = 0.0
     failed_stage: str = ""
+    stages_done: Tuple[str, ...] = ()
+    """The stages this gate has finished, in order. What the landing estimate weights."""
+    stage_started_at: str = ""
+    """When the stage in flight began, so the estimate can count time inside it."""
 
 
 @dataclass(frozen=True)
@@ -319,6 +326,7 @@ def _steps_from_phases(records: List[Dict[str, Any]]) -> List[FinishStep]:
                 detail=str(record.get("detail") or ""),
                 seconds=_as_float(record.get("seconds")),
                 meaning=STEP_MEANING.get(name, ""),
+                landed_at=str(record.get("ts") or ""),
             )
         )
     return steps
@@ -329,6 +337,8 @@ def _gate_from_phases(records: List[Dict[str, Any]]) -> Optional[GateProgress]:
     started: Optional[Dict[str, Any]] = None
     finished: Optional[Dict[str, Any]] = None
     stage = ""
+    stage_started_at = ""
+    stages_done: List[str] = []
     stages_run = 0
     stages_total = 0
     for record in records:
@@ -339,12 +349,17 @@ def _gate_from_phases(records: List[Dict[str, Any]]) -> Optional[GateProgress]:
             # Only a retried finish reuses a directory, but when one does, the first
             # gate's stage counter must not be what the second one is rendered from.
             finished, stage, stages_run = None, "", 0
+            stage_started_at, stages_done = "", []
             stages_total = _as_int(record.get("stages_total")) or len(record.get("stages") or [])
         elif kind == "gate_stage_started":
             stage = str(record.get("stage") or "")
+            stage_started_at = str(record.get("ts") or "")
             stages_total = _as_int(record.get("total")) or stages_total
         elif kind == "gate_stage_finished":
             stages_run = _as_int(record.get("index")) or stages_run + 1
+            finished_stage = str(record.get("stage") or "")
+            if finished_stage:
+                stages_done.append(finished_stage)
             stages_total = _as_int(record.get("total")) or stages_total
         elif kind == "gate_finished":
             finished = record
@@ -359,12 +374,15 @@ def _gate_from_phases(records: List[Dict[str, Any]]) -> Optional[GateProgress]:
             passed=bool(finished.get("passed")),
             seconds=_as_float(finished.get("seconds")),
             failed_stage=str(finished.get("failed_stage") or ""),
+            stages_done=tuple(stages_done),
         )
     return GateProgress(
         stage=stage,
         stages_run=stages_run,
         stages_total=stages_total,
         running=True,
+        stages_done=tuple(stages_done),
+        stage_started_at=stage_started_at,
     )
 
 

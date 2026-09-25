@@ -2237,6 +2237,60 @@ class FinishPoint(BaseModel):
     estimated: bool = False
 
 
+class EstimatePoint(BaseModel):
+    """How good the landing estimate was, per week of start (F6, task-586).
+
+    Scored at the prediction given as the gate started, against what the landing then
+    really took. ``raw_error_p50_pct`` scores the uncorrected medians the same way, so
+    the distance between the two is what the learned correction is worth.
+    """
+
+    bucket: date
+    sample: int = Field(0, description="Finished landings scored in this bucket.")
+    error_p50_pct: Optional[float] = Field(
+        None, description="Median absolute error of the ETA shown, as a percentage."
+    )
+    raw_error_p50_pct: Optional[float] = Field(
+        None, description="The same, for the ETA before the learned correction."
+    )
+    within_20: Optional[float] = Field(
+        None, description="Share of landings that ended within 20% of the ETA shown, 0 to 1."
+    )
+    bias_p50: Optional[float] = Field(
+        None, description="Median correction factor in force when those ETAs were given."
+    )
+    outliers: int = Field(
+        0, description="Scored landings with a gate retry or a runway wait: not taught from."
+    )
+
+
+class EstimatorState(BaseModel):
+    """The landing estimate's learned correction as it stands now (task-586).
+
+    Shown beside the accuracy chart so the loop is never invisible: what factor is
+    applied, how many landings taught it, whether the clamp is holding it, and when it
+    was last reset.
+    """
+
+    factor: float = 1.0
+    active: bool = Field(False, description="Enough measured landings to apply a correction.")
+    sample: int = 0
+    learned: Optional[float] = Field(None, description="The median before the clamp.")
+    clamped: bool = False
+    excluded: int = Field(0, description="Recent measured landings left out as outliers.")
+    reset_at: Optional[datetime] = None
+    floor: float
+    ceiling: float
+    min_sample: int
+    window: int
+
+
+class EstimatorResetResult(BaseModel):
+    """What resetting the landing estimate's correction did: from when it learns again."""
+
+    reset_at: str
+
+
 class GatePoint(BaseModel):
     """Full gates, per week of start (G1 to G3).
 
@@ -2365,6 +2419,9 @@ class AnalyticsResponse(BaseModel):
     cost_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
     finishes: List[FinishPoint] = Field(default_factory=list)
     finishes_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
+    estimates: List[EstimatePoint] = Field(default_factory=list)
+    estimates_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
+    estimator: Optional[EstimatorState] = None
     gates: List[GatePoint] = Field(default_factory=list)
     gates_coverage: SeriesCoverage = Field(default_factory=SeriesCoverage)
     runs: List[RunPoint] = Field(default_factory=list)

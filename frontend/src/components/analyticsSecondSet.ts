@@ -25,6 +25,8 @@ import type {
   AnalyticsCoverage,
   AnalyticsRange,
   CostPerTaskPoint,
+  EstimatePoint,
+  EstimatorState,
   FinishPoint,
   GatePoint,
   MachinePoint,
@@ -415,6 +417,56 @@ export function finishReadout(point: FinishPoint | undefined, bucket: AnalyticsR
     );
   }
   return parts.join(" · ");
+}
+
+/**
+ * F6 (task-586): how good the landing estimate was in one bucket.
+ *
+ * The corrected error first, because it is the number a reader of a Landing row was
+ * shown; the uncorrected one after it, because the gap between them is what the learned
+ * correction is worth -- and a correction making things worse would read as the second
+ * number being the smaller.
+ */
+export function estimateReadout(point: EstimatePoint | undefined, bucket: AnalyticsRange["bucket"]): string {
+  if (!point) return "No buckets in this window.";
+  const sample = point.sample ?? 0;
+  const parts = [formatBucket(point.bucket, bucket)];
+  if (sample === 0) {
+    parts.push("no landing with a recorded estimate");
+    return parts.join(" · ");
+  }
+  parts.push(counted(sample, "landing"));
+  if (point.error_p50_pct !== null && point.error_p50_pct !== undefined) {
+    parts.push(`the estimate shown was off by ${Math.round(point.error_p50_pct)}% (median)`);
+  }
+  if (point.within_20 !== null && point.within_20 !== undefined) {
+    parts.push(`${Math.round(point.within_20 * 100)}% landed within ±20% of it`);
+  }
+  if (point.raw_error_p50_pct !== null && point.raw_error_p50_pct !== undefined) {
+    parts.push(`uncorrected it would have been ${Math.round(point.raw_error_p50_pct)}% off`);
+  }
+  if (point.bias_p50 !== null && point.bias_p50 !== undefined) {
+    parts.push(`correction ×${point.bias_p50.toFixed(2)}`);
+  }
+  if ((point.outliers ?? 0) > 0) {
+    parts.push(`${counted(point.outliers ?? 0, "outlier")} (gate retry or runway wait)`);
+  }
+  return parts.join(" · ");
+}
+
+/** The correction in force now, in one sentence. */
+export function estimatorWords(state: EstimatorState | null | undefined): string {
+  if (!state) return "";
+  const reset = state.reset_at ? ` Last reset ${new Date(state.reset_at).toLocaleDateString()}.` : "";
+  if (!state.active) {
+    return `No correction applied yet: it needs ${state.min_sample} measured landings and has ${state.sample ?? 0}.${reset}`;
+  }
+  const clamp = state.clamped
+    ? ` The measured miss is ×${(state.learned ?? state.factor ?? 1).toFixed(2)}, held at the ${state.floor}–${state.ceiling} clamp.`
+    : "";
+  const excluded =
+    (state.excluded ?? 0) > 0 ? ` ${counted(state.excluded ?? 0, "outlier")} left out.` : "";
+  return `Estimates are multiplied by ×${(state.factor ?? 1).toFixed(2)}, the median miss of the last ${counted(state.sample ?? 0, "measured landing")}.${clamp}${excluded}${reset}`;
 }
 
 /** G1 to G3: duration, the stage split, and the green rate from the other side. */

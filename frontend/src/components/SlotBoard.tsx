@@ -11,6 +11,7 @@ import type {
   StatusCategory,
   TaskCardRead,
 } from "../api/types";
+import { LandingProgress } from "./LandingProgress";
 import { formatElapsed } from "./DispatchPanel";
 import { PriorityMark } from "./PriorityMark";
 import { StatusChip, WALK_STATES, categoryMotion } from "./StatusChip";
@@ -340,6 +341,7 @@ function RunCell({ run, projectId }: { run: LiveRunView; projectId: string }) {
           </div>
         </Link>
       </div>
+      {finishing && <LandingProgress estimate={run.finish_estimate} />}
       <div className="flex items-center justify-between gap-2 text-xs text-dark-muted">
         <span className="truncate">
           {finishing
@@ -393,6 +395,7 @@ function FinishCell({ finish, projectId }: { finish: MachineHolderView; projectI
           <div className="min-w-0">{name}</div>
         )}
       </div>
+      <LandingProgress estimate={finish.estimate} />
       <div className="flex items-center justify-between gap-2 text-xs text-dark-muted">
         <span className="truncate">{finishDetail(finish.detail, finish.runway_behind)}</span>
         {elsewhere && <span className="shrink-0">{finish.project_name}</span>}

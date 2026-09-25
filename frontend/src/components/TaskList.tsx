@@ -9,6 +9,7 @@ import type {
 } from "../api/types";
 import { ArchivedTag, DependencyState, dependencyState } from "./DependencyState";
 import { PriorityMark, PRIORITY_COLOURS, priorityName } from "./PriorityMark";
+import { LandingProgress } from "./LandingProgress";
 import { STATUSES, StatusChip } from "./StatusChip";
 import { startDragAutoScroll } from "./dragAutoScroll";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
@@ -1055,6 +1056,9 @@ export function TaskList({
                 >
                   {task.title}
                 </span>
+                {/* A landing's progress and time left (task-586), the server's estimate
+                    drawn as it arrives. Only a live finish carries one. */}
+                <LandingProgress estimate={task.live_finish?.estimate} className="mt-1" />
               </Link>
             </div>
           </li>
@@ -1101,7 +1105,7 @@ export function TaskList({
                 </button>
               )}
             </ResponsiveCell>
-            <ResponsiveCell label="Status" data-field="status"><DependencyState task={row.task} compact /></ResponsiveCell>
+            <ResponsiveCell label="Status" data-field="status"><DependencyState task={row.task} compact /><LandingProgress estimate={row.task.live_finish?.estimate} className="mt-1" /></ResponsiveCell>
             <ResponsiveCell label="Priority"><PriorityMark priority={row.task.priority} /></ResponsiveCell>
             <ResponsiveCell label="Assigned" className="text-sm">{row.task.assignment?.owner ?? "—"}</ResponsiveCell>
             <ResponsiveCell label="Updated" className="whitespace-nowrap text-sm text-dark-muted"><time dateTime={row.task.updated}>{new Date(row.task.updated).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time></ResponsiveCell>

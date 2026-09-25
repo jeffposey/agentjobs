@@ -312,7 +312,10 @@ def _wind_back_to_version_six(path: Path) -> None:
                 )
                 for column in columns
             )
-            + "PRAGMA user_version = 6;\n"
+            # 010's tables (task-586): new tables, so dropping them is the whole undo.
+            + "DROP TABLE finish_prediction;\n"
+            "DROP TABLE finish_estimator;\n"
+            "PRAGMA user_version = 6;\n"
             "DELETE FROM schema_migration WHERE version > 6;\n"
             "COMMIT;\n"
         )

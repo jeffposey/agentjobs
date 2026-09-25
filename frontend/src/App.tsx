@@ -20,6 +20,7 @@ import {
   disarmPullModeApiProjectsProjectIdDispatchDisarmPostMutation,
   enableDispatchApiProjectsProjectIdDispatchEnablePostMutation,
   getAnalyticsApiProjectsProjectIdAnalyticsGetOptions,
+  resetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostMutation,
   getDashboardApiProjectsProjectIdDashboardGetOptions,
   getDispatchStateApiProjectsProjectIdDispatchGetOptions,
   getPlaybooksApiProjectsProjectIdPlaybooksGetOptions,
@@ -1227,18 +1228,27 @@ function TaskCreatePage({ projectId }: { projectId: string }) {
  */
 function AnalyticsPage({ projectId }: { projectId: string }) {
   const [range, setRange] = useState(DEFAULT_ANALYTICS_RANGE);
+  const queryClient = useQueryClient();
   const analytics = useQuery(
     getAnalyticsApiProjectsProjectIdAnalyticsGetOptions({
       path: { project_id: projectId },
       query: { range },
     }),
   );
+  // task-586: the learned landing correction can be forgotten from the page that
+  // shows it, and the page re-reads so the reader sees the reset take effect.
+  const resetEstimator = useMutation({
+    ...resetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostMutation(),
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
   return (
     <Analytics
       data={analytics.data ?? null}
       projectId={projectId}
       rangeKey={range}
       onRangeChange={setRange}
+      onResetEstimator={() => resetEstimator.mutate({ path: { project_id: projectId } })}
+      resettingEstimator={resetEstimator.isPending}
     />
   );
 }

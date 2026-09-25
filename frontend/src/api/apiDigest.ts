@@ -4,4 +4,4 @@
 // running server reports the digest of the contract it actually serves on
 // /api/version; when the two differ, this bundle is talking to a server it was not
 // built against, and src/components/VersionSkew.tsx says so.
-export const BUNDLE_API_DIGEST = "ba8a47f3c1f21cce8fa54d67af8c0b9ed29c5db72a89bd40e65bec2cd6a4ee37";
+export const BUNDLE_API_DIGEST = "27930b9043edb3ed8f93bb7f7c75cbb3ef2bc90f3e4be76d57c9c0ca32a2abbd";

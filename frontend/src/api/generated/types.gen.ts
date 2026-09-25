@@ -244,6 +244,12 @@ export type AnalyticsResponse = {
     cost_per_task?: Array<CostPerTaskPoint>;
     coverage: AnalyticsCoverage;
     /**
+     * Estimates
+     */
+    estimates?: Array<EstimatePoint>;
+    estimates_coverage?: SeriesCoverage;
+    estimator?: EstimatorState | null;
+    /**
      * Finishes
      */
     finishes?: Array<FinishPoint>;
@@ -2255,6 +2261,132 @@ export type EpicWalkView = {
 };
 
 /**
+ * EstimatePoint
+ *
+ * How good the landing estimate was, per week of start (F6, task-586).
+ *
+ * Scored at the prediction given as the gate started, against what the landing then
+ * really took. ``raw_error_p50_pct`` scores the uncorrected medians the same way, so
+ * the distance between the two is what the learned correction is worth.
+ */
+export type EstimatePoint = {
+    /**
+     * Bias P50
+     *
+     * Median correction factor in force when those ETAs were given.
+     */
+    bias_p50?: number | null;
+    /**
+     * Bucket
+     */
+    bucket: string;
+    /**
+     * Error P50 Pct
+     *
+     * Median absolute error of the ETA shown, as a percentage.
+     */
+    error_p50_pct?: number | null;
+    /**
+     * Outliers
+     *
+     * Scored landings with a gate retry or a runway wait: not taught from.
+     */
+    outliers?: number;
+    /**
+     * Raw Error P50 Pct
+     *
+     * The same, for the ETA before the learned correction.
+     */
+    raw_error_p50_pct?: number | null;
+    /**
+     * Sample
+     *
+     * Finished landings scored in this bucket.
+     */
+    sample?: number;
+    /**
+     * Within 20
+     *
+     * Share of landings that ended within 20% of the ETA shown, 0 to 1.
+     */
+    within_20?: number | null;
+};
+
+/**
+ * EstimatorResetResult
+ *
+ * What resetting the landing estimate's correction did: from when it learns again.
+ */
+export type EstimatorResetResult = {
+    /**
+     * Reset At
+     */
+    reset_at: string;
+};
+
+/**
+ * EstimatorState
+ *
+ * The landing estimate's learned correction as it stands now (task-586).
+ *
+ * Shown beside the accuracy chart so the loop is never invisible: what factor is
+ * applied, how many landings taught it, whether the clamp is holding it, and when it
+ * was last reset.
+ */
+export type EstimatorState = {
+    /**
+     * Active
+     *
+     * Enough measured landings to apply a correction.
+     */
+    active?: boolean;
+    /**
+     * Ceiling
+     */
+    ceiling: number;
+    /**
+     * Clamped
+     */
+    clamped?: boolean;
+    /**
+     * Excluded
+     *
+     * Recent measured landings left out as outliers.
+     */
+    excluded?: number;
+    /**
+     * Factor
+     */
+    factor?: number;
+    /**
+     * Floor
+     */
+    floor: number;
+    /**
+     * Learned
+     *
+     * The median before the clamp.
+     */
+    learned?: number | null;
+    /**
+     * Min Sample
+     */
+    min_sample: number;
+    /**
+     * Reset At
+     */
+    reset_at?: string | null;
+    /**
+     * Sample
+     */
+    sample?: number;
+    /**
+     * Window
+     */
+    window: number;
+};
+
+/**
  * FeedbackActionRequest
  *
  * Request changes with feedback.
@@ -3189,6 +3321,49 @@ export type InReview = {
 };
 
 /**
+ * LandingEstimate
+ *
+ * How far along a live finish is and roughly when it will be done (task-586).
+ *
+ * Computed once, on the server, by ``agentjobs.finish_estimate.estimate`` -- the task
+ * list's ``live_finish``, the task page's finish view and the slot board all carry this
+ * same shape from that same function, so no two surfaces can draw a different bar for
+ * one finish, and no client re-derives the model.
+ *
+ * Two numbers and a sentence, not the step list, which is why it may ride on every row.
+ */
+export type LandingEstimate = {
+    /**
+     * Basis
+     */
+    basis?: string;
+    /**
+     * Elapsed Seconds
+     */
+    elapsed_seconds?: number | null;
+    /**
+     * Eta Seconds
+     */
+    eta_seconds?: number | null;
+    /**
+     * Kind
+     */
+    kind: 'estimate' | 'runway' | 'no_history';
+    /**
+     * Overrun
+     */
+    overrun?: boolean;
+    /**
+     * Progress
+     */
+    progress?: number | null;
+    /**
+     * Typical Seconds
+     */
+    typical_seconds?: number | null;
+};
+
+/**
  * Lifecycle
  *
  * Where a task is in its life (design doc section 3).
@@ -3242,6 +3417,10 @@ export type LinkRel = 'pr' | 'issue' | 'doc' | 'design' | 'build' | 'other';
  * ``GET /dispatch/finishes/{task_id}``, which the panel already polls; duplicating the
  * step list and the gate counter here would put a second copy of a fact on every row
  * of a list nothing draws it on.
+ *
+ * ``estimate`` is the exception that proves the rule (task-586): two numbers a row does
+ * draw -- a thin progress bar and "about N min left" -- computed from the step list on
+ * the server so the row does not need it.
  */
 export type LiveFinishState = {
     /**
@@ -3252,6 +3431,7 @@ export type LiveFinishState = {
      * Current Step
      */
     current_step?: string;
+    estimate?: LandingEstimate | null;
     /**
      * Finish Id
      */
@@ -3282,6 +3462,10 @@ export type LiveRunView = {
      * Seconds since this run started, computed on the server. The phone reading this page is not on the clock that wrote `started_at`.
      */
     elapsed_seconds?: number | null;
+    /**
+     * When `health` is `finishing`: progress and time remaining (task-586).
+     */
+    finish_estimate?: LandingEstimate | null;
     /**
      * Finish Id
      *
@@ -3596,6 +3780,10 @@ export type MachineHolderView = {
      * Elapsed Seconds
      */
     elapsed_seconds?: number | null;
+    /**
+     * For a live finish: progress and time remaining (task-586).
+     */
+    estimate?: LandingEstimate | null;
     /**
      * Finish Id
      */
@@ -7142,6 +7330,10 @@ export type TaskFinishView = {
      */
     elapsed_seconds?: number | null;
     /**
+     * Progress and time remaining while live (task-586). The same computation the task list's live_finish carries, so the page and the row cannot disagree.
+     */
+    estimate?: LandingEstimate | null;
+    /**
      * Finish Id
      */
     finish_id?: string;
@@ -9065,6 +9257,22 @@ export type GetAnalyticsApiAnalyticsGetResponses = {
 
 export type GetAnalyticsApiAnalyticsGetResponse = GetAnalyticsApiAnalyticsGetResponses[keyof GetAnalyticsApiAnalyticsGetResponses];
 
+export type ResetFinishEstimatorApiAnalyticsFinishEstimatorResetPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/analytics/finish-estimator/reset';
+};
+
+export type ResetFinishEstimatorApiAnalyticsFinishEstimatorResetPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EstimatorResetResult;
+};
+
+export type ResetFinishEstimatorApiAnalyticsFinishEstimatorResetPostResponse = ResetFinishEstimatorApiAnalyticsFinishEstimatorResetPostResponses[keyof ResetFinishEstimatorApiAnalyticsFinishEstimatorResetPostResponses];
+
 export type GetAttentionApiAttentionGetData = {
     body?: never;
     path?: never;
@@ -9776,6 +9984,36 @@ export type GetAnalyticsApiProjectsProjectIdAnalyticsGetResponses = {
 };
 
 export type GetAnalyticsApiProjectsProjectIdAnalyticsGetResponse = GetAnalyticsApiProjectsProjectIdAnalyticsGetResponses[keyof GetAnalyticsApiProjectsProjectIdAnalyticsGetResponses];
+
+export type ResetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/analytics/finish-estimator/reset';
+};
+
+export type ResetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostError = ResetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostErrors[keyof ResetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostErrors];
+
+export type ResetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EstimatorResetResult;
+};
+
+export type ResetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostResponse = ResetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostResponses[keyof ResetFinishEstimatorApiProjectsProjectIdAnalyticsFinishEstimatorResetPostResponses];
 
 export type GetAttentionApiProjectsProjectIdAttentionGetData = {
     body?: never;

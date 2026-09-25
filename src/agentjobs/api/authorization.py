@@ -204,6 +204,9 @@ ROUTE_CAPABILITIES: Dict[str, RouteRule] = {
     "disarm_pull_mode": RouteRule(Capability.DISPATCH_ADMIN),
     # Switching the idle-session sweep on lets it stop the owner's own sessions (task-447).
     "update_idle_session_settings": RouteRule(Capability.DISPATCH_ADMIN),
+    # Resetting the landing estimate's learned correction changes what every Landing row
+    # shows, so it is the owner's, like the dispatch settings above (task-586).
+    "reset_finish_estimator": RouteRule(Capability.DISPATCH_ADMIN),
     # ----- the history index (task-472) --------------------------------------------
     #
     # No `task_param`: a gate run may name no task at all, and the finish names its task

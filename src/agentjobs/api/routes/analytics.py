@@ -20,7 +20,7 @@ from agentjobs.analytics import DEFAULT_RANGE, build_analytics
 from agentjobs.store_factory import TaskStoreBackend
 
 from ..dependencies import get_task_storage
-from ..models import AnalyticsResponse
+from ..models import AnalyticsResponse, EstimatorResetResult
 
 router = APIRouter(tags=["analytics"])
 
@@ -42,3 +42,17 @@ async def get_analytics(
     what happened". Those are different sentences and the page renders them differently.
     """
     return AnalyticsResponse.model_validate(build_analytics(storage, range))
+
+
+@router.post("/analytics/finish-estimator/reset", response_model=EstimatorResetResult)
+async def reset_finish_estimator(
+    storage: TaskStoreBackend = Depends(get_task_storage),
+) -> EstimatorResetResult:
+    """Forget the landing estimate's learned correction (task-586).
+
+    Deletes nothing: every prediction and every finish stays, and the accuracy chart
+    keeps scoring them. Only landings that start after this moment teach the bias factor,
+    so the estimate returns to the uncorrected medians until three of them have ended.
+    An owner's act, because it changes what every Landing row shows.
+    """
+    return EstimatorResetResult(reset_at=storage.reset_finish_estimator())

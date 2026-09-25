@@ -331,6 +331,26 @@
           "coverage": {
             "$ref": "#/components/schemas/AnalyticsCoverage"
           },
+          "estimates": {
+            "items": {
+              "$ref": "#/components/schemas/EstimatePoint"
+            },
+            "title": "Estimates",
+            "type": "array"
+          },
+          "estimates_coverage": {
+            "$ref": "#/components/schemas/SeriesCoverage"
+          },
+          "estimator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EstimatorState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "finishes": {
             "items": {
               "$ref": "#/components/schemas/FinishPoint"
@@ -2951,6 +2971,175 @@
         "title": "EpicWalkView",
         "type": "object"
       },
+      "EstimatePoint": {
+        "description": "How good the landing estimate was, per week of start (F6, task-586).\n\nScored at the prediction given as the gate started, against what the landing then\nreally took. ``raw_error_p50_pct`` scores the uncorrected medians the same way, so\nthe distance between the two is what the learned correction is worth.",
+        "properties": {
+          "bias_p50": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Median correction factor in force when those ETAs were given.",
+            "title": "Bias P50"
+          },
+          "bucket": {
+            "format": "date",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "error_p50_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Median absolute error of the ETA shown, as a percentage.",
+            "title": "Error P50 Pct"
+          },
+          "outliers": {
+            "default": 0,
+            "description": "Scored landings with a gate retry or a runway wait: not taught from.",
+            "title": "Outliers",
+            "type": "integer"
+          },
+          "raw_error_p50_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same, for the ETA before the learned correction.",
+            "title": "Raw Error P50 Pct"
+          },
+          "sample": {
+            "default": 0,
+            "description": "Finished landings scored in this bucket.",
+            "title": "Sample",
+            "type": "integer"
+          },
+          "within_20": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Share of landings that ended within 20% of the ETA shown, 0 to 1.",
+            "title": "Within 20"
+          }
+        },
+        "required": [
+          "bucket"
+        ],
+        "title": "EstimatePoint",
+        "type": "object"
+      },
+      "EstimatorResetResult": {
+        "description": "What resetting the landing estimate's correction did: from when it learns again.",
+        "properties": {
+          "reset_at": {
+            "title": "Reset At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reset_at"
+        ],
+        "title": "EstimatorResetResult",
+        "type": "object"
+      },
+      "EstimatorState": {
+        "description": "The landing estimate's learned correction as it stands now (task-586).\n\nShown beside the accuracy chart so the loop is never invisible: what factor is\napplied, how many landings taught it, whether the clamp is holding it, and when it\nwas last reset.",
+        "properties": {
+          "active": {
+            "default": false,
+            "description": "Enough measured landings to apply a correction.",
+            "title": "Active",
+            "type": "boolean"
+          },
+          "ceiling": {
+            "title": "Ceiling",
+            "type": "number"
+          },
+          "clamped": {
+            "default": false,
+            "title": "Clamped",
+            "type": "boolean"
+          },
+          "excluded": {
+            "default": 0,
+            "description": "Recent measured landings left out as outliers.",
+            "title": "Excluded",
+            "type": "integer"
+          },
+          "factor": {
+            "default": 1.0,
+            "title": "Factor",
+            "type": "number"
+          },
+          "floor": {
+            "title": "Floor",
+            "type": "number"
+          },
+          "learned": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The median before the clamp.",
+            "title": "Learned"
+          },
+          "min_sample": {
+            "title": "Min Sample",
+            "type": "integer"
+          },
+          "reset_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reset At"
+          },
+          "sample": {
+            "default": 0,
+            "title": "Sample",
+            "type": "integer"
+          },
+          "window": {
+            "title": "Window",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "floor",
+          "ceiling",
+          "min_sample",
+          "window"
+        ],
+        "title": "EstimatorState",
+        "type": "object"
+      },
       "FeedbackActionRequest": {
         "description": "Request changes with feedback.",
         "properties": {
@@ -4438,6 +4627,80 @@
         "title": "InReview",
         "type": "object"
       },
+      "LandingEstimate": {
+        "additionalProperties": false,
+        "description": "How far along a live finish is and roughly when it will be done (task-586).\n\nComputed once, on the server, by ``agentjobs.finish_estimate.estimate`` -- the task\nlist's ``live_finish``, the task page's finish view and the slot board all carry this\nsame shape from that same function, so no two surfaces can draw a different bar for\none finish, and no client re-derives the model.\n\nTwo numbers and a sentence, not the step list, which is why it may ride on every row.",
+        "properties": {
+          "basis": {
+            "default": "",
+            "title": "Basis",
+            "type": "string"
+          },
+          "elapsed_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elapsed Seconds"
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "kind": {
+            "enum": [
+              "estimate",
+              "runway",
+              "no_history"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "overrun": {
+            "default": false,
+            "title": "Overrun",
+            "type": "boolean"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "typical_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typical Seconds"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "LandingEstimate",
+        "type": "object"
+      },
       "Lifecycle": {
         "description": "Where a task is in its life (design doc section 3).",
         "enum": [
@@ -4500,7 +4763,7 @@
       },
       "LiveFinishState": {
         "additionalProperties": false,
-        "description": "A scripted finish running against this task's branch right now (task-509).\n\nDerived on read from the finish's own records on disk and never stored on the task,\nfor the reason ``QueuedDispatchState`` above is: the finish moves nothing on the\nrecord. Approving a task hands the ball to ``agent``/``work`` and there it stays for\nthe three to four minutes of rebase, gate and merge, so every surface but the task\npage's ``FinishPanel`` showed a task mid-merge as an ordinary agent-held one.\n\nThe fields are the ones a *list* needs -- a chip to draw, a sentence to explain a\ndisabled button, and an id to link with. Everything else a watcher wants is on\n``GET /dispatch/finishes/{task_id}``, which the panel already polls; duplicating the\nstep list and the gate counter here would put a second copy of a fact on every row\nof a list nothing draws it on.",
+        "description": "A scripted finish running against this task's branch right now (task-509).\n\nDerived on read from the finish's own records on disk and never stored on the task,\nfor the reason ``QueuedDispatchState`` above is: the finish moves nothing on the\nrecord. Approving a task hands the ball to ``agent``/``work`` and there it stays for\nthe three to four minutes of rebase, gate and merge, so every surface but the task\npage's ``FinishPanel`` showed a task mid-merge as an ordinary agent-held one.\n\nThe fields are the ones a *list* needs -- a chip to draw, a sentence to explain a\ndisabled button, and an id to link with. Everything else a watcher wants is on\n``GET /dispatch/finishes/{task_id}``, which the panel already polls; duplicating the\nstep list and the gate counter here would put a second copy of a fact on every row\nof a list nothing draws it on.\n\n``estimate`` is the exception that proves the rule (task-586): two numbers a row does\ndraw -- a thin progress bar and \"about N min left\" -- computed from the step list on\nthe server so the row does not need it.",
         "properties": {
           "branch": {
             "default": "",
@@ -4511,6 +4774,16 @@
             "default": "",
             "title": "Current Step",
             "type": "string"
+          },
+          "estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LandingEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "finish_id": {
             "default": "",
@@ -4552,6 +4825,17 @@
             ],
             "description": "Seconds since this run started, computed on the server. The phone reading this page is not on the clock that wrote `started_at`.",
             "title": "Elapsed Seconds"
+          },
+          "finish_estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LandingEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When `health` is `finishing`: progress and time remaining (task-586)."
           },
           "finish_id": {
             "default": "",
@@ -4956,6 +5240,17 @@
               }
             ],
             "title": "Elapsed Seconds"
+          },
+          "estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LandingEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a live finish: progress and time remaining (task-586)."
           },
           "finish_id": {
             "default": "",
@@ -9887,6 +10182,17 @@
             "description": "Seconds since it started while live; the total it took once it ended. Computed on the server, because started_at is this machine's clock and the phone reading the page is not on it.",
             "title": "Elapsed Seconds"
           },
+          "estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LandingEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Progress and time remaining while live (task-586). The same computation the task list's live_finish carries, so the page and the row cannot disagree."
+          },
           "finish_id": {
             "default": "",
             "title": "Finish Id",
@@ -11880,6 +12186,28 @@
         ]
       }
     },
+    "/api/analytics/finish-estimator/reset": {
+      "post": {
+        "description": "Forget the landing estimate's learned correction (task-586).\n\nDeletes nothing: every prediction and every finish stays, and the accuracy chart\nkeeps scoring them. Only landings that start after this moment teach the bias factor,\nso the estimate returns to the uncorrected medians until three of them have ended.\nAn owner's act, because it changes what every Landing row shows.",
+        "operationId": "reset_finish_estimator_api_analytics_finish_estimator_reset_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstimatorResetResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Reset Finish Estimator",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
     "/api/attention": {
       "get": {
         "description": "Return how many tasks are stopped waiting on a person, plus the episode.\n\nThe header polls this on every surface, so it deliberately answers with one\ninteger and one small object instead of the records behind them -- see\n:class:`AttentionResponse`. It is the same predicate the dashboard's own tile and\nthe legacy header use, from the same function, because a badge that disagrees with\nthe page it links to is worse than no badge.\n\n**This read reconciles**, which is the one thing about it worth knowing. The\nepisode is a fact about the waiting set, so it is brought up to date here rather\nthan on a clock of its own: the header was polling anyway, and a reconcile is\nidempotent, so polling cannot manufacture attention. Nothing in the answer depends\non a notification having been delivered.",
@@ -12991,6 +13319,49 @@
           }
         },
         "summary": "Get Analytics",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/analytics/finish-estimator/reset": {
+      "post": {
+        "description": "Forget the landing estimate's learned correction (task-586).\n\nDeletes nothing: every prediction and every finish stays, and the accuracy chart\nkeeps scoring them. Only landings that start after this moment teach the bias factor,\nso the estimate returns to the uncorrected medians until three of them have ended.\nAn owner's act, because it changes what every Landing row shows.",
+        "operationId": "reset_finish_estimator_api_projects__project_id__analytics_finish_estimator_reset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstimatorResetResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Finish Estimator",
         "tags": [
           "analytics"
         ]

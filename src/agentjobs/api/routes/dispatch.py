@@ -75,6 +75,7 @@ from agentjobs.dispatch.transcript import (
     read_structured_transcript,
 )
 from agentjobs.manager import TaskManager
+from agentjobs.models_v2 import LandingEstimate
 from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
 
@@ -93,7 +94,9 @@ from ..dependencies import (
     project_config,
     project_visible_to,
     request_project,
+    storage_for,
 )
+from ..landing_estimate import landing_estimate
 from ..models import ErrorBody
 from .status import MutationError
 
@@ -556,6 +559,13 @@ class TaskFinishView(BaseModel):
         default="",
         description="What a person should do about this finish now; empty when nothing.",
     )
+    estimate: Optional[LandingEstimate] = Field(
+        default=None,
+        description=(
+            "Progress and time remaining while live (task-586). The same computation the "
+            "task list's live_finish carries, so the page and the row cannot disagree."
+        ),
+    )
     output_source: str = Field(
         default="none",
         description=(
@@ -777,7 +787,9 @@ def _finish_view(status: FinishStatus, project: Project) -> TaskFinishView:
     watching.
     """
     source, text, _ = finish_output(_home(), status)
+    estimate = landing_estimate(status, storage_for(project)) if status.live else None
     return TaskFinishView(
+        estimate=estimate,
         task_id=status.task_id,
         project_id=status.project_id or project.id,
         state=status.state,

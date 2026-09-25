@@ -56,11 +56,12 @@ from agentjobs.dispatch.journal import journal
 from agentjobs.execution.errors import ExecutionStoreError
 from agentjobs.execution.store import QueuedDispatch, Supervision
 from agentjobs.exposure import Visibility, readable_by
-from agentjobs.models_v2 import Outcome, StatusCategory, closed_status
+from agentjobs.models_v2 import LandingEstimate, Outcome, StatusCategory, closed_status
 from agentjobs.principals import Principal
 from agentjobs.projects import Project, default_home
 
 from ..dependencies import get_principal, manager_for, storage_for, visible_projects
+from ..landing_estimate import landing_estimate
 
 router = APIRouter(prefix="/api/runs", tags=["dispatch"])
 
@@ -116,6 +117,10 @@ class LiveRunView(BaseModel):
     finish_id: str = Field(
         default="",
         description="The live finish for this run's task, when `health` is `finishing`.",
+    )
+    finish_estimate: Optional[LandingEstimate] = Field(
+        default=None,
+        description="When `health` is `finishing`: progress and time remaining (task-586).",
     )
     finish_step: str = Field(
         default="",
@@ -212,6 +217,10 @@ class MachineHolderView(BaseModel):
             "For a finish queued for the runway: the task whose finish holds it, if that "
             "can be told (task-533)."
         ),
+    )
+    estimate: Optional[LandingEstimate] = Field(
+        default=None,
+        description="For a live finish: progress and time remaining (task-586).",
     )
 
 
@@ -672,6 +681,7 @@ def _run_view(
     projects: Dict[str, Project],
     finish: Optional[FinishStatus] = None,
     runway_behind: str = "",
+    estimate: Optional[LandingEstimate] = None,
 ) -> LiveRunView:
     """Render one live run for the browser.
 
@@ -694,6 +704,7 @@ def _run_view(
         finish_id=finish.finish_id if finishing and finish else "",
         finish_step=finish.current_step if finishing and finish else "",
         runway_behind=runway_behind if finishing else "",
+        finish_estimate=estimate if finishing else None,
         run_id=record.run_id,
         task_id=record.task_id,
         task_title=getattr(task, "title", "") or "",
@@ -855,6 +866,29 @@ def _holder_task_is_open(
 
 
 FinishKey = Tuple[str, str]
+
+
+def _estimates(
+    finishing: Dict[FinishKey, FinishStatus], projects: Dict[str, Project]
+) -> Dict[FinishKey, LandingEstimate]:
+    """The landing estimate for each live finish, from its own project's history.
+
+    The same function the task read's ``live_finish`` and the task page call, so a slot
+    board tile and a task row show one bar for one finish (task-586).
+    """
+    found: Dict[FinishKey, LandingEstimate] = {}
+    for key, status in finishing.items():
+        project = projects.get(key[0])
+        if project is None:
+            continue
+        try:
+            storage = storage_for(project)
+        except Exception:  # pragma: no cover - a status page never fails over a detail
+            continue
+        answer = landing_estimate(status, storage)
+        if answer is not None:
+            found[key] = answer
+    return found
 
 
 def _live_finishes(home: Path, project_ids: List[str]) -> Dict[FinishKey, FinishStatus]:
@@ -1199,6 +1233,10 @@ async def list_live_runs(
         if view.kind == KIND_FINISH:
             view.runway_behind = behind.get((view.project_id, view.task_id), "")
     holders.extend(_unheld_finish_views(open_finishes, records, holders, projects, behind))
+    estimates = _estimates(open_finishes, projects)
+    for view in holders:
+        if view.kind == KIND_FINISH:
+            view.estimate = estimates.get((view.project_id, view.task_id))
     holders = [holder for holder in holders if _may_see(holder.project_id, projects, principal)]
 
     # FIFO, and the position is assigned over the machine's whole queue before this
@@ -1246,6 +1284,7 @@ async def list_live_runs(
                 projects,
                 open_finishes.get((record.project_id, record.task_id)),
                 behind.get((record.project_id, record.task_id), ""),
+                estimates.get((record.project_id, record.task_id)),
             )
             for record in records
         ],
