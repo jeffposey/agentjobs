@@ -13,7 +13,7 @@ once, then park for a human" survives the server restarting between the two.
 Three rules worth stating, because each was a choice:
 
 - **Only an attempt that recorded what authorised it is resumed on that authority.**
-  ``FinishDirectory.create`` writes ``authority`` and, for a posture finish, the run whose
+  ``FinishDirectory.create`` writes ``authority`` and, for a merge mode finish, the run whose
   grant it merged on. An attempt from before that field existed is left alone rather than
   inferred: resuming a finish somebody killed weeks ago, on deploy, is not a recovery
   anybody asked for.
@@ -39,7 +39,8 @@ from agentjobs.actors import FINISHER
 from agentjobs.dispatch.finish import (
     APPROVAL,
     DECLINED,
-    POSTURE,
+    AUTOMERGE,
+    authority_of,
     SPAWN_DIRNAME,
     AuthorityGuard,
     FinishDirectory,
@@ -172,7 +173,7 @@ def worth_deciding(meta: Mapping[str, Any]) -> bool:
     an ending needs nothing -- except a *resumed* one that declined, which wrote an ending
     and handed nothing to anybody.
     """
-    if meta.get("authority") not in (APPROVAL, POSTURE):
+    if authority_of(meta) not in (APPROVAL, AUTOMERGE):
         return False
     if meta.get(SKIPPED_KEY) or meta.get("auto_resume_parked"):
         return False
@@ -294,7 +295,7 @@ def _decide(
             identity=receipt if isinstance(receipt, str) else None,
             recorded_at=_moment(meta.get("started_at")),
         ):
-            # A posture finish's lock is its run's. A run settled as gone can leave its
+            # A merge mode finish's lock is its run's. A run settled as gone can leave its
             # `agentjobs finish` child running, and a resume beside it is two finishes.
             return decision(WAITING, f"its process {pid} is still running")
 
@@ -304,7 +305,7 @@ def _decide(
     if not finish_is_offered(project.id, home):
         return decision(WAITING, "this machine does not offer the scripted finish")
 
-    authority = str(meta.get("authority") or "")
+    authority = authority_of(meta)
     run_id = ""
     if authority == APPROVAL:
         from agentjobs.dispatch.approval import standing_approval_for
@@ -354,7 +355,7 @@ def _decide(
         approver=approver,
         home=home,
         resumed_from=finish_id,
-        posture_run_id=run_id,
+        automerge_run_id=run_id,
     )
     if spawned is None:
         return _park(record, manager, project, task_id, status, "resume_not_started", decision)
@@ -447,10 +448,10 @@ def resume_finish_of_settled_run(
     manager: TaskManagerLike,
     spawn: Optional[Spawn] = None,
 ) -> bool:
-    """Resume the posture finish ``run_id`` was running when it ended. True if one started.
+    """Resume the merge mode finish ``run_id`` was running when it ended. True if one started.
 
     Asked by a run's settle path before it writes *nobody was told what this task needs*:
-    a run that died inside its own ``agentjobs finish --posture-release`` has told
+    a run that died inside its own ``agentjobs finish --merge-mode-release`` has told
     somebody -- the finish -- and the finish can carry on. Never raises.
     """
     from agentjobs.dispatch.finish_status import newest_finish_directory
@@ -460,7 +461,7 @@ def resume_finish_of_settled_run(
         if directory is None:
             return False
         meta = _meta(directory)
-        if meta.get("authority") != POSTURE or meta.get("run_id") != run_id:
+        if authority_of(meta) != AUTOMERGE or meta.get("run_id") != run_id:
             return False
         project = ProjectRegistry(home=home).get(project_id)
     except Exception:  # noqa: BLE001 - see the docstring

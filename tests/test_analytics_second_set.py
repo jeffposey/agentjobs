@@ -198,7 +198,7 @@ def plant_run(
 ) -> None:
     with store.database.write() as connection:
         connection.execute(
-            "INSERT INTO task_run(project_id, run_id, task_id, agent, runner, mode, posture,"
+            "INSERT INTO task_run(project_id, run_id, task_id, agent, runner, mode, merge_mode,"
             " trigger, caused_by, git_head, cwd, argv_json, started_at, ended_at, outcome,"
             " duration_seconds) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
@@ -208,7 +208,7 @@ def plant_run(
                 "claude",
                 "claude-cli",
                 "session",
-                "auto",
+                "review",
                 trigger,
                 1,
                 "abc1234",

@@ -44,6 +44,11 @@ import yaml
 
 from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch.yaml_patch import Delete, Edit, Set, UnpatchableYaml, patch_yaml
+from agentjobs.models_v2 import (
+    LEGACY_MERGE_MODES,
+    MergeMode,
+    legacy_allow_automerge,
+)
 from agentjobs.projects import default_home
 
 CONFIG_FILENAME = "dispatch.yaml"
@@ -93,10 +98,10 @@ class DispatchConfigError(DispatchError):
     reason = "invalid_config"
 
 
-class PostureAboveCeilingError(DispatchError):
-    """A dispatch asked for a posture wider than the project's ceiling (task-308)."""
+class AutomergeNotAllowedError(DispatchError):
+    """A dispatch asked for automerge on a project that does not allow it (task-308)."""
 
-    reason = "posture_above_ceiling"
+    reason = "automerge_not_allowed"
 
 
 class DispatchNotConfiguredError(DispatchError):
@@ -196,154 +201,42 @@ class RunnerMode(str, Enum):
 
 
 class RunnerDriver(str, Enum):
-    """The agent CLI whose posture rules a runner needs.
+    """The agent CLI whose permission flags a runner needs.
 
     Claude remains the default so every existing machine-local configuration preserves
     its exact behaviour.  A driver is deliberately distinct from a runner's name and
     actor: names are operator labels, actors are task-record identities, and drivers
-    decide how AgentJobs expresses its safety posture to one particular CLI.
+    decide how AgentJobs expresses a merge mode's permissions to one particular CLI.
     """
 
     CLAUDE = "claude"
     CODEX = "codex"
 
 
-class MergePolicy(str, Enum):
-    """What a posture says happens to the *branch* when the work is done (task-021).
-
-    Posture used to answer one question -- what may this process execute -- and the
-    answer to the other one, what becomes of the branch afterwards, lived only in
-    ENGINEERING.md's merge gate as an unconditional rule every agent reads and obeys.
-    That was coherent while every posture stopped for review. It stops being coherent
-    the moment one of them does not, because then the written rule and the running
-    behaviour disagree and an agent's conduct depends on which it believed.
-
-    So the second answer is named here, derived from the posture rather than configured
-    beside it. Deriving it is the point: a posture and a merge policy that can be set
-    independently are two switches whose combinations nobody has thought about, and
-    "autonomous execution, but stop for review" is not a state anyone has ever wanted.
-
-    ``NONE`` is not "merge without conditions" and it is not a gap in the table -- it is
-    a posture with no branch to have a policy about. Only ``read_only`` has it.
-    """
-
-    NONE = "none"
-    REVIEW = "review"
-    AUTOMATIC = "automatic"
-
-
-class Posture(str, Enum):
-    """What a dispatched agent may do once running (design section 4, task-076).
-
-    ``AUTO`` is the default, per task-020. ``SUPERVISED`` held that role until
-    2026-08-19, when a real dispatch parked on its first shell command -- ``ls`` on the
-    repository's own docs directory -- because the allow-list covers nine prefixes and
-    nothing else. A ``--bg`` session has no terminal to answer with, so the run sat at
-    ``state: blocked`` until it was cancelled. Supervised remains right for a run
-    somebody is actually watching; it is no longer what an unattended one gets.
-
-    Since task-021 a posture carries a second thing: whether the run stops at the merge
-    gate. See ``merge_policy``. Pushing is deliberately not part of it -- see
-    ``ProjectDispatchSettings.push``.
-    """
-
-    READ_ONLY = "read_only"
-    AUTO = "auto"
-    SUPERVISED = "supervised"
-    AUTONOMOUS = "autonomous"
-
-    @property
-    def merge_policy(self) -> MergePolicy:
-        """Whether a run at this posture stops for human review before merging.
-
-        ``auto`` and ``supervised`` are both "a human is in the loop" postures and are
-        deliberately identical here. They differ in how the process is gated while it
-        runs, which is a different question from who authorises the merge, and giving
-        them different answers to the second would mean the choice between them silently
-        decided something nobody was choosing.
-
-        ``autonomous`` is the one that releases the gate, and only for a project whose
-        machine-local configuration named it. It was already the posture that removed
-        every execution gate; a posture trusted to run arbitrary commands unattended and
-        then not trusted to land the result is a boundary drawn in the wrong place.
-        """
-        if self is Posture.READ_ONLY:
-            return MergePolicy.NONE
-        if self is Posture.AUTONOMOUS:
-            return MergePolicy.AUTOMATIC
-        return MergePolicy.REVIEW
-
-    @property
-    def rank(self) -> int:
-        """How wide this posture's envelope is. Higher is wider (task-308).
-
-        A ceiling has to compare postures, so they need an order, and the order is not
-        the declaration order of the enum. It is:
-
-        ``read_only`` (0) < ``supervised`` (1) < ``auto`` (2) < ``autonomous`` (3)
-
-        **``supervised`` is narrower than ``auto``, which surprises people.** The
-        question a rank answers is *what can this process do on its own*, and supervised
-        can do nine allow-listed command prefixes and then it parks. ``auto`` is
-        classifier-gated, which is a far larger set. The reason supervised *feels* wider
-        is that a human at a terminal can approve anything it parks on -- but that is a
-        second authorisation arriving, not something this run was granted, and an
-        unattended ``--bg`` session at ``supervised`` gets no such approval and simply
-        stops (see this class's own docstring for the incident).
-
-        So the rank is deliberately about the *unattended* envelope. A project that sets
-        ``max_posture: supervised`` is saying "nothing here runs unwatched", and getting
-        ``auto`` under that ceiling would defeat exactly that.
-        """
-        return _POSTURE_RANK[self]
-
-    def within(self, ceiling: "Posture") -> bool:
-        """Whether this posture's envelope fits inside ``ceiling``'s.
-
-        A named method rather than ``<=``, and that is a decision worth keeping.
-        ``Posture`` inherits ``str``, so it already *has* comparison operators and they
-        compare spelling: ``Posture.AUTONOMOUS < Posture.AUTO`` is true as text and
-        catastrophic as a ceiling check. Overriding some of the six would leave the
-        others still comparing spelling, which is worse than overriding none -- so the
-        ordering has one spelling, it reads as what it means, and ``<=`` on a posture
-        stays as obviously wrong as it has always been.
-        """
-        return self.rank <= ceiling.rank
-
-
-_POSTURE_RANK: Dict["Posture", int] = {
-    Posture.READ_ONLY: 0,
-    Posture.SUPERVISED: 1,
-    Posture.AUTO: 2,
-    Posture.AUTONOMOUS: 3,
-}
-"""Width order, defined after the class because it names its own members."""
-
-
-class PostureSource(str, Enum):
-    """Which of the four places a run's posture came from (task-308, task-316).
+class MergeModeSource(str, Enum):
+    """Which of the five places a run's merge mode came from (task-308, task-316).
 
     Recorded on the dispatch entry and on the run directory so that "why did this run
-    get that envelope" has exactly one answer a reader can look up, rather than a
+    merge itself" has exactly one answer a reader can look up, rather than a
     reconstruction from three files two of which are machine-local.
     """
 
     PROJECT = "project"
-    """``projects.<id>.posture`` in ``dispatch.yaml`` -- the default, and the answer for
-    every run that existed before this task."""
+    """``projects.<id>.merge_mode`` in ``dispatch.yaml`` -- the default, and the answer
+    for every run that existed before task-308."""
 
     TASK = "task"
-    """The ``posture:`` field on the task record."""
+    """The ``merge_mode:`` field on the task record."""
 
     DISPATCH = "dispatch"
-    """Chosen for this one dispatch: the GUI pulldown (task-307), or ``--posture``."""
+    """Chosen for this one dispatch: the GUI pulldown (task-307), or ``--merge-mode``."""
 
     EPIC = "epic"
     """Inherited from the epic this task is a child of (task-316).
 
     A distinct value rather than reusing ``DISPATCH``, because the two answer the
     reader's question differently and the difference is the whole point of recording a
-    source at all. ``dispatch`` means somebody chose an envelope *for this run*;
+    source at all. ``dispatch`` means somebody chose a merge mode *for this run*;
     ``epic`` means somebody chose one for the parent and this child was started on that
     choice. A child that merged unreviewed must be traceable to the act that actually
     authorised it, and that act is on the parent's record, not this one's."""
@@ -351,19 +244,19 @@ class PostureSource(str, Enum):
     HISTORY = "history"
     """Carried over from the execution this run continues (task-375).
 
-    A retry or resume is not a new grant, so it keeps the posture its execution was
+    A retry or resume is not a new grant, so it keeps the merge mode its execution was
     admitted with rather than re-reading today's project or task default. The ceiling
-    still applies, and only ever narrows it: see ``resolve_posture``."""
+    still applies, and only ever narrows it: see ``resolve_merge_mode``."""
 
 
 @dataclass(frozen=True)
-class ResolvedPosture:
-    """What a run may do, and the account of how that was arrived at (task-308)."""
+class ResolvedMergeMode:
+    """Whether a run merges itself, and the account of how that was arrived at."""
 
-    posture: Posture
-    source: PostureSource
-    ceiling: Posture
-    requested: Optional[Posture] = None
+    merge_mode: MergeMode
+    source: MergeModeSource
+    allow_automerge: bool
+    requested: Optional[MergeMode] = None
     """What the winning source asked for, when the ceiling cut it down. ``None`` when
     nothing was clamped, so an ordinary run records nothing extra."""
 
@@ -372,142 +265,109 @@ class ResolvedPosture:
         """True when the ceiling reduced what the winning source asked for."""
         return self.requested is not None
 
-    def as_data(self) -> Dict[str, str]:
-        """The fields that go on the dispatch entry, ``clamped`` keys omitted when not.
+    def as_data(self) -> Dict[str, object]:
+        """The fields that go on the dispatch entry, ``requested`` omitted when not clamped.
 
-        ``posture`` is deliberately absent: the entry already carries it as a top-level
-        field and has since task-076, and writing it twice invites the two to disagree.
+        ``merge_mode`` is deliberately absent: the entry already carries it as a top-level
+        field, and writing it twice invites the two to disagree.
         """
-        data = {"posture_source": self.source.value, "posture_ceiling": self.ceiling.value}
+        data: Dict[str, object] = {
+            "merge_mode_source": self.source.value,
+            "allow_automerge": self.allow_automerge,
+        }
         if self.requested is not None:
-            data["posture_requested"] = self.requested.value
+            data["merge_mode_requested"] = self.requested.value
         return data
 
     def describe(self) -> str:
         """One sentence for a human reading a log or a CLI line."""
         if self.requested is not None:
             return (
-                f"posture {self.posture.value} (asked for {self.requested.value} on the "
-                f"{self.source.value}, clamped to the project ceiling {self.ceiling.value})"
+                f"merge mode {self.merge_mode.value} (asked for {self.requested.value} on "
+                f"the {self.source.value}, and this project does not allow automerge)"
             )
-        return f"posture {self.posture.value} (from the {self.source.value})"
+        return f"merge mode {self.merge_mode.value} (from the {self.source.value})"
 
 
-def resolve_posture(
+def resolve_merge_mode(
     settings: "ProjectDispatchSettings",
     *,
-    task: Optional[Posture] = None,
-    requested: Optional[Posture] = None,
-    inherited: Optional[Posture] = None,
-    history: Optional[Posture] = None,
-) -> ResolvedPosture:
-    """Decide what one run may do, from up to five sources and one ceiling (task-308).
+    task: Optional[MergeMode] = None,
+    requested: Optional[MergeMode] = None,
+    inherited: Optional[MergeMode] = None,
+    history: Optional[MergeMode] = None,
+) -> ResolvedMergeMode:
+    """Decide whether one run merges itself, from up to five sources and one ceiling.
 
-    ``history`` is the posture a continuation's execution was admitted with (task-375).
-    The caller passes it only for a retry or resume, which never also carries a
-    dispatch-time or inherited choice, so its place in the order is below those two and
-    above the task field and the project default: a continuation keeps its grant whatever
-    either default says now. Against the ceiling it is **clamped**, never refused and
-    never widened -- a lowered ceiling is a revocation and wins, and a raised one grants
-    this execution nothing it did not already have.
+    **Precedence is most-specific-wins**: a mode chosen for this dispatch beats one
+    inherited from the epic this task belongs to, which beats a continuation's
+    ``history``, which beats the task record's field, which beats the project default.
 
-    **Precedence is most-specific-wins**: a posture chosen for this dispatch beats one
-    inherited from the epic this task belongs to, which beats one written on the task
-    record, which beats the project's default. Each is a narrower statement about
-    *which run* than the one below it, and the reading anyone would guess is the one
-    that should be true. It is stated here and tested rather than inferred, because the
-    whole point of the field is that a reader can predict it.
+    ``inherited`` outranks ``task`` (task-316) because the question the ordering answers
+    is "which statement did a person most recently make about *this* run". An inherited
+    mode is a human's choice, made when they authorised the epic; the record's field is a
+    value any agent can write at any time.
 
-    **``inherited`` outranks ``task``, which is the one placement that is not obvious**
-    (task-316). A field on the child's own record is narrower in scope, so the ordering
-    above would seem to put it first. It does not, because the question the ordering
-    answers is not "which statement is about the fewest runs" but "which statement did a
-    person most recently make about *this* run". An inherited posture is a human's
-    choice, made at the moment they authorised the epic this child is being started
-    under; the record's field is a git-tracked value any agent can write at any time. Let
-    the field win and "I dispatched the epic `autonomous`" would silently mean something
-    different per child, which is exactly the predictability the paragraph above claims.
+    ``history`` is the mode a continuation's execution was admitted with (task-375). A
+    retry or resume keeps its grant whatever either default says now.
 
-    **Then the ceiling, and the two sources it bounds are treated differently.** That
-    difference is the load-bearing part of this function:
+    **Then the ceiling -- whether this project allows ``automerge`` at all -- and the
+    sources it bounds are treated differently.** That difference is the load-bearing
+    part of this function:
 
-    * ``requested`` -- a person choosing at the moment of dispatch -- is **refused** when
-      it exceeds the ceiling. There is a caller waiting on an answer, and quietly giving
-      them something narrower than they asked for is worse than telling them no. A
-      chooser should not offer it at all; ``ProjectDispatchSettings.offerable_postures``
-      is what it populates from, so the refusal is a backstop rather than a UI.
+    * ``requested`` and ``inherited`` are **refused** when they ask for ``automerge`` on
+      a project that does not allow it. Both are a person's dispatch-time choice, and
+      quietly handing back a run that stops for review when they asked for one that
+      merges is worse than telling them no. A chooser should not offer it at all;
+      ``ProjectDispatchSettings.offerable_merge_modes`` is what it populates from.
 
-    * ``inherited`` -- the epic's dispatch-time posture, crossing the parent/child
-      boundary -- is **refused** as well, and for the same reason: it *is* a
-      dispatch-time choice, merely one made about the parent. It normally cannot exceed
-      the ceiling, having been checked against it when the parent was dispatched; it can
-      if somebody lowered the ceiling mid-walk, and a walk that stops loudly at that
-      point is telling the truth about an authority that no longer fits.
+    * ``history``, ``task`` and the project default are **clamped** to ``review``,
+      silently as far as the run is concerned and loudly on the record. Refusing a task
+      field instead would hand every agent a denial of service on its own task, and a
+      lowered ceiling is a revocation a continuation must obey, not fail on.
 
-    * ``task`` -- a field in a git-tracked file, writable by any agent that can write the
-      repository -- is **clamped**, silently as far as the run is concerned and loudly on
-      the record. Refusing it instead would hand every agent a denial of service on its
-      own task: write ``autonomous`` onto a record whose project ceiling is ``auto`` and
-      every future dispatch of that task fails. Clamping is strictly safer, and it is
-      also the behaviour Jeff's decision describes in as many words -- *"an agent that
-      edits its own task record to autonomous on a project whose max_posture is auto
-      gets auto"*.
-
-    The project default is clamped too, though the config parser refuses that
-    combination before it can get here. It is defence for a settings object built in
-    code rather than loaded from a file.
+    ``review`` is always allowed, so nothing ever clamps upwards.
     """
-    ceiling = settings.ceiling
+    allowed = settings.automerge_allowed
+
+    def fits(mode: MergeMode) -> bool:
+        return mode is MergeMode.REVIEW or allowed
 
     if requested is not None:
-        if not requested.within(ceiling):
-            raise PostureAboveCeilingError(
-                f"This dispatch asked for posture {requested.value!r}, and "
-                f"{settings.project_id} is capped at {ceiling.value!r}. The cap is "
-                f"`projects.{settings.project_id}.max_posture` in this machine's "
-                "dispatch.yaml, which is the only place it can be raised -- "
+        if not fits(requested):
+            raise AutomergeNotAllowedError(
+                f"This dispatch asked for merge mode {requested.value!r}, and "
+                f"{settings.project_id} does not allow automerge. The switch is "
+                f"`projects.{settings.project_id}.allow_automerge` in this machine's "
+                "dispatch.yaml, which is the only place it can be turned on -- "
                 "deliberately, because nothing reachable over the network writes that "
                 "file."
             )
-        return ResolvedPosture(posture=requested, source=PostureSource.DISPATCH, ceiling=ceiling)
+        return ResolvedMergeMode(requested, MergeModeSource.DISPATCH, allowed)
 
     if inherited is not None:
-        if not inherited.within(ceiling):
-            raise PostureAboveCeilingError(
-                f"This run would inherit posture {inherited.value!r} from the epic that "
-                f"authorised it, and {settings.project_id} is capped at "
-                f"{ceiling.value!r}. The parent was dispatched under a wider ceiling "
-                "than the one in force now, so the authority the walk is standing on no "
-                "longer fits. The cap is "
-                f"`projects.{settings.project_id}.max_posture` in this machine's "
+        if not fits(inherited):
+            raise AutomergeNotAllowedError(
+                f"This run would inherit merge mode {inherited.value!r} from the epic that "
+                f"authorised it, and {settings.project_id} no longer allows automerge. "
+                "The parent was dispatched when it did, so the authority the walk is "
+                "standing on no longer fits. The switch is "
+                f"`projects.{settings.project_id}.allow_automerge` in this machine's "
                 "dispatch.yaml."
             )
-        return ResolvedPosture(posture=inherited, source=PostureSource.EPIC, ceiling=ceiling)
+        return ResolvedMergeMode(inherited, MergeModeSource.EPIC, allowed)
 
-    if history is not None:
-        if history.within(ceiling):
-            return ResolvedPosture(posture=history, source=PostureSource.HISTORY, ceiling=ceiling)
-        return ResolvedPosture(
-            posture=ceiling, source=PostureSource.HISTORY, ceiling=ceiling, requested=history
-        )
-
-    if task is not None:
-        if task.within(ceiling):
-            return ResolvedPosture(posture=task, source=PostureSource.TASK, ceiling=ceiling)
-        return ResolvedPosture(
-            posture=ceiling, source=PostureSource.TASK, ceiling=ceiling, requested=task
-        )
-
-    if settings.posture.within(ceiling):
-        return ResolvedPosture(
-            posture=settings.posture, source=PostureSource.PROJECT, ceiling=ceiling
-        )
-    return ResolvedPosture(
-        posture=ceiling,
-        source=PostureSource.PROJECT,
-        ceiling=ceiling,
-        requested=settings.posture,
-    )
+    for mode, source in (
+        (history, MergeModeSource.HISTORY),
+        (task, MergeModeSource.TASK),
+        (settings.merge_mode, MergeModeSource.PROJECT),
+    ):
+        if mode is None:
+            continue
+        if fits(mode):
+            return ResolvedMergeMode(mode, source, allowed)
+        return ResolvedMergeMode(MergeMode.REVIEW, source, allowed, requested=mode)
+    raise AssertionError("the project default is never None")  # pragma: no cover
 
 
 @dataclass(frozen=True)
@@ -543,7 +403,7 @@ class DispatchRunner:
     under the identity that owned its own task.
     """
     driver: RunnerDriver = RunnerDriver.CLAUDE
-    """The CLI whose posture flags this runner needs.
+    """The CLI whose permission flags this runner needs.
 
     Kept after ``actor`` to preserve the positional constructor shape used by callers
     before drivers existed. New callers should use keywords for both identities.
@@ -665,7 +525,7 @@ class SelectionSource(str, Enum):
 
     Not a rung of the ladder either, and for the same reason as ``history``: the walk
     that starts a child is not a new selection. The runner and group a person chose for
-    the epic are carried onto every child it starts, exactly as its posture already was
+    the epic are carried onto every child it starts, exactly as its merge mode already was
     (task-316), so a child cannot quietly land on the project default while its parent
     runs on the model the person paid for. A distinct value rather than ``history``
     because the reader's question -- why did this run on that model -- is answered on
@@ -808,34 +668,31 @@ class ProjectDispatchSettings:
     group: Optional[str] = None
     require_clean_tree: bool = True
     auto_dispatch: bool = False
-    posture: Posture = Posture.AUTO
-    """What a run here gets when nothing else names a posture. The default (task-308).
+    merge_mode: MergeMode = MergeMode.REVIEW
+    """What a run here gets when nothing else names a merge mode (task-308, task-602).
 
-    Unchanged in meaning from before ``max_posture`` existed: a config that sets only
-    this behaves exactly as it did, because the ceiling then defaults to it and no other
-    source can widen past it.
+    Read from ``merge_mode:``, or from a pre-task-602 ``posture:`` through the legacy
+    map -- where ``auto`` meant ``review``.
     """
 
-    max_posture: Optional[Posture] = None
-    """The widest envelope any run here may get, whatever asks for it (task-308).
+    allow_automerge: Optional[bool] = None
+    """Whether any run here may merge itself, whatever asks for it (task-308, task-602).
 
-    ``None`` means "the same as ``posture``", and that is the only safe default: a
-    machine upgrading an existing ``dispatch.yaml`` must not silently gain a wider
-    envelope than it had, and before this field existed the project's posture was the
-    only posture a run could ever get. Read it through ``ceiling`` rather than directly.
+    ``None`` means "only if the default already does", and that is the only safe default:
+    a machine upgrading an existing ``dispatch.yaml`` must not silently gain automerge.
+    Read it through ``automerge_allowed`` rather than directly. A pre-task-602
+    ``max_posture: autonomous`` reads as ``True`` and any other ceiling as ``False``.
 
     **This is the whole of the privilege-escalation answer** (Jeff, 2026-08-23). Two
-    other sources can name a posture -- the task record, which any agent with write
-    access to the repository can edit, and a dispatch-time choice. Neither can exceed
-    this, and this lives in a machine-local file that no AgentJobs surface writes and no
-    clone carries. So the question "did a human write that posture" never has to be
-    asked, let alone answered by an identity check an agent could spoof.
+    other sources can ask for automerge -- the task record, which any agent with write
+    access can edit, and a dispatch-time choice. Neither can get it past this, and this
+    lives in a machine-local file that no AgentJobs surface writes and no clone carries.
     """
 
     push: bool = False
     """Whether a run here may push the base branch to a remote. Off unless asked.
 
-    **Not a posture property, and that is the whole of it (task-021).** The same posture
+    **Not part of the merge mode, and that is the whole of it (task-021).** The same mode
     should push in one of this operator's repositories and never push in another, so the
     switch has to be the project's rather than the run's. Merging and pushing are also
     different acts with different reach: a merge into a local ``main`` is recoverable by
@@ -872,23 +729,23 @@ class ProjectDispatchSettings:
     """The scripted post-approval finish (task-241). Off unless this machine asks."""
 
     @property
-    def ceiling(self) -> Posture:
-        """The widest posture a run here may get. Never ``None`` (task-308)."""
-        return self.max_posture or self.posture
+    def automerge_allowed(self) -> bool:
+        """Whether a run here may merge itself. Never ``None`` (task-308)."""
+        if self.allow_automerge is not None:
+            return self.allow_automerge
+        return self.merge_mode is MergeMode.AUTOMERGE
 
-    def offerable_postures(self) -> List[Posture]:
-        """Every posture at or below this project's ceiling, narrowest first.
+    def offerable_merge_modes(self) -> List[MergeMode]:
+        """Every merge mode this project allows, ``review`` first.
 
         What a chooser may offer. Exists here rather than in the GUI so that the list a
-        person is shown and the list ``resolve_posture`` will accept are the same list,
-        computed once -- a pulldown that offers a posture the API refuses is a bug that
-        can only be found by clicking it.
+        person is shown and the list ``resolve_merge_mode`` will accept are the same list,
+        computed once -- a pulldown that offers a mode the API refuses is a bug that can
+        only be found by clicking it.
         """
-        ceiling = self.ceiling
-        return sorted(
-            (posture for posture in Posture if posture.rank <= ceiling.rank),
-            key=lambda posture: posture.rank,
-        )
+        if self.automerge_allowed:
+            return [MergeMode.REVIEW, MergeMode.AUTOMERGE]
+        return [MergeMode.REVIEW]
 
 
 @dataclass(frozen=True)
@@ -1572,36 +1429,43 @@ def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchS
             "one of runner_groups."
         )
 
-    posture_raw = mapping.get("posture", Posture.AUTO.value)
+    # `posture`/`max_posture` are the pre-task-602 spellings of these two keys. They are
+    # read, through the legacy map, so a machine's existing dispatch.yaml keeps loading.
+    mode_key = "merge_mode" if "merge_mode" in mapping else "posture"
+    mode_raw = mapping.get(mode_key, MergeMode.REVIEW.value)
     try:
-        posture = Posture(posture_raw)
+        merge_mode = MergeMode(mode_raw)
     except ValueError as exc:
         raise DispatchConfigError(
-            f"Invalid dispatch config at {path}: {where}.posture must be one of "
-            f"{_values(Posture)}, not {posture_raw!r}."
+            f"Invalid dispatch config at {path}: {where}.{mode_key} must be one of "
+            f"{_values(MergeMode)}, not {mode_raw!r}."
         ) from exc
 
-    max_posture_raw = mapping.get("max_posture")
-    max_posture: Optional[Posture] = None
-    if max_posture_raw is not None:
+    allow_automerge: Optional[bool] = None
+    if "allow_automerge" in mapping:
+        allow_automerge = _bool(
+            mapping.get("allow_automerge"), f"{where}.allow_automerge", path, default=False
+        )
+    elif mapping.get("max_posture") is not None:
+        legacy = mapping.get("max_posture")
         try:
-            max_posture = Posture(max_posture_raw)
+            MergeMode(legacy)
         except ValueError as exc:
             raise DispatchConfigError(
                 f"Invalid dispatch config at {path}: {where}.max_posture must be one of "
-                f"{_values(Posture)}, not {max_posture_raw!r}."
+                f"{sorted(LEGACY_MERGE_MODES)}, not {legacy!r}. It is the retired "
+                f"spelling of {where}.allow_automerge."
             ) from exc
-        if not posture.within(max_posture):
-            # Refused here rather than clamped, because unlike the two sources this
-            # ceiling exists to bound, both halves of this contradiction were typed by
-            # the same person into the same file. Silently running their default at
-            # their ceiling would be this tool deciding which of the two they meant.
-            raise DispatchConfigError(
-                f"Invalid dispatch config at {path}: {where}.posture is "
-                f"{posture.value!r}, which is wider than {where}.max_posture "
-                f"{max_posture.value!r}. A project's default has to fit inside its own "
-                "ceiling; lower the default or raise the ceiling."
-            )
+        allow_automerge = legacy_allow_automerge(legacy)
+    if merge_mode is MergeMode.AUTOMERGE and allow_automerge is False:
+        # Refused here rather than clamped, because both halves of this contradiction
+        # were typed by the same person into the same file. Silently running their
+        # default as review would be this tool deciding which of the two they meant.
+        raise DispatchConfigError(
+            f"Invalid dispatch config at {path}: {where}.{mode_key} is automerge, but "
+            f"{where}.allow_automerge is off. A project's default has to be a mode it "
+            "allows; change the default or allow automerge."
+        )
 
     return ProjectDispatchSettings(
         project_id=project_id,
@@ -1614,8 +1478,8 @@ def _parse_project(project_id: str, raw: object, path: Path) -> ProjectDispatchS
         auto_dispatch=_bool(
             mapping.get("auto_dispatch"), f"{where}.auto_dispatch", path, default=False
         ),
-        posture=posture,
-        max_posture=max_posture,
+        merge_mode=merge_mode,
+        allow_automerge=allow_automerge,
         push=_bool(mapping.get("push"), f"{where}.push", path, default=False),
         resume_sessions=_bool(
             mapping.get("resume_sessions"), f"{where}.resume_sessions", path, default=True

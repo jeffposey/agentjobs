@@ -179,7 +179,7 @@ def dispatch_config(runner_argv: List[str], port: int) -> Dict[str, Any]:
                 "enabled": True,
                 "require_clean_tree": False,
                 "runner": "sandbox-sleeper",
-                "posture": "auto",
+                "merge_mode": "review",
             }
         },
     }

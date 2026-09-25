@@ -46,7 +46,8 @@ function run(overrides: Partial<LiveRunView> = {}): LiveRunView {
     project_name: "Alpha Project",
     mode: "session",
     session: true,
-    posture: "auto",
+    merge_mode: "review",
+    merge_mode_phrase: "Hands off for your review",
     status: "running",
     health: "working",
     started_at: "2026-09-04T01:00:00Z",
@@ -343,6 +344,34 @@ describe("cell order across polls", () => {
 });
 
 describe("the board a person reads", () => {
+  it("says what a dispatched run will do with its branch, in the server's words", () => {
+    // task-602, a5: the phrase, never the bare `review`/`automerge` value, and never a
+    // copy kept in the browser -- the cell renders whatever `merge_mode_phrase` says.
+    renderBoard(
+      <SlotBoard
+        body={body({
+          occupied: 2,
+          runs: [
+            run({ run_id: "run_r", started_at: "2026-09-04T01:00:00Z" }),
+            run({
+              run_id: "run_m",
+              task_id: "task-002",
+              started_at: "2026-09-04T02:00:00Z",
+              merge_mode: "automerge",
+              merge_mode_phrase: "Merges itself on a green gate",
+            }),
+          ],
+        })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    const [review, automerge] = screen.getAllByTestId("slot-cell");
+    expect(review).toHaveTextContent("Hands off for your review");
+    expect(automerge).toHaveTextContent("Merges itself on a green gate");
+  });
+
   it("shows a run's health, its elapsed time and a link into its own project", () => {
     // ac-2. `task_url` is built by the server precisely so a run belonging to another
     // project links into that project rather than into the one being viewed.
@@ -558,7 +587,8 @@ describe("a session somebody is working in (task-354)", () => {
       run_id: "run_chat",
       mode: "interactive",
       session: false,
-      posture: "",
+      merge_mode: "",
+      merge_mode_phrase: "",
       task_id: "task-352",
       task_title: "Worked in a chat window",
       task_url: "/p/alpha/tasks/task-352",
@@ -582,7 +612,7 @@ describe("a session somebody is working in (task-354)", () => {
     expect(screen.getByTestId("slot-board-capacity")).toHaveTextContent("0 of 3 slots busy");
   });
 
-  it("says whose session it is where a dispatched run shows its posture", () => {
+  it("says whose session it is where a dispatched run shows its merge mode", () => {
     renderBoard(<SlotBoard body={body({ runs: [attended()] })} queue={[]} projectId="alpha" />);
 
     const card = screen.getAllByTestId("slot-cell")[0]!;
@@ -864,7 +894,8 @@ function armed(overrides: Partial<ArmedProjectView> = {}): ArmedProjectView {
     armed_at: "2026-09-04T00:30:00Z",
     bound: "1 of 3 starts used",
     starts_left: 2,
-    posture: null,
+    merge_mode: null,
+    merge_mode_phrase: "",
     next_task_id: "task-077",
     next_task_title: "The one it would start",
     next_task_url: "/p/alpha/tasks/task-077",
@@ -881,6 +912,24 @@ describe("the projects the pull mode is armed for (task-462)", () => {
     const row = screen.getByTestId("armed-project");
     expect(within(row).getByTestId("armed-bound")).toHaveTextContent("armed by Jeff Posey");
     expect(within(row).getByTestId("armed-bound")).toHaveTextContent("1 of 3 starts used");
+  });
+
+  it("says what every run it pulls will do with its branch", () => {
+    renderBoard(
+      <SlotBoard
+        body={body({
+          armed: [
+            armed({ merge_mode: "automerge", merge_mode_phrase: "Merges itself on a green gate" }),
+          ],
+        })}
+        queue={[]}
+        projectId="alpha"
+      />,
+    );
+
+    expect(screen.getByTestId("armed-bound")).toHaveTextContent(
+      "armed by Jeff Posey · 1 of 3 starts used · Merges itself on a green gate",
+    );
   });
 
   it("says what it would start next, as a link to that task", () => {
@@ -1387,7 +1436,7 @@ describe("the epics this machine is walking (task-523)", () => {
 
 describe("a run whose task is being merged (task-533)", () => {
   // The state task-369 and task-526 were in when this was reported: a run finishing
-  // itself under --posture-release keeps its own lock, so it had no finish card and its
+  // itself under --automerge-release keeps its own lock, so it had no finish card and its
   // tile read "Working" beside a task page reading "Finishing".
   const finishing = () =>
     run({

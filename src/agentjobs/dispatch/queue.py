@@ -45,7 +45,6 @@ from agentjobs.dispatch.budget import DISPATCHER_ACTOR, check_budget, check_mach
 from agentjobs.dispatch.config import (
     DispatchError,
     DispatchLimits,
-    Posture,
     machine_ceiling,
 )
 from agentjobs.dispatch.guards import (
@@ -73,7 +72,11 @@ from agentjobs.execution.store import (
     ExecutionStore,
     QueuedDispatch,
 )
-from agentjobs.models_v2 import DispatchTrigger, LogEntryType
+from agentjobs.models_v2 import (
+    DispatchTrigger,
+    LogEntryType,
+    recorded_merge_mode,
+)
 from agentjobs.playbooks.pointer import PlaybookPointer
 from agentjobs.projects import Project
 from agentjobs.store_factory import TaskManagerLike
@@ -140,7 +143,7 @@ def request_payload(request: DispatchRequest) -> Dict[str, Any]:
     """The parts of a dispatch request a later start has to reproduce.
 
     Everything here is *what was asked for*, never what was granted: no runner
-    resolution, no posture decision, no authorising entry id that does not already exist.
+    resolution, no merge mode decision, no authorising entry id that does not already exist.
     The grant is made at start time, by the gates, which is the whole argument for
     queueing being safe at all.
     """
@@ -153,7 +156,7 @@ def request_payload(request: DispatchRequest) -> Dict[str, Any]:
         "authorized_by": request.authorized_by,
         "authorization_note": request.authorization_note,
         "surface": request.surface,
-        "posture": request.posture.value if request.posture is not None else None,
+        "merge_mode": request.merge_mode.value if request.merge_mode is not None else None,
         "on_behalf_of_parent": request.on_behalf_of_parent,
         "playbook": (
             {
@@ -190,7 +193,7 @@ def rebuild_request(entry: QueuedDispatch) -> DispatchRequest:
         authorized_by=stored.get("authorized_by"),
         authorization_note=stored.get("authorization_note"),
         surface=stored.get("surface"),
-        posture=Posture(stored["posture"]) if stored.get("posture") else None,
+        merge_mode=recorded_merge_mode(stored),
         on_behalf_of_parent=bool(stored.get("on_behalf_of_parent")),
         playbook=(
             PlaybookPointer(

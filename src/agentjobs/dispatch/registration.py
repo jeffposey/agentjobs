@@ -402,7 +402,7 @@ def register_session(
                 "project_id": project.id,
                 "mode": DispatchMode.SESSION.value,
                 "driver": resolution.runner.driver.value,
-                # No posture. AgentJobs did not choose this session's permission
+                # No merge mode. AgentJobs did not choose this session's permission
                 # envelope and has no way to read it, and writing the project default
                 # here would be a claim about what the session may do that nothing
                 # supports. `origin` is what a reader should key on instead.

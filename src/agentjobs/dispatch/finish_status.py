@@ -697,7 +697,7 @@ def _finishing_candidates(home: Path, project_id: str) -> Dict[str, Optional[Pat
     ``Path``, resolved from the lock, for the shape every approved finish comes in.
 
     **Ordinary dispatch locks are candidates too, and they are the reason a scan still
-    exists.** A run finishing *itself* under ``--posture-release`` keeps its own
+    exists.** A run finishing *itself* under ``--merge-mode-release`` keeps its own
     ``kind=run`` lock and never adopts a finish one (``dispatch.finish.run_finish``), so
     filtering on ``holder.is_finish`` would miss exactly the case an autonomous project
     merges through. Such a candidate maps to ``None`` and is resolved by the shared scan,
@@ -892,7 +892,7 @@ def earlier_merge(
     return commit, finish_id
 
 
-WITHDRAWN_REASONS = frozenset({"stopped", "approval_withdrawn", "posture_withdrawn"})
+WITHDRAWN_REASONS = frozenset({"stopped", "approval_withdrawn", "automerge_withdrawn"})
 
 
 def next_action(status: FinishStatus, meta: Dict[str, Any]) -> str:
@@ -1022,7 +1022,7 @@ def finish_output(home: Path, status: FinishStatus) -> Tuple[str, str, Optional[
     spawned by an approval writes its whole step table to ``finishes/spawn/<task>.log``
     when it ends -- that is the script output the reader asked for, and it does not
     exist until the process is over. A finish run inside a dispatched session
-    (``--posture-release``) has no spawn log at all, so the gate's own output is the
+    (``--merge-mode-release``) has no spawn log at all, so the gate's own output is the
     only text there is.
 
     An empty answer while a finish is running is the normal case and not a failure: the

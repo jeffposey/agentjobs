@@ -724,7 +724,7 @@ class TestLegacyMigration:
                 "task_id": "task-001",
                 "project_id": "alpha",
                 "mode": "batch",
-                "posture": "auto",
+                "merge_mode": "review",
                 "status": "finished",
                 "outcome": "completed",
                 "started_at": "2026-09-01T08:00:00+00:00",
@@ -741,13 +741,13 @@ class TestLegacyMigration:
         assert {r.disposition for r in first.values()} == {"imported"}
         assert {r.disposition for r in second.values()} == {"already"}
         assert "runner" in first["run_done"].unknown_fields
-        assert "posture" not in first["run_done"].unknown_fields
+        assert "merge_mode" not in first["run_done"].unknown_fields
 
         store = journal.journal(home)
         executions = {e.task_id + "@" + e.project_id: e for e in store.executions()}
         done = executions["task-001@alpha"]
         assert done.provenance == "legacy_import" and done.terminal
-        assert done.envelope == {"legacy_meta": {"mode": "batch", "posture": "auto"}}
+        assert done.envelope == {"legacy_meta": {"mode": "batch", "merge_mode": "review"}}
         live = executions["task-001@beta"]
         assert live.owner_mode == "legacy" and not live.terminal
         with pytest.raises(OwnerModeConflict):

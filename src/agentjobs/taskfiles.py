@@ -39,8 +39,13 @@ from pydantic import ValidationError
 
 from .attachments import AttachmentStore
 from .instrumentation import record_task_parse
-from .models_v2 import SchemaVersionError, Task, TaskSummary, summary_of
-from .models_v2 import load_task as _validate_v2
+from .models_v2 import (
+    load_task as _validate_v2,
+    SchemaVersionError,
+    summary_of,
+    Task,
+    TaskSummary,
+)
 from .projects import contained_path
 from .receipts import ReceiptStore
 

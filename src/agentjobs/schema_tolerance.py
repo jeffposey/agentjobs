@@ -5,7 +5,7 @@ Every process that talks to AgentJobs over HTTP carries its own copy of
 task on write and again on read, so a document the service is willing to serve is by
 definition legal. When the reader is older than the service, re-checking can only
 produce false negatives -- and on 2026-08-19 it produced a total one. Adding
-``AUTO = "auto"`` to :class:`~agentjobs.models_v2.DispatchPosture` made task-107
+``AUTO = "auto"`` to ``models_v2.DispatchPosture`` (since replaced by ``MergeMode``) made task-107
 unreadable to every process started before the change: the MCP client's
 ``task_handoff`` failed with ``log.12.posture: Input should be 'read_only',
 'supervised' or 'autonomous'`` and ``retryable: false``, so an agent could not record

@@ -25,8 +25,8 @@ from typing import Any, Dict, List, cast
 
 import pytest
 
-from agentjobs.dispatch.runner import posture_flags, settings_json
-from agentjobs.dispatch.config import Posture
+from agentjobs.dispatch.runner import merge_mode_flags, settings_json
+from agentjobs.dispatch.config import MergeMode
 from agentjobs.dispatch.session_env import (
     SESSION_SETTINGS_FILENAME,
     SETTINGS_FLAG,
@@ -156,11 +156,11 @@ class TestThePermissionEnvelopeSurvives:
     ``posture_flags`` output rather than a hand-written stand-in.
     """
 
-    @pytest.mark.parametrize("posture", [Posture.AUTO, Posture.SUPERVISED])
+    @pytest.mark.parametrize("merge_mode", [MergeMode.REVIEW, MergeMode.REVIEW])
     def test_the_allow_list_is_unchanged_by_the_merge(
-        self, posture: Posture, tmp_path: Path
+        self, merge_mode: MergeMode, tmp_path: Path
     ) -> None:
-        flags = posture_flags(posture, ["agentjobs"])
+        flags = merge_mode_flags(merge_mode, ["agentjobs"])
         expected = json.loads(flags[flags.index(SETTINGS_FLAG) + 1])
 
         delivered = deliver_identity(
@@ -175,21 +175,8 @@ class TestThePermissionEnvelopeSurvives:
         assert document["permissions"] == expected["permissions"]
         assert document["enabledMcpjsonServers"] == expected["enabledMcpjsonServers"]
 
-    def test_read_only_keeps_its_deliberately_absent_allow_list(self, tmp_path: Path) -> None:
-        """`read_only` must not be given one. Merging must not conjure the key."""
-        flags = posture_flags(Posture.READ_ONLY, ["agentjobs"])
-
-        delivered = deliver_identity(
-            ["claude.CMD", "--bg", *flags, PROMPT],
-            prompt=PROMPT,
-            directory=tmp_path,
-            run_id="run_abc123",
-        )
-
-        assert "permissions" not in settings_of(delivered.argv)
-
     def test_exactly_one_settings_flag_reaches_the_launcher(self, tmp_path: Path) -> None:
-        flags = posture_flags(Posture.AUTO, ["agentjobs"])
+        flags = merge_mode_flags(MergeMode.REVIEW, ["agentjobs"])
 
         delivered = deliver_identity(
             ["claude.CMD", "--bg", *flags, PROMPT],
@@ -314,7 +301,7 @@ class TestWhereTheDocumentGoes:
     def test_the_record_still_gets_the_envelope_when_a_file_is_used(self, tmp_path: Path) -> None:
         """argv then names a path, so the permission envelope would stop being readable
         from the run record unless the redacted document is handed back for it."""
-        flags = posture_flags(Posture.AUTO, ["agentjobs"])
+        flags = merge_mode_flags(MergeMode.REVIEW, ["agentjobs"])
 
         delivered = deliver_identity(
             ["claude.CMD", "--bg", *flags, PROMPT],

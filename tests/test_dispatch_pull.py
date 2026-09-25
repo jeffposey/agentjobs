@@ -209,17 +209,17 @@ class TestArming:
 
         assert "may not authorise a dispatch" in str(refused.value)
 
-    def test_a_posture_above_the_ceiling_is_refused_where_someone_is_waiting(
+    def test_a_forbidden_automerge_is_refused_where_someone_is_waiting(
         self, machine: Machine
     ) -> None:
-        from agentjobs.dispatch.config import Posture
+        from agentjobs.dispatch.config import MergeMode
 
-        machine.configure(project={"posture": "auto", "max_posture": "auto"})
+        machine.configure(project={"merge_mode": "review", "allow_automerge": False})
 
         with pytest.raises(dispatch_pull.PullArmingError) as refused:
-            arm(machine, posture=Posture.AUTONOMOUS)
+            arm(machine, merge_mode=MergeMode.AUTOMERGE)
 
-        assert "capped at" in str(refused.value)
+        assert "does not allow automerge" in str(refused.value)
 
     def test_a_starts_bound_needs_a_number(self, machine: Machine) -> None:
         with pytest.raises(dispatch_pull.PullArmingError):
@@ -481,7 +481,7 @@ def detach(epic: Epic) -> str:
         parent_id=epic.parent_id,
         home=epic.machine.home,
         settings=WalkSettings(max_concurrent=1),
-        posture=None,
+        merge_mode=None,
         actor="claude",
     )
 

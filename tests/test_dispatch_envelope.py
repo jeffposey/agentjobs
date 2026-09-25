@@ -26,7 +26,7 @@ import yaml
 
 from agentjobs.dispatch.config import (
     DispatchSentinelError,
-    Posture,
+    MergeMode,
     RecordedRunnerUnavailableError,
     sentinel_path,
 )
@@ -68,8 +68,8 @@ def write_config(
     fable_defined: bool = True,
     fable_executable: Optional[str] = None,
     project_group: str = "default",
-    posture: str = "auto",
-    max_posture: str = "autonomous",
+    merge_mode: str = "review",
+    allow_automerge: bool = True,
     extra_runners: Optional[Dict[str, object]] = None,
 ) -> None:
     """Two groups, the way this machine has them: ``default`` and ``big-dawg``."""
@@ -102,8 +102,8 @@ def write_config(
                 "enabled": True,
                 "group": project_group,
                 "require_clean_tree": False,
-                "posture": posture,
-                "max_posture": max_posture,
+                "merge_mode": merge_mode,
+                "allow_automerge": allow_automerge,
             }
         },
     }
@@ -147,12 +147,14 @@ def dispatch_entries(manager: TaskManager, task_id: str):
     return [dict(e.data or {}) for e in task.log if e.type is LogEntryType.DISPATCH]
 
 
-def big_dawg_grant(manager, project, home, task_id: str, posture: Posture = Posture.AUTONOMOUS):
+def big_dawg_grant(
+    manager, project, home, task_id: str, merge_mode: MergeMode = MergeMode.AUTOMERGE
+):
     return dispatch(
         manager,
         project,
         home,
-        DispatchRequest(task_id=task_id, group="big-dawg", posture=posture),
+        DispatchRequest(task_id=task_id, group="big-dawg", merge_mode=merge_mode),
     )
 
 
@@ -167,7 +169,7 @@ class TestWhatCountsAsAContinuation:
             {"trigger": DispatchTrigger.CHILD, "on_behalf_of_parent": True},
             {"runner": "opus"},
             {"group": "default"},
-            {"posture": Posture.AUTO},
+            {"merge_mode": MergeMode.REVIEW},
             {"authorized_by": "Jeff Posey"},
         ],
     )
@@ -186,7 +188,7 @@ class TestTheBigDawgContinuation:
         write_config(home, runner_script)
         first = big_dawg_grant(manager, project, home, ready_task.id)
         # The defaults move underneath it: a new project group and a narrower default.
-        write_config(home, runner_script, project_group="default", posture="auto")
+        write_config(home, runner_script, project_group="default", merge_mode="review")
 
         second = dispatch(
             manager,
@@ -202,8 +204,8 @@ class TestTheBigDawgContinuation:
         assert entry["runner_source"] == "history"
         assert entry["selection"]["group"] == "big-dawg"
         assert entry["selection"]["source"] == "history"
-        assert entry["posture"] == "autonomous"
-        assert entry["posture_source"] == "history"
+        assert entry["merge_mode"] == "automerge"
+        assert entry["merge_mode_source"] == "history"
         store = execution_store_for(home)
         first_execution = store.attempt(first.run_id).execution_id  # type: ignore[union-attr]
         assert entry["envelope"] == {
@@ -218,7 +220,7 @@ class TestTheBigDawgContinuation:
     ) -> None:
         write_config(home, runner_script)
         first = big_dawg_grant(manager, project, home, ready_task.id)
-        write_config(home, runner_script, posture="auto")
+        write_config(home, runner_script, merge_mode="review")
         for minutes in (2, 4):
             dispatch(
                 manager,
@@ -282,7 +284,7 @@ class TestTheBigDawgContinuation:
 
         entry = dispatch_entries(manager, ready_task.id)[-1]
         assert entry["runner"] == "opus"
-        assert entry["posture"] == "auto"
+        assert entry["merge_mode"] == "review"
         assert entry["envelope"]["source"] == "grant"
 
 
@@ -310,7 +312,7 @@ class TestRevocationWins:
     ) -> None:
         write_config(home, runner_script)
         big_dawg_grant(manager, project, home, ready_task.id)
-        write_config(home, runner_script, max_posture="auto")
+        write_config(home, runner_script, allow_automerge=False)
 
         dispatch(
             manager,
@@ -321,17 +323,17 @@ class TestRevocationWins:
         )
 
         entry = dispatch_entries(manager, ready_task.id)[-1]
-        assert entry["posture"] == "auto"
-        assert entry["posture_source"] == "history"
-        assert entry["posture_requested"] == "autonomous"
+        assert entry["merge_mode"] == "review"
+        assert entry["merge_mode_source"] == "history"
+        assert entry["merge_mode_requested"] == "automerge"
         assert "Do not merge." in entry["argv"][-1]
 
     def test_a_raised_ceiling_does_not_widen_the_historical_grant(
         self, manager, project, home: Path, runner_script: Path, ready_task
     ) -> None:
-        write_config(home, runner_script, max_posture="auto")
-        big_dawg_grant(manager, project, home, ready_task.id, posture=Posture.AUTO)
-        write_config(home, runner_script, posture="autonomous", max_posture="autonomous")
+        write_config(home, runner_script, allow_automerge=False)
+        big_dawg_grant(manager, project, home, ready_task.id, merge_mode=MergeMode.REVIEW)
+        write_config(home, runner_script, merge_mode="automerge", allow_automerge=True)
 
         dispatch(
             manager,
@@ -342,9 +344,9 @@ class TestRevocationWins:
         )
 
         entry = dispatch_entries(manager, ready_task.id)[-1]
-        assert entry["posture"] == "auto"
-        assert entry["posture_source"] == "history"
-        assert "posture_requested" not in entry
+        assert entry["merge_mode"] == "review"
+        assert entry["merge_mode_source"] == "history"
+        assert "merge_mode_requested" not in entry
 
     def test_a_stopped_execution_is_not_continued_automatically(
         self, manager, project, home: Path, runner_script: Path, ready_task, tmp_path: Path
@@ -403,7 +405,7 @@ class TestTheEnvelopeHoldsNoSecret:
         envelope = execution.envelope
         assert envelope["env_keys"] == ["FABLE_TOKEN"]
         assert envelope["runner"] == "fable"
-        assert envelope["posture"] == "autonomous"
+        assert envelope["merge_mode"] == "automerge"
         assert envelope["push"] is False
         assert "releases the merge gate" in envelope["policy_clause"]
         assert envelope["envelope_version"] == 1
@@ -436,37 +438,40 @@ class TestHistoryInThePostureOrder:
     """Where ``history`` sits among the sources ``resolve_posture`` weighs."""
 
     @staticmethod
-    def settings(posture: Posture = Posture.AUTO, ceiling: Posture = Posture.AUTONOMOUS):
+    def settings(merge_mode: MergeMode = MergeMode.REVIEW, allow_automerge: bool = True):
         from agentjobs.dispatch.config import ProjectDispatchSettings
 
         return ProjectDispatchSettings(
-            project_id="sandbox", enabled=True, posture=posture, max_posture=ceiling
+            project_id="sandbox",
+            enabled=True,
+            merge_mode=merge_mode,
+            allow_automerge=allow_automerge,
         )
 
     def test_history_outranks_the_task_field_and_the_project_default(self) -> None:
-        from agentjobs.dispatch.config import PostureSource, resolve_posture
+        from agentjobs.dispatch.config import MergeModeSource, resolve_merge_mode
 
-        resolved = resolve_posture(
-            self.settings(Posture.SUPERVISED),
-            task=Posture.READ_ONLY,
-            history=Posture.AUTONOMOUS,
+        resolved = resolve_merge_mode(
+            self.settings(MergeMode.REVIEW),
+            task=MergeMode.REVIEW,
+            history=MergeMode.AUTOMERGE,
         )
-        assert resolved.posture is Posture.AUTONOMOUS
-        assert resolved.source is PostureSource.HISTORY
+        assert resolved.merge_mode is MergeMode.AUTOMERGE
+        assert resolved.source is MergeModeSource.HISTORY
 
     def test_a_choice_made_now_outranks_history(self) -> None:
-        from agentjobs.dispatch.config import PostureSource, resolve_posture
+        from agentjobs.dispatch.config import MergeModeSource, resolve_merge_mode
 
-        resolved = resolve_posture(
-            self.settings(), requested=Posture.SUPERVISED, history=Posture.AUTONOMOUS
+        resolved = resolve_merge_mode(
+            self.settings(), requested=MergeMode.REVIEW, history=MergeMode.AUTOMERGE
         )
-        assert resolved.source is PostureSource.DISPATCH
+        assert resolved.source is MergeModeSource.DISPATCH
 
     def test_history_above_the_ceiling_is_clamped_not_refused(self) -> None:
-        from agentjobs.dispatch.config import resolve_posture
+        from agentjobs.dispatch.config import resolve_merge_mode
 
-        resolved = resolve_posture(
-            self.settings(ceiling=Posture.SUPERVISED), history=Posture.AUTONOMOUS
+        resolved = resolve_merge_mode(
+            self.settings(allow_automerge=False), history=MergeMode.AUTOMERGE
         )
-        assert resolved.posture is Posture.SUPERVISED
-        assert resolved.requested is Posture.AUTONOMOUS
+        assert resolved.merge_mode is MergeMode.REVIEW
+        assert resolved.requested is MergeMode.AUTOMERGE

@@ -86,7 +86,7 @@ def idle_after_review_handoff(
 
     ``None`` means "it may be acting", and the caller defers to it exactly as before:
 
-    - it is the run this finish belongs to (a ``--posture-release`` from inside the run),
+    - it is the run this finish belongs to (a ``--merge-mode-release`` from inside the run),
       which is mid-turn by definition and reads the finish's answer itself;
     - it is a person's interactive session, or not a session at all;
     - its record cannot be followed back to its dispatch entry;

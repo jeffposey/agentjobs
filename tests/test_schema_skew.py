@@ -38,7 +38,7 @@ from agentjobs.mcp.inventory import build_registry
 from agentjobs.mcp.tools import ToolRegistry
 from agentjobs.models_v2 import (
     DispatchMode,
-    DispatchPosture,
+    MergeMode,
     DispatchTrigger,
     Lifecycle,
     PRIORITY_RANK,
@@ -56,7 +56,7 @@ ACTORS = [
 #: A posture no member of this process's ``DispatchPosture`` carries. Asserted below
 #: rather than assumed, so adding it for real later fails the test that depends on it
 #: being unknown instead of quietly making that test prove nothing.
-UNKNOWN_POSTURE = "warp_drive"
+UNKNOWN_MERGE_MODE = "warp_drive"
 
 # Every top-level axis participates in Task's consistency checks.  Keep the values
 # deliberately unknown to this process so this test proves tolerance rather than a
@@ -126,8 +126,8 @@ class NewerServiceTransport(httpx.BaseTransport):
                     assignment["owner"] = None
             rewritten[field] = value
         data = rewritten.get("data")
-        if rewritten.get("type") == "dispatch" and isinstance(data, dict) and "posture" in data:
-            data["posture"] = UNKNOWN_POSTURE
+        if rewritten.get("type") == "dispatch" and isinstance(data, dict) and "merge_mode" in data:
+            data["merge_mode"] = UNKNOWN_MERGE_MODE
             self.rewrites += 1
         return rewritten
 
@@ -182,7 +182,7 @@ def dispatched_task(manager: TaskManager) -> Task:
         agent="bot",
         runner="claude",
         mode=DispatchMode.SESSION,
-        posture=DispatchPosture.SUPERVISED,
+        merge_mode=MergeMode.REVIEW,
         trigger=DispatchTrigger.MANUAL,
         caused_by=1,
         argv=["claude", "--bg", "-p", "read the record"],
@@ -205,7 +205,7 @@ def call(registry: ToolRegistry, name: str, arguments: Mapping[str, Any]) -> Dic
 
 def test_the_unknown_posture_really_is_unknown_here() -> None:
     """Guard the premise: every test below is worthless if this value is a member."""
-    assert UNKNOWN_POSTURE not in {member.value for member in DispatchPosture}
+    assert UNKNOWN_MERGE_MODE not in {member.value for member in MergeMode}
 
 
 class TestAnOlderClientReads:
@@ -241,7 +241,7 @@ class TestAnOlderClientReads:
         assert task.id == TASK_ID
         # The record survives whole: the unknown value is carried verbatim rather than
         # guessed at, and nothing else about the task is lost.
-        assert task.log[-1].data["posture"] == UNKNOWN_POSTURE
+        assert task.log[-1].data["merge_mode"] == UNKNOWN_MERGE_MODE
         assert task.display_status == "Working"
         assert task.dispatch_count == 1
 
@@ -262,7 +262,7 @@ class TestAnOlderClientReads:
         payload = call(registry, "task_get", {"project_id": "solo", "task_id": TASK_ID})
 
         assert payload["task"]["id"] == TASK_ID
-        assert payload["task"]["log"][-1]["data"]["posture"] == UNKNOWN_POSTURE
+        assert payload["task"]["log"][-1]["data"]["merge_mode"] == UNKNOWN_MERGE_MODE
 
 
 class TestAnOlderClientStillWrites:
@@ -341,7 +341,7 @@ class TestStrictnessThatMustSurvive:
         """The tolerance is opt-in and scoped. Nothing else in the process inherits it,
         which is what keeps ``storage`` and the write path strict."""
         with pytest.raises(ValueError):
-            DispatchPosture(UNKNOWN_POSTURE)
+            MergeMode(UNKNOWN_MERGE_MODE)
 
     def test_reading_a_file_still_refuses_one_carrying_it(self, tmp_path: Path) -> None:
         """ac-3, on the path a corpus being imported takes.
@@ -352,13 +352,13 @@ class TestStrictnessThatMustSurvive:
         """
         storage = TaskFileCorpus(tmp_path)
         good = dispatch_only_task_file(tmp_path)
-        good["log"][-1]["data"]["posture"] = UNKNOWN_POSTURE
+        good["log"][-1]["data"]["merge_mode"] = UNKNOWN_MERGE_MODE
         (tmp_path / f"{TASK_ID}.yaml").write_text(yaml.safe_dump(good), encoding="utf-8")
 
         with pytest.raises(Exception) as caught:
             storage.load_task(TASK_ID)
 
-        assert "posture" in str(caught.value)
+        assert "merge_mode" in str(caught.value)
 
     def test_a_malformed_response_still_raises(self, skewed) -> None:
         """ac-4's client-side half. Tolerance covers unknown members of known enums; a
@@ -389,7 +389,7 @@ def dispatch_only_task_file(tmp_path: Path) -> Dict[str, Any]:
         agent="bot",
         runner="claude",
         mode=DispatchMode.SESSION,
-        posture=DispatchPosture.SUPERVISED,
+        merge_mode=MergeMode.REVIEW,
         trigger=DispatchTrigger.MANUAL,
         caused_by=1,
         argv=["claude"],

@@ -255,7 +255,7 @@ def write_dispatch_config(home: Path, root: Path) -> None:
         project_id: {
             "enabled": project_id in DISPATCHABLE,
             "runner": RUNNER,
-            "posture": "auto",
+            "merge_mode": "review",
             "require_clean_tree": False,
         }
         for project_id in NAMES

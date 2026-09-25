@@ -18,6 +18,7 @@ import {
   liveFinishes,
   liveRunsPollInterval,
   runCounts,
+  runKindLabel,
   unexplainedRunways,
 } from "./LiveRuns";
 
@@ -45,7 +46,8 @@ function run(overrides: Partial<LiveRunView> = {}): LiveRunView {
     project_name: "Alpha Project",
     mode: "session",
     session: true,
-    posture: "auto",
+    merge_mode: "review",
+    merge_mode_phrase: "Hands off for your review",
     status: "running",
     health: "working",
     started_at: "2026-09-04T01:00:00Z",
@@ -111,6 +113,26 @@ function body(overrides: Partial<LiveRunsView> = {}): LiveRunsView {
     ...overrides,
   };
 }
+
+describe("what kind of run it is (task-602)", () => {
+  it("names a dispatched run by what it does with its branch, as the server words it", () => {
+    expect(runKindLabel(run())).toBe("Hands off for your review");
+    expect(
+      runKindLabel(
+        run({ merge_mode: "automerge", merge_mode_phrase: "Merges itself on a green gate" }),
+      ),
+    ).toBe("Merges itself on a green gate");
+  });
+
+  it("says a batch run is one", () => {
+    expect(runKindLabel(run({ session: false }))).toBe("Hands off for your review · batch");
+  });
+
+  it("names an interactive session and an epic walk for what they are", () => {
+    expect(runKindLabel(run({ mode: "interactive" }))).toBe("your session");
+    expect(runKindLabel(run({ mode: "walk" }))).toBe("epic walk · no agent");
+  });
+});
 
 describe("the poll interval", () => {
   it("polls fast while something is running", () => {

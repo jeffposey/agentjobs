@@ -81,7 +81,7 @@ def enable_dispatch(
     project_enabled: bool = True,
     extra_runners: Sequence[str] = (),
     model_runners: Sequence[Tuple[str, str, str]] = (),
-    max_posture: Optional[str] = None,
+    allow_automerge: Optional[bool] = None,
     finish_enabled: bool = False,
     push: bool = False,
 ) -> None:
@@ -105,8 +105,8 @@ def enable_dispatch(
             "driver": driver,
         }
     project_entry: Dict[str, object] = {"enabled": project_enabled, "runner": "fake"}
-    if max_posture is not None:
-        project_entry["max_posture"] = max_posture
+    if allow_automerge is not None:
+        project_entry["allow_automerge"] = allow_automerge
     if finish_enabled:
         project_entry["finish"] = {"enabled": True}
     if push:
@@ -208,7 +208,7 @@ class TestDispatchEndpoint:
         body = response.json()
         assert body["run_id"].startswith("run_")
         assert body["mode"] == "batch"
-        assert body["posture"] == "auto"
+        assert body["merge_mode"] == "review"
         assert body["task_id"] == task_id
         assert body["caused_by"] >= 1
 
@@ -524,7 +524,7 @@ class TestDispatchState:
         assert body["refusal"] is None
         assert body["project_enabled"] is True
         assert body["runner"] == "fake"
-        assert body["posture"] == "auto"
+        assert body["merge_mode"] == "review"
         assert body["available_runners"] == ["fake"]
         assert body["runner_labels"] == {"fake": "fake"}
 
@@ -1297,7 +1297,7 @@ class TestDispatchAgainstAGroup:
         assert state["default_group"] is None
 
 
-class TestThePostureCeilingReachesTheBrowser:
+class TestTheMergeModeCeilingReachesTheBrowser:
     """task-308. The state view is what task-307's control populates from.
 
     It is sent rather than derived for the same reason ``resolved_from`` is: a browser
@@ -1311,43 +1311,35 @@ class TestThePostureCeilingReachesTheBrowser:
 
         state = client.get("/api/projects/sandbox/dispatch").json()
 
-        assert state["posture"] == "auto"
-        assert state["max_posture"] == "auto"
-        assert state["offerable_postures"] == ["read_only", "supervised", "auto"]
+        assert state["merge_mode"] == "review"
+        assert state["allow_automerge"] is False
+        assert state["offerable_merge_modes"] == ["review"]
 
     def test_a_raised_ceiling_widens_what_may_be_offered(self, served) -> None:
         client, root, home = served
-        enable_dispatch(home, root.parent, max_posture="autonomous")
+        enable_dispatch(home, root.parent, allow_automerge=True)
 
         state = client.get("/api/projects/sandbox/dispatch").json()
 
-        assert state["posture"] == "auto"
-        assert state["max_posture"] == "autonomous"
-        assert state["offerable_postures"] == [
-            "read_only",
-            "supervised",
-            "auto",
-            "autonomous",
-        ]
+        assert state["merge_mode"] == "review"
+        assert state["allow_automerge"] is True
+        assert state["offerable_merge_modes"] == ["review", "automerge"]
 
-    def test_the_state_names_what_each_posture_does_to_the_branch(self, served) -> None:
-        """task-307: the browser must not carry its own copy of this mapping.
+    def test_the_state_names_what_each_merge_mode_does(self, served) -> None:
+        """task-307, task-602: the browser must not carry its own copy of this copy.
 
-        It is the difference between "stops for your review" and "merges without you",
-        so a client that derived it from the posture name could tell an operator the
-        opposite of what the option they picked will do. task-021 fixed the mapping in
-        code; this is that same answer, sent.
+        It is the difference between "hands off for your review" and "merges itself",
+        so a client that derived it from the value could tell an operator the opposite
+        of what the option they picked will do.
         """
         client, root, home = served
         enable_dispatch(home, root.parent)
 
         state = client.get("/api/projects/sandbox/dispatch").json()
 
-        assert state["posture_merge_policies"] == {
-            "read_only": "none",
-            "supervised": "review",
-            "auto": "review",
-            "autonomous": "automatic",
+        assert state["merge_mode_phrases"] == {
+            "review": "Hands off for your review",
+            "automerge": "Merges itself on a green gate",
         }
 
     def test_the_state_says_whether_an_autonomous_merge_is_even_possible(self, served) -> None:
@@ -1383,20 +1375,20 @@ class TestThePostureCeilingReachesTheBrowser:
         enable_dispatch(home, root.parent)
         task_id = seed_task(root)
 
-        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"posture": "autonomous"})
+        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"merge_mode": "automerge"})
 
         assert response.status_code == 403
-        assert response.json()["code"] == "posture_above_ceiling"
+        assert response.json()["code"] == "automerge_not_allowed"
 
     def test_asking_within_the_ceiling_starts_the_run_at_that_posture(self, served) -> None:
         client, root, home = served
         enable_dispatch(home, root.parent)
         task_id = seed_task(root)
 
-        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"posture": "read_only"})
+        response = client.post(f"/api/tasks/{task_id}/dispatch", json={"merge_mode": "review"})
 
         assert response.status_code == 202
-        assert response.json()["posture"] == "read_only"
+        assert response.json()["merge_mode"] == "review"
 
 
 class TestOneClickDispatch:

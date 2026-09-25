@@ -953,7 +953,7 @@ class PullArming:
 
     **The sole authority for a pulled dispatch.** Everything a later start has to be able
     to establish without asking anybody is here: who armed it, when, how much of the
-    bound is left, and the posture they chose. It is read at every tick and never taken
+    bound is left, and the merge mode they chose. It is read at every tick and never taken
     from a request, which is what makes a pulled run's authorising entry evidence rather
     than a claim -- see :mod:`agentjobs.dispatch.pull`.
 
@@ -969,7 +969,7 @@ class PullArming:
     bound_kind: str
     bound_starts: Optional[int]
     bound_until: Optional[str]
-    posture: Optional[str]
+    merge_mode: Optional[str]
     state: str
     started: int
     failures: int
@@ -999,7 +999,9 @@ class PullArming:
             bound_kind=row["bound_kind"],
             bound_starts=(None if row["bound_starts"] is None else int(row["bound_starts"])),
             bound_until=row["bound_until"],
-            posture=row["posture"],
+            # The column kept its pre-task-602 name; its value may be a retired
+            # spelling, which the reader maps.
+            merge_mode=row["posture"],
             state=row["state"],
             started=int(row["started"] or 0),
             failures=int(row["failures"] or 0),
@@ -3003,7 +3005,7 @@ class ExecutionStore:
         bound_kind: str,
         bound_starts: Optional[int] = None,
         bound_until: Optional[str] = None,
-        posture: Optional[str] = None,
+        merge_mode: Optional[str] = None,
         arming_id: Optional[str] = None,
     ) -> PullArming:
         """Record that a person switched the pull mode on for this project.
@@ -3050,7 +3052,7 @@ class ExecutionStore:
                     bound_kind,
                     bound_starts if bound_kind == BOUND_STARTS else None,
                     bound_until if bound_kind == BOUND_UNTIL else None,
-                    posture,
+                    merge_mode,
                     moment,
                 ),
             )

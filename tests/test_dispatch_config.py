@@ -24,10 +24,9 @@ from agentjobs.dispatch.config import (
     DispatchError,
     DispatchNotConfiguredError,
     DispatchSentinelError,
-    MergePolicy,
     NoEligibleRunnerError,
     PlaceholderError,
-    Posture,
+    MergeMode,
     ProjectDispatchSettings,
     ProjectNotEnabledError,
     RunnerMode,
@@ -185,20 +184,20 @@ class TestLoading:
         config = load_dispatch_config()
 
         assert config is not None
-        assert config.project("agentjobs").posture is Posture.AUTO
+        assert config.project("agentjobs").merge_mode is MergeMode.REVIEW
 
     def test_an_explicitly_named_posture_still_wins_over_the_default(self) -> None:
         """Changing the default must not quietly re-point projects that chose one."""
         write_config(
             projects={
-                "agentjobs": {"enabled": True, "runner": "claude", "posture": "supervised"},
+                "agentjobs": {"enabled": True, "runner": "claude", "merge_mode": "review"},
             }
         )
 
         config = load_dispatch_config()
 
         assert config is not None
-        assert config.project("agentjobs").posture is Posture.SUPERVISED
+        assert config.project("agentjobs").merge_mode is MergeMode.REVIEW
 
     def test_limits_default_to_the_designs_conservative_values(self) -> None:
         write_config()
@@ -1048,20 +1047,10 @@ class TestTheFinishBlock:
             load_dispatch_config()
 
 
-class TestMergePolicyAndPush:
-    """task-021. A posture decides the merge; the project decides the push."""
+class TestMergeModeAndPush:
+    """task-021. The merge mode decides the merge; the project decides the push."""
 
-    def test_every_posture_has_a_merge_policy_and_only_one_is_automatic(self) -> None:
-        """Derived, not configured -- so the mapping is a property of the enum itself."""
-        assert Posture.READ_ONLY.merge_policy is MergePolicy.NONE
-        assert Posture.AUTO.merge_policy is MergePolicy.REVIEW
-        assert Posture.SUPERVISED.merge_policy is MergePolicy.REVIEW
-        assert Posture.AUTONOMOUS.merge_policy is MergePolicy.AUTOMATIC
-
-        automatic = [p for p in Posture if p.merge_policy is MergePolicy.AUTOMATIC]
-        assert automatic == [Posture.AUTONOMOUS]
-
-    def test_the_default_posture_stops_for_review(self) -> None:
+    def test_the_default_merge_mode_stops_for_review(self) -> None:
         """The default cannot be the one that merges unreviewed, ever."""
         write_config()
 
@@ -1069,8 +1058,8 @@ class TestMergePolicyAndPush:
 
         assert config is not None
         settings = config.project("agentjobs")
-        assert settings.posture is Posture.AUTO
-        assert settings.posture.merge_policy is MergePolicy.REVIEW
+        assert settings.merge_mode is MergeMode.REVIEW
+        assert not settings.automerge_allowed
 
     def test_push_defaults_to_false_for_a_project_that_says_nothing(self) -> None:
         """ac-6. A repository that never thought about pushing never pushes.
@@ -1099,20 +1088,20 @@ class TestMergePolicyAndPush:
         assert config is not None
         assert config.project("agentjobs").push is True
 
-    def test_push_and_posture_are_independent(self) -> None:
-        """The point of keeping push off the posture: every combination is expressible."""
+    def test_push_and_merge_mode_are_independent(self) -> None:
+        """The point of keeping push off the merge mode: every combination is expressible."""
         write_config(
             projects={
                 "stops-but-pushes": {
                     "enabled": True,
                     "runner": "claude",
-                    "posture": "auto",
+                    "merge_mode": "review",
                     "push": True,
                 },
                 "merges-but-never-pushes": {
                     "enabled": True,
                     "runner": "claude",
-                    "posture": "autonomous",
+                    "merge_mode": "automerge",
                     "push": False,
                 },
             }
@@ -1123,8 +1112,8 @@ class TestMergePolicyAndPush:
         assert config is not None
         stops = config.project("stops-but-pushes")
         merges = config.project("merges-but-never-pushes")
-        assert stops.posture.merge_policy is MergePolicy.REVIEW and stops.push is True
-        assert merges.posture.merge_policy is MergePolicy.AUTOMATIC and merges.push is False
+        assert stops.merge_mode is MergeMode.REVIEW and stops.push is True
+        assert merges.merge_mode is MergeMode.AUTOMERGE and merges.push is False
 
     def test_a_push_that_is_not_a_boolean_is_refused(self) -> None:
         write_config(projects={"agentjobs": {"enabled": True, "runner": "claude", "push": "yes"}})

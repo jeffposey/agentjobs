@@ -675,6 +675,24 @@
             "title": "Bound",
             "type": "string"
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The merge mode pulled runs get, or null for the project default.",
+            "title": "Merge Mode"
+          },
+          "merge_mode_phrase": {
+            "default": "",
+            "description": "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.",
+            "title": "Merge Mode Phrase",
+            "type": "string"
+          },
           "next_task_id": {
             "default": "",
             "description": "What `task_next` says it would start next. Sent so a person can see it *before* it happens and move something else to the top if they would rather. Empty when nothing in that backlog is claimable right now.",
@@ -697,18 +715,6 @@
             "description": "The incident id holding this arming's starts off (task-463), or empty. The arming keeps its bound and its authority while this is set and starts again on the first tick after the incident closes; `next_task_id` still says what it will start then.",
             "title": "Paused By",
             "type": "string"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The envelope pulled runs get, or null for the project default.",
-            "title": "Posture"
           },
           "project_id": {
             "title": "Project Id",
@@ -2242,17 +2248,6 @@
         "title": "DispatchEnableRequest",
         "type": "object"
       },
-      "DispatchPosture": {
-        "description": "What the run was permitted to do (design doc section 4, task-076).\n\nMirrors ``dispatch.config.Posture``, and must keep mirroring it: this is the value\nwritten into the task's dispatch log entry, so a posture missing here cannot be\nrecorded even though a run was started under it. ``auto`` was added by task-020.",
-        "enum": [
-          "read_only",
-          "auto",
-          "supervised",
-          "autonomous"
-        ],
-        "title": "DispatchPosture",
-        "type": "string"
-      },
       "DispatchRefusalView": {
         "description": "The gate that currently refuses this project, in the API's own vocabulary.\n\nCarried on the state rather than raised as an error, because \"you cannot dispatch,\nhere is exactly why\" is the normal answer for a project nobody has enabled -- not a\nfailure. The GUI renders ``reason``-specific copy from it; ``message`` is the\nlibrary's own sentence and is always safe to show.",
         "properties": {
@@ -2312,6 +2307,17 @@
             "title": "If Full",
             "type": "string"
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`review` or `automerge` for this one run, overriding both the project default and the task record's own. Refused with 'automerge_not_allowed' when the project's machine-local dispatch.yaml does not allow automerge -- populate a chooser from the dispatch state view's 'offerable_merge_modes' so the refusal is never reachable by clicking (task-308)."
+          },
           "note": {
             "anyOf": [
               {
@@ -2329,17 +2335,6 @@
             "description": "Start this run although every machine slot is taken (task-461). A deliberate overage of limits.max_concurrent_runs for this one dispatch, and nothing else: every other gate binds as it always did, including the hourly cap, because an overage is a dispatch. Honoured only for a human principal -- a run credential sending it is refused 403 'capability_denied' under 'dispatch.over_ceiling'. Mutually exclusive with if_full=queue: asking to wait for a slot and asking to start without one are opposite answers to the same question.",
             "title": "Over Ceiling",
             "type": "boolean"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DispatchPosture"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "What this one run may do, overriding both the project default and any posture on the task record. Refused with 'posture_above_ceiling' when it exceeds the project's machine-local max_posture -- populate a chooser from the dispatch state view's 'offerable_postures' so the refusal is never reachable by clicking (task-308)."
           },
           "runner": {
             "anyOf": [
@@ -2516,6 +2511,16 @@
             "title": "Live",
             "type": "boolean"
           },
+          "merge_mode": {
+            "title": "Merge Mode",
+            "type": "string"
+          },
+          "merge_mode_phrase": {
+            "default": "",
+            "description": "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.",
+            "title": "Merge Mode Phrase",
+            "type": "string"
+          },
           "mode": {
             "title": "Mode",
             "type": "string"
@@ -2534,10 +2539,6 @@
           "output_url": {
             "description": "Where this run's captured output is readable.",
             "title": "Output Url",
-            "type": "string"
-          },
-          "posture": {
-            "title": "Posture",
             "type": "string"
           },
           "project_id": {
@@ -2584,7 +2585,7 @@
           "task_id",
           "project_id",
           "mode",
-          "posture",
+          "merge_mode",
           "status",
           "live",
           "output_url"
@@ -2612,6 +2613,17 @@
             "description": "Runner group it was selected from, when one participated.",
             "title": "Group"
           },
+          "merge_mode": {
+            "description": "`review` or `automerge`. Empty while a dispatch is queued: the merge mode is resolved by the gates when it starts, not when it was queued.",
+            "title": "Merge Mode",
+            "type": "string"
+          },
+          "merge_mode_phrase": {
+            "default": "",
+            "description": "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.",
+            "title": "Merge Mode Phrase",
+            "type": "string"
+          },
           "mode": {
             "description": "session or batch. Empty while a dispatch is queued.",
             "title": "Mode",
@@ -2622,11 +2634,6 @@
             "description": "True when this run was started above limits.max_concurrent_runs because a person chose to (task-461). The machine is over its ceiling until it ends, and the slot board says so rather than clipping the count.",
             "title": "Over Ceiling",
             "type": "boolean"
-          },
-          "posture": {
-            "description": "What the run is permitted to do. Empty while a dispatch is queued: the posture is resolved by the gates when it starts, not when it was queued.",
-            "title": "Posture",
-            "type": "string"
           },
           "queue_position": {
             "default": 0,
@@ -2690,7 +2697,7 @@
         "required": [
           "run_id",
           "mode",
-          "posture",
+          "merge_mode",
           "task_id",
           "caused_by"
         ],
@@ -2700,6 +2707,12 @@
       "DispatchStateView": {
         "description": "Everything the GUI needs to decide what to offer, and what to explain.",
         "properties": {
+          "allow_automerge": {
+            "default": false,
+            "description": "Whether any run here may merge itself, whatever asks for it (task-308, task-602). Off on a project whose default is `review` and that has not turned it on, because that is the only default that cannot silently widen an existing machine.",
+            "title": "Allow Automerge",
+            "type": "boolean"
+          },
           "auto_dispatch": {
             "default": false,
             "description": "Auto-dispatch on approval (task-074).",
@@ -2751,7 +2764,7 @@
           },
           "finish_enabled": {
             "default": false,
-            "description": "Whether the scripted finish (task-241) is on for this project, which is what an autonomous merge runs through. task-021 accepted the consequence that without it there is no sanctioned mechanism for one -- so a chooser offers `autonomous` disabled here rather than granting an envelope whose merge cannot be performed.",
+            "description": "Whether the scripted finish (task-241) is on for this project, which is what an autonomous merge runs through. task-021 accepted the consequence that without it there is no sanctioned mechanism for one -- so a chooser offers `automerge` disabled here rather than granting an envelope whose merge cannot be performed.",
             "title": "Finish Enabled",
             "type": "boolean"
           },
@@ -2790,7 +2803,7 @@
             "title": "Master Enabled",
             "type": "boolean"
           },
-          "max_posture": {
+          "merge_mode": {
             "anyOf": [
               {
                 "type": "string"
@@ -2799,36 +2812,24 @@
                 "type": "null"
               }
             ],
-            "description": "The widest posture any run here may get, whatever asks for it (task-308). Equal to `posture` on a project that has not set a ceiling of its own, because that is the only default that cannot silently widen an existing machine.",
-            "title": "Max Posture"
+            "description": "`review` or `automerge`: what a run here gets when nothing else names one.",
+            "title": "Merge Mode"
           },
-          "offerable_postures": {
-            "description": "Every posture at or below `max_posture`, narrowest first. Sent rather than derived, for the same reason `resolved_from` is: a browser that re-implements the ceiling is the one place in the system that could offer a choice the dispatch API will refuse.",
-            "items": {
-              "type": "string"
-            },
-            "title": "Offerable Postures",
-            "type": "array"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "What a run here gets when nothing else names a posture.",
-            "title": "Posture"
-          },
-          "posture_merge_policies": {
+          "merge_mode_phrases": {
             "additionalProperties": {
               "type": "string"
             },
-            "description": "What each posture does to the *branch*, keyed by posture value (task-021: `read_only` -> none, `auto`/`supervised` -> review, `autonomous` -> automatic). Sent rather than hardcoded in the client for the same reason `offerable_postures` is, and the stake is higher: this is the difference between 'stops for your review' and 'merges without you', so a browser that carried its own copy could tell an operator the opposite of what the posture they picked will actually do.",
-            "title": "Posture Merge Policies",
+            "description": "What each merge mode does, in the words every surface shows, keyed by mode. Sent rather than hardcoded in the client (task-309, task-602): this is the difference between 'Hands off for your review' and 'Merges itself on a green gate', so a browser carrying its own copy could tell an operator the opposite of what the mode they picked will do.",
+            "title": "Merge Mode Phrases",
             "type": "object"
+          },
+          "offerable_merge_modes": {
+            "description": "Every merge mode this project allows, `review` first. Sent rather than derived, for the same reason `resolved_from` is: a browser that re-implements the ceiling is the one place in the system that could offer a choice the dispatch API will refuse.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Offerable Merge Modes",
+            "type": "array"
           },
           "project_enabled": {
             "description": "This project is enabled for dispatch.",
@@ -2852,7 +2853,7 @@
           },
           "push": {
             "default": false,
-            "description": "Whether this project permits pushing. Per project and never a posture property (task-021), and false everywhere today. Surfaced because 'this project will merge my work without asking me, and publish it' is the one thing worth knowing beside a Dispatch button.",
+            "description": "Whether this project permits pushing. Per project and never a merge mode property (task-021), and false everywhere today. Surfaced because 'this project will merge my work without asking me, and publish it' is the one thing worth knowing beside a Dispatch button.",
             "title": "Push",
             "type": "boolean"
           },
@@ -5061,6 +5062,16 @@
             "title": "Holds Slot",
             "type": "boolean"
           },
+          "merge_mode": {
+            "title": "Merge Mode",
+            "type": "string"
+          },
+          "merge_mode_phrase": {
+            "default": "",
+            "description": "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.",
+            "title": "Merge Mode Phrase",
+            "type": "string"
+          },
           "mode": {
             "title": "Mode",
             "type": "string"
@@ -5075,10 +5086,6 @@
             "description": "This run was started above `max_concurrent_runs` because a person chose to (task-461). While it lives, `occupied` exceeds the ceiling -- and a board that could not say which run explains that would be showing a count nobody can reconcile.",
             "title": "Over Ceiling",
             "type": "boolean"
-          },
-          "posture": {
-            "title": "Posture",
-            "type": "string"
           },
           "project_id": {
             "title": "Project Id",
@@ -5160,7 +5167,7 @@
           "project_id",
           "mode",
           "session",
-          "posture",
+          "merge_mode",
           "status",
           "health",
           "task_url",
@@ -5630,6 +5637,15 @@
         ],
         "title": "MachinePoint",
         "type": "object"
+      },
+      "MergeMode": {
+        "description": "Whether a dispatched run stops for human review or merges itself (task-602).\n\nThe one choice a person makes at dispatch. What a run may execute is derived from\nit: ``review`` runs classifier-gated and hands off to human/review; ``automerge``\nruns with every execution gate removed and merges its own work through\n``agentjobs finish`` on a green unqualified gate. Pushing is never part of it -- see\n``ProjectDispatchSettings.push``.\n\nIt replaced four postures, two of which nobody dispatched with. The old spellings\nstill *read* -- see ``LEGACY_MERGE_MODES`` -- so a record, run directory or config\nwritten before the change loads rather than failing; nothing writes them.",
+        "enum": [
+          "review",
+          "automerge"
+        ],
+        "title": "MergeMode",
+        "type": "string"
       },
       "ModelStatusResponse": {
         "description": "Whether this machine can draft a task spec right now, and why not when it cannot.\n\n**There is no field here that a credential could occupy**, which is the design's\nrule expressed as a shape rather than as a promise (`docs/model-access-design.md`\n§4): the status route answers a boolean, never the key, a prefix of it, or its\nlength. `model` is a configured identifier and is shown because a person who asked\nfor a draft is entitled to know what drafted it.\n\n`reason` is one of the closed set in `agentjobs.modelaccess.config.REASONS`, and\n`detail` is a sentence written in this repository. Neither is ever built from a\nprovider's response.",
@@ -6245,6 +6261,17 @@
             "description": "Runner group it was selected from, when one participated.",
             "title": "Group"
           },
+          "merge_mode": {
+            "description": "`review` or `automerge`. Empty while a dispatch is queued: the merge mode is resolved by the gates when it starts, not when it was queued.",
+            "title": "Merge Mode",
+            "type": "string"
+          },
+          "merge_mode_phrase": {
+            "default": "",
+            "description": "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.",
+            "title": "Merge Mode Phrase",
+            "type": "string"
+          },
           "mode": {
             "description": "session or batch. Empty while a dispatch is queued.",
             "title": "Mode",
@@ -6269,11 +6296,6 @@
           "playbook_path": {
             "description": "Where it was read from, project-relative.",
             "title": "Playbook Path",
-            "type": "string"
-          },
-          "posture": {
-            "description": "What the run is permitted to do. Empty while a dispatch is queued: the posture is resolved by the gates when it starts, not when it was queued.",
-            "title": "Posture",
             "type": "string"
           },
           "queue_position": {
@@ -6338,7 +6360,7 @@
         "required": [
           "run_id",
           "mode",
-          "posture",
+          "merge_mode",
           "task_id",
           "caused_by",
           "playbook",
@@ -6793,7 +6815,7 @@
             "title": "Bound Kind",
             "type": "string"
           },
-          "posture": {
+          "merge_mode": {
             "anyOf": [
               {
                 "type": "string"
@@ -6802,8 +6824,8 @@
                 "type": "null"
               }
             ],
-            "description": "The envelope pulled runs get. Omitted, they get the project's own default. Refused here, where a person is waiting for the answer, when it exceeds this project's machine-local ceiling.",
-            "title": "Posture"
+            "description": "`review` or `automerge` for the runs it pulls. Omitted, they get the project's own default. Refused here, where a person is waiting for the answer, when it asks for automerge on a project that does not allow it.",
+            "title": "Merge Mode"
           },
           "starts": {
             "anyOf": [
@@ -6896,6 +6918,24 @@
             "title": "Last State",
             "type": "string"
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The merge mode pulled runs get, or null for the project's own default.",
+            "title": "Merge Mode"
+          },
+          "merge_mode_phrase": {
+            "default": "",
+            "description": "`merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.",
+            "title": "Merge Mode Phrase",
+            "type": "string"
+          },
           "next_task_id": {
             "default": "",
             "description": "What `task_next` says it would start next, so a person can reorder the queue before it happens. Empty when nothing is claimable, and empty when the project is not armed -- this field is about an arming, not a backlog.",
@@ -6906,18 +6946,6 @@
             "default": "",
             "title": "Next Task Title",
             "type": "string"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The envelope pulled runs get, or null for the project's own default.",
-            "title": "Posture"
           },
           "starts_left": {
             "anyOf": [
@@ -9484,6 +9512,17 @@
             "title": "Log",
             "type": "array"
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether a run dispatched at this task stops for review or merges itself, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: `automerge` on a project that does not allow it is clamped to `review`, never honoured (task-308, task-602)."
+          },
           "outcome": {
             "anyOf": [
               {
@@ -9506,17 +9545,6 @@
             ],
             "description": "Task id of the umbrella task, if any.",
             "title": "Parent"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DispatchPosture"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308)."
           },
           "priority": {
             "$ref": "#/components/schemas/Priority",
@@ -9710,6 +9738,17 @@
               }
             ]
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This task's request for a merge mode. A request, not a grant."
+          },
           "needs_cycles": {
             "items": {
               "items": {
@@ -9747,17 +9786,6 @@
             ],
             "description": "Task id of the umbrella task, if any.",
             "title": "Parent"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DispatchPosture"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "This task's request for a dispatch envelope. A request, not a grant."
           },
           "priority": {
             "$ref": "#/components/schemas/Priority",
@@ -9990,6 +10018,17 @@
               }
             ]
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This task's request for a merge mode. A request, not a grant."
+          },
           "needs_cycles": {
             "items": {
               "items": {
@@ -10027,17 +10066,6 @@
             ],
             "description": "Task id of the umbrella task, if any.",
             "title": "Parent"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DispatchPosture"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "This task's request for a dispatch envelope. A request, not a grant."
           },
           "priority": {
             "$ref": "#/components/schemas/Priority",
@@ -10772,6 +10800,17 @@
             "title": "Log",
             "type": "array"
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether a run dispatched at this task stops for review or merges itself, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: `automerge` on a project that does not allow it is clamped to `review`, never honoured (task-308, task-602)."
+          },
           "needs_cycles": {
             "items": {
               "items": {
@@ -10809,17 +10848,6 @@
             ],
             "description": "Task id of the umbrella task, if any.",
             "title": "Parent"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DispatchPosture"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308)."
           },
           "priority": {
             "$ref": "#/components/schemas/Priority",
@@ -11081,6 +11109,17 @@
             "title": "Log",
             "type": "array"
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether a run dispatched at this task stops for review or merges itself, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: `automerge` on a project that does not allow it is clamped to `review`, never honoured (task-308, task-602)."
+          },
           "needs_cycles": {
             "items": {
               "items": {
@@ -11118,17 +11157,6 @@
             ],
             "description": "Task id of the umbrella task, if any.",
             "title": "Parent"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DispatchPosture"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308)."
           },
           "priority": {
             "$ref": "#/components/schemas/Priority",
@@ -11356,6 +11384,17 @@
               }
             ]
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This task's request for a merge mode. A request, not a grant."
+          },
           "needs_cycles": {
             "items": {
               "items": {
@@ -11393,17 +11432,6 @@
             ],
             "description": "Task id of the umbrella task, if any.",
             "title": "Parent"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DispatchPosture"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "This task's request for a dispatch envelope. A request, not a grant."
           },
           "priority": {
             "$ref": "#/components/schemas/Priority",
@@ -11626,6 +11654,17 @@
               }
             ]
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This task's request for a merge mode. A request, not a grant."
+          },
           "needs_cycles": {
             "items": {
               "items": {
@@ -11663,17 +11702,6 @@
             ],
             "description": "Task id of the umbrella task, if any.",
             "title": "Parent"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DispatchPosture"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "This task's request for a dispatch envelope. A request, not a grant."
           },
           "priority": {
             "$ref": "#/components/schemas/Priority",
@@ -11885,6 +11913,17 @@
             ],
             "title": "Links"
           },
+          "merge_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`review` or `automerge` for a run dispatched at this task. Content, not a state axis: it is a request bounded by the project's machine-local `allow_automerge`, never a grant, so it needs no verb of its own (task-308). Send null to clear it."
+          },
           "operation_id": {
             "anyOf": [
               {
@@ -11907,17 +11946,6 @@
               }
             ],
             "title": "Parent"
-          },
-          "posture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DispatchPosture"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "What a run dispatched at this task may do. Content, not a state axis: it is a request bounded by the project's machine-local ceiling, never a grant, so it needs no verb of its own (task-308). Send null to clear it."
           },
           "priority": {
             "anyOf": [

@@ -207,7 +207,7 @@ def seed_run(
                 "project_id": project_id,
                 "mode": "session",
                 "driver": "claude",
-                "posture": "auto",
+                "merge_mode": "review",
                 "status": "running",
                 "started_at": "2026-08-29T17:26:09.866674+00:00",
                 "session_id": session_id,

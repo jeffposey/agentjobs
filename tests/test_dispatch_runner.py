@@ -34,7 +34,7 @@ from agentjobs.dispatch.config import (
     DispatchLimits,
     DispatchResolution,
     DispatchRunner as RunnerConfig,
-    Posture,
+    MergeMode,
     ProjectDispatchSettings,
     RunnerCandidate,
     RunnerDriver,
@@ -65,7 +65,7 @@ from agentjobs.dispatch.runner import (
     drop_repainted_lines,
     mcpjson_server_names,
     policy_clause,
-    posture_flags,
+    merge_mode_flags,
     readable_tail,
     codex_desktop_executable,
     resolve_executable,
@@ -144,7 +144,7 @@ def make_resolution(
     argv: List[str],
     *,
     mode: RunnerMode = RunnerMode.BATCH,
-    posture: Posture = Posture.SUPERVISED,
+    merge_mode: MergeMode = MergeMode.REVIEW,
     driver: RunnerDriver = RunnerDriver.CLAUDE,
     timeout: int = 1800,
     stale: int = 3600,
@@ -160,7 +160,7 @@ def make_resolution(
         enabled=True,
         runner="fake",
         require_clean_tree=require_clean_tree,
-        posture=posture,
+        merge_mode=merge_mode,
         push=push,
     )
     limits = DispatchLimits(
@@ -273,7 +273,7 @@ def test_codex_session_wake_target_uses_newest_completed_thread(
         ["codex", "app-server", "--model", "gpt-5.6-luna", "{prompt}"],
         mode=RunnerMode.SESSION,
         driver=RunnerDriver.CODEX,
-        posture=Posture.AUTO,
+        merge_mode=MergeMode.REVIEW,
     )
     runner = build(workspace, manager, resolution)
     RunDirectory.create(
@@ -285,7 +285,7 @@ def test_codex_session_wake_target_uses_newest_completed_thread(
             "project_id": "sandbox",
             "mode": "session",
             "driver": "codex",
-            "posture": "auto",
+            "merge_mode": "review",
             "status": "finished",
             "codex_status": "completed",
             "session_id": "thread-previous",
@@ -377,62 +377,46 @@ class TestPosture:
         assert "PowerShell(git push:*)" not in rules
         assert not any("git push" in rule for rule in rules)
 
-    def test_read_only_gets_no_tools_and_no_worktree(self) -> None:
-        flags = posture_flags(Posture.READ_ONLY, [])
+    def test_automerge_gets_bypass_and_never_the_allow_list(self) -> None:
+        """An allow-list under bypassPermissions would imply a limit that is not there.
 
-        assert flags == ["--tools", "Read,Glob,Grep,WebFetch"]
-        assert "-w" not in flags
+        Exactly what the retired ``autonomous`` posture passed (task-602, a2)."""
+        flags = merge_mode_flags(MergeMode.AUTOMERGE, [])
 
-    def test_supervised_gets_accept_edits_and_the_allow_list(self) -> None:
-        flags = posture_flags(Posture.SUPERVISED, [])
+        assert flags == ["--permission-mode", "bypassPermissions"]
 
-        assert flags[:2] == ["--permission-mode", "acceptEdits"]
-        settings = json.loads(flags[flags.index("--settings") + 1])
-        assert settings["permissions"]["allow"] == allow_rules()
-
-    def test_autonomous_gets_bypass_and_never_the_allow_list(self) -> None:
-        """An allow-list under bypassPermissions would imply a limit that is not there."""
-        flags = posture_flags(Posture.AUTONOMOUS, [])
-
-        assert flags[:2] == ["--permission-mode", "bypassPermissions"]
-        assert "--settings" not in flags
-
-    def test_auto_gets_the_auto_mode_and_the_allow_list(self) -> None:
-        """The default posture, per task-020.
+    def test_review_gets_the_auto_mode_and_the_allow_list(self) -> None:
+        """Exactly what the retired ``auto`` posture passed (task-020, task-602 a2).
 
         The mode string matters more than it looks: ``auto`` is the one mode that gates
         every action without needing a terminal to answer with. Getting ``acceptEdits``
-        here instead would park the run on its first unlisted command, which is the
-        defect this posture exists to fix, and nothing in a passing suite would say so.
+        here instead would park the run on its first unlisted command, and nothing in a
+        passing suite would say so.
         """
-        flags = posture_flags(Posture.AUTO, [])
+        flags = merge_mode_flags(MergeMode.REVIEW, [])
 
         assert flags[:2] == ["--permission-mode", "auto"]
         settings = json.loads(flags[flags.index("--settings") + 1])
         assert settings["permissions"]["allow"] == allow_rules()
 
-    @pytest.mark.parametrize("posture", list(Posture))
-    def test_no_posture_asks_the_cli_for_a_worktree(self, posture: Posture) -> None:
-        """task-186. This assertion is the whole fix, so it is stated per posture.
+    @pytest.mark.parametrize("merge_mode", list(MergeMode))
+    def test_no_merge_mode_asks_the_cli_for_a_worktree(self, merge_mode: MergeMode) -> None:
+        """task-186. This assertion is the whole fix, so it is stated per mode.
 
         Every writing posture passed ``-w <task_id>`` until 2026-08-19. A session
         isolated that way refuses every git operation aimed at the shared checkout --
-        by ``-C`` and by ``cd`` alike -- and the shared checkout is where task records
-        are committed and where the merge gate runs. So a dispatched run could do the
-        work and then neither record nor merge it, which is a defect no unit test on the
-        flags would have caught, because the flags were exactly what was asked for.
-
-        ``read_only`` is in the parametrisation deliberately: it never had a worktree,
-        and the property that it still has none must not depend on the writing postures
-        happening to be tested nearby.
+        by ``-C`` and by ``cd`` alike -- and the shared checkout is where the merge gate
+        runs. So a dispatched run could do the work and then not merge it, which is a
+        defect no unit test on the flags would have caught, because the flags were
+        exactly what was asked for.
         """
-        assert "-w" not in posture_flags(posture, [])
-        assert "--worktree" not in posture_flags(posture, [])
+        assert "-w" not in merge_mode_flags(merge_mode, [])
+        assert "--worktree" not in merge_mode_flags(merge_mode, [])
 
-    def test_the_composed_argv_of_every_posture_is_exactly_this(
+    def test_the_composed_argv_of_every_merge_mode_is_exactly_this(
         self, workspace: Path, manager: TaskManager
     ) -> None:
-        """The whole command, per posture, not just the flags in isolation.
+        """The whole command, per mode, not just the flags in isolation.
 
         A flags-only assertion cannot see where the flags land, whether the prompt
         survived, or whether something else in the pipeline reintroduced ``-w``. This
@@ -440,62 +424,45 @@ class TestPosture:
         run that behaves oddly in production.
         """
         expected = {
-            Posture.READ_ONLY: ["--tools", "Read,Glob,Grep,WebFetch"],
-            Posture.AUTO: [
+            MergeMode.REVIEW: [
                 "--permission-mode",
                 "auto",
                 "--settings",
                 settings_json(allow_list=True, mcp_servers=[]),
             ],
-            Posture.SUPERVISED: [
-                "--permission-mode",
-                "acceptEdits",
-                "--settings",
-                settings_json(allow_list=True, mcp_servers=[]),
-            ],
-            Posture.AUTONOMOUS: ["--permission-mode", "bypassPermissions"],
+            MergeMode.AUTOMERGE: ["--permission-mode", "bypassPermissions"],
         }
-        assert set(expected) == set(Posture), "a new posture needs its argv named here"
+        assert set(expected) == set(MergeMode), "a new merge mode needs its argv named here"
 
-        for posture, flags in expected.items():
+        for merge_mode, flags in expected.items():
             runner = build(
                 workspace,
                 manager,
                 make_resolution(
-                    ["claude", "--bg", "--remote-control", "{prompt}"], posture=posture
+                    ["claude", "--bg", "--remote-control", "{prompt}"], merge_mode=merge_mode
                 ),
             )
 
             argv = runner.build_argv("task-070-example", "run_abcd1234")
 
             assert argv[:3] == [resolve_executable("claude"), "--bg", "--remote-control"]
-            assert without_session_name(argv)[3:-1] == flags, posture
+            assert without_session_name(argv)[3:-1] == flags, merge_mode
             assert argv[-1] == runner.build_prompt("task-070-example", "run_abcd1234")
 
-    def test_the_config_and_schema_posture_enums_stay_in_step(self) -> None:
-        """Two enums spell the same concept, and a run needs both.
+    def test_a_legacy_auto_on_a_run_is_never_bypass_permissions(self) -> None:
+        """task-602, a3: the retired ``auto`` reads as review, and review is gated."""
+        flags = merge_mode_flags(MergeMode("auto"), [])
 
-        ``runner._record_dispatch`` converts the config posture into the schema one by
-        value, so a posture present in only one of them raises at dispatch time rather
-        than at import. Adding ``auto`` to the config enum alone did exactly that.
-        """
-        from agentjobs.models_v2 import DispatchPosture
+        assert "bypassPermissions" not in flags
+        assert flags[:2] == ["--permission-mode", "auto"]
 
-        assert {posture.value for posture in Posture} == {
-            posture.value for posture in DispatchPosture
-        }
-
-    def test_each_posture_composes_a_distinct_permission_mode(self) -> None:
-        """A posture that silently collapsed onto another's mode would look fine."""
-        modes = {
-            posture: posture_flags(posture, [])[1]
-            for posture in (Posture.AUTO, Posture.SUPERVISED, Posture.AUTONOMOUS)
-        }
+    def test_each_merge_mode_composes_a_distinct_permission_mode(self) -> None:
+        """A mode that silently collapsed onto the other's would look fine."""
+        modes = {merge_mode: merge_mode_flags(merge_mode, [])[1] for merge_mode in MergeMode}
 
         assert modes == {
-            Posture.AUTO: "auto",
-            Posture.SUPERVISED: "acceptEdits",
-            Posture.AUTONOMOUS: "bypassPermissions",
+            MergeMode.REVIEW: "auto",
+            MergeMode.AUTOMERGE: "bypassPermissions",
         }
 
 
@@ -564,7 +531,7 @@ class TestMcpApproval:
         runner = build(
             workspace,
             manager,
-            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+            make_resolution(["claude", "--bg", "{prompt}"], merge_mode=MergeMode.REVIEW),
         )
 
         argv = runner.build_argv("task-019-example", "run_abcd1234")
@@ -583,7 +550,7 @@ class TestMcpApproval:
         runner = build(
             workspace,
             manager,
-            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+            make_resolution(["claude", "--bg", "{prompt}"], merge_mode=MergeMode.REVIEW),
         )
 
         argv = runner.build_argv("task-019-example", "run_abcd1234")
@@ -591,33 +558,7 @@ class TestMcpApproval:
         settings = json.loads(argv[argv.index("--settings") + 1])
         assert settings["enabledMcpjsonServers"] == ["some-other-projects-server"]
 
-    def test_read_only_is_approved_without_being_given_an_allow_list(
-        self, workspace: Path, manager: TaskManager
-    ) -> None:
-        """``read_only`` blocks on the same dialog and had no ``--settings`` to extend.
-
-        It gets one now, holding the approval and nothing else. An allow-list here would
-        be a posture change, which task-019 puts out of scope.
-        """
-        self.write_mcp_json(workspace / "project", "agentjobs")
-        runner = build(
-            workspace,
-            manager,
-            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.READ_ONLY),
-        )
-
-        argv = runner.build_argv("task-019-example", "run_abcd1234")
-
-        assert without_session_name(argv)[1:-1] == [
-            "--bg",
-            "--tools",
-            "Read,Glob,Grep,WebFetch",
-            "--settings",
-            json.dumps({"enabledMcpjsonServers": ["agentjobs"]}),
-        ]
-        assert "permissions" not in json.loads(argv[argv.index("--settings") + 1])
-
-    def test_autonomous_is_left_alone_because_bypass_never_sees_the_gate(
+    def test_automerge_is_left_alone_because_bypass_never_sees_the_gate(
         self, workspace: Path, manager: TaskManager
     ) -> None:
         """Probed, not assumed: ``bypassPermissions`` reached ``done`` with no prompt.
@@ -629,7 +570,7 @@ class TestMcpApproval:
         runner = build(
             workspace,
             manager,
-            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTONOMOUS),
+            make_resolution(["claude", "--bg", "{prompt}"], merge_mode=MergeMode.AUTOMERGE),
         )
 
         argv = runner.build_argv("task-019-example", "run_abcd1234")
@@ -640,41 +581,34 @@ class TestMcpApproval:
             "bypassPermissions",
         ]
 
-    @pytest.mark.parametrize("posture", list(Posture))
+    @pytest.mark.parametrize("merge_mode", list(MergeMode))
     def test_a_project_with_no_mcp_json_gets_todays_argv_unchanged(
-        self, workspace: Path, manager: TaskManager, posture: Posture
+        self, workspace: Path, manager: TaskManager, merge_mode: MergeMode
     ) -> None:
-        """ac-2, stated per posture and against literal argv rather than a snapshot.
+        """ac-2, stated per mode and against literal argv rather than a snapshot.
 
         The flags are spelled out here on purpose: comparing against
-        ``posture_flags(posture, [])`` would pass even if both sides regressed together.
+        ``merge_mode_flags(mode, [])`` would pass even if both sides regressed together.
         """
         today = {
-            Posture.READ_ONLY: ["--tools", "Read,Glob,Grep,WebFetch"],
-            Posture.AUTO: [
+            MergeMode.REVIEW: [
                 "--permission-mode",
                 "auto",
                 "--settings",
                 json.dumps({"permissions": {"allow": allow_rules()}}),
             ],
-            Posture.SUPERVISED: [
-                "--permission-mode",
-                "acceptEdits",
-                "--settings",
-                json.dumps({"permissions": {"allow": allow_rules()}}),
-            ],
-            Posture.AUTONOMOUS: ["--permission-mode", "bypassPermissions"],
+            MergeMode.AUTOMERGE: ["--permission-mode", "bypassPermissions"],
         }
         assert not (workspace / "project" / ".mcp.json").exists()
         runner = build(
             workspace,
             manager,
-            make_resolution(["claude", "--bg", "{prompt}"], posture=posture),
+            make_resolution(["claude", "--bg", "{prompt}"], merge_mode=merge_mode),
         )
 
         argv = runner.build_argv("task-019-example", "run_abcd1234")
 
-        assert without_session_name(argv)[2:-1] == today[posture], posture
+        assert without_session_name(argv)[2:-1] == today[merge_mode], merge_mode
 
 
 class TestSessionSlug:
@@ -1087,7 +1021,7 @@ class TestSessionName:
             workspace,
             manager,
             make_resolution(
-                ["claude", "--bg", "--remote-control", "{prompt}"], posture=Posture.AUTONOMOUS
+                ["claude", "--bg", "--remote-control", "{prompt}"], merge_mode=MergeMode.AUTOMERGE
             ),
         )
 
@@ -1112,7 +1046,7 @@ class TestSessionName:
             manager,
             make_resolution(
                 ["claude", "--bg", "--remote-control", "--model", "haiku", "{prompt}"],
-                posture=Posture.AUTONOMOUS,
+                merge_mode=MergeMode.AUTOMERGE,
             ),
         )
 
@@ -1167,14 +1101,14 @@ class TestSessionName:
         plain = build(
             workspace,
             manager,
-            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTONOMOUS),
+            make_resolution(["claude", "--bg", "{prompt}"], merge_mode=MergeMode.AUTOMERGE),
         )
         hostile = build(
             workspace,
             manager,
             make_resolution(
                 ["claude", "--bg", "--model", "--injected --name pwned", "{prompt}"],
-                posture=Posture.AUTONOMOUS,
+                merge_mode=MergeMode.AUTOMERGE,
                 env={"AGENT_NAME": "pwned"},
             ),
         )
@@ -1344,26 +1278,27 @@ class TestArgvComposition:
 
 class TestCodexBatchRunner:
     @pytest.mark.parametrize(
-        ("posture", "sandbox"),
+        ("merge_mode", "sandbox"),
         [
-            (Posture.READ_ONLY, "read-only"),
-            (Posture.AUTO, "workspace-write"),
-            (Posture.AUTONOMOUS, "danger-full-access"),
+            (MergeMode.REVIEW, "workspace-write"),
+            (MergeMode.AUTOMERGE, "danger-full-access"),
         ],
     )
-    def test_posture_becomes_a_codex_sandbox_and_requires_agentjobs_mcp(
-        self, posture: Posture, sandbox: str
+    def test_merge_mode_becomes_a_codex_sandbox_and_requires_agentjobs_mcp(
+        self, merge_mode: MergeMode, sandbox: str
     ) -> None:
-        assert posture_flags(posture, [], driver=RunnerDriver.CODEX) == [
+        assert merge_mode_flags(merge_mode, [], driver=RunnerDriver.CODEX) == [
             "--sandbox",
             sandbox,
             "-c",
             "mcp_servers.agentjobs.required=true",
         ]
 
-    def test_supervised_is_refused_before_spawn(self) -> None:
-        with pytest.raises(DispatchRunError, match="does not support posture 'supervised'"):
-            posture_flags(Posture.SUPERVISED, [], driver=RunnerDriver.CODEX)
+    def test_a_legacy_auto_is_never_full_access(self) -> None:
+        """task-602, a3: a run recorded ``auto`` before the rename gets the review sandbox."""
+        assert "danger-full-access" not in merge_mode_flags(
+            MergeMode("auto"), [], driver=RunnerDriver.CODEX
+        )
 
     def test_a_transient_pid_probe_miss_does_not_reap_the_live_app_server(
         self, workspace: Path, manager: TaskManager, task, monkeypatch
@@ -1373,7 +1308,7 @@ class TestCodexBatchRunner:
             ["codex", "app-server", "{prompt}"],
             mode=RunnerMode.SESSION,
             driver=RunnerDriver.CODEX,
-            posture=Posture.AUTO,
+            merge_mode=MergeMode.REVIEW,
         )
         now = datetime(2026, 8, 22, tzinfo=timezone.utc)
         runner = DispatchRunner(
@@ -1432,7 +1367,7 @@ class TestCodexBatchRunner:
             ["codex", "app-server", "--model", "gpt-5.6-terra", "{prompt}"],
             mode=RunnerMode.SESSION,
             driver=RunnerDriver.CODEX,
-            posture=Posture.AUTO,
+            merge_mode=MergeMode.REVIEW,
         )
         now = datetime(2026, 8, 22, tzinfo=timezone.utc)
         runner = DispatchRunner(
@@ -1451,7 +1386,7 @@ class TestCodexBatchRunner:
                 "project_id": "sandbox",
                 "mode": "session",
                 "driver": "codex",
-                "posture": "auto",
+                "merge_mode": "review",
                 "status": "running",
                 "codex_status": "running",
                 "codex_lifecycle": "running_turn",
@@ -1500,7 +1435,7 @@ class TestCodexBatchRunner:
         argv = compose_argv(
             ["codex", "exec", "--json", "{prompt}"],
             {"prompt": prompt},
-            posture_flags(Posture.AUTO, [], driver=RunnerDriver.CODEX),
+            merge_mode_flags(MergeMode.REVIEW, [], driver=RunnerDriver.CODEX),
         )
 
         assert argv == [
@@ -1536,7 +1471,7 @@ class TestCodexBatchRunner:
             ["codex", "app-server", "--model", "gpt-5.6-terra", "{prompt}"],
             mode=RunnerMode.SESSION,
             driver=RunnerDriver.CODEX,
-            posture=Posture.AUTO,
+            merge_mode=MergeMode.REVIEW,
         )
         runner = build(workspace, manager, resolution)
         events: list[str] = []
@@ -1589,7 +1524,7 @@ class TestCodexBatchRunner:
             ["codex", "app-server", "--model", "gpt-5.6-terra", "{prompt}"],
             mode=RunnerMode.SESSION,
             driver=RunnerDriver.CODEX,
-            posture=Posture.AUTO,
+            merge_mode=MergeMode.REVIEW,
         )
         runner = build(workspace, manager, resolution)
         events: list[str] = []
@@ -1628,7 +1563,7 @@ class TestCodexBatchRunner:
             ["codex", "app-server", "--model", "gpt-5.6-luna", "{prompt}"],
             mode=RunnerMode.SESSION,
             driver=RunnerDriver.CODEX,
-            posture=Posture.AUTO,
+            merge_mode=MergeMode.REVIEW,
         )
         runner = build(workspace, manager, resolution)
         RunDirectory.create(
@@ -1640,7 +1575,7 @@ class TestCodexBatchRunner:
                 "project_id": "sandbox",
                 "mode": "session",
                 "driver": "codex",
-                "posture": "auto",
+                "merge_mode": "review",
                 "status": "finished",
                 "codex_status": "completed",
                 "session_id": "thread-previous",
@@ -1687,7 +1622,7 @@ class TestCodexBatchRunner:
             ["codex", "app-server", "--model", "gpt-5.6-luna", "{prompt}"],
             mode=RunnerMode.SESSION,
             driver=RunnerDriver.CODEX,
-            posture=Posture.AUTO,
+            merge_mode=MergeMode.REVIEW,
         )
         runner = build(workspace, manager, resolution)
         RunDirectory.create(
@@ -1699,7 +1634,7 @@ class TestCodexBatchRunner:
                 "project_id": "sandbox",
                 "mode": "session",
                 "driver": "codex",
-                "posture": "auto",
+                "merge_mode": "review",
                 "status": "finished",
                 "codex_status": "completed",
                 "session_id": "thread-previous",
@@ -1760,7 +1695,7 @@ class TestCodexBatchRunner:
             ["codex", "app-server", "--model", "gpt-5.6-luna", "{prompt}"],
             mode=RunnerMode.SESSION,
             driver=RunnerDriver.CODEX,
-            posture=Posture.AUTO,
+            merge_mode=MergeMode.REVIEW,
         )
         runner = build(workspace, manager, resolution)
         RunDirectory.create(
@@ -1772,7 +1707,7 @@ class TestCodexBatchRunner:
                 "project_id": "sandbox",
                 "mode": "session",
                 "driver": "codex",
-                "posture": "auto",
+                "merge_mode": "review",
                 "status": "finished",
                 "codex_status": "completed",
                 "session_id": "thread-previous",
@@ -2005,32 +1940,19 @@ class TestMergeAndPushPolicyReachesTheAgent:
     run that will correctly obey the prose and make ``autonomous`` mean nothing.
     """
 
-    def test_a_review_posture_is_told_to_stop_and_not_merge(
+    def test_a_review_run_is_told_to_stop_and_not_merge(
         self, workspace: Path, manager: TaskManager, task
     ) -> None:
-        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTO))
+        runner = build(workspace, manager, make_resolution(["fake"], merge_mode=MergeMode.REVIEW))
 
         prompt = runner.build_prompt(task.id, "run_abcd1234")
 
         assert "stops at the merge gate" in prompt
         assert "human/review" in prompt
         assert "Do not merge." in prompt
-        assert "--posture-release" not in prompt
+        assert "--automerge-release" not in prompt
 
-    def test_supervised_says_exactly_what_auto_says_about_merging(
-        self, workspace: Path, manager: TaskManager, task
-    ) -> None:
-        """The two differ in execution gating, never in who authorises the merge."""
-        auto = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTO))
-        supervised = build(
-            workspace, manager, make_resolution(["fake"], posture=Posture.SUPERVISED)
-        )
-
-        assert auto.build_prompt(task.id, "r").replace("`auto`", "X") == supervised.build_prompt(
-            task.id, "r"
-        ).replace("`supervised`", "X")
-
-    def test_an_autonomous_run_is_given_the_command_not_an_outcome(
+    def test_an_automerge_run_is_given_the_command_not_an_outcome(
         self, workspace: Path, manager: TaskManager, task
     ) -> None:
         """task-192's lesson applied: an instruction with a cheaper reading gets it.
@@ -2039,32 +1961,25 @@ class TestMergeAndPushPolicyReachesTheAgent:
         the entire safety argument. So the clause names the command and forbids the hand
         merge, and this asserts both.
         """
-        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTONOMOUS))
+        runner = build(
+            workspace, manager, make_resolution(["fake"], merge_mode=MergeMode.AUTOMERGE)
+        )
 
         prompt = runner.build_prompt(task.id, "run_abcd1234")
 
         assert "releases the merge gate" in prompt
-        assert f"agentjobs finish {task.id} --project sandbox --posture-release" in prompt
+        assert f"agentjobs finish {task.id} --project sandbox --automerge-release" in prompt
         assert "Do not merge by hand" in prompt
         assert "Record the evidence on the task first" in prompt
         # The objective floor, named where the agent will read it.
         assert "full gate" in prompt
 
-    def test_read_only_gets_no_merge_clause_at_all(
-        self, workspace: Path, manager: TaskManager, task
-    ) -> None:
-        """It has no branch. A sentence about one is noise in a prompt with no shell."""
-        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.READ_ONLY))
-
-        prompt = runner.build_prompt(task.id, "run_abcd1234")
-
-        assert "merge gate" not in prompt
-        assert "push" not in prompt.lower()
-
     def test_the_push_clause_defaults_to_never(
         self, workspace: Path, manager: TaskManager, task
     ) -> None:
-        runner = build(workspace, manager, make_resolution(["fake"], posture=Posture.AUTONOMOUS))
+        runner = build(
+            workspace, manager, make_resolution(["fake"], merge_mode=MergeMode.AUTOMERGE)
+        )
 
         assert "Never push" in runner.build_prompt(task.id, "run_abcd1234")
 
@@ -2072,7 +1987,7 @@ class TestMergeAndPushPolicyReachesTheAgent:
         self, workspace: Path, manager: TaskManager, task
     ) -> None:
         runner = build(
-            workspace, manager, make_resolution(["fake"], posture=Posture.AUTO, push=True)
+            workspace, manager, make_resolution(["fake"], merge_mode=MergeMode.REVIEW, push=True)
         )
 
         prompt = runner.build_prompt(task.id, "run_abcd1234")
@@ -2085,7 +2000,7 @@ class TestMergeAndPushPolicyReachesTheAgent:
     ) -> None:
         """The two are orthogonal by design: a stopping posture may still push."""
         runner = build(
-            workspace, manager, make_resolution(["fake"], posture=Posture.AUTO, push=True)
+            workspace, manager, make_resolution(["fake"], merge_mode=MergeMode.REVIEW, push=True)
         )
 
         prompt = runner.build_prompt(task.id, "run_abcd1234")
@@ -2099,20 +2014,20 @@ class TestMergeAndPushPolicyReachesTheAgent:
         """An evaluation run holds no branch, so the worker's clause would be wrong for it.
 
         The command the worker's clause names is the failure mode being prevented: a run
-        told to ``agentjobs finish --posture-release`` with no branch under it either
+        told to ``agentjobs finish --automerge-release`` with no branch under it either
         merges somebody else's work or spends its turn finding out it cannot.
         """
         runner = build(
             workspace,
             manager,
-            make_resolution(["fake"], posture=Posture.AUTONOMOUS),
+            make_resolution(["fake"], merge_mode=MergeMode.AUTOMERGE),
             evaluation=True,
         )
 
         prompt = runner.build_prompt(epic.id, "run_abcd1234")
 
         assert "nothing here for you to merge" in prompt
-        assert "--posture-release" not in prompt
+        assert "--automerge-release" not in prompt
 
     def test_an_evaluation_says_the_same_thing_at_a_review_posture(
         self, workspace: Path, manager: TaskManager, epic
@@ -2125,13 +2040,16 @@ class TestMergeAndPushPolicyReachesTheAgent:
         say on the record what envelope it closed it under.
         """
         runner = build(
-            workspace, manager, make_resolution(["fake"], posture=Posture.AUTO), evaluation=True
+            workspace,
+            manager,
+            make_resolution(["fake"], merge_mode=MergeMode.REVIEW),
+            evaluation=True,
         )
 
         prompt = runner.build_prompt(epic.id, "run_abcd1234")
 
         assert "nothing here for you to merge" in prompt
-        assert "`auto`" in prompt
+        assert "`review`" in prompt
 
     def test_the_clause_survives_into_the_composed_argv(
         self, workspace: Path, manager: TaskManager, task
@@ -2145,12 +2063,12 @@ class TestMergeAndPushPolicyReachesTheAgent:
         runner = build(
             workspace,
             manager,
-            make_resolution(["fake", "--model", "x", "{prompt}"], posture=Posture.AUTONOMOUS),
+            make_resolution(["fake", "--model", "x", "{prompt}"], merge_mode=MergeMode.AUTOMERGE),
         )
 
         argv = runner.build_argv(task.id, "run_abcd1234")
 
-        assert any("--posture-release" in element for element in argv)
+        assert any("--automerge-release" in element for element in argv)
 
 
 class TestDescribeChildren:
@@ -2235,7 +2153,7 @@ class TestEvaluationStub:
             children="none",
         )
         clause = policy_clause(
-            Posture.SUPERVISED,
+            MergeMode.REVIEW,
             push=False,
             task_id=task.id,
             project_id="sandbox",
@@ -3450,15 +3368,8 @@ class TestSupervisorMcpGrant:
             allow_list=True, mcp_servers=[]
         )
 
-    def test_read_only_never_reaches_the_grant(self) -> None:
-        """The placement inside the allow-list branch is the safety property."""
-        flags = posture_flags(Posture.READ_ONLY, ["agentjobs"], supervisor=True)
-
-        blob = json.loads(flags[flags.index("--settings") + 1])
-        assert "permissions" not in blob
-
-    def test_autonomous_never_reaches_the_grant(self) -> None:
-        assert posture_flags(Posture.AUTONOMOUS, ["agentjobs"], supervisor=True) == [
+    def test_automerge_never_reaches_the_grant(self) -> None:
+        assert merge_mode_flags(MergeMode.AUTOMERGE, ["agentjobs"], supervisor=True) == [
             "--permission-mode",
             "bypassPermissions",
         ]
@@ -3471,7 +3382,7 @@ class TestSupervisorMcpGrant:
         runner = build(
             workspace,
             manager,
-            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+            make_resolution(["claude", "--bg", "{prompt}"], merge_mode=MergeMode.REVIEW),
             evaluation=True,
         )
 
@@ -3488,7 +3399,7 @@ class TestSupervisorMcpGrant:
         runner = build(
             workspace,
             manager,
-            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+            make_resolution(["claude", "--bg", "{prompt}"], merge_mode=MergeMode.REVIEW),
         )
 
         argv = runner.build_argv("task-019-example", "run_abcd1234")
@@ -3511,7 +3422,7 @@ class TestSupervisorMcpGrant:
         runner = build(
             workspace,
             manager,
-            make_resolution(["claude", "--bg", "{prompt}"], posture=Posture.AUTO),
+            make_resolution(["claude", "--bg", "{prompt}"], merge_mode=MergeMode.REVIEW),
             evaluation=True,
         )
 
@@ -3720,7 +3631,7 @@ class TestAWalkStartedChildIsNotGivenItsSupervisorsIdentity:
     their sanctioned merge is the other one: the daemon supplies the identity of whatever
     started it, so the worker comes up wearing a run id that is real, live, and one level
     up the tree. ``run_a07731b6`` (task-302) and ``run_ff8c316d`` (task-303) each ran the
-    exact ``agentjobs finish ... --posture-release`` their prompts named and were declined
+    exact ``agentjobs finish ... --automerge-release`` their prompts named and were declined
     ``locked`` -- for being held by themselves -- because of it.
 
     The supervisor's run directory here is **live and writable**, so a record landing in

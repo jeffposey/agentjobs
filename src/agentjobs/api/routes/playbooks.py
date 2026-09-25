@@ -52,6 +52,7 @@ from .status import (
     get_acting_project,
     serving_api_base,
 )
+from agentjobs.models_v2 import recorded_merge_mode
 
 router = APIRouter(tags=["playbooks"])
 
@@ -369,13 +370,14 @@ async def run_playbook_endpoint(
 
     handle = result.handle
     meta = handle.directory.read_meta()
-    posture = meta.get("posture")
+    merge_mode = recorded_merge_mode(meta)
     caused_by = meta.get("caused_by")
     return PlaybookRunStarted(
         run_id=handle.run_id,
         session_id=handle.session_id,
         mode=handle.mode.value,
-        posture=str(posture or ""),
+        merge_mode=merge_mode.value if merge_mode is not None else "",
+        merge_mode_phrase=merge_mode.phrase if merge_mode is not None else "",
         task_id=result.task_id,
         caused_by=caused_by
         if isinstance(caused_by, int) and not isinstance(caused_by, bool)

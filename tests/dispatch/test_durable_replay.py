@@ -56,7 +56,7 @@ from agentjobs.dispatch.runner import (
 )
 from agentjobs.execution.factory import close_execution_stores
 from agentjobs.manager import TaskManager
-from agentjobs.dispatch.config import Posture
+from agentjobs.dispatch.config import MergeMode
 from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Outcome
 from agentjobs.projects import ProjectRegistry
 import fake_claude
@@ -308,7 +308,7 @@ class World:
         self,
         *,
         group: str = "default",
-        posture: str = "auto",
+        merge_mode: str = "review",
         controller: str = "active",
         fable_enabled: bool = True,
         limits: Optional[Dict[str, object]] = None,
@@ -332,8 +332,8 @@ class World:
                 project_id: {
                     "enabled": True,
                     "group": group,
-                    "posture": posture,
-                    "max_posture": "autonomous",
+                    "merge_mode": merge_mode,
+                    "allow_automerge": True,
                     "require_clean_tree": False,
                     "resume_sessions": False,
                 }
@@ -486,7 +486,7 @@ class World:
         *,
         project_id: str = "sandbox",
         group: Optional[str] = None,
-        posture: Optional[Posture] = None,
+        merge_mode: Optional[MergeMode] = None,
         request: Optional[DispatchRequest] = None,
     ) -> Any:
         project = ProjectRegistry(home=self.home).get(project_id)
@@ -499,7 +499,7 @@ class World:
                 task_id=task_id,
                 caused_by=self.authorise(task_id, project_id),
                 group=group,
-                posture=posture,
+                merge_mode=merge_mode,
             ),
             home=self.home,
             api_base="http://127.0.0.1:9",
@@ -717,13 +717,13 @@ class TestTask410:
         events = {event["kind"]: event for event in fixture["events"]}
         task_id = world.task(title="Big Dawg Audit")
         handle = world.dispatch(
-            task_id, group=fixture["dispatch"]["group"], posture=Posture.AUTONOMOUS
+            task_id, group=fixture["dispatch"]["group"], merge_mode=MergeMode.AUTOMERGE
         )
         world.stall(handle.run_id, at=events["stall"]["at"])
         world.tick(events["stall"]["at"])
         # The defaults move underneath the run, as they had by the time task-410 resumed:
         # a person dispatching afresh today would get the default group's runner.
-        world.configure(group="default", posture="auto")
+        world.configure(group="default", merge_mode="review")
         return task_id, handle, events
 
     def test_without_a_stop_the_answer_rides_the_one_resume_and_nothing_is_downgraded(
@@ -761,7 +761,7 @@ class TestTask410:
         retry = dispatches[-1]
         assert retry["runner"] == "fable" and retry["selection"]["group"] == "big-dawg"
         assert retry["selection"]["source"] == "history"
-        assert retry["posture"] == "autonomous"
+        assert retry["merge_mode"] == "automerge"
         assert world.calls("launches.log")[-1]["model"] == "claude-fable-5-1"
         assert len(world.live_sessions(task_id)) == 1, "one writer"
 
@@ -1378,7 +1378,7 @@ def test_a_usage_limit_parks_on_the_service_and_resumes_once_after_the_reset(
     world: World,
 ) -> None:
     task_id = world.task()
-    handle = world.dispatch(task_id, posture=Posture.AUTONOMOUS, group="big-dawg")
+    handle = world.dispatch(task_id, merge_mode=MergeMode.AUTOMERGE, group="big-dawg")
     resets = world.clock.at(2 * 3600)
     line = {
         "type": "assistant",
@@ -1426,7 +1426,7 @@ class TestRegressions:
     def test_a_disabled_recorded_runner_is_refused_rather_than_swapped(self, world: World) -> None:
         """Envelope drift, the hard half: the recorded runner can no longer run at all."""
         task_id = world.task()
-        handle = world.dispatch(task_id, group="big-dawg", posture=Posture.AUTONOMOUS)
+        handle = world.dispatch(task_id, group="big-dawg", merge_mode=MergeMode.AUTOMERGE)
         world.configure(fable_enabled=False)
         _worker_gone(world, handle.run_id)
         world.tick(10)

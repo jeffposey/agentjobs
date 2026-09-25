@@ -28,7 +28,7 @@ from agentjobs.dispatch import finish as finish_module
 from agentjobs.dispatch.finish import (
     DECLINED,
     FINISHED,
-    POSTURE,
+    AUTOMERGE,
     FinishDirectory,
     FinishResult,
     finish_task,
@@ -215,7 +215,7 @@ class TestKilledAfterTheMerge:
         ]
         assert len(spawn.calls) == 1
         assert spawn.calls[0]["resumed_from"] == interrupted.name
-        assert spawn.calls[0]["posture_run_id"] == ""
+        assert spawn.calls[0]["automerge_run_id"] == ""
         result = spawn.results[0]
         assert result is not None, "the resumed attempt died"
         assert result.outcome == FINISHED, result.render()
@@ -435,7 +435,7 @@ def a_run(world: Dict[str, Any], run_id: str, **fields: Any) -> None:
         "task_id": world["task_id"],
         "project_id": "demo",
         "mode": "session",
-        "posture": "autonomous",
+        "merge_mode": "automerge",
         "status": "finished",
         "outcome": "failed",
         **fields,
@@ -443,9 +443,9 @@ def a_run(world: Dict[str, Any], run_id: str, **fields: Any) -> None:
     (directory / "meta.yaml").write_text(yaml.safe_dump(meta), encoding="utf-8")
 
 
-def a_posture_attempt(world: Dict[str, Any], run_id: str) -> FinishDirectory:
+def an_automerge_attempt(world: Dict[str, Any], run_id: str) -> FinishDirectory:
     attempt = FinishDirectory.create(
-        world["home"], world["task_id"], "demo", authority=POSTURE, run_id=run_id
+        world["home"], world["task_id"], "demo", authority=AUTOMERGE, run_id=run_id
     )
     attempt.write_meta(pid=dead_pid())
     return attempt
@@ -456,7 +456,7 @@ class TestAPostureFinishWhoseRunIsGone:
         self, world: Dict[str, Any]
     ) -> None:
         a_run(world, "run_gone")
-        attempt = a_posture_attempt(world, "run_gone")
+        attempt = an_automerge_attempt(world, "run_gone")
         started: List[Dict[str, Any]] = []
 
         decisions = tick(world, Recorder(started))
@@ -464,12 +464,12 @@ class TestAPostureFinishWhoseRunIsGone:
         assert [(item.finish_id, item.action) for item in decisions] == [
             (attempt.finish_id, RESUMED)
         ]
-        assert started[0]["posture_run_id"] == "run_gone"
+        assert started[0]["automerge_run_id"] == "run_gone"
         assert started[0]["approver"] == "run run_gone"
 
     def test_a_cancelled_run_is_a_stop_and_is_not_resumed(self, world: Dict[str, Any]) -> None:
         a_run(world, "run_stopped", status="cancelled", outcome="cancelled")
-        a_posture_attempt(world, "run_stopped")
+        an_automerge_attempt(world, "run_stopped")
         started: List[Dict[str, Any]] = []
 
         decisions = tick(world, Recorder(started))
@@ -479,7 +479,7 @@ class TestAPostureFinishWhoseRunIsGone:
 
     def test_the_settle_path_resumes_only_its_own_runs_finish(self, world: Dict[str, Any]) -> None:
         a_run(world, "run_gone")
-        a_posture_attempt(world, "run_gone")
+        an_automerge_attempt(world, "run_gone")
         started: List[Dict[str, Any]] = []
 
         def settle(run_id: str) -> bool:
@@ -519,12 +519,12 @@ class TestTheSpawn:
             approver="run run_gone",
             home=world["home"],
             resumed_from="fin_dead",
-            posture_run_id="run_gone",
+            automerge_run_id="run_gone",
         )
 
         argv = seen["argv"]
         assert argv[argv.index("--resumed-from") + 1] == "fin_dead"
-        assert "--posture-release" in argv
+        assert "--automerge-release" in argv
         assert seen["env"][RUN_ID_ENV] == "run_gone"
 
     def test_an_approval_spawn_is_unchanged(
@@ -543,7 +543,7 @@ class TestTheSpawn:
         )
 
         assert "--resumed-from" not in seen["argv"]
-        assert "--posture-release" not in seen["argv"]
+        assert "--automerge-release" not in seen["argv"]
         # Not None any more (task-538): None handed the child the server's environment,
         # including whatever run identity the server's last restart had left in it.
         assert seen["env"] is not None and RUN_ID_ENV not in seen["env"]

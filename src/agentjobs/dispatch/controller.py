@@ -46,7 +46,7 @@ from agentjobs.dispatch.config import (
     DispatchError,
     DispatchNotConfiguredError,
     DispatchSentinelError,
-    Posture,
+    MergeMode,
     ProjectNotEnabledError,
     RecordedRunnerUnavailableError,
     assert_dispatch_permitted,
@@ -65,7 +65,13 @@ from agentjobs.execution.coordinator import MODE_ACTIVE, advance_execution
 from agentjobs.execution.errors import ExecutionStoreError, StaleOwner
 from agentjobs.execution.reducer import Intent
 from agentjobs.execution.store import Attempt, Execution, ExecutionStore
-from agentjobs.models_v2 import Ball, BallReason, DispatchOutcome, LogEntryType
+from agentjobs.models_v2 import (
+    Ball,
+    BallReason,
+    DispatchOutcome,
+    LogEntryType,
+    recorded_merge_mode,
+)
 from agentjobs.projects import Project, ProjectError, ProjectRegistry
 from agentjobs.store_factory import TaskManagerLike, dispatch_manager_for
 
@@ -1021,12 +1027,12 @@ class Controller:
         except (DispatchConfigError, DispatchError) as exc:
             return verdict(False, reducer.POLICY_REVOKED, str(exc))
         observed["runner"] = resolution.runner.name
-        ceiling = resolution.settings.ceiling
-        observed["ceiling"] = ceiling.value
+        allowed = resolution.settings.automerge_allowed
+        observed["allow_automerge"] = allowed
         try:
-            granted = Posture(str(execution.envelope.get("posture")))
-            if granted.rank > ceiling.rank:
-                observed["posture_clamped_to"] = ceiling.value
+            granted = recorded_merge_mode(execution.envelope)
+            if granted is MergeMode.AUTOMERGE and not allowed:
+                observed["merge_mode_clamped_to"] = MergeMode.REVIEW.value
         except ValueError:
             pass
         refusal = check_budget(task, resolution.limits.auto, now=self.clock())
@@ -1051,7 +1057,10 @@ class Controller:
             )
         observed["dispatches_before"] = task.dispatch_count
         return verdict(
-            True, None, f"runner {resolution.runner.name}, ceiling {ceiling.value}, caps have room"
+            True,
+            None,
+            f"runner {resolution.runner.name}, automerge "
+            f"{'allowed' if allowed else 'not allowed'}, caps have room",
         )
 
     def perform_relaunch(self, execution: Execution, intent: Intent) -> str:

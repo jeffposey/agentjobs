@@ -982,7 +982,7 @@ arbitrarily long chain of merges into `main` that nobody has read.
 What is left holding, in the order it would fail:
 
 1. **The objective gate.** Each child merges through `agentjobs finish
-   --posture-release`, which runs the full unqualified `scripts/check.py` on the rebased
+   --automerge-release`, which runs the full unqualified `scripts/check.py` on the rebased
    branch and merges only on a green one. This is the floor, and it is run by the
    finisher rather than reported by the agent — which is the only reason the merge is
    defensible at all.
@@ -1286,6 +1286,21 @@ independent of what a dispatch starts.
 
 ### Permission posture: what a run may do (decided 2026-08-18)
 
+!!! note "Superseded by task-602 (2026-09-25): one merge mode, `review` or `automerge`"
+    The four postures below became the one choice a person actually makes at dispatch.
+    `review` (hands off for your review) runs classifier-gated -- the old `auto` -- and
+    stops at the merge gate; `automerge` (merges itself on a green gate) runs with
+    `bypassPermissions` -- the old `autonomous` -- and merges through `agentjobs finish
+    --automerge-release`. What a run may execute is derived from the mode and never
+    chosen separately. `supervised` and `read_only` were deleted, the ceiling is the
+    yes/no `allow_automerge`, and the rank and `within()` went with the four-way order.
+    **No value is spelled `auto`**: every record written before task-602 says `auto` and
+    means review, so the retired spellings still read (`auto`, `supervised`, `read_only`
+    -> `review`; `autonomous` -> `automerge`; `max_posture: autonomous` ->
+    `allow_automerge: true`), and migration 013 rewrote the stored values. The history
+    below is kept because the reasoning in it -- why a ceiling rather than a provenance
+    check, why a dispatch-time choice is refused and a task field clamped -- is unchanged.
+
 Nothing above said **what a dispatched agent is allowed to do**, and that is the actual
 risk boundary of the feature — not what may *start* a run, which §6 already gates four
 times over. Mechanically it lives in the runner's argv, which makes it look like the
@@ -1368,9 +1383,9 @@ pre-approval was resting on a check the pre-approved command does not make.
 
 Worse, the command that *does* make it was not on the list at all. `AUTOMATIC_CLAUSE`
 tells an `autonomous` run to merge with `agentjobs finish <task> --project <id>
---posture-release`; §5a is what that does. It refuses without a standing human approval
+--automerge-release`; §5a is what that does. It refuses without a standing human approval
 on the record, re-checks the approval has not been withdrawn, and honours
-`--posture-release` only where the project's own configured posture releases the gate.
+`--automerge-release` only where the project's own configured posture releases the gate.
 So pre-approving it grants nothing the project's configuration has not granted already —
 while `git merge` sitting on the list and the finisher sitting off it meant the ungated
 path ran with no round trip and the gated one went to the classifier. The list was
@@ -1548,7 +1563,7 @@ unqualified — not `--only`, not `--from`, not `--since-gate`, and not reported
 agent. Both have to hold: the agent's judgement is a veto it can always exercise, and the
 gate is the floor it cannot talk its way past.
 
-That is why an autonomous merge goes through `agentjobs finish --posture-release` rather
+That is why an autonomous merge goes through `agentjobs finish --automerge-release` rather
 than through the agent running `git merge`. Routing it there means the merge, the rebuild,
 the restart, the verification and the close are the identical sequence a human approval
 takes, with one substitution: what authorised it. The authority is re-checked inside
@@ -1726,7 +1741,7 @@ so a client carrying its own copy could tell an operator the opposite of what ha
 
 **`autonomous` is offered disabled, with the reason, where the project has no scripted
 finish.** task-021 accepted that an autonomous merge runs through `agentjobs finish
---posture-release` and that a machine without it has no sanctioned mechanism for one.
+--automerge-release` and that a machine without it has no sanctioned mechanism for one.
 Picking it there would produce a run told in its prompt that it may merge, with no way to
 do it -- which is how an agent talks itself into an improvised `git merge`. Disabled with
 a stated cause is right where omitting it silently is wrong: the fix is one line of the
@@ -2529,7 +2544,7 @@ Request Changes:
 
 The finish's `escalation_dispatch` records `woke_idle_run`, `stood_down_idle_run` or
 `idle_run_unreachable`, and the task log carries a finisher note for the first two. The
-run finishing itself through `--posture-release` is never treated as idle: it is mid-turn,
+run finishing itself through `--automerge-release` is never treated as idle: it is mid-turn,
 and it reads the finish's answer itself.
 
 **Road two: a never-raises promise made of a list of exception types.** Running the

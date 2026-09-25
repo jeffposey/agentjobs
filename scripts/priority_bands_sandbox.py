@@ -69,7 +69,7 @@ def dispatch_config(home: Path, runner_script: Path) -> None:
                 "argv": [sys.executable, str(runner_script), "{prompt}"],
             }
         },
-        "projects": {PROJECT_ID: {"enabled": True, "runner": "fake", "posture": "auto"}},
+        "projects": {PROJECT_ID: {"enabled": True, "runner": "fake", "merge_mode": "review"}},
         "limits": {"max_concurrent_runs": 2},
         "execution": {"controller": "shadow"},
     }

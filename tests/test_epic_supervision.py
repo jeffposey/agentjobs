@@ -484,7 +484,7 @@ def test_a_detached_walk_is_advanced_by_the_server_with_no_supervisor_process(wa
         parent_id=walk.parent_id,
         home=walk.machine.home,
         settings=WalkSettings(max_concurrent=1),
-        posture=None,
+        merge_mode=None,
         actor="claude",
     )
 
@@ -587,7 +587,7 @@ class TestADispatchedEpicHoldsNoSlot:
         entry = epic.parent_dispatch_entry(parent)
         assert entry is not None
         assert entry.data.get("mode") == DispatchMode.WALK.value
-        assert entry.data.get("posture")
+        assert entry.data.get("merge_mode")
         assert epic.parent_authorizing_entry(parent) is not None, "the human act is not shadowed"
 
     def test_the_run_lock_is_released_so_the_epic_can_be_dispatched_again(self, walk: Epic) -> None:
@@ -708,7 +708,7 @@ class TestWhatHappensWhenTheWalkLands:
         self, walk: Epic, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """(b) from the spec: an autonomous epic is unattended from the click to the close."""
-        walk.machine.configure(controller="shadow", posture="autonomous")
+        walk.machine.configure(controller="shadow", merge_mode="automerge")
         only = walk.child("First")
         lines = self.land(walk)
 
@@ -736,7 +736,7 @@ class TestWhatHappensWhenTheWalkLands:
         machine, a spent budget, a tripped sentinel -- reaches this code as the same
         exception from the same call, and provoking one of them would test that cause.
         """
-        walk.machine.configure(controller="shadow", posture="autonomous")
+        walk.machine.configure(controller="shadow", merge_mode="automerge")
         walk.child("First")
 
         def refuse(*args: Any, **kwargs: Any) -> str:

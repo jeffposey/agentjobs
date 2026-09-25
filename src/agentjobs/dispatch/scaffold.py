@@ -70,12 +70,12 @@ enabled: false
 # builds a command from a label -- so whichever model or effort a runner uses is
 # whatever its argv says. `driver:` is the exception: omit it for Claude (the compatible
 # default), or set `driver: codex` for a Codex *batch* runner. That tells AgentJobs how
-# to express the project's posture safely; see docs/codex-dispatch.md for exact Terra
+# to express the project's merge mode safely; see docs/codex-dispatch.md for exact Terra
 # and Sol examples.
 #
 # The permission flags are NOT yours, and writing them here is a bug: AgentJobs splices
-# the project's posture in front of the prompt itself, and that is where
-# `--permission-mode` and `--tools` come from.
+# the flags its merge mode implies in front of the prompt itself, and that is where
+# `--permission-mode` comes from.
 #
 # `--name` is not yours either, and you do not need it: AgentJobs splices a session name
 # built from the task id and a few words of its title -- `task-499 nav breakpoint`, with
@@ -183,49 +183,37 @@ default_group: standard
 #   agentjobs:
 #     enabled: true
 #     group: standard          # or `runner: claude-standard` for a single runner
-#     posture: auto            # read_only | auto | supervised | autonomous
+#     merge_mode: review       # review | automerge
 #
-#       auto        the default, and what you want. A classifier reviews each action,
-#                   so the run keeps a gate and still never needs a terminal.
-#       read_only   no shell at all. Review, triage, defect reports.
-#       supervised  acceptEdits plus an allow-list of nine command prefixes. Anything
-#                   outside them PARKS waiting for a human, so this only suits a run
-#                   you are watching and willing to answer from your phone.
-#       autonomous  bypassPermissions. No gate whatsoever. Opt in per project.
+#       review      the default. The run is classifier-gated (a classifier reviews each
+#                   action), and when the work is done it hands off for your review,
+#                   which is what ENGINEERING.md's merge gate describes.
+#       automerge   bypassPermissions -- no execution gate -- and the run merges its own
+#                   work through `agentjobs finish --automerge-release`, so the full
+#                   gate runs on the rebased branch first and a red one still stops.
 #
-#       A posture also decides what happens to the branch when the work is done
-#       (task-021). read_only has no branch. auto and supervised stop and hand off for
-#       human review, which is what ENGINEERING.md's merge gate describes. autonomous
-#       merges its own work -- through `agentjobs finish --posture-release`, so the full
-#       gate runs on the rebased branch first and a red one still stops. Choosing
-#       autonomous is choosing both halves; there is no third switch.
+#       What a run may execute is derived from this; there is no second switch.
+#       (`posture:` is the pre-task-602 spelling and still reads: `auto` is review.)
 #
-#     max_posture: autonomous  # optional; defaults to whatever `posture` above says
+#     allow_automerge: true    # optional; defaults to on only if merge_mode is automerge
 #
-#       The widest envelope any run here may get, whatever asks for it (task-308).
-#       `posture` above is only the DEFAULT; two other places may choose within this
-#       ceiling -- a `posture:` field on the task record, and a choice made at the
-#       moment of dispatch (`agentjobs dispatch run --posture`, or the GUI control).
+#       Whether any run here may merge itself, whatever asks for it (task-308).
+#       `merge_mode` above is only the DEFAULT; two other places may ask for automerge
+#       -- a `merge_mode:` field on the task record, and a choice made at the moment of
+#       dispatch (`agentjobs dispatch run --merge-mode`, or the GUI control).
 #
 #       This is what makes the task-record field safe to have at all. A task record is
-#       a git-tracked file any agent with write access can edit, including the agent
-#       working that task. It does not matter: a task asking for `autonomous` on a
-#       project capped at `auto` gets `auto`, and the run's dispatch entry records that
-#       it was cut down. THIS FILE is the control, because nothing reachable over the
-#       network writes it -- so leave it out until you mean it.
-#
-#       Width order is read_only < supervised < auto < autonomous. supervised is
-#       NARROWER than auto: it parks on anything outside the nine allow-listed
-#       prefixes, and an unattended run has nobody to answer.
-#
-#       Omitting it means "the ceiling is the default", so nothing but this file can
-#       change what a run here gets. That is the behaviour every machine had before
-#       task-308, which is why it is the default.
+#       writable by any agent, including the agent working that task. It does not
+#       matter: a task asking for automerge on a project that does not allow it gets
+#       review, and the run's dispatch entry records that it was cut down. THIS FILE is
+#       the control, because nothing reachable over the network writes it -- so leave
+#       it out until you mean it. (`max_posture: autonomous` is the old spelling of
+#       `allow_automerge: true`; any other `max_posture` reads as false.)
 #
 #     push: false
 #
 #       Whether a run here may push to a remote. Off unless you say otherwise, and NOT
-#       part of the posture: the same posture should push in one repository and never in
+#       part of the merge mode: the same mode should push in one repository and never in
 #       another, so this is the project's decision. Merging into a local main is
 #       recoverable; publishing is not. Nothing in AgentJobs runs `git push` -- this is
 #       told to the agent, which is what reaches the decision.

@@ -56,6 +56,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from agentjobs.dispatch.peers import LiveSession, PeerDelivery, find_live_session
+from agentjobs.models_v2 import recorded_merge_mode
 
 if TYPE_CHECKING:  # pragma: no cover - `ledger` imports `runner`, which imports this
     from agentjobs.dispatch.ledger import RunRecord
@@ -305,9 +306,9 @@ def wake_argv(argv: Sequence[str], prompt: str, session_uuid: str) -> List[str]:
     """Rewrite a cold-start argv into a resume, with the prompt taken out of it.
 
     The element carrying the prompt becomes ``--resume <uuid>``; everything else -- the
-    executable, ``--bg``, ``--remote-control``, the model, and every posture flag -- is
+    executable, ``--bg``, ``--remote-control``, the model, and every merge mode flag -- is
     left exactly where ``build_argv`` put it. So a wake and a cold start differ in one
-    argument and are otherwise the same run, which is what keeps the posture, the
+    argument and are otherwise the same run, which is what keeps the merge mode, the
     permission grant and the MCP configuration from quietly diverging between them.
 
     **The prompt is removed from argv and must be delivered on stdin.** This is not a
@@ -336,31 +337,37 @@ def wake_argv(argv: Sequence[str], prompt: str, session_uuid: str) -> List[str]:
     return rewritten
 
 
-def resume_refusal(previous_meta: Mapping[str, object], posture: str) -> Optional[str]:
-    """Why a session must not be resumed under ``posture``, or ``None`` if it may be.
+def resume_refusal(previous_meta: Mapping[str, object], merge_mode: str) -> Optional[str]:
+    """Why a session must not be resumed under ``merge_mode``, or ``None`` if it may be.
 
-    **A session is never resumed across a posture change** (task-375). Posture reaches
-    an agent only in the text it is sent, and a conversation remembers every clause it
-    was ever told: resuming a session that last ran at ``auto`` with an ``autonomous``
-    clause would raise a live agent's authority mid-flight, after it may already have
-    decided things under the narrower one. That is an authorisation change, not a retry,
-    so it gets a fresh session instead -- the task record and the worktree carry the
-    context across. task-358's child task-273 is the incident: its record said
-    ``autonomous`` and its resumed session had only ever been told ``auto``.
+    **A session is never resumed across a merge mode change** (task-375). The mode
+    reaches an agent only in the text it is sent, and a conversation remembers every
+    clause it was ever told: resuming a session that last ran at ``review`` with an
+    ``automerge`` clause would raise a live agent's authority mid-flight, after it may
+    already have decided things under the narrower one. That is an authorisation change,
+    not a retry, so it gets a fresh session instead -- the task record and the worktree
+    carry the context across. task-358's child task-273 is the incident: its record said
+    it merged itself and its resumed session had only ever been told to stop.
 
-    A previous run that recorded no posture cannot be shown to match, so it is refused
-    too. Starting cold is always a correct answer; resuming on a guess is not.
+    A previous run that recorded no mode cannot be shown to match, so it is refused too.
+    Starting cold is always a correct answer; resuming on a guess is not. A run recorded
+    before task-602 names its mode ``posture``, and is compared by what it meant: a
+    session told ``auto`` was told to stop for review, which is ``review``.
     """
-    recorded = previous_meta.get("posture")
-    if not isinstance(recorded, str) or not recorded:
+    try:
+        recorded = recorded_merge_mode(previous_meta)
+    except ValueError:
+        recorded = None
+    if recorded is None:
         return (
-            "the session's previous run recorded no posture, so it cannot be shown to have "
-            f"been told `{posture}`"
+            "the session's previous run recorded no merge mode, so it cannot be shown to "
+            f"have been told `{merge_mode}`"
         )
-    if recorded != posture:
+    if recorded.value != merge_mode:
         return (
-            f"the session last ran at posture `{recorded}` and this run is granted "
-            f"`{posture}`; a conversation is not resumed across a posture change"
+            f"the session last ran at merge mode `{recorded.value}` and this run is "
+            f"granted `{merge_mode}`; a conversation is not resumed across a merge mode "
+            "change"
         )
     return None
 
@@ -392,8 +399,8 @@ def build_wake_prompt(
     one gets the quoted-material framing rather than a claim about a human. There is no
     value of either that makes this refuse to render.
 
-    ``policy`` is the run's posture and push clause, appended verbatim (task-375). A
-    resumed session is only ever resumed at the posture it last ran under, but it is told
+    ``policy`` is the run's merge mode and push clause, appended verbatim (task-375). A
+    resumed session is only ever resumed at the merge mode it last ran under, but it is told
     the clause again anyway: the dispatch entry records what this payload carried, and
     "the session heard it last time" is not evidence a reader can check.
     """

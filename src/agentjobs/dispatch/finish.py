@@ -46,13 +46,13 @@ Nothing in this module may run unless a person put ``finish: {enabled: true}`` i
 ``~/.agentjobs/dispatch.yaml`` for that project, which no browser can write.
 
 **Since task-021 there is a second caller, and only one of the two is a person.** A
-dispatched run at a posture whose merge policy is ``automatic`` runs this itself, with
+dispatched run at a merge mode whose merge policy is ``automatic`` runs this itself, with
 ``authority=POSTURE``, and no human reviews the branch. Every step is the same, in the
 same order, for the same reasons -- which is the point of routing it here rather than
 letting an agent run ``git merge``: the gate that authorises the merge is run *by this
 module, on the rebased branch, unqualified*, so the merge does not rest on the agent's
 own account of whether its work is sound. The authority is checked against the project's
-machine-local posture before anything happens, and every record this writes says which
+machine-local merge mode before anything happens, and every record this writes says which
 of the two authorities it ran under.
 """
 
@@ -84,13 +84,12 @@ from agentjobs.dispatch.atomic_yaml import write_yaml_atomically
 from agentjobs.dispatch.config import (
     DispatchError,
     FinishSettings,
-    MergePolicy,
-    Posture,
-    PostureSource,
+    MergeMode,
+    MergeModeSource,
     ProjectDispatchSettings,
-    ResolvedPosture,
+    ResolvedMergeMode,
     assert_dispatch_permitted,
-    resolve_posture,
+    resolve_merge_mode,
     sentinel_active,
     sentinel_path,
 )
@@ -270,23 +269,35 @@ directory carrying this key, so the finish actually doing the work stays the ans
 """
 
 APPROVAL = "approval"
-POSTURE = "posture"
-"""What authorised this finish. ``APPROVAL`` is a person; ``POSTURE`` is task-021.
+AUTOMERGE = "automerge"
+"""What authorised this finish. ``APPROVAL`` is a person; ``AUTOMERGE`` is task-021.
 
 Two callers, two authorities, one sequence. The Approve button and a human at a shell
-carry ``APPROVAL`` and nothing about them changed. A dispatched run whose posture
-releases the merge gate carries ``POSTURE``, and is refused unless the project's
-machine-local posture really does release it -- checked here, in code, rather than
-trusted to the prompt that told the agent so.
+carry ``APPROVAL`` and nothing about them changed. A dispatched run whose merge mode is
+``automerge`` carries ``AUTOMERGE``, and is refused unless the run really was granted
+it and the project's machine-local config still allows it -- checked here, in code,
+rather than trusted to the prompt that told the agent so.
+
+A finish written before task-602 recorded this authority as ``posture``; read it through
+:func:`authority_of`.
 
 That check is worth stating honestly about what it is and is not. It is not containment
-against a *misbehaving* agent: ``autonomous`` is ``bypassPermissions``, and a run that
+against a *misbehaving* agent: ``automerge`` is ``bypassPermissions``, and a run that
 decided to ignore its instructions could run ``git merge`` itself with nothing in its
 way. It is a guarantee about the **sanctioned** path -- that the command an agent is
-told to run cannot merge anything at a posture that did not release it, so a prompt
+told to run cannot merge anything a run was not granted automerge for, so a prompt
 that is wrong, stale, or copied from another project's run fails closed instead of
-merging. Containment of the other kind was already given up when the posture was chosen.
+merging. Containment of the other kind was already given up when automerge was chosen.
 """
+
+LEGACY_AUTHORITIES = {"posture": AUTOMERGE}
+"""Authorities a finish recorded before task-602, and what each one is now."""
+
+
+def authority_of(meta: Mapping[str, Any]) -> str:
+    """The authority a finish's meta records, under its current spelling."""
+    raw = str(meta.get("authority") or "")
+    return LEGACY_AUTHORITIES.get(raw, raw)
 
 
 @dataclass(frozen=True)
@@ -365,7 +376,7 @@ class Escalate(Exception):
 
 class Withdrawn(Escalate):
     """What authorised this finish no longer does: a Stop, a newer human act, a revoked
-    posture. Nothing further is done on the strength of it (task-322).
+    merge mode. Nothing further is done on the strength of it (task-322).
 
     An escalation of its own kind because it must not do what an escalation does. An
     ordinary stop hands the ball to an agent and starts a repair session; here a person
@@ -383,7 +394,9 @@ class Withdrawn(Escalate):
 # ----- subprocess plumbing ----------------------------------------------------
 
 
-def authorisation_phrase(authority: str, approver: str, posture: str = "", source: str = "") -> str:
+def authorisation_phrase(
+    authority: str, approver: str, merge_mode: str = "", source: str = ""
+) -> str:
     """One sentence naming what made this merge legitimate. Never decorative.
 
     Every place the finish writes down a merge -- the merge message, the log entry, the
@@ -392,16 +405,16 @@ def authorisation_phrase(authority: str, approver: str, posture: str = "", sourc
     months later has no other way to tell. Rendered in one function so the three cannot
     drift into saying different things about the same merge.
 
-    ``source`` names which of the three places the posture came from (task-315). It used
+    ``source`` names which of the three places the merge mode came from (task-315). It used
     to say "for this project" unconditionally, which stopped being true the moment a
-    posture could be chosen for one dispatch: a reader looking up why an unreviewed merge
+    merge mode could be chosen for one dispatch: a reader looking up why an unreviewed merge
     happened would have gone to ``dispatch.yaml``, found `auto`, and concluded the record
     was lying to them.
     """
-    if authority == POSTURE:
+    if authority == AUTOMERGE:
         whence = f" (from the {source})" if source else ""
         return (
-            f"No human reviewed this merge: posture `{posture or 'autonomous'}`{whence} "
+            f"No human reviewed this merge: merge mode `{merge_mode or 'automerge'}`{whence} "
             f"releases the merge gate (task-021), and {approver} ran the finish. "
             "What authorised it is the gate -- `scripts/check.py` green on the rebased "
             "branch, run here rather than reported by the agent."
@@ -875,7 +888,7 @@ class FinishDirectory:
         ``fields`` carries ``authority``, ``run_id``, ``resumed_from``: what
         ``finish_resume`` needs to decide whether this attempt may be resumed if it dies,
         read from the attempt itself rather than guessed afterwards. ``pid`` is always
-        written, because a posture finish's lock names its run, and a run settled as gone
+        written, because a merge mode finish's lock names its run, and a run settled as gone
         can leave this process running.
 
         ``manager`` is what the finish writes its index through; without one there is
@@ -3010,7 +3023,7 @@ def record_withdrawal(
 ) -> None:
     """Write down that authority was withdrawn, and move the ball only if a merge happened.
 
-    Before a merge the newer act -- a Stop, a Request Changes, a lowered posture -- has
+    Before a merge the newer act -- a Stop, a Request Changes, a lowered merge mode -- has
     already put the ball where its author wanted it, and this does not overrule them.
     After a merge the ball goes to a person, because the Stop's own prompt was written
     believing nothing had merged and the task must not keep saying so.
@@ -3309,7 +3322,7 @@ class AuthorityGuard:
     """Whether what authorised this finish still does, asked at the moments it matters.
 
     Before the merge: a Stop requested since the finish began, or ``check`` naming a
-    withdrawn authority -- an approval no longer standing, a posture no longer releasing
+    withdrawn authority -- an approval no longer standing, a merge mode no longer releasing
     the gate -- merges nothing. After it: a Stop ends delivery with the merge stated.
     ``check`` runs only before the merge; once merged, an approval being superseded does
     not un-merge anything, and delivery of a done merge is not a new authorisation.
@@ -3390,29 +3403,29 @@ class AuthorityGuard:
 # ----- the orchestrator -------------------------------------------------------
 
 
-def released_posture(
+def released_merge_mode(
     *,
     settings: ProjectDispatchSettings,
     task_id: str,
-    task_posture: Optional[Posture],
+    task_merge_mode: Optional[MergeMode],
     home: Path,
     run_id: str = "",
-) -> ResolvedPosture:
-    """Which posture decides this merge, and where it came from (task-315).
+) -> ResolvedMergeMode:
+    """Which merge mode decides this merge, and where it came from (task-315).
 
-    **The rule: the posture the run was dispatched at; with no run, the posture a
+    **The rule: the merge mode the run was dispatched at; with no run, the merge mode a
     dispatch would resolve right now.** Both clamped by this machine's ceiling.
 
-    Until task-315 this was `settings.posture` and nothing else -- the project default,
+    Until task-315 this was `settings.merge mode` and nothing else -- the project default,
     which is the *least* specific of the three sources ``resolve_posture`` weighs. So a
-    posture chosen for one dispatch (task-307's pulldown, or ``--posture``) reached the
+    merge mode chosen for one dispatch (task-307's pulldown, or ``--merge-mode``) reached the
     agent's prompt, told it the merge gate was released, and was then contradicted by the
-    command that prompt named. Observed on task-298: dispatched ``autonomous``, refused
+    command that prompt named. Observed on task-298: dispatched ``automerge``, refused
     ``posture_requires_review``, ball parked on a human who had chosen not to be one.
 
     Two sources, in this order, and the order is the point:
 
-    1. **The run's own record**, when ``run_id`` names one for *this task*. That posture
+    1. **The run's own record**, when ``run_id`` names one for *this task*. That merge mode
        was resolved once, at dispatch, from the human's choice, and written down with the
        source that won -- so it is read back rather than re-derived. Re-deriving would be
        a second implementation of ``resolve_posture``'s precedence, free to disagree with
@@ -3423,17 +3436,17 @@ def released_posture(
        same precedence a dispatch of this task would apply.
 
     **The ceiling is re-applied here, from the config as it stands now.** Not the
-    ``posture_ceiling`` the run recorded -- that is history, and the useful question is
-    what this machine permits today, which is lower if somebody has since lowered it. It
-    is also what keeps this honest: a run record under ``~/.agentjobs/runs/`` is no
-    harder for an agent to edit than a task record is, and ``max_posture`` in
+    ``allow_automerge`` the run recorded -- that is history, and the useful question is
+    what this machine permits today, which is nothing if somebody has since turned it
+    off. It is also what keeps this honest: a run record under ``~/.agentjobs/runs/`` is
+    no harder for an agent to edit than a task record is, and ``allow_automerge`` in
     machine-local ``dispatch.yaml`` is the one line in the system that nothing reachable
-    over the network writes. An edited run record buys at most the ceiling.
+    over the network writes. An edited run record buys at most what that line allows.
 
-    Nothing here reads an argument the *caller* chose. ``--posture-release`` says which
+    Nothing here reads an argument the *caller* chose. ``--automerge-release`` says which
     authority is being claimed; it never says that the claim is granted.
     """
-    ceiling = settings.ceiling
+    allowed = settings.automerge_allowed
     if run_id:
         record = None
         try:
@@ -3441,36 +3454,34 @@ def released_posture(
         except LedgerError:
             record = None
         # A run may only vouch for the task it was dispatched against. Without this, a
-        # run at `autonomous` could name any other open task on the command line and
-        # merge its branch on a posture nobody granted for it.
+        # run at `automerge` could name any other open task on the command line and
+        # merge its branch on a merge mode nobody granted for it.
         if record is not None and record.task_id and record.task_id != task_id:
             record = None
-        if record is not None and record.posture:
+        if record is not None and record.merge_mode:
             try:
-                dispatched = Posture(record.posture)
+                dispatched = MergeMode(record.merge_mode)
             except ValueError:
                 dispatched = None  # a meta written by hand; fall through to re-resolving
             if dispatched is not None:
                 try:
-                    source = PostureSource(record.posture_source)
+                    source = MergeModeSource(record.merge_mode_source)
                 except ValueError:
-                    # Recorded before task-308, or unparseable. The posture is still a
+                    # Recorded before task-308, or unparseable. The merge mode is still a
                     # fact; only the account of where it came from is missing.
-                    source = PostureSource.DISPATCH
-                if dispatched.within(ceiling):
-                    return ResolvedPosture(posture=dispatched, source=source, ceiling=ceiling)
-                return ResolvedPosture(
-                    posture=ceiling, source=source, ceiling=ceiling, requested=dispatched
-                )
-    return resolve_posture(settings, task=task_posture)
+                    source = MergeModeSource.DISPATCH
+                if dispatched is MergeMode.REVIEW or allowed:
+                    return ResolvedMergeMode(dispatched, source, allowed)
+                return ResolvedMergeMode(MergeMode.REVIEW, source, allowed, requested=dispatched)
+    return resolve_merge_mode(settings, task=task_merge_mode)
 
 
-def _posture_release(
+def _automerge_release(
     manager: TaskManagerLike, project: Project, task_id: str, home: Path
-) -> Tuple[Optional[Any], Optional[ResolvedPosture], Optional[Tuple[str, str]]]:
-    """Whether a posture releases this merge: ``(resolution, posture, refusal)``.
+) -> Tuple[Optional[Any], Optional[ResolvedMergeMode], Optional[Tuple[str, str]]]:
+    """Whether a merge mode releases this merge: ``(resolution, merge mode, refusal)``.
 
-    Asked twice by a posture finish (task-322): once before anything is touched, and again
+    Asked twice by a merge mode finish (task-322): once before anything is touched, and again
     immediately before ``git merge``, so a kill switch thrown or a ceiling lowered during
     a four-minute gate is honoured rather than merged past.
     """
@@ -3478,45 +3489,43 @@ def _posture_release(
         released = assert_dispatch_permitted(project.id, home)
     except DispatchError as exc:
         return None, None, (getattr(exc, "reason", "dispatch_error"), str(exc))
-    # The posture *this run* was authorised at, not the project's default. See
-    # `released_posture`; before task-315 this line read `released.settings.posture`
+    # The merge mode *this run* was authorised at, not the project's default. See
+    # `released_posture`; before task-315 this line read `released.settings.merge mode`
     # and a dispatch-time choice never reached the merge.
     candidate = manager.get_task(task_id)
-    merge_posture = released_posture(
+    merge_resolution = released_merge_mode(
         settings=released.settings,
         task_id=task_id,
-        task_posture=(
-            Posture(candidate.posture.value)
-            if candidate is not None and candidate.posture is not None
+        task_merge_mode=(
+            MergeMode(candidate.merge_mode.value)
+            if candidate is not None and candidate.merge_mode is not None
             else None
         ),
         home=home,
         # Not `os.environ[RUN_ID_ENV]` directly: a `--bg` session can come up holding
-        # another run's identity, and that stripped task-316 of the posture a human
+        # another run's identity, and that stripped task-316 of the merge mode a human
         # had granted it. See `own_run_id` (task-249).
         run_id=own_run_id(home, task_id, project_id=project.id),
     )
-    posture = merge_posture.posture
-    if posture.merge_policy is not MergePolicy.AUTOMATIC:
+    merge_mode = merge_resolution.merge_mode
+    if merge_mode is not MergeMode.AUTOMERGE:
         clamped = (
-            f" It asked for `{merge_posture.requested.value}` and this machine caps "
-            f"{project.id} at `{merge_posture.ceiling.value}` "
-            f"(`projects.{project.id}.max_posture`)."
-            if merge_posture.requested is not None
+            f" It asked for `{merge_resolution.requested.value}` and this machine does not "
+            f"allow automerge on {project.id} (`projects.{project.id}.allow_automerge`)."
+            if merge_resolution.requested is not None
             else ""
         )
         return (
             released,
-            merge_posture,
+            merge_resolution,
             (
-                "posture_requires_review",
-                f"This finish runs at {merge_posture.describe()}, whose merge policy is "
-                f"`{posture.merge_policy.value}`. Only `autonomous` releases the merge "
-                f"gate.{clamped} Hand the ball to human/review and stop; nothing was "
-                "touched.",
+                "merge_mode_is_review",
+                f"This finish runs at {merge_resolution.describe()}. Only `automerge` "
+                f"releases the merge gate.{clamped} Hand the ball to human/review and "
+                "stop; nothing was touched.",
             ),
         )
-    return released, merge_posture, None
+    return released, merge_resolution, None
 
 
 def finish_task(
@@ -3540,7 +3549,7 @@ def finish_task(
 
     ``authority`` says what makes the merge legitimate, and defaults to the only thing
     that ever made one before task-021: a person approved it. ``POSTURE`` is the other
-    one, and it is checked rather than believed -- the project's machine-local posture
+    one, and it is checked rather than believed -- the project's machine-local merge mode
     has to actually release the merge gate, or this declines without touching anything.
 
     ``resumed_from`` names the interrupted attempt this one was started to resume
@@ -3557,19 +3566,19 @@ def finish_task(
     """
     resolved_home = home or default_home()
     began_at = _now()
-    posture_name = ""
-    posture_source = ""
-    if authority == POSTURE:
-        released, merge_posture, refusal = _posture_release(
+    merge_mode_name = ""
+    merge_mode_source = ""
+    if authority == AUTOMERGE:
+        released, merge_resolution, refusal = _automerge_release(
             manager, project, task_id, resolved_home
         )
         if refusal is not None:
             return FinishResult(
                 task_id=task_id, outcome=DECLINED, reason=refusal[0], detail=refusal[1]
             )
-        assert released is not None and merge_posture is not None
-        posture_name = merge_posture.posture.value
-        posture_source = merge_posture.source.value
+        assert released is not None and merge_resolution is not None
+        merge_mode_name = merge_resolution.merge_mode.value
+        merge_mode_source = merge_resolution.source.value
         if settings is None:
             settings = released.settings.finish
             api_base = api_base or released.config.api_base
@@ -3667,13 +3676,13 @@ def finish_task(
                 f"The emergency stop is down ({sentinel_path(resolved_home)}), so nothing "
                 "was merged. Retry the finish once dispatch is resumed.",
             )
-        if authority == POSTURE:
-            _, _, refusal = _posture_release(manager, project, task_id, resolved_home)
+        if authority == AUTOMERGE:
+            _, _, refusal = _automerge_release(manager, project, task_id, resolved_home)
             if refusal is None:
                 return None
             return (
-                "posture_withdrawn",
-                f"The posture that released this merge no longer does: {refusal[1]}",
+                "automerge_withdrawn",
+                f"The merge mode that released this merge no longer does: {refusal[1]}",
             )
         if receipt is None:
             # Nothing stood at the start either -- a person running the finish by hand
@@ -3726,7 +3735,7 @@ def finish_task(
         authority=authority,
         run_id=(
             own_run_id(resolved_home, task_id, project_id=project.id)
-            if authority == POSTURE
+            if authority == AUTOMERGE
             else ""
         ),
         resumed_from=resumed_from,
@@ -3750,7 +3759,9 @@ def finish_task(
             manager=manager,
             project=project,
             task=task,
-            authorisation=authorisation_phrase(authority, approver, posture_name, posture_source),
+            authorisation=authorisation_phrase(
+                authority, approver, merge_mode_name, merge_mode_source
+            ),
             settings=settings,
             api_base=api_base,
             directory=directory,
@@ -4162,7 +4173,7 @@ def own_run_id(
     This is what protects the ones that still arrive wrong.
 
     **The failure this repairs is not a lost measurement.** ``run_68ea396e`` was
-    dispatched against task-316 at ``autonomous`` and came up holding ``run_12b2675c`` --
+    dispatched against task-316 at ``automerge`` and came up holding ``run_12b2675c`` --
     the task-269 supervisor, fourteen hours earlier. Both consumers below then read the
     wrong run: ``released_posture`` correctly refused a record naming another task and
     fell through to the project default, so the run was told a human must review work a
@@ -4193,7 +4204,7 @@ def own_run_id(
       value is returned unchanged and the existing refusals stand.
 
     Nothing here can widen an envelope. ``released_posture`` re-applies the machine's
-    ceiling to whatever this returns, so the worst a wrong answer buys is the posture a
+    ceiling to whatever this returns, so the worst a wrong answer buys is the merge mode a
     human already granted the run that holds this task's lock.
     """
     source = os.environ if environ is None else environ
@@ -4212,7 +4223,7 @@ def _own_run_holds_lock(home: Path, task_id: str, *, project_id: str, authority:
     """Whether the lock on this task is held by *the run calling this* (task-022).
 
     The autonomous merge path is a run being told, in its own prompt, to run
-    ``agentjobs finish <its own task> --posture-release``. That run holds this task's
+    ``agentjobs finish <its own task> --merge-mode-release``. That run holds this task's
     run lock for its whole lifetime -- deliberately, because the lock is what stops a
     *second* run being started against a task somebody is already working. Asking for it
     again from inside is not contention; it is the same run, and treating it as
@@ -4231,7 +4242,7 @@ def _own_run_holds_lock(home: Path, task_id: str, *, project_id: str, authority:
     would free the task while its agent was still executing, which is the state the lock
     exists to make impossible.
 
-    **Only a posture finish can be its own run** (task-538). An approval finish is spawned
+    **Only a merge mode finish can be its own run** (task-538). An approval finish is spawned
     by the server, and the server's environment is whatever the last restart left in it:
     on 2026-09-22 it carried the identity of a run that had finished task-523, and
     ``own_run_id`` duly repaired that "leak" to the live session holding task-536's lock.
@@ -4240,7 +4251,7 @@ def _own_run_holds_lock(home: Path, task_id: str, *, project_id: str, authority:
     is never a run finishing itself, so it always takes -- or takes over -- a lock of its
     own, whatever the environment says.
     """
-    if authority != POSTURE:
+    if authority != AUTOMERGE:
         return False
     own_run = own_run_id(home, task_id, project_id=project_id)
     if not own_run:
@@ -5181,16 +5192,16 @@ def spawn_finish(
     approver: str,
     home: Optional[Path] = None,
     resumed_from: str = "",
-    posture_run_id: str = "",
+    automerge_run_id: str = "",
     speculative: bool = False,
 ) -> Optional[str]:
     """Start a finish in a detached process, and return immediately.
 
     ``resumed_from`` and ``posture_run_id`` are ``finish_resume``'s (task-443): the
-    attempt this one resumes, and -- for a finish that was merging on a run's posture --
+    attempt this one resumes, and -- for a finish that was merging on a run's merge mode --
     the run whose grant it resumes on. That run's id goes into the child's environment,
     where ``released_posture`` reads it back and re-applies today's ceiling; nothing here
-    grants a posture.
+    grants a merge mode.
 
     **Not a thread in the server, and that is not a style preference.** Step five of the
     sequence restarts the server. A finish running inside it would be killed by its own
@@ -5241,9 +5252,9 @@ def spawn_finish(
     # this is usually called from carries whatever run identity its last restart left in
     # it, and a finisher that inherited one would treat that run's lock as its own.
     environment = without_run_identity(os.environ)
-    if posture_run_id:
-        argv.append("--posture-release")
-        environment[RUN_ID_ENV] = posture_run_id
+    if automerge_run_id:
+        argv.append("--automerge-release")
+        environment[RUN_ID_ENV] = automerge_run_id
     try:
         if os.name == "nt":
             subprocess.Popen(

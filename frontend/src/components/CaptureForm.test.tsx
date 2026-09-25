@@ -221,7 +221,7 @@ describe("CaptureForm: start an agent on it now", () => {
     return {
       run_id: runId,
       mode: "session",
-      posture: "auto",
+      merge_mode: "review",
       task_id: "task-123-created",
       caused_by: 2,
     } as DispatchStarted;

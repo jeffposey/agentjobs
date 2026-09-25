@@ -251,7 +251,7 @@ class Machine:
         project = {
             "enabled": True,
             "runner": "fake",
-            "posture": extra.pop("posture", "auto"),
+            "merge_mode": extra.pop("merge_mode", "auto"),
             "require_clean_tree": False,
             "resume_sessions": False,
         }
@@ -903,21 +903,21 @@ class TestRetriesKeepTheirLimits:
         assert len(machine.attempts(task_id)) == 2
 
     def test_a_lowered_ceiling_is_observed_and_clamps_the_retry(self, machine: Machine) -> None:
-        machine.configure(posture="autonomous")
+        machine.configure(merge_mode="automerge")
         task_id = machine.task()
         machine.dispatch(task_id)
         self._worker_gone(machine, task_id)
-        machine.configure(posture="auto", project={"max_posture": "auto"})
+        machine.configure(merge_mode="review", project={"allow_automerge": False})
         machine.fire_retry()
         assert len(machine.attempts(task_id)) == 2
         events = journal(machine.home).events(machine.execution(task_id).execution_id)
         observed = [e.payload for e in events if e.kind == "policy_observed"]
-        assert observed[-1]["observed"]["posture_clamped_to"] == "auto"
+        assert observed[-1]["observed"]["merge_mode_clamped_to"] == "review"
         task = machine.manager.get_task(task_id)
         assert task is not None
         dispatches = [e for e in task.log if e.type is LogEntryType.DISPATCH]
-        assert dispatches[-1].data["posture"] == "auto"
-        assert dispatches[0].data["posture"] == "autonomous"
+        assert dispatches[-1].data["merge_mode"] == "review"
+        assert dispatches[0].data["merge_mode"] == "automerge"
 
     def test_a_long_sleep_fires_one_retry_not_a_burst(self, machine: Machine) -> None:
         task_id = machine.task()

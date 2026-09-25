@@ -366,7 +366,7 @@ class TestAdoption:
         assert meta["session_id"] == SESSION
         assert meta["origin"] == "registered"
         # No posture is claimed: AgentJobs did not choose this session's envelope.
-        assert "posture" not in meta
+        assert "merge_mode" not in meta
 
     def test_it_takes_the_task_run_lock_so_a_dispatch_cannot_start_a_second_agent(
         self, bench

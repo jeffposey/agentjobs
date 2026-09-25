@@ -425,7 +425,7 @@ class TestTheChipAndThePanelAgree:
     def test_a_run_finishing_itself_is_found_although_its_lock_says_run(
         self, machine: Machine
     ) -> None:
-        """The ``--posture-release`` shape, and the reason the batch does not filter on
+        """The ``--automerge-release`` shape, and the reason the batch does not filter on
         ``holder.is_finish``.
 
         A run finishing its own work keeps the ``kind=run`` lock it already holds and

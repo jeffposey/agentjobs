@@ -317,6 +317,14 @@ def _wind_back_to_version_six(path: Path) -> None:
             "DROP TABLE finish_estimator;\n"
             # 011's column (task-592), for the same reason as 007's.
             "ALTER TABLE task DROP COLUMN kind;\n"
+            # 013's columns (task-602): put back the pre-merge-mode shape it rewrites.
+            "ALTER TABLE task DROP COLUMN merge_mode;\n"
+            "ALTER TABLE task ADD COLUMN posture TEXT;\n"
+            "ALTER TABLE task_run RENAME COLUMN merge_mode TO posture;\n"
+            "ALTER TABLE task_run RENAME COLUMN merge_mode_source TO posture_source;\n"
+            "ALTER TABLE task_run RENAME COLUMN merge_mode_requested TO posture_requested;\n"
+            "ALTER TABLE task_run DROP COLUMN allow_automerge;\n"
+            "ALTER TABLE task_run ADD COLUMN posture_ceiling TEXT;\n"
             "PRAGMA user_version = 6;\n"
             "DELETE FROM schema_migration WHERE version > 6;\n"
             "COMMIT;\n"

@@ -593,7 +593,7 @@ class Machine:
                         "sandbox": {
                             "enabled": True,
                             "runner": "fake",
-                            "posture": "autonomous",
+                            "merge_mode": "automerge",
                             "require_clean_tree": False,
                         }
                     },
@@ -910,7 +910,7 @@ class TestSelfHealingNeedsNobody:
             run_id=run_id,
             capacity=5,
             mode="session",
-            envelope={"policy_clause": clause, "posture": "autonomous"},
+            envelope={"policy_clause": clause, "merge_mode": "automerge"},
             workflow_version=2,
             operation_id="admission-for-the-test",
         )

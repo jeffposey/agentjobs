@@ -158,14 +158,14 @@ CONTENT_FIELDS: Dict[str, Any] = {
     "effort": {"type": "string"},
     "tags": {"type": "array", "items": {"type": "string"}},
     "parent": {"type": ["string", "null"]},
-    # A request for a dispatch envelope, and content rather than a state axis because
-    # it is never a grant: the project's machine-local ceiling clamps it (task-308).
+    # A request for a merge mode, and content rather than a state axis because it is
+    # never a grant: the project's machine-local `allow_automerge` clamps it (task-308).
     # Present here at all only because that ceiling makes the writer's identity
-    # irrelevant -- an agent setting it to `autonomous` on a project capped at `auto`
-    # gets `auto`, and the run says so.
-    "posture": {
+    # irrelevant -- an agent setting it to `automerge` on a project that does not allow
+    # it gets `review`, and the run says so.
+    "merge_mode": {
         "type": ["string", "null"],
-        "enum": ["read_only", "auto", "supervised", "autonomous", None],
+        "enum": ["review", "automerge", None],
     },
     "spec": {"type": "object"},
     "acceptance": {"type": "array", "items": {"type": "object"}},
@@ -1271,13 +1271,13 @@ def mutation_tool_definitions(client: TaskClient) -> List[ToolDefinition]:
             "Update task content",
             (
                 "Edit authoring content: title, priority, category, kind, effort, tags, "
-                "parent, posture, spec, acceptance, deliverables, dependencies, "
+                "parent, merge_mode, spec, acceptance, deliverables, dependencies, "
                 "links, branches. The state axes and the log are absent from the "
                 "schema, not merely rejected -- they move only through the domain "
                 "verbs. Whole nested collections are replaced, matching the REST "
-                "patch contract. `posture` asks for a wider or narrower dispatch "
-                "envelope for this task and is bounded by the project's machine-local "
-                "ceiling, so it is a request and never a grant. `kind` says whether "
+                "patch contract. `merge_mode` asks for `review` or `automerge` for "
+                "this task and is bounded by the project's machine-local "
+                "`allow_automerge`, so it is a request and never a grant. `kind` says whether "
                 "this is a design pass, and grants nothing either."
             ),
             _verb_schema(

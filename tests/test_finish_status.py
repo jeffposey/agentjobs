@@ -494,7 +494,7 @@ class TestTheOutputAPersonReads:
     def test_a_finish_inside_a_session_falls_back_to_the_gate_s_own_log(
         self, tmp_path: Path
     ) -> None:
-        """``--posture-release`` writes no spawn log; there is no session transcript."""
+        """``--automerge-release`` writes no spawn log; there is no session transcript."""
         directory = write_finish(tmp_path, "fin_h", outcome="finished")
         (directory / "gate.log").write_text("pytest ... 300 passed\n", encoding="utf-8")
 

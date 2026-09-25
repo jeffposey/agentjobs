@@ -222,7 +222,7 @@ def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Tuple[P
         mode="session",
         status="running",
         session_id=HIDDEN_SESSION,
-        posture="auto",
+        merge_mode="review",
     )
     _write_session_transcript(session_home, hidden, HIDDEN_SESSION, SECRET)
     _write_run(
@@ -233,7 +233,7 @@ def machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Tuple[P
         mode="session",
         status="running",
         session_id=OPEN_SESSION,
-        posture="auto",
+        merge_mode="review",
     )
     _write_session_transcript(session_home, tmp_path / OPEN_PROJECT, OPEN_SESSION, OPEN_NARRATION)
 

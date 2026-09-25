@@ -354,7 +354,7 @@ class LogEntryType(str, Enum):
     """
     dispatch = "dispatch"
     """
-    A run was started against this task. `data` carries run_id, agent, runner, mode, posture, trigger, caused_by, argv, cwd and git_head -- enough to answer "what ran, against what" once the machine-local run directory is gone. Written by the dispatcher, never trusted to callers.
+    A run was started against this task. `data` carries run_id, agent, runner, mode, merge_mode, trigger, caused_by, argv, cwd and git_head -- enough to answer "what ran, against what" once the machine-local run directory is gone. Written by the dispatcher, never trusted to callers.
     """
     dispatch_result = "dispatch_result"
     """

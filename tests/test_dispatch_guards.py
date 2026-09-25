@@ -30,7 +30,7 @@ from agentjobs.dispatch.config import (
     DispatchDisabledError,
     DispatchNotConfiguredError,
     DispatchSentinelError,
-    Posture,
+    MergeMode,
     ProjectNotEnabledError,
 )
 from agentjobs.dispatch.guards import (
@@ -69,7 +69,6 @@ from agentjobs.models_v2 import (
     Ball,
     BallReason,
     DispatchMode,
-    DispatchPosture,
     DispatchTrigger,
     Lifecycle,
     LogEntry,
@@ -1824,7 +1823,7 @@ def run_as(
     user: Optional[str],
     note: Optional[str] = None,
     surface: Optional[str] = "the task page",
-    posture: Optional[Posture] = None,
+    merge_mode: Optional[MergeMode] = None,
 ):
     """Call the guard chain the way the React app's Dispatch button does."""
     return dispatch_task(
@@ -1836,7 +1835,7 @@ def run_as(
             authorized_by=user,
             authorization_note=note,
             surface=surface,
-            posture=posture,
+            merge_mode=merge_mode,
         ),
         home=home,
     )
@@ -2100,7 +2099,7 @@ class TestEscalationIsRecorded:
     def test_the_authorising_entry_names_a_posture_raised_above_the_project(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
     ) -> None:
-        write_dispatch_config(home, fake_runner, require_clean_tree=False, max_posture="autonomous")
+        write_dispatch_config(home, fake_runner, require_clean_tree=False, allow_automerge=True)
 
         run_as(
             manager,
@@ -2108,7 +2107,7 @@ class TestEscalationIsRecorded:
             home,
             ready_task.id,
             user="Jeff Posey",
-            posture=Posture.AUTONOMOUS,
+            merge_mode=MergeMode.AUTOMERGE,
         )
 
         stored = manager.get_task(ready_task.id)
@@ -2118,14 +2117,14 @@ class TestEscalationIsRecorded:
             for entry in reversed(stored.log)
             if entry.type is LogEntryType.NOTE and "authorised a dispatch" in (entry.body or "")
         )
-        assert "chose posture `autonomous` for this run, above this project's `auto`" in body
+        assert "chose merge mode `automerge` for this run, above this project's `review`" in body
 
     def test_it_stays_silent_when_the_choice_does_not_widen_anything(
         self, manager: TaskManager, project: Project, home: Path, fake_runner: Path, ready_task
     ) -> None:
         """Narrowing is not an escalation, and neither is picking the default. A clause
         that fired on every dispatch would say nothing by saying it every time."""
-        write_dispatch_config(home, fake_runner, require_clean_tree=False, max_posture="autonomous")
+        write_dispatch_config(home, fake_runner, require_clean_tree=False, allow_automerge=True)
 
         run_as(
             manager,
@@ -2133,7 +2132,7 @@ class TestEscalationIsRecorded:
             home,
             ready_task.id,
             user="Jeff Posey",
-            posture=Posture.SUPERVISED,
+            merge_mode=MergeMode.REVIEW,
         )
 
         stored = manager.get_task(ready_task.id)
@@ -2434,7 +2433,7 @@ def _record_dispatch(manager: TaskManager, task_id: str, run_id: str) -> None:
         agent="fake",
         runner="fake",
         mode=DispatchMode.BATCH,
-        posture=DispatchPosture.SUPERVISED,
+        merge_mode=MergeMode.REVIEW,
         trigger=DispatchTrigger.MANUAL,
         caused_by=1,
         argv=["python", "-c", "pass"],

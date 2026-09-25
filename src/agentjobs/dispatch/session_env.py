@@ -17,7 +17,7 @@ Both halves have been observed on one machine within a day (task-249's log):
 - ``run_68ea396e``, dispatched against task-316, came up holding ``run_12b2675c`` -- the
   task-269 supervisor, dispatched fourteen hours before. That cost it the merge
   authority a human had granted it, because ``finish.released_posture`` resolves the
-  posture from the run the environment names.
+  merge mode from the run the environment names.
 - ``run_3f8ec46f``, dispatched two and a half minutes after the daemon idle-exited, came
   up correct, because its own launch started the daemon.
 
@@ -74,7 +74,7 @@ CROSS_SESSION_ACCEPT = "accept"
 """Whether this run takes a message from another Claude session unattended (task-451).
 
 **Without it the in-place wake silently does not arrive.** A ``bypassPermissions``
-receiver -- which is what posture ``autonomous`` dispatches -- *holds* a prompting-class
+receiver -- which is what posture ``automerge`` dispatches -- *holds* a prompting-class
 sender's message for approval, and a background session with no terminal attached holds it
 indefinitely. Nothing errors; the message simply never becomes a turn, and the supervisor
 waits on a wake that was never delivered.
@@ -348,7 +348,7 @@ def deliver_identity(
     in argv is not survivable at all.
 
     The flag is spliced immediately before the element carrying the prompt when there is
-    no existing one -- where ``compose_argv`` puts the posture flags, because a CLI
+    no existing one -- where ``compose_argv`` puts the merge mode flags, because a CLI
     expects options before a positional argument. Doing this before ``_plan_wake`` also
     means ``wake_argv`` carries it through to a resumed session untouched: that rewrites
     only the element holding the prompt.

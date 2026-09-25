@@ -50,7 +50,7 @@ from agentjobs.actors import Actor
 from agentjobs.dispatch.budget import DISPATCHER_ACTOR
 from agentjobs.dispatch.config import (
     DispatchError,
-    Posture,
+    MergeMode,
     assert_dispatch_permitted,
 )
 from agentjobs.dispatch.guards import (
@@ -74,7 +74,7 @@ from agentjobs.execution.store import (
     PullArming,
     Supervision,
 )
-from agentjobs.models_v2 import DispatchTrigger, LogEntryType, Task
+from agentjobs.models_v2 import DispatchTrigger, LogEntryType, Task, merge_mode_text
 from agentjobs.projects import Project
 from agentjobs.store_factory import TaskManagerLike
 
@@ -132,7 +132,7 @@ STOP_THE_PASS = frozenset(
         "unknown_group",
         "no_eligible_runner",
         "recorded_runner_unavailable",
-        "posture_above_ceiling",
+        "automerge_not_allowed",
         "unknown_runner_actor",
         "bad_placeholder",
     }
@@ -176,14 +176,14 @@ class PullAuthorization:
 
         Names the three things a reader cannot otherwise reconstruct: who armed the mode,
         which arming this run was bought out of, and what bound that arming carries. The
-        posture is named when the person chose one, on exactly the epic's terms -- this
+        merge mode is named when the person chose one, on exactly the epic's terms -- this
         is the only place on *this task's* record where their name and the envelope their
         act bought appear in the same sentence.
         """
         envelope = (
-            f" They chose posture `{self.arming.posture}` for the pulled runs, so this "
-            "run gets it too."
-            if self.arming.posture
+            f" They chose merge mode `{merge_mode_text(self.arming.merge_mode)}` for the "
+            "pulled runs, so this run gets it too."
+            if self.arming.merge_mode
             else ""
         )
         return (
@@ -262,7 +262,7 @@ def arm(
     bound_kind: str = BOUND_OPEN,
     bound_starts: Optional[int] = None,
     bound_until: Optional[str] = None,
-    posture: Optional[Posture] = None,
+    merge_mode: Optional[MergeMode] = None,
 ) -> PullArming:
     """Switch the pull mode on for one project. Starts nothing; the next tick does.
 
@@ -271,7 +271,7 @@ def arm(
 
     * the actor named is a configured human, so the entries every pulled run will carry
       name a real person;
-    * the posture asked for is within this project's machine-local ceiling, so an arming
+    * the merge mode asked for is within this project's machine-local ceiling, so an arming
       cannot promise an envelope the dispatch gate will refuse task after task;
     * dispatch is permitted for this project at all, so arming a project whose gates are
       shut fails now instead of looking armed and doing nothing.
@@ -283,12 +283,12 @@ def arm(
     """
     assert_authorizer_is_human(project_config, armed_by)
     resolution = assert_dispatch_permitted(project.id, home)
-    if posture is not None and not posture.within(resolution.settings.ceiling):
+    if merge_mode is MergeMode.AUTOMERGE and not resolution.settings.automerge_allowed:
         raise PullArmingError(
-            f"The pull mode was asked to run tasks at posture {posture.value!r}, and "
-            f"{project.id} is capped at {resolution.settings.ceiling.value!r}. Raise "
-            f"`projects.{project.id}.max_posture` in this machine's dispatch.yaml, or "
-            "arm at a posture the project allows."
+            f"The pull mode was asked to run tasks at merge mode {merge_mode.value!r}, and "
+            f"{project.id} does not allow automerge. Turn on "
+            f"`projects.{project.id}.allow_automerge` in this machine's dispatch.yaml, or "
+            "arm at review."
         )
     try:
         return journal(home).arm_pull(
@@ -297,7 +297,7 @@ def arm(
             bound_kind=bound_kind,
             bound_starts=bound_starts,
             bound_until=bound_until,
-            posture=posture.value if posture is not None else None,
+            merge_mode=merge_mode.value if merge_mode is not None else None,
         )
     except AlreadyQueued as exc:
         raise PullArmingError(str(exc)) from exc
@@ -882,13 +882,13 @@ def _note(
         return
 
 
-def posture_of(arming: Optional[PullArming]) -> Optional[Posture]:
-    """The posture an arming chose, as a :class:`Posture`, or ``None`` for the default."""
-    if arming is None or not arming.posture:
+def merge_mode_of(arming: Optional[PullArming]) -> Optional[MergeMode]:
+    """The merge mode an arming chose, or ``None`` for the default."""
+    if arming is None or not arming.merge_mode:
         return None
     try:
-        return Posture(arming.posture)
-    except ValueError:  # pragma: no cover - the column is written from a Posture
+        return MergeMode(arming.merge_mode)
+    except ValueError:  # pragma: no cover - the column is written from a MergeMode
         return None
 
 
@@ -908,7 +908,7 @@ __all__ = [
     "bound_sentence",
     "disarm",
     "next_task",
-    "posture_of",
+    "merge_mode_of",
     "pull_due",
     "resolve_pull_authorization",
     "walk_sentence",

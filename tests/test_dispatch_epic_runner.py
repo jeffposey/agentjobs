@@ -43,7 +43,7 @@ from agentjobs.manager import TaskManager
 from agentjobs.models_v2 import (
     DispatchCandidateData,
     DispatchMode,
-    DispatchPosture,
+    MergeMode,
     DispatchSelectionData,
     DispatchTrigger,
     Lifecycle,
@@ -127,8 +127,8 @@ def make_parent_on(
         runner=runner,
         runner_source=runner_source,
         mode=DispatchMode.SESSION,
-        posture=DispatchPosture.AUTONOMOUS,
-        posture_source="dispatch",
+        merge_mode=MergeMode.AUTOMERGE,
+        merge_mode_source="dispatch",
         trigger=DispatchTrigger.MANUAL,
         caused_by=human_entry,
         argv=[runner, "--model", f"{runner}-model"],
@@ -177,8 +177,8 @@ def write_config(home: Path, runner_script: Path, *, big_enabled: bool = True) -
                 "enabled": True,
                 "runner": DEFAULT,
                 "require_clean_tree": False,
-                "posture": "auto",
-                "max_posture": "autonomous",
+                "merge_mode": "review",
+                "allow_automerge": True,
             }
         },
     }

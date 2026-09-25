@@ -168,7 +168,7 @@ class Capability(str, Enum):
 
     Granted to runs because the rows a run writes are about its own work: the gate it
     ran in its worktree before handing off is the one gate nothing else records, and a
-    run at posture ``autonomous`` runs the scripted finish itself. The rows carry no
+    run at posture ``automerge`` runs the scripted finish itself. The rows carry no
     prose and move no task, so a run that wrote a wrong one has mis-stated a duration
     and nothing more.
     """

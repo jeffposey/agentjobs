@@ -207,7 +207,7 @@ def main() -> None:
             task_id="task-201",
             project_id="sandbox-overage",
             mode="session",
-            posture="auto",
+            merge_mode="review",
             status="running",
             session_id="holding01",
         )
@@ -218,7 +218,7 @@ def main() -> None:
                 task_id="task-202",
                 project_id="sandbox-overage",
                 mode="session",
-                posture="auto",
+                merge_mode="review",
                 status="running",
                 session_id="overage01",
                 started_at=_ago(40),

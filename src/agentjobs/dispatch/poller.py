@@ -409,7 +409,7 @@ def _resume_interrupted_finishes(
 ) -> List[PollResult]:
     """Start the finish a dead finish process still owes its task (task-443).
 
-    Last in the tick, so every run above has been settled first: a posture finish's run
+    Last in the tick, so every run above has been settled first: a merge mode finish's run
     that ended this tick has released its lock, and the settle has had its say about it.
     """
     from agentjobs.dispatch.finish_resume import resume_interrupted_finishes

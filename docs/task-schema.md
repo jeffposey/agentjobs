@@ -104,7 +104,7 @@ clearance to merge, and it does not: the receipt on the approve entry records
 | `effort` | str | Free text. An estimate, not a contract. |
 | `assignment` | object | `owner` (live, one actor id) and `eligible` (authoring-time list; empty means anyone). |
 | `parent` | str | Task id of an umbrella task. It must exist; a task may not be its own parent, nor be parented into a cycle. A task with an **open** child is never offered by `/next`, but a caller that names it can claim it: what that hands over is the supervisor's seat, and the `ball_prompt` written on the claim says so — a session per child, not the children's work. See [the parent-task protocol](agent-workflow.md#working-a-parent-task-you-supervise-the-children-you-do-not-work-them). `GET /api/tasks?parent=<id>` lists one umbrella's children. |
-| `posture` | enum | Optional, and the only field here that says anything about what may *execute*: `read_only` · `supervised` · `auto` · `autonomous`. It **asks** for a dispatch envelope and never grants one — see [`posture`](#posture-a-request-not-a-grant) below. Absent on almost every task, which means "whatever this project's machine says". |
+| `merge_mode` | enum | Optional, and the only field here that says anything about what may *execute*: `review` · `automerge`. It **asks** and never grants — see [`merge_mode`](#merge_mode-a-request-not-a-grant) below. Absent on almost every task, which means "whatever this project's machine says". Read from `posture` on a record written before task-602. |
 | `spec` | object | `summary` and `description` are **required**; `intent`, `constraints`, `out_of_scope`, `context[]` are optional. See the example below. |
 | `acceptance[]` | list | `id`, `text`, optional `verify`, optional `check`, `status`: `pending` · `met` · `failed` · `dropped`. `verify` and `check` are [not the same thing](#verify-is-prose-check-is-argv). |
 | `deliverables[]` | list | `path`, `note`, `status`: `pending` · `done` · `dropped`. |
@@ -146,13 +146,21 @@ does not re-run a Pydantic validator.
 
 ---
 
-### `posture`: a request, not a grant
+### `merge_mode`: a request, not a grant
 
-Added by task-308. A task may name the envelope it wants a dispatched agent to run in:
+Added by task-308 as `posture`, and collapsed to two values by task-602. A task may say
+whether a run dispatched at it should stop for review or merge itself:
 
 ```yaml
-posture: autonomous          # read_only | supervised | auto | autonomous
+merge_mode: automerge        # review | automerge
 ```
+
+`review` hands off for your review; `automerge` merges itself on a green gate. What the
+process may execute is derived from it: `review` is classifier-gated, `automerge` runs
+with no execution gate. A record written before task-602 says `posture:`; it still reads,
+and `auto`, `supervised` and `read_only` mean `review`, `autonomous` means `automerge`.
+**No value is spelled `auto`**, because every one of those records says `auto` and means
+review.
 
 This is the one field in the schema that touches what a process may *do*, and a task
 record is something the agent working that very task can write, through the API. So the
@@ -165,38 +173,34 @@ dispatches declares, per project, in `~/.agentjobs/dispatch.yaml`:
 ```yaml
 projects:
   agentjobs:
-    posture: auto            # the default a run gets
-    max_posture: autonomous  # the widest any run may get, whatever asks
+    merge_mode: review       # the default a run gets
+    allow_automerge: true    # whether any run may merge itself, whatever asks
 ```
 
 That file is machine-local. It is not in the repository, no clone carries it, and no
-AgentJobs API, CLI verb or MCP tool writes it. A posture on a task record is clamped to
-it: a task asking for `autonomous` on a project capped at `auto` produces a run at
-`auto`, and the run's `dispatch` entry records that it was cut down and what asked for
-more. Nothing checks *who* wrote the field, deliberately — a provenance check is only
-as strong as the identity machinery behind it, and once a ceiling exists it buys nothing.
+AgentJobs API, CLI verb or MCP tool writes it. A task asking for `automerge` on a project
+that does not allow it produces a `review` run, and the run's `dispatch` entry records
+that it was cut down and what asked for more. Nothing checks *who* wrote the field,
+deliberately — a provenance check is only as strong as the identity machinery behind it,
+and once a ceiling exists it buys nothing.
 
-**Precedence, when more than one source names a posture** — most specific wins:
+**Precedence, when more than one source names a merge mode** — most specific wins:
 
-| Rank | Source | Above the ceiling |
+| Rank | Source | Automerge the project does not allow |
 |---|---|---|
-| 1 | Chosen for this one dispatch (`--posture`, or the GUI's control) | **Refused.** Somebody is waiting on an answer; silently narrowing it is worse than saying no. |
-| 2 | `posture` on the task record | **Clamped.** Refusing would let any agent deny service on its own task by writing an impossible value into it. |
-| 3 | `posture` in the project's `dispatch.yaml` | Cannot happen: the config parser refuses a default wider than its own ceiling. |
+| 1 | Chosen for this one dispatch (`--merge-mode`, or the GUI's control) | **Refused.** Somebody is waiting on an answer; silently narrowing it is worse than saying no. |
+| 2 | Inherited from the epic this task is a child of | **Refused**, for the same reason, one generation up. |
+| 3 | Carried over by a retry or resume (`history`) | **Clamped.** A revocation binds a continuation. |
+| 4 | `merge_mode` on the task record | **Clamped.** Refusing would let any agent deny service on its own task by writing an impossible value into it. |
+| 5 | `merge_mode` in the project's `dispatch.yaml` | Cannot happen: the config parser refuses an `automerge` default on a project that forbids it. |
 
-`max_posture` defaults to the project's `posture` when unset, so a machine that upgrades
-never silently widens: before this existed, the project's posture was the only posture a
-run could get, and an unset ceiling reproduces exactly that.
+`allow_automerge` defaults to "only if the project's default is already `automerge`", so a
+machine that upgrades never silently widens. The old `max_posture: autonomous` reads as
+`allow_automerge: true`; any other old ceiling reads as `false`.
 
-**Width order is not the enum's declaration order**, and one place in it surprises
-people: `read_only` < `supervised` < `auto` < `autonomous`. `supervised` is *narrower*
-than `auto` because the question a ceiling asks is what a run may do **unattended** —
-supervised can run nine allow-listed command prefixes and then parks, where `auto` is
-classifier-gated over a far larger set. A human approving what supervised parks on is a
-second authorisation arriving, not something the run was granted.
-
-Setting a *narrower* posture than the project's is the uncomplicated half of this, needs
-no ceiling to be safe, and is the reason to reach for the field on most tasks.
+Asking for `review` on a project whose default is `automerge` is the uncomplicated half
+of this, needs no ceiling to be safe, and is the reason to reach for the field on most
+tasks.
 
 ## A complete task
 
@@ -505,10 +509,10 @@ that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
     agent: claude
     runner: claude
     mode: session              # session | batch
-    posture: auto              # read_only | supervised | auto | autonomous
-    posture_source: task       # project | task | dispatch | epic | history
-    posture_ceiling: auto      # the project's max_posture when this run started
-    posture_requested: autonomous  # only when the ceiling cut the source down
+    merge_mode: review         # review | automerge
+    merge_mode_source: task    # project | task | dispatch | epic | history
+    allow_automerge: false     # whether the project allowed automerge when this run started
+    merge_mode_requested: automerge  # only when the ceiling cut the source down
     trigger: manual            # manual | auto
     caused_by: 6               # log entry whose actor authorises this dispatch
     argv: ["claude", "--bg", "--remote-control", "-p", "..."]
@@ -522,7 +526,7 @@ that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
     delivery:                  # task-375: what the agent was actually sent
       channel: argv            # argv | stdin | turn | none
       payload_sha256: 9b1e…
-      posture_delivered: true  # the posture clause was inside that payload
+      merge_mode_delivered: true  # the merge mode clause was inside that payload
       acknowledged_by: feed1234
 - id: 8
   actor: claude
@@ -537,21 +541,23 @@ that survives. See [agent-dispatch-design.md](agent-dispatch-design.md).
     log_path: ~/.agentjobs/runs/run_a1b2c3d4/
 ```
 
-The three `posture_*` fields are task-308's, and they exist because the other two
-places an answer could live are both invisible to a reader of this file: the project's
-ceiling is machine-local, and the task's own `posture` field may have been edited since.
-`posture_source` is absent on every entry written before task-308 — read that as
-`project`, which is what it always was, never as unknown. `posture_requested` appears
+`merge_mode_source`, `allow_automerge` and `merge_mode_requested` are task-308's (as
+`posture_source`, `posture_ceiling` and `posture_requested` until task-602, whose
+migration rewrote them in place), and they exist because the other two places an answer
+could live are both invisible to a reader of this file: the project's ceiling is
+machine-local, and the task's own `merge_mode` field may have been edited since.
+`merge_mode_source` is absent on every entry written before task-308 — read that as
+`project`, which is what it always was, never as unknown. `merge_mode_requested` appears
 **only** when the ceiling reduced what the source asked for, so its presence is itself
-the signal that something wanted a wider envelope than it got.
+the signal that something wanted to merge itself and was not allowed to.
 
-`envelope` and `delivery` are task-375's, and they separate three facts one `posture`
-field used to stand for. `envelope.source: history` means the run continued an earlier
-execution and kept the runner, group and posture it was granted rather than re-reading
-today's defaults; `continues_execution_id` names that execution. `delivery` says what
-reached the agent: `posture_delivered` is computed from the delivered text, so an entry
-can no longer assert a posture its session was never told. `resume_refused` appears when
-a resumable session was deliberately not resumed because the posture changed. Both are
+`envelope` and `delivery` are task-375's, and they separate three facts one field used
+to stand for. `envelope.source: history` means the run continued an earlier execution
+and kept the runner, group and merge mode it was granted rather than re-reading today's
+defaults; `continues_execution_id` names that execution. `delivery` says what reached the
+agent: `merge_mode_delivered` is computed from the delivered text, so an entry can no
+longer assert a merge mode its session was never told. `resume_refused` appears when a
+resumable session was deliberately not resumed because the merge mode changed. Both are
 absent on entries written before task-375.
 
 `playbook` and `playbook_hash` are present only when the run was given a playbook as

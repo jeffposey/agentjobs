@@ -2,9 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { ReviewIdentity } from "../api/generated";
 import type {
-  DispatchPosture,
   DispatchRunView,
   DispatchStateView,
+  MergeMode,
   QueuedDispatchState,
 } from "../api/types";
 import { DictationControl, DictationNote } from "./DictationControl";
@@ -109,7 +109,7 @@ export type DispatchRefusal = {
  * What a human chose for this one dispatch, on top of what the project already says.
  *
  * One object rather than a widening argument list, because this is the shape the next
- * per-dispatch choice arrives in: task-307 adds `posture` here and changes nothing else
+ * per-dispatch choice arrives in: task-307 adds `merge_mode` here and changes nothing else
  * about how a dispatch is started.
  *
  * Every field is optional, and an omitted one means "whatever the project resolves to".
@@ -123,10 +123,11 @@ export type DispatchOptions = {
   /** Runner group to choose from. Outranks the project's own group and its runner. */
   group?: string;
   /**
-   * What this one run may do. Outranks a posture on the task record and the project's
-   * default, and is refused above the project's ceiling (task-307, task-308).
+   * `review` or `automerge` for this one run. Outranks the task record's own and the
+   * project's default, and automerge is refused where the project does not allow it
+   * (task-307, task-308, task-602).
    */
-  posture?: DispatchPosture;
+  merge_mode?: MergeMode;
   /** The human's brief, sent only when the panel asked for one. */
   note?: string;
   /**
@@ -373,7 +374,7 @@ export function DispatchPanel({
   // Same rule as `group`, and it matters more here: an override that stuck would carry
   // "let this one merge itself" onto the next task the reader opened, which is the one
   // sticky default nobody would want.
-  const [posture, setPosture] = useState("");
+  const [mergeMode, setMergeMode] = useState("");
   // The three-way prompt a full machine gets instead of a refusal (task-461). Two
   // pieces of state rather than one because the prompt has two sources: the reader
   // pressed Dispatch on a machine the state endpoint already said was full, or a click
@@ -446,10 +447,10 @@ export function DispatchPanel({
     ...(runner ? { runner } : {}),
     ...(group ? { group } : {}),
     // Narrowed rather than validated: every value this can hold came out of
-    // `offerable_postures`, which the server derives from the same `Posture` enum the
-    // generated type is generated from. A posture the API would reject cannot reach
-    // here, and if one ever did the API refuses it under `posture_above_ceiling`.
-    ...(posture ? { posture: posture as DispatchPosture } : {}),
+    // `offerable_merge_modes`, which the server derives from the same `MergeMode` enum
+    // the generated type is generated from. A mode the API would reject cannot reach
+    // here, and if one ever did the API refuses it under `automerge_not_allowed`.
+    ...(mergeMode ? { merge_mode: mergeMode as MergeMode } : {}),
     ...(note ? { note } : {}),
   });
 
@@ -606,13 +607,19 @@ export function DispatchPanel({
               setGroup(next.group);
             }}
           />
-          <DispatchPostureChoice state={state} value={posture} busy={blocked} onChange={setPosture} />
+          <MergeModeChoice
+            id="dispatch-merge-mode"
+            state={state}
+            value={mergeMode}
+            busy={blocked}
+            onChange={setMergeMode}
+          />
           <DispatchRunnerNote
             state={state}
             user={user}
             runner={runner}
             group={group}
-            posture={posture}
+            mergeMode={mergeMode}
           />
         </div>
       )}
@@ -689,18 +696,19 @@ export function DispatchPanel({
                 setGroup(next.group);
               }}
             />
-            <DispatchPostureChoice
+            <MergeModeChoice
+              id="dispatch-merge-mode"
               state={state}
-              value={posture}
+              value={mergeMode}
               busy={blocked}
-              onChange={setPosture}
+              onChange={setMergeMode}
             />
             <DispatchRunnerNote
               state={state}
               user={user}
               runner={runner}
               group={group}
-              posture={posture}
+              mergeMode={mergeMode}
             />
           </div>
         </form>
@@ -1017,7 +1025,7 @@ function humanizeChoiceName(name: string): string {
 }
 
 /**
- * What this one run may do, chosen at the moment of dispatching (task-307).
+ * Whether this one run stops for review or merges itself, chosen at dispatch (task-307).
  *
  * The same shape as `DispatchTargetChoice` above, deliberately: a labelled select whose
  * empty option is the project's own answer, whose value is sent only when it is not
@@ -1025,61 +1033,63 @@ function humanizeChoiceName(name: string): string {
  *
  * Three things about it are not cosmetic.
  *
- * **The list comes from the server.** `offerable_postures` is every posture at or below
- * the project's machine-local ceiling, and a browser that derived its own list from the
- * enum would be the one place in the system that could offer a choice the dispatch API
- * refuses -- which teaches the operator that the control lies. The refusal still exists
- * server-side (`posture_above_ceiling`); this just makes it unreachable by clicking.
+ * **The list comes from the server.** `offerable_merge_modes` is `review`, plus
+ * `automerge` where this machine's `dispatch.yaml` allows it. A browser that derived its
+ * own list would be the one place in the system that could offer a choice the dispatch
+ * API refuses (`automerge_not_allowed`); this just makes that unreachable by clicking.
  *
- * **Each option says what it does to the branch, not what it is called.** "autonomous"
- * tells a reader nothing about whether their work merges without them, and after
- * task-021 that is exactly what it decides. The consequence text is keyed off
- * `posture_merge_policies`, which the server sends for the same reason as the list.
+ * **Each option says what it does, in the server's words.** The phrase is
+ * `merge_mode_phrases`, sent with the state, so no copy of it lives here (task-309,
+ * task-602).
  *
- * **`autonomous` is offered disabled when this project has no scripted finish**, rather
- * than silently dropped. task-021 accepted that an autonomous merge runs through
- * `agentjobs finish --posture-release` and that a machine without it has no sanctioned
- * mechanism for one; picking it there would produce a run told it may merge with no way
- * to. Disabled-with-a-reason is right where omitting it is wrong, because the fix is one
- * line of the reader's own config and they can only make it if they know it is the cause.
+ * **`automerge` is offered disabled when this project has no scripted finish**, rather
+ * than silently dropped. An automerge runs through `agentjobs finish
+ * --automerge-release`, and a machine without the finish has no sanctioned mechanism for
+ * one; picking it there would produce a run told it may merge with no way to.
+ * Disabled-with-a-reason is right where omitting it is wrong, because the fix is one line
+ * of the reader's own config and they can only make it if they know it is the cause.
  */
-function DispatchPostureChoice({
+function MergeModeChoice({
+  id,
   state,
   value,
   busy,
   onChange,
+  className = "rounded-lg border border-dark-border bg-dark-bg p-2 text-sm text-dark-text focus:border-sky-500 focus:outline-none",
 }: {
+  id: string;
   state: DispatchStateView | null;
   value: string;
   busy: boolean;
   onChange: (next: string) => void;
+  className?: string;
 }) {
-  const postures = state?.offerable_postures ?? [];
+  const modes = state?.offerable_merge_modes ?? [];
   // One option means there is nothing to choose and a pulldown saying so is furniture --
-  // the same rule the group select uses. Note this is *not* "the project has not raised
-  // its ceiling": an unraised ceiling is the project's own posture, so a project at
-  // `auto` still offers the three postures at or below it and simply cannot escalate.
-  // The only ceiling with nothing under it is `read_only`.
-  if (postures.length <= 1) return null;
+  // the same rule the group select uses. A project that does not allow automerge offers
+  // only `review`, so it shows no chooser at all.
+  if (modes.length <= 1) return null;
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor="dispatch-posture" className="text-sm text-dark-muted">
-        Envelope
+      <label htmlFor={id} className="text-sm text-dark-muted">
+        Merge mode
       </label>
       <select
-        id="dispatch-posture"
+        id={id}
         value={value}
         disabled={busy}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-lg border border-dark-border bg-dark-bg p-2 text-sm text-dark-text focus:border-sky-500 focus:outline-none"
+        className={className}
       >
-        <option value="">Project default</option>
-        {postures.map((name) => {
-          const blocked = postureNeedsFinish(name, state);
+        <option value="">
+          {state?.merge_mode ? `Project default (${state.merge_mode})` : "Project default"}
+        </option>
+        {modes.map((name) => {
+          const blocked = automergeNeedsFinish(name, state);
           const says = blocked ? FINISH_REQUIRED : mergeConsequence(name, state);
           return (
             <option key={name} value={name} disabled={blocked}>
-              {says ? `${name} — ${says}` : name}
+              {says ? `${capitalised(name)} — ${says}` : capitalised(name)}
             </option>
           );
         })}
@@ -1088,38 +1098,32 @@ function DispatchPostureChoice({
   );
 }
 
-/** Why `autonomous` cannot be picked on a project that has not switched the finish on. */
+/** Why `automerge` cannot be picked on a project that has not switched the finish on. */
 const FINISH_REQUIRED = "needs finish.enabled on this project";
 
 /**
- * Whether choosing this posture would grant a merge the project cannot actually perform.
+ * Whether choosing this mode would grant a merge the project cannot actually perform.
  *
- * Only ever true of a posture whose merge policy is `automatic`, which is the only one
- * that runs through the scripted finish. Everything else is unaffected by the switch.
+ * Only `automerge` runs through the scripted finish; `review` is unaffected by the switch.
  */
-function postureNeedsFinish(posture: string, state: DispatchStateView | null): boolean {
-  return state?.posture_merge_policies?.[posture] === "automatic" && !state?.finish_enabled;
+function automergeNeedsFinish(mode: string, state: DispatchStateView | null): boolean {
+  return mode === "automerge" && !state?.finish_enabled;
 }
 
 /**
- * What this posture does to the branch, in the operator's terms rather than the enum's.
+ * What this mode does, as the server words it, lower-cased to sit inside a sentence.
  *
- * Null when the server named a posture but not its policy, and the callers render
- * nothing at all in that case. Saying something vague would be worse than saying
- * nothing: this sentence is the one a reader decides on, so filler in the slot where
- * "merges without you" belongs is actively misleading.
+ * Null when the server sent no phrase for it, and the callers render nothing at all in
+ * that case. Saying something vague would be worse than saying nothing: this sentence is
+ * the one a reader decides on.
  */
-function mergeConsequence(posture: string, state: DispatchStateView | null): string | null {
-  switch (state?.posture_merge_policies?.[posture]) {
-    case "automatic":
-      return "merges its own work when the gate passes, no review";
-    case "review":
-      return "stops for your review before merging";
-    case "none":
-      return "no shell, nothing to merge";
-    default:
-      return null;
-  }
+function mergeConsequence(mode: string, state: DispatchStateView | null): string | null {
+  const phrase = state?.merge_mode_phrases?.[mode];
+  return phrase ? phrase.charAt(0).toLowerCase() + phrase.slice(1) : null;
+}
+
+function capitalised(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 /** What the run will be, and whose name goes on it. Both worth reading before clicking. */
@@ -1128,26 +1132,26 @@ function DispatchRunnerNote({
   user,
   runner: chosenRunner,
   group,
-  posture: chosen,
+  mergeMode: chosen,
 }: {
   state: DispatchStateView | null;
   user: string;
   runner: string;
   group: string;
-  posture: string;
+  mergeMode: string;
 }) {
-  // The chosen posture outranks the project's, so the sentence has to name what will
+  // The chosen mode outranks the project's, so the sentence has to name what will
   // actually run rather than what the config says -- the same reason the group branch
-  // below names the overriding group. Saying "posture auto" beside a pulldown reading
-  // `autonomous` is the one sentence here that would be reliably wrong.
-  const effective = chosen || state?.posture;
+  // below names the overriding group. Saying "review" beside a pulldown reading
+  // `automerge` is the one sentence here that would be reliably wrong.
+  const effective = chosen || state?.merge_mode;
   const consequence = effective ? mergeConsequence(effective, state) : null;
-  const posture = (
+  const mergeMode = (
     <>
-      posture <strong className="text-dark-text">{effective}</strong>
-      {consequence ? <> — {consequence}</> : null}
-      {/* Push is per project and never the posture's (task-021). Named only when it is
-          on, because `false` is the answer everywhere today and a sentence repeating
+      merge mode <strong className="text-dark-text">{effective}</strong>
+      {consequence ? <>: {consequence}</> : null}
+      {/* Push is per project and never the merge mode's (task-021). Named only when it
+          is on, because `false` is the answer everywhere today and a sentence repeating
           the universal default on every task is noise. */}
       {state?.push ? <>, and pushes</> : null}, authorised by{" "}
       <strong className="text-dark-text">{user}</strong>
@@ -1157,7 +1161,7 @@ function DispatchRunnerNote({
     return (
       <span className="text-sm text-dark-muted">
         Agent <strong className="text-dark-text">{runnerLabel(state, chosenRunner)}</strong>,{" "}
-        {posture}
+        {mergeMode}
       </span>
     );
   }
@@ -1170,7 +1174,7 @@ function DispatchRunnerNote({
     return (
       <span className="text-sm text-dark-muted">
         Automatic group <strong className="text-dark-text">{humanizeChoiceName(group)}</strong>,{" "}
-        {posture}
+        {mergeMode}
       </span>
     );
   }
@@ -1188,7 +1192,7 @@ function DispatchRunnerNote({
           from <strong className="text-dark-text">{humanizeChoiceName(state.resolved_group)}</strong>
         </>
       ) : null}
-      , {posture}
+      , {mergeMode}
     </span>
   );
 }
@@ -1278,14 +1282,14 @@ export type DispatchSettingsProps = {
   error?: string | null;
   onEnable: (target: DispatchEnableTarget) => Promise<void> | void;
   onDisable: () => Promise<void> | void;
-  /** Arm the pull mode with the bound and envelope the person chose (task-462). */
+  /** Arm the pull mode with the bound and merge mode the person chose (task-462). */
   onArm?: (choice: PullArmChoice) => Promise<void> | void;
   /** Stop it starting anything more. Kills nothing. */
   onDisarm?: () => Promise<void> | void;
 };
 
 /**
- * What the Arm control submits: a bound, and optionally an envelope.
+ * What the Arm control submits: a bound, and optionally a merge mode.
  *
  * The bound is not optional and has no default here, which mirrors the API and is the
  * point of the control rather than a validation detail: the difference between "three
@@ -1296,7 +1300,7 @@ export type PullArmChoice = {
   bound_kind: "starts" | "until" | "open";
   starts?: number | null;
   until?: string | null;
-  posture?: string | null;
+  merge_mode?: string | null;
 };
 
 /**
@@ -1348,12 +1352,10 @@ function groupOptionValue(name: string): string {
  * anybody who wants the open-ended bound has to say so by clicking it. What is *not*
  * offered is arming with no bound at all, which is what the API refuses.
  *
- * **The envelope says what it does to the branch, not what it is called.** The same
- * wording the dispatch chooser uses, from the same server-sent `posture_merge_policies`,
- * for a reason that is stronger here than there: a posture chosen at arming time decides
- * what happens to *every* branch the mode produces while nobody is watching, so
- * "autonomous" sitting unexplained in a pulldown is the single most misleading string
- * this app could render.
+ * **The merge mode says what it does, not what it is called.** The same chooser and
+ * the same server-sent `merge_mode_phrases` the dispatch panel uses, for a reason that is
+ * stronger here than there: a mode chosen at arming time decides what happens to *every*
+ * branch the pull mode produces while nobody is watching.
  *
  * Armed, the control collapses to what a person needs while it is running: who armed it,
  * what is left of the bound, what it will start next -- so a reorder is still possible
@@ -1374,7 +1376,7 @@ export function PullModeControl({
   const [bound, setBound] = useState<PullArmChoice["bound_kind"]>("starts");
   const [starts, setStarts] = useState("3");
   const [until, setUntil] = useState("");
-  const [posture, setPosture] = useState("");
+  const [mergeMode, setMergeMode] = useState("");
   const pull = state.pull ?? null;
   if (!onArm && !onDisarm) return null;
 
@@ -1389,7 +1391,7 @@ export function PullModeControl({
         <h3 className="text-sm font-semibold text-orange-200">Pull mode is armed</h3>
         <p className="mt-1 text-sm text-dark-text" data-testid="pull-mode-bound">
           Armed by {pull.armed_by || "somebody"} · {pull.bound}
-          {pull.posture ? ` · ${pull.posture}` : ""}
+          {pull.merge_mode_phrase ? ` · ${pull.merge_mode_phrase}` : ""}
         </p>
         <p className="mt-1 text-xs text-dark-muted">
           Every free slot on this machine is filled with whatever the queue says is next.
@@ -1420,7 +1422,7 @@ export function PullModeControl({
     );
   }
 
-  const chosen = posture || state.posture || "";
+  const chosen = mergeMode || state.merge_mode || "";
   const consequence = mergeConsequence(chosen, state);
   return (
     <section
@@ -1492,48 +1494,27 @@ export function PullModeControl({
         </div>
       </fieldset>
 
-      {(state.offerable_postures ?? []).length > 1 && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <label htmlFor="pull-posture" className="text-sm text-dark-muted">
-            Envelope
-          </label>
-          <select
-            id="pull-posture"
-            value={posture}
-            disabled={busy}
-            onChange={(event) => setPosture(event.target.value)}
-            className="rounded-lg border border-dark-border bg-dark-surface p-2 text-sm text-dark-text"
-          >
-            <option value="">Project default</option>
-            {(state.offerable_postures ?? []).map((name) => {
-              const blocked = postureNeedsFinish(name, state);
-              const says = blocked ? FINISH_REQUIRED : mergeConsequence(name, state);
-              return (
-                <option key={name} value={name} disabled={blocked}>
-                  {says ? `${name} — ${says}` : name}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-      )}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <MergeModeChoice
+          id="pull-merge-mode"
+          state={state}
+          value={mergeMode}
+          busy={busy}
+          onChange={setMergeMode}
+          className="rounded-lg border border-dark-border bg-dark-surface p-2 text-sm text-dark-text"
+        />
+      </div>
 
-      {/* What the chosen posture will do to every branch the mode produces. Stated
+      {/* What the chosen mode will do to every branch the pull mode produces. Stated
           outside the pulldown as well as inside it, because this is the sentence the
           decision turns on and an <option> is read once and then not looked at again. */}
       {consequence && (
         <p className="mt-2 text-sm" data-testid="pull-mode-consequence">
           <span className="text-dark-muted">Each pulled run </span>
-          <strong
-            className={
-              state.posture_merge_policies?.[chosen] === "automatic"
-                ? "text-orange-300"
-                : "text-dark-text"
-            }
-          >
+          <strong className={chosen === "automerge" ? "text-orange-300" : "text-dark-text"}>
             {consequence}
           </strong>
-          {state.posture_merge_policies?.[chosen] === "automatic" && !state.push && (
+          {chosen === "automerge" && !state.push && (
             <span className="text-dark-muted">
               {" "}
               — nothing is pushed, so a merge you did not want is revertible here.
@@ -1555,7 +1536,7 @@ export function PullModeControl({
             // given. Appending a `Z` here would silently move the deadline by the
             // machine's offset.
             until: bound === "until" ? until : null,
-            posture: posture || null,
+            merge_mode: mergeMode || null,
           })
         }
         className="touch-target mt-4 rounded-lg bg-orange-700 px-4 font-semibold text-white hover:bg-orange-600 disabled:opacity-60"

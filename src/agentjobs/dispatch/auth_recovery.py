@@ -31,7 +31,7 @@ kind                  first word to the tracker            probing
 **Only a positive probe permits a nudge** (``dispatch.auth_probe``). A nudge is the
 verified wake from task-417 entry 8: ``stop``, confirm the session has no pid, then
 ``--bg --resume <full uuid>`` with the message on stdin and no other flag, so the session
-comes back with its own saved runner, model and posture. The intent is written before the
+comes back with its own saved runner, model and merge mode. The intent is written before the
 effect and the result after. While the intent stands, ``poll_session`` neither settles
 nor concludes the run. A person's Stop still wins.
 
@@ -1651,7 +1651,7 @@ def _nudge(
                 "action": "nudged",
                 "nudge": nudge_id,
                 "payload_sha256": payload_sha,
-                "posture_delivered": bool(_policy_for(context.home, waiter.run_id)),
+                "merge_mode_delivered": bool(_policy_for(context.home, waiter.run_id)),
                 "delivered_entries_through": delivered_through,
             },
         )
@@ -1693,7 +1693,7 @@ def _nudge(
 
 
 def _policy_for(home: Path, run_id: str) -> str:
-    """The posture and push clause the execution was granted, verbatim (task-375)."""
+    """The merge mode and push clause the execution was granted, verbatim (task-375)."""
     from agentjobs.dispatch.journal import journal
 
     try:

@@ -370,7 +370,7 @@ def _write_finish(
 
 
 def _run_finishing_itself(home: Path, *, steps: Tuple[str, ...] = ("preflight",), **meta: Any):
-    """The ``--posture-release`` shape: a run whose own lock is held by its finish.
+    """The ``--automerge-release`` shape: a run whose own lock is held by its finish.
 
     The lock keeps ``kind=dispatch`` and names no finish -- such a finish never adopts a
     finish lock -- which is why ``holders`` had nothing to draw for it.
