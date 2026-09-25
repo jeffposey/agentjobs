@@ -129,20 +129,32 @@ optional `note` — and named the merge sentence `APPROVAL_CLEARANCE` as the sea
   cleared to merge *the design document*, and approving it authorises no implementation
   work, which is its own tasks. The regression test asserts each branch against its
   constant, as it does today.
-- **The payload gains one optional field beside `note`:** `approving: "result" | "plan"`.
-  It is a guard, not a source: the UI sends what it showed, and the route refuses with
-  409 when it disagrees with the record. Without it, a panel rendered at a plan gate and
-  clicked after the agent re-handed to review would merge on a button that said
-  *proceed*. Omitted, the route behaves as today.
+- **The payload gains one optional field beside `note`:** `gate: "plan" | "final"`
+  (`final` ⇔ `review`/`approval`, `plan` ⇔ `plan`). It is a guard, not a source: the UI
+  sends what it showed, and the route refuses with 409 when it disagrees with the record.
+  Without it, a panel rendered at a plan gate and clicked after the agent re-handed to
+  review would merge on a button that said *proceed*. Omitted, the route behaves as
+  today.
+- **A plan approval is not merge authority anywhere else either.** Since task-312 an
+  approval is also a receipt, and `standing_approval` reads the newest one as authority
+  to merge. The receipt records the gate, and a plan receipt never counts.
 - **Why a new reason rather than reusing `approval`.** `approval` already carries merge
   re-approvals; re-meaning it would turn those into plan approvals and stop their finish.
   Adding a value is additive under the schema's evolution policy.
+- **Why a reason rather than a key in the handoff's `data`.** task-001's own spec, written
+  in parallel with this pass, proposed `data.review_gate` on a `human/review` handoff: no
+  schema change. It loses on three counts. `ball_reason` is the axis the panel already
+  branches on (task-016) and the one `display_status` is derived from, so a reason makes
+  the list say *Needs plan approval* with no new plumbing, and makes it filterable. A
+  `data` key is a second value that can disagree with the reason — the schema already
+  declined that shape once, for answered questions. And the cost it avoids is small here:
+  the vocabulary rework it deferred to (task-226) is closed.
 
 **Rejected:** a `gate` field in the payload that *decides* what is authorised (the click
 would grant merge authority, and a UI bug could grant it at a plan gate); keying merge
 clearance on `kind` (an implementation task's plan gate is the original defect, and any
 actor may edit `kind`); keying it on whether a branch exists (the branch exists before
-the plan does).
+the plan does); the handoff-`data` carrier (above).
 
 ## 4. Relationship to task-101
 
@@ -163,13 +175,15 @@ Filed under task-555, each `ready` and each `needs` task-556, so none starts unt
 design is approved and merged. Beyond that, a `needs` edge only where one genuinely
 requires another:
 
-1. **`kind` end to end** — schema, store, REST, client, MCP, CLI, docs, and the logged
-   backfill.
-2. **Kind in the GUI** — list mark, header, review heading, filter, *Implements*; a
-   sandbox seeded with both kinds. Needs 1.
-3. **task-001, re-specced** — `human/plan`, the approve prompt composed from gate and
-   kind, the `approving` guard, `finishable` only at a result gate. Needs 1.
-4. **Render Markdown deliverables in the review panel.** Independent of 1.
+1. **task-592 — `kind` end to end**: schema, store, REST, client, MCP, CLI, docs, and
+   the logged backfill.
+2. **task-593 — kind in the GUI**: list mark, header, review heading, filter,
+   *Implements*; a sandbox seeded with both kinds. Needs task-592.
+3. **task-001, re-specced — the plan gate**: `human/plan`, the approve prompt composed
+   from gate and kind, the `gate` guard, a plan receipt that is never merge authority.
+   Needs task-592, for the design-task wording.
+4. **task-594 — Markdown deliverables rendered in the review panel.** Needs nothing
+   but this design.
 
 The epic's own last criterion — the owner reviewing both kinds side by side — is the
-supervisor's, on the sandbox child 2 stands up.
+supervisor's, on the sandbox task-593 stands up.
