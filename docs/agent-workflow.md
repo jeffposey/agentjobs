@@ -938,6 +938,10 @@ At any human-decision point:
    signal; all substance belongs in the task record.
 4. Stop. Do not merge or make the decision on the human's behalf.
 
+**A task whose output is a document lists it in `deliverables[]`**, as a repository-relative
+`.md` path, so the review panel can render it as it stands on the task's active branch
+(task-594).
+
 #### Name your links, and write them on their own lines
 
 **An address in a `ball_prompt` goes on a line of its own, introduced by a name and a
