@@ -48,7 +48,7 @@ start afterwards count. Its accuracy is reported on the analytics page
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from statistics import median
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
@@ -182,6 +182,9 @@ class Estimate:
     basis: str = ""
     typical_seconds: Optional[float] = None
     bias: float = 1.0
+    elapsed_seconds: Optional[float] = None
+    """How long the finish has been going, by the server's clock. Set by
+    :func:`estimate_status`, so a row with no estimate can still say "4m so far"."""
 
 
 def estimate(model: EstimateModel, position: Position) -> Estimate:
@@ -345,7 +348,8 @@ def estimate_status(
     """
     if not status.live:
         return None
-    return estimate(model or EstimateModel(), position_of(status, now))
+    answer = estimate(model or EstimateModel(), position_of(status, now))
+    return replace(answer, elapsed_seconds=status.elapsed_seconds)
 
 
 # ----- reading the model from the store ------------------------------------------------

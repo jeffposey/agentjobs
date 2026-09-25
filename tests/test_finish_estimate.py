@@ -603,6 +603,7 @@ class TestTheSurfacesAgree:
 
         assert row is not None and row["kind"] == "no_history"
         assert row["progress"] is None and row["eta_seconds"] is None
+        assert row["elapsed_seconds"] is not None  # what the row shows instead
         assert row == page_estimate(served, task_id)
 
     def test_on_the_runway_both_are_indeterminate(

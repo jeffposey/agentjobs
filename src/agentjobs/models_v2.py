@@ -294,6 +294,10 @@ class LandingEstimate(BaseModel):
     """What the estimate rests on, in one sentence, for a tooltip."""
     typical_seconds: Optional[float] = None
     """Median total seconds of this project's recent finished landings."""
+    elapsed_seconds: Optional[float] = None
+    """How long this landing has been going, by the server's clock -- what a row shows
+    when there is no estimate. Server-side for the reason every elapsed time here is:
+    the phone reading the row is not on this machine's clock."""
 
 
 class LiveFinishState(BaseModel):

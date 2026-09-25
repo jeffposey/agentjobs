@@ -79,6 +79,7 @@ def view(answer: Optional[Estimate]) -> Optional[LandingEstimate]:
         overrun=answer.overrun,
         basis=answer.basis,
         typical_seconds=answer.typical_seconds,
+        elapsed_seconds=answer.elapsed_seconds,
     )
 
 

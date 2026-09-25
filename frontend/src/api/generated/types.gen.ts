@@ -3338,6 +3338,10 @@ export type LandingEstimate = {
      */
     basis?: string;
     /**
+     * Elapsed Seconds
+     */
+    elapsed_seconds?: number | null;
+    /**
      * Eta Seconds
      */
     eta_seconds?: number | null;

@@ -4636,6 +4636,17 @@
             "title": "Basis",
             "type": "string"
           },
+          "elapsed_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elapsed Seconds"
+          },
           "eta_seconds": {
             "anyOf": [
               {
