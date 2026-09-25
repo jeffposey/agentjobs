@@ -458,6 +458,14 @@ class DependencyRelation(BaseModel):
 
     task_id: str
     title: Optional[str]
+    kind: Optional[TaskKind] = Field(
+        default=None,
+        description=(
+            "The other task's kind, so a detail page can say what a design task is "
+            "implemented by without fetching every task. Null when unset or missing; "
+            "absent means implementation (task-593)."
+        ),
+    )
     exists: bool
     state: Literal["open", "done", "missing"]
     note: Optional[str]

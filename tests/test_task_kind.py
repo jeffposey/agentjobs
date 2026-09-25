@@ -30,7 +30,7 @@ from agentjobs.client import TaskClient
 from agentjobs.manager import TaskManager
 from agentjobs.mcp.inventory import build_registry
 from agentjobs.mcp.tools import ToolRegistry
-from agentjobs.models_v2 import Task, TaskKind, kind_of, summary_of
+from agentjobs.models_v2 import Dependency, DependencyType, Task, TaskKind, kind_of, summary_of
 from agentjobs.projects import ProjectRegistry
 from support import task_store
 
@@ -217,6 +217,25 @@ class TestRest:
         patched = http.patch(f"/api/projects/solo/tasks/{other['id']}", json={"kind": "design"})
         assert patched.status_code == 200, patched.text
         assert patched.json()["kind"] == "design"
+
+    def test_the_detail_page_carries_each_related_tasks_kind(self, service) -> None:
+        """task-593: a header says what a design is implemented by, from the read model."""
+        _, manager, http = service
+        design = manager.create_task(title="Design", description="Decide.", kind=TaskKind.DESIGN)
+        build = manager.create_task(
+            title="Build",
+            description="Build.",
+            dependencies=[Dependency(task=design.id, type=DependencyType.NEEDS)],
+        )
+
+        on_build = http.get(f"/api/projects/solo/tasks/{build.id}/detail").json()
+        assert [(row["task_id"], row["kind"]) for row in on_build["needs"]] == [
+            (design.id, "design")
+        ]
+        on_design = http.get(f"/api/projects/solo/tasks/{design.id}/detail").json()
+        assert [(row["task_id"], row["kind"]) for row in on_design["blocks"]] == [
+            (build.id, None)
+        ]
 
     def test_an_unknown_kind_is_refused(self, service) -> None:
         _, _, http = service
