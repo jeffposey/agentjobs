@@ -233,9 +233,7 @@ class TestRest:
             (design.id, "design")
         ]
         on_design = http.get(f"/api/projects/solo/tasks/{design.id}/detail").json()
-        assert [(row["task_id"], row["kind"]) for row in on_design["blocks"]] == [
-            (build.id, None)
-        ]
+        assert [(row["task_id"], row["kind"]) for row in on_design["blocks"]] == [(build.id, None)]
 
     def test_an_unknown_kind_is_refused(self, service) -> None:
         _, _, http = service
