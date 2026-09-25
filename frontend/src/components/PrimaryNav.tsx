@@ -394,7 +394,7 @@ export function PrimaryNav({
             Runs carried a badge inside its link (task-328 to task-588); it stays so the
             next thing put beside a label cannot quietly break those lookups. */}
         <span>{destination.label}</span>
-        {carries && <span className="ml-2.5">{status}</span>}
+        {carries && <span className="ml-2">{status}</span>}
       </Link>
     );
   });

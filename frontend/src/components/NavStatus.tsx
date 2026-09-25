@@ -19,9 +19,12 @@ import { categoryStyle } from "./StatusChip";
  * - **landing**, `finishing` violet -- merges landing, counted the way the slot board
  *   draws Landing. Machine-wide, and never also counted as working: `runCounts`.
  *
- * **The number is inside the dot**, which grows into a small round pill, so three
- * counts cost no more width than two dots with digits beside them did. Each is capped at
- * {@link ATTENTION_BADGE_MAX}+ so the tab stops changing width.
+ * **The number is inside the dot**, which grows into a small round pill, so three counts
+ * fit in not much more width than two dots with digits beside them did. Each is capped at
+ * {@link ATTENTION_BADGE_MAX}+ so the tab stops changing width. **The sizes are a width
+ * budget, not a taste:** at 20px pills with 6px gaps the bar overflowed by 7px at
+ * `NAV_INLINE_MIN_PX` (actions-menu and emergency-stop e2e specs), so they are 18px with
+ * 4px gaps. Grow them and those specs say whether the breakpoint still holds.
  *
  * **Not a link of its own.** The first cut on task-588 drew the counts as a pill link
  * beside the Dashboard link, with a slot fraction (`2/3`) in front. The owner rejected
@@ -42,7 +45,7 @@ export function NavCounts({
   landing: number;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tabular-nums">
+    <span className="inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums">
       <Count testId="nav-status-waiting" count={Math.max(0, waiting ?? 0)} category="needs_you" />
       <Count testId="nav-status-working" count={Math.max(0, working)} category="working" />
       <Count testId="nav-status-landing" count={Math.max(0, landing)} category="finishing" />
@@ -73,7 +76,7 @@ function Count({
       data-testid={testId}
       data-count={count}
       data-status-category={lit ? category : undefined}
-      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-1 leading-none ${
+      className={`inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full border px-1 leading-none ${
         lit ? "" : "border-slate-600 bg-slate-700 text-slate-300"
       }`}
       style={lit ? categoryStyle(category) : undefined}
