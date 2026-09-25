@@ -267,6 +267,7 @@ def test_detail_contract_includes_identity_parent_and_children(
         {
             "task_id": "task-prerequisite",
             "title": "Prerequisite",
+            "kind": None,
             "exists": True,
             "state": "open",
             "note": "Required first.",
