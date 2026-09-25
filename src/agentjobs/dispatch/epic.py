@@ -725,6 +725,9 @@ class WalkStop(Enum):
     """Open children remain and none of them is claimable -- every one is blocked,
     claimed elsewhere, or holding open children of its own. Not the same as being done,
     and reported differently so nobody reads a deadlocked graph as a finished epic."""
+    EMERGENCY_STOP = "emergency_stop"
+    """The machine's emergency stop closed the walk (task-573). Written by
+    ``DispatchLedger.stop_everything``, never by a walk: no child caused it."""
 
     @property
     def is_success(self) -> bool:

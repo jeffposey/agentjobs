@@ -41,7 +41,7 @@ import yaml
 from agentjobs.dispatch import program
 from agentjobs import clock as dispatch_clock
 from agentjobs.dispatch import proctree
-from agentjobs.dispatch.config import sentinel_path
+from agentjobs.dispatch.config import write_sentinel
 from agentjobs.dispatch.record_commit import commit_task_record
 from agentjobs.dispatch.credentials import revoke_run_credential
 from agentjobs.dispatch.runner import (
@@ -1412,6 +1412,9 @@ class StopResult:
     run_id: str
     stopped: bool
     detail: str
+    kind: str = "run"
+    """What ``run_id`` names. ``stop_everything`` also ends walks, pull armings and
+    queued dispatches (task-573), and for those the id is a walk, arming or queue id."""
 
 
 class DispatchLedger:
@@ -1732,20 +1735,35 @@ class DispatchLedger:
             f"worker pid {record.pid} is not this run's process any more; nothing was killed",
         )
 
-    def stop_everything(self, *, actor: str = "dispatcher") -> List[StopResult]:
-        """The panic button: refuse all new runs, then stop every live one.
+    def stop_everything(
+        self,
+        *,
+        actor: str = "dispatcher",
+        requester: Optional[str] = None,
+        source: str = "the CLI ('agentjobs dispatch stop')",
+    ) -> List[StopResult]:
+        """The panic button: refuse all new runs, then stop everything AgentJobs started.
 
         The sentinel is written **first**. If stopping takes a while -- a batch run using
         its grace period -- nothing new may start in the meantime, which is the whole
         point of pressing it.
+
+        Then the three things that would start runs again the moment the sentinel is
+        lifted (task-573): pull armings are disarmed, queued dispatches are cancelled and
+        open epic walks are closed. The sentinel alone only *pauses* them, and a Resume
+        that restarted a pull the person had just hit the panic button on would make the
+        button a pause key. Only then the live runs, so no walk sees its child die and
+        spends a retry on it.
+
+        ``actor`` is who task-record writes are attributed to; ``requester`` is the
+        person named in the sentinel and in each note, when they differ.
         """
-        sentinel = sentinel_path(self.home)
-        sentinel.parent.mkdir(parents=True, exist_ok=True)
-        sentinel.write_text(
-            f"written by 'agentjobs dispatch stop' at {dispatch_clock.utcnow().isoformat()}\n",
-            encoding="utf-8",
-        )
-        results = []
+        who = requester or actor
+        write_sentinel(self.home, actor=who, source=source)
+        results: List[StopResult] = []
+        results.extend(self._disarm_pulls(who))
+        results.extend(self._drain_queue(who))
+        results.extend(self._close_walks(who, actor=actor))
         for record in live_runs(self.home):
             if record.is_interactive:
                 # The panic button stops what AgentJobs started. A person's own session
@@ -1774,6 +1792,121 @@ class DispatchLedger:
                 )
             results.append(result)
         return results
+
+    def _disarm_pulls(self, who: str) -> List[StopResult]:
+        """Retire every pull arming, so Resume does not start pulling again."""
+        from agentjobs.dispatch import pull  # local: pull imports the journal
+
+        results: List[StopResult] = []
+        for arming in pull.armings(self.home):
+            try:
+                retired = pull.disarm(self.home, arming.project_id, requester=who)
+            except ExecutionStoreError as exc:
+                results.append(
+                    StopResult(arming.arming_id, False, f"pull mode not disarmed: {exc}", "pull")
+                )
+                continue
+            if retired is not None:
+                results.append(
+                    StopResult(
+                        arming.arming_id,
+                        True,
+                        f"pull mode for {arming.project_id} disarmed",
+                        "pull",
+                    )
+                )
+        return results
+
+    def _drain_queue(self, who: str) -> List[StopResult]:
+        """Cancel every dispatch still waiting for a slot, with a note on its task."""
+        from agentjobs.dispatch import queue as dispatch_queue  # local: imports the journal
+
+        results: List[StopResult] = []
+        for entry in dispatch_queue.waiting(self.home):
+            try:
+                removed = dispatch_queue.cancel(
+                    self.home,
+                    entry.queue_id,
+                    requester=f"{who} (emergency stop)",
+                    manager=self._manager_for_project(entry.project_id),
+                )
+            except ExecutionStoreError as exc:
+                results.append(
+                    StopResult(entry.queue_id, False, f"not taken out of the queue: {exc}", "queue")
+                )
+                continue
+            if removed is not None:
+                results.append(
+                    StopResult(
+                        entry.queue_id,
+                        True,
+                        f"queued dispatch of {entry.task_id} cancelled before it started",
+                        "queue",
+                    )
+                )
+        return results
+
+    def _close_walks(self, who: str, *, actor: str) -> List[StopResult]:
+        """Close every open epic walk and put its parent in front of a person.
+
+        A walk left open would, on its next tick, try to start a child, be refused by the
+        sentinel and ground on ``could_not_start_child`` -- blaming a child for a stop
+        nobody's child caused. Closing it here writes the true reason instead. A walk
+        held by a live process of its own (an attached ``dispatch walk``) is closed on the
+        record too; that process's next start is refused by the sentinel and it ends.
+        """
+        from agentjobs.dispatch.epic import WalkStop
+        from agentjobs.dispatch.journal import journal
+
+        results: List[StopResult] = []
+        try:
+            store = journal(self.home)
+            walks = store.open_walks()
+        except ExecutionStoreError as exc:
+            return [StopResult("walks", False, f"open walks unreadable: {exc}", "walk")]
+        for walk in walks:
+            detail = f"Ended by the emergency stop ({who})."
+            try:
+                store.update_walk(
+                    walk.walk_id,
+                    epoch=walk.epoch,
+                    state="stopped",
+                    stop=WalkStop.EMERGENCY_STOP.value,
+                    detail=detail,
+                )
+            except ExecutionStoreError as exc:
+                results.append(StopResult(walk.walk_id, False, f"walk not closed: {exc}", "walk"))
+                continue
+            self._tell_parent(walk.project_id, walk.parent_task_id, who=who, actor=actor)
+            results.append(
+                StopResult(walk.walk_id, True, f"epic walk of {walk.parent_task_id} ended", "walk")
+            )
+        return results
+
+    def _tell_parent(self, project_id: str, parent_id: str, *, who: str, actor: str) -> None:
+        """Say on an epic's parent that its walk was ended, and why. Never raises."""
+        manager = self._manager_for_project(project_id)
+        if manager is None:
+            return
+        prompt = (
+            f"The emergency stop ({who}) ended this epic's walk; no further child will "
+            "start. Children already running were stopped with it. Once dispatch is "
+            "resumed, dispatch this parent again to restart the walk -- it re-reads each "
+            "child's record, so nothing already merged is redone."
+        )
+        try:
+            manager.add_log_entry(parent_id, actor=actor, type=LogEntryType.PROGRESS, body=prompt)
+            parent = manager.get_task(parent_id)
+            if parent is not None and parent.is_open and parent.ball is not Ball.HUMAN:
+                manager.handoff(
+                    parent_id,
+                    actor=actor,
+                    ball=Ball.HUMAN,
+                    ball_reason=BallReason.DECISION,
+                    ball_prompt=prompt,
+                )
+        except Exception:  # noqa: BLE001 - the walk is closed; the note is a courtesy
+            return
 
     # ----- reconciliation ----------------------------------------------------
 
