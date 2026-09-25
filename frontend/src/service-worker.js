@@ -27,10 +27,15 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   // Task data is always network-only. Never make an old assignment look current.
-  if (url.pathname.startsWith("/api/")) {
-    event.respondWith(fetch(request));
-    return;
-  }
+  //
+  // Network-only by *not answering*, rather than by `respondWith(fetch(request))`: the
+  // browser then goes to the network itself, and the worker has no event in flight for
+  // the length of the call. That matters because Chromium does not activate a waiting
+  // worker while the active one has an unfinished event, `skipWaiting()` or not, so a
+  // proxied API call that hung held every rebuild out of the tab until it ended
+  // (task-582, reproduced 1 of 1 in `capture-draft.spec.ts`, 5 of 5 standalone; the
+  // account is row 16 of docs/flake-register.md).
+  if (url.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate" && url.pathname.startsWith("/app")) {
     event.respondWith(fetch(request).catch(() => caches.match("/app/")));

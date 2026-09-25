@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { expect, test, type Page } from "./fixtures";
+import { expect, test, type Page, type Request } from "./fixtures";
 
 /**
  * The capture form across a page that goes away (task-512).
@@ -168,8 +168,77 @@ async function untilTakenOver(page: Page, done: () => Promise<boolean>) {
       )
       .toBe(true);
   } catch (error) {
-    throw new Error(`${String(error)}\n\nWhat the page could see: ${await workerState(page)}`);
+    throw new Error(
+      `${String(error)}\n\nWhat the page could see: ${await workerState(page)}` +
+        `\nRequests still in flight: ${pendingRequests(page)}` +
+        `\nWhat the browser says of each worker: ${workerVersions(page)}`,
+    );
   }
+}
+
+const inFlight = new WeakMap<Page, Map<Request, number>>();
+
+/**
+ * Record the page's requests from now on, so a red can name the ones still unfinished.
+ *
+ * A request the old worker is answering is an event it has not finished, and the
+ * browser does not activate a waiting worker until the active one has none -- even
+ * after `skipWaiting()` (task-582). So when the new worker sits in `waiting`, what is
+ * still in flight is the first thing to read.
+ */
+function trackRequests(page: Page) {
+  const pending = new Map<Request, number>();
+  inFlight.set(page, pending);
+  // The context, not the page: a request a worker answers is not a page event at all,
+  // and the worker's own `fetch` is reported only here. Tracking the page missed
+  // exactly the requests this exists to find.
+  const context = page.context();
+  context.on("request", (request) => pending.set(request, Date.now()));
+  context.on("requestfinished", (request) => pending.delete(request));
+  context.on("requestfailed", (request) => pending.delete(request));
+}
+
+const versions = new WeakMap<Page, Map<string, string>>();
+
+/**
+ * Watch every worker version through the DevTools protocol, which sees what the page
+ * cannot: whether the old worker is running, starting or stopping when the new one is
+ * held. A red with nothing in flight (task-582, after the `/api/` fix) had only the
+ * page's view, and that could not say what the active worker was busy with.
+ */
+async function trackWorkerVersions(page: Page) {
+  const seen = new Map<string, string>();
+  versions.set(page, seen);
+  const session = await page.context().newCDPSession(page);
+  session.on("ServiceWorker.workerVersionUpdated", ({ versions: updated }) => {
+    for (const version of updated) {
+      const script = version.scriptURL.split("/").pop();
+      seen.set(
+        version.versionId,
+        `${script} ${version.status} ${version.runningStatus} clients=${
+          version.controlledClients?.length ?? 0
+        }`,
+      );
+    }
+  });
+  await session.send("ServiceWorker.enable");
+}
+
+function workerVersions(page: Page): string {
+  const seen = versions.get(page);
+  return seen ? JSON.stringify(Object.fromEntries(seen)) : "not tracked";
+}
+
+function pendingRequests(page: Page): string {
+  const pending = inFlight.get(page);
+  if (!pending) return "not tracked";
+  const now = Date.now();
+  return JSON.stringify(
+    [...pending].map(([request, started]) => ({
+      url: request.url(),
+      ageMs: now - started,
+    })),
+  );
 }
 
 /**
@@ -330,16 +399,59 @@ test("a rebuild still reloads a tab where nobody is typing", async ({ page, bund
   // The unchanged half of the behaviour, and the reason the guard is a guard rather
   // than a switch: a stale bundle talking to a new server is a real problem, and an
   // idle tab is exactly where reloading it costs nothing.
+  trackRequests(page);
+  await trackWorkerVersions(page);
   await page.goto("/app/p/_local");
   await waitForControl(page);
   await markPage(page);
   await countTakeovers(page);
 
+  // Let the page settle before the rebuild (task-582). Rebuilding straight after
+  // `waitForControl` put the new worker's install ~150 ms after the first worker's,
+  // inside the page's startup burst of API calls, and 3 of 20 runs then held the new
+  // worker in `waiting` for the whole 20 seconds, with nothing in flight and both
+  // workers running. Why the browser never activated it is not known. Waiting for
+  // `networkidle` first: 0 of 40, and a fixed 3 s wait, 0 of 20. Waiting
+  // for the first worker to reach `activated` did not help (3 of 20). A real rebuild
+  // never lands in a tab's first second, so this removes a state the test made rather
+  // than one a person meets.
+  await page.waitForLoadState("networkidle");
   const restore = await rebuildFrontend(page, "idletab00000", bundleDir);
   try {
     await untilTakenOver(page, () => reloaded(page));
     expect(await marked(page)).toBe(false);
     await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+  } finally {
+    await restore();
+  }
+});
+
+test("a rebuild reloads an idle tab even while one of its API calls is hanging", async ({
+  page,
+  bundleDir,
+}) => {
+  // Register row 16 (task-582). Chromium does not activate a waiting worker while the
+  // active one still has an event in flight, `skipWaiting()` or not. The worker used to
+  // answer every `/api/` GET with `respondWith(fetch(request))`, so one slow API call
+  // held the rebuilt worker in `waiting` for as long as it took -- the exact state a
+  // finish gate caught. The call is held open here on purpose, from the page's own
+  // `fetch`, and routed so it never reaches the server and never completes.
+  await page.context().route("**/api/task-582-hang", () => undefined);
+  trackRequests(page);
+  await trackWorkerVersions(page);
+  await page.goto("/app/p/_local");
+  await waitForControl(page);
+  await page.evaluate(() => {
+    void fetch("/api/task-582-hang").catch(() => undefined);
+  });
+  await expect.poll(() => pendingRequests(page)).toContain("task-582-hang");
+  await markPage(page);
+  await countTakeovers(page);
+
+  const restore = await rebuildFrontend(page, "hungcall0000", bundleDir);
+  try {
+    await untilTakenOver(page, () => reloaded(page));
+    expect(await marked(page)).toBe(false);
   } finally {
     await restore();
   }

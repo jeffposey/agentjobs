@@ -79,4 +79,4 @@ export const test = base.extend<
 });
 
 export { expect };
-export type { APIRequestContext, Locator, Page, Route } from "@playwright/test";
+export type { APIRequestContext, Locator, Page, Request, Route } from "@playwright/test";
