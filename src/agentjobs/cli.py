@@ -8,7 +8,7 @@ import os
 import sys
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import typer
 import yaml
@@ -499,13 +499,27 @@ def _loopback_sockets(port: int) -> List[Any]:
     127.0.0.1 connected in 0 ms (task-483). Uvicorn drops an idle connection after five
     seconds, so a 15-second poll and any click after a pause paid it again. Both
     addresses are loopback, so this widens nothing the ``--host`` check exists to guard.
+
+    **::1 already in use is a refusal, not a warning** (task-601). It means another
+    process -- almost always an earlier server left holding IPv6 alone -- is listening
+    on this port, and starting beside it puts two servers on the same databases.
     """
+    import errno
     import socket
 
     sockets = [socket.create_server(("127.0.0.1", port), family=socket.AF_INET)]
     try:
         sockets.append(socket.create_server(("::1", port), family=socket.AF_INET6))
     except OSError as exc:
+        # 10048 is WSAEADDRINUSE, which Windows reports in place of errno's EADDRINUSE.
+        if exc.errno == errno.EADDRINUSE or getattr(exc, "winerror", None) == 10048:
+            sockets[0].close()
+            raise OSError(
+                exc.errno,
+                f"[::1]:{port} is already held by another process, so a server is "
+                f"probably still running there on IPv6 alone. 'agentjobs restart --port "
+                f"{port}' stops every listener and starts one server.",
+            ) from exc
         typer.echo(
             f"Listening on 127.0.0.1 only: ::1 could not be bound ({exc}). A browser "
             "asked for localhost will wait out its IPv6 attempt on each new connection.",
@@ -732,32 +746,86 @@ def _validated_bind_host(host: str) -> str:
     return candidate
 
 
-def _find_process_by_port(port: int) -> Optional[int]:
-    """Find PID of process listening on given port."""
+def _port_listeners(port: int) -> List[Tuple[str, int]]:
+    """Every ``(local address, pid)`` listening on ``port``, on both address families.
+
+    A loopback server listens twice, on 127.0.0.1 and on ::1 (task-483), so "the process
+    on this port" can be two sockets or -- after a restart gone wrong -- two processes.
+    Task-601: a server left holding ::1 alone was invisible to anything that read only
+    the first netstat line, and the tailnet proxy, which dials 127.0.0.1, got refused.
+    """
     import platform
     import subprocess
 
-    system = platform.system()
-
+    listeners: List[Tuple[str, int]] = []
     try:
-        if system == "Windows":
-            # Use netstat on Windows
+        if platform.system() == "Windows":
             result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, check=True)
             for line in result.stdout.splitlines():
-                if f":{port}" in line and "LISTENING" in line:
-                    parts = line.split()
-                    return int(parts[-1])
+                parts = line.split()
+                # Proto, Local Address, Foreign Address, State, PID. Match the local
+                # address's port exactly, so 8876 is not found inside 18876 or 88760.
+                if len(parts) == 5 and parts[3] == "LISTENING":
+                    address, _, local_port = parts[1].rpartition(":")
+                    if local_port == str(port):
+                        listeners.append((address.strip("[]"), int(parts[4])))
         else:
-            # Use lsof on Unix-like systems
             result = subprocess.run(
-                ["lsof", "-ti", f":{port}"], capture_output=True, text=True, check=False
+                ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-Fpn"],
+                capture_output=True,
+                text=True,
+                check=False,
             )
-            if result.returncode == 0 and result.stdout.strip():
-                return int(result.stdout.strip().split()[0])
-    except (subprocess.CalledProcessError, ValueError, IndexError):
+            pid: Optional[int] = None
+            for field in result.stdout.splitlines():
+                if field.startswith("p"):
+                    pid = int(field[1:])
+                elif field.startswith("n") and pid is not None:
+                    address = field[1:].rpartition(":")[0]
+                    listeners.append((address.strip("[]"), pid))
+    except (subprocess.CalledProcessError, OSError, ValueError):
         pass
+    return listeners
 
-    return None
+
+def _find_processes_by_port(port: int) -> List[int]:
+    """Every distinct pid listening on ``port``, in the order the OS listed them."""
+    return list(dict.fromkeys(pid for _address, pid in _port_listeners(port)))
+
+
+def _find_process_by_port(port: int) -> Optional[int]:
+    """Find PID of a process listening on given port, on either address family."""
+    pids = _find_processes_by_port(port)
+    return pids[0] if pids else None
+
+
+def _stop_servers(pids: Sequence[int], port: int) -> bool:
+    """Stop every process in ``pids``; True when the port is free afterwards.
+
+    One call per pid, each journalled by :func:`_stop_server`. Only the last waits out
+    the grace period meaningfully, since until then another listener still holds the port.
+    """
+    freed = False
+    for pid in pids:
+        freed = _stop_server(pid, port)
+    return freed and not _find_processes_by_port(port)
+
+
+def _missing_ipv4_warning(port: int) -> Optional[str]:
+    """Why the port is unusable to IPv4 clients despite something listening, or None.
+
+    The tailnet proxy dials 127.0.0.1, so a server holding ::1 alone looks alive to a
+    browser on this machine and is refused to every other device.
+    """
+    listeners = _port_listeners(port)
+    if not listeners or any(":" not in address for address, _pid in listeners):
+        return None
+    pids = ", ".join(str(pid) for pid in dict.fromkeys(pid for _a, pid in listeners))
+    return (
+        f"Port {port} is held on IPv6 only (PID {pids}); nothing answers on 127.0.0.1, "
+        "so anything dialling IPv4 -- the tailnet proxy included -- is refused. "
+        f"'agentjobs restart --port {port}' stops every listener and starts one server."
+    )
 
 
 #: How long a graceful stop is given before the server is killed, in seconds.
@@ -853,16 +921,17 @@ def stop(
     """Stop the running web server."""
     import subprocess
 
-    pid = _find_process_by_port(port)
+    pids = _find_processes_by_port(port)
 
-    if pid is None:
+    if not pids:
         typer.echo(f"No server found running on port {port}.")
         return
 
-    typer.echo(f"Stopping server (PID {pid}) on port {port}...")
+    label = "PID" if len(pids) == 1 else "PIDs"
+    typer.echo(f"Stopping server ({label} {', '.join(map(str, pids))}) on port {port}...")
 
     try:
-        if _stop_server(pid, port):
+        if _stop_servers(pids, port):
             typer.echo("✓ Server stopped successfully.")
         else:
             typer.echo(f"Server on port {port} is still listening.", err=True)
@@ -876,14 +945,29 @@ def stop(
 def status(
     port: int = typer.Option(8765, help="Port number to check."),
 ) -> None:
-    """Check if the web server is running."""
-    pid = _find_process_by_port(port)
+    """Check if the web server is running.
 
-    if pid is None:
+    Exits 1 when nothing listens, and also when the port is held in a state no client
+    can rely on: IPv6 only, or by more than one process (task-601).
+    """
+    pids = _find_processes_by_port(port)
+
+    if not pids:
         typer.echo(f"❌ No server running on port {port}.")
         raise typer.Exit(1)
-    else:
-        typer.echo(f"✓ Server is running (PID {pid}) on http://localhost:{port}")
+    if len(pids) > 1:
+        typer.echo(
+            f"❌ {len(pids)} processes are listening on port {port} "
+            f"(PIDs {', '.join(map(str, pids))}): two servers on the same databases. "
+            f"'agentjobs restart --port {port}' stops them all and starts one.",
+            err=True,
+        )
+        raise typer.Exit(1)
+    missing_ipv4 = _missing_ipv4_warning(port)
+    if missing_ipv4:
+        typer.echo(f"❌ {missing_ipv4}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"✓ Server is running (PID {pids[0]}) on http://localhost:{port}")
 
 
 @app.command()
@@ -901,15 +985,17 @@ def restart(
     import subprocess
 
     host = _validated_bind_host(host)
-    # Stop existing server if running
-    pid = _find_process_by_port(port)
-    if pid is not None:
-        typer.echo(f"Stopping existing server (PID {pid})...")
+    # Stop every existing listener, on both families: a server left holding ::1 alone
+    # would otherwise survive the restart beside the new one (task-601).
+    pids = _find_processes_by_port(port)
+    if pids:
+        label = "PID" if len(pids) == 1 else "PIDs"
+        typer.echo(f"Stopping existing server ({label} {', '.join(map(str, pids))})...")
         try:
             # Drained rather than killed where the platform allows it, so a client
             # mid-request rides the restart out instead of losing the write. See
             # `_stop_server` for what Windows can and cannot promise here.
-            if _stop_server(pid, port):
+            if _stop_servers(pids, port):
                 typer.echo("✓ Server stopped.")
             else:
                 typer.echo("Warning: the old server is still listening.", err=True)
