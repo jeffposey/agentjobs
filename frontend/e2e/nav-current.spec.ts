@@ -21,12 +21,11 @@ const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 822;
+const NAV_INLINE_MIN_PX = 748;
 
 const SURFACES = [
   ["/app/p/_local", "Dashboard"],
   ["/app/p/_local/tasks", "Tasks"],
-  ["/app/p/_local/runs", "Runs"],
 ] as const;
 
 /**
@@ -54,7 +53,8 @@ async function readLinks(page: Page) {
     return links.map((link) => {
       const style = getComputedStyle(link);
       return {
-        label: (link.textContent ?? "").trim(),
+        // The label's own span: since task-588 the Dashboard link also holds its counts.
+        label: (link.querySelector("span")?.textContent ?? link.textContent ?? "").trim(),
         current: link.getAttribute("aria-current") === "page",
         color: style.color,
         background: style.backgroundColor,
@@ -168,7 +168,7 @@ test("no action in the bar is painted like a place, so colour still means one th
 test("the burger panel marks the current destination too", async ({ page }) => {
   await page.setViewportSize(PHONE);
   expect(PHONE.width).toBeLessThan(NAV_INLINE_MIN_PX);
-  await page.goto("/app/p/_local/runs");
+  await page.goto("/app/p/_local/tasks");
 
   await page.getByRole("button", { name: "Navigation" }).click();
   const panel = page.locator("#primary-nav-destinations");
@@ -176,7 +176,7 @@ test("the burger panel marks the current destination too", async ({ page }) => {
 
   const marked = panel.locator('[aria-current="page"]');
   await expect(marked).toHaveCount(1);
-  await expect(marked).toHaveText(/^Runs/);
+  await expect(marked).toHaveText("Tasks");
   await expect(marked).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 });
 

@@ -1,5 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -10,11 +9,11 @@ import type {
 } from "../api/types";
 import {
   BUSY_POLL_MS,
+  FinishBadge,
   HealthBadge,
   IDLE_POLL_MS,
-  LiveRunCount,
-  LiveRunsPage,
   capacitySentence,
+  finishDetail,
   liveFinishes,
   liveRunsPollInterval,
   runningCount,
@@ -24,9 +23,9 @@ import {
 /**
  * The machine-wide surfaces (task-328), rendered from a response object.
  *
- * Every component here is prop-driven for that reason: the page, the Dashboard row and
- * the badge take the same body, so one fixture exercises all three and none of them
- * needs a query client or a server. The polling *decision* is a pure function tested
+ * Every component here is prop-driven for that reason: the slot board and the header's
+ * readout take the same body, so one fixture exercises both and neither needs a query
+ * client or a server. The polling *decision* is a pure function tested
  * directly, because a test that waited two seconds for a refetch would be measuring
  * react-query rather than this file.
  */
@@ -110,10 +109,6 @@ function body(overrides: Partial<LiveRunsView> = {}): LiveRunsView {
     generated_at: "2026-09-04T01:01:30Z",
     ...overrides,
   };
-}
-
-function renderIn(node: React.ReactNode) {
-  return render(<MemoryRouter initialEntries={["/p/alpha"]}>{node}</MemoryRouter>);
 }
 
 describe("the poll interval", () => {
@@ -206,82 +201,54 @@ describe("what counts as running", () => {
   });
 });
 
-describe("the nav badge", () => {
-  it("shows the live count", () => {
-    renderIn(<LiveRunCount body={body({ runs: [run(), run({ run_id: "run_b" })] })} />);
-    expect(screen.getByTestId("live-run-count")).toHaveTextContent("2");
+describe("the running count", () => {
+  // What the header's green dot shows (task-588; the Runs tab's badge before it). The
+  // rendering is NavStatus.test.tsx's; the count is this file's.
+  it("counts every run", () => {
+    expect(runningCount(body({ runs: [run(), run({ run_id: "run_b" })] }))).toBe(2);
   });
 
-  it("reads zero when nothing is running, rather than holding a stale number", () => {
-    renderIn(<LiveRunCount body={body()} />);
-    expect(screen.getByTestId("live-run-count")).toHaveTextContent("0");
+  it("is zero when nothing is running", () => {
+    expect(runningCount(body())).toBe(0);
   });
 
   it("counts a finish in progress as running", () => {
     // task-352: the badge read 0 through the whole of task-092's gate.
-    renderIn(<LiveRunCount body={body({ holders: [holder()] })} />);
-    expect(screen.getByTestId("live-run-count")).toHaveTextContent("1");
+    expect(runningCount(body({ holders: [holder()] }))).toBe(1);
   });
 
-  it("reads zero before the first answer arrives", () => {
-    renderIn(<LiveRunCount body={null} />);
-    expect(screen.getByTestId("live-run-count")).toHaveTextContent("0");
+  it("is zero before the first answer arrives", () => {
+    expect(runningCount(null)).toBe(0);
   });
 });
 
-describe("the Runs tab", () => {
-  it("links each row into the project that owns it, not the one being viewed", () => {
-    const runs = [
-      run(),
-      run({
-        run_id: "run_b",
-        task_id: "task-500",
-        task_title: "Rewrite the importer",
-        project_id: "beta",
-        project_name: "Beta Project",
-        // The server built this, which is the point of the assertion below.
-        task_url: "/p/beta/tasks/task-500",
-      }),
-    ];
-    renderIn(<LiveRunsPage body={body({ occupied: 2, runs })} />);
-
-    expect(screen.getByRole("link", { name: /task-001/ })).toHaveAttribute(
-      "href",
-      "/p/alpha/tasks/task-001",
-    );
-    expect(screen.getByRole("link", { name: /task-500/ })).toHaveAttribute(
-      "href",
-      "/p/beta/tasks/task-500",
-    );
-    expect(screen.getByText("Beta Project")).toBeInTheDocument();
-  });
-
+// The Runs tab rendered these words in its rows until task-588 retired it; the slot
+// board still does, so they are asserted on the components rather than on a page.
+describe("a run's state, in words", () => {
   it("says a parked run is waiting on a human, not that it is working", () => {
-    renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run({ health: "parked" })] })} />);
-    const row = screen.getByText("Waiting on you");
-    expect(row).toHaveAttribute("data-health", "parked");
+    render(<HealthBadge health="parked" />);
+    expect(screen.getByText("Waiting on you")).toHaveAttribute("data-health", "parked");
     expect(screen.queryByText("Working")).toBeNull();
   });
 
   it("says what its closed task says for a run whose task closed (task-482, task-577)", () => {
     // The pair that made a third of the machine unavailable: a task reading Completed
     // beside a run reading `running`. The run is real and the session is open, so it is
-    // still listed -- in its task's own word and colour, not a word of its own.
-    const done = { health: "work_done", holds_slot: false } as const;
-    renderIn(
-      <LiveRunsPage
-        body={body({
-          occupied: 0,
-          runs: [
-            run({ ...done, run_id: "run_a", task_display_status: "Completed", task_status_category: "closed" }),
-            run({ ...done, run_id: "run_b", task_display_status: "Cancelled", task_status_category: "closed_unfinished" }),
-          ],
-        })}
-      />,
+    // still drawn -- in its task's own word and colour, not a word of its own.
+    render(
+      <>
+        <HealthBadge
+          health="work_done"
+          task={{ task_display_status: "Completed", task_status_category: "closed" }}
+        />
+        <HealthBadge
+          health="work_done"
+          task={{ task_display_status: "Cancelled", task_status_category: "closed_unfinished" }}
+        />
+      </>,
     );
     expect(screen.getByText("Completed")).toHaveAttribute("data-status-category", "closed");
     expect(screen.getByText("Cancelled")).toHaveAttribute("data-status-category", "closed_unfinished");
-    expect(screen.queryByText("Work done")).toBeNull();
     expect(screen.queryByText("Working")).toBeNull();
   });
 
@@ -291,101 +258,39 @@ describe("the Runs tab", () => {
   });
 
   it("says feedback is waiting rather than that the run is working (task-384)", () => {
-    // The pair that made a person wait fifty minutes: a task reading "Revising" beside a
-    // live run. Both "working" and "feedback waiting" were true; only one of them answers
-    // the question the reader has, so `run_health` renders this one and this asserts it
-    // reaches the badge rather than falling through to the raw value.
-    renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run({ health: "handback" })] })} />);
+    render(<HealthBadge health="handback" />);
     // "Feedback", in the working blue: it continues with nobody acting (owner, 2026-09-24).
     expect(screen.getByText("Feedback")).toHaveAttribute("data-health", "handback");
     expect(screen.getByText("Feedback")).toHaveAttribute("data-status-category", "working");
-    expect(screen.queryByText("Working")).toBeNull();
   });
 
   it("says a batch run whose process is gone is not working", () => {
-    renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run({ health: "orphaned" })] })} />);
+    render(<HealthBadge health="orphaned" />);
     expect(screen.getByText("Process gone")).toHaveAttribute("data-health", "orphaned");
   });
 
-  it("shows an empty machine as empty rather than as a blank table", () => {
-    renderIn(<LiveRunsPage body={body()} />);
-    expect(screen.getByTestId("no-live-runs")).toBeInTheDocument();
-  });
-
-  it("lists a finish in progress as a run, with its task, its step and its time", () => {
-    // task-352: this exact body -- one finish, no runs -- rendered "Nothing is running
-    // on this machine right now" with the finish in a footnote under it.
-    renderIn(<LiveRunsPage body={body({ holders: [holder({ detail: "gate" })] })} />);
-
-    expect(screen.queryByTestId("no-live-runs")).toBeNull();
-    const row = screen.getByRole("link", { name: /task-002/ }).closest("tr");
-    expect(row).not.toBeNull();
-    expect(screen.getByRole("link", { name: /task-002/ })).toHaveAttribute(
-      "href",
-      "/p/alpha/tasks/task-002",
-    );
-    expect(within(row as HTMLElement).getByText("Landing")).toHaveAttribute(
-      "data-finish-step",
-      "gate",
-    );
-    expect(within(row as HTMLElement).getByText("Running the gate")).toBeInTheDocument();
-    expect(within(row as HTMLElement).getByText("30s")).toBeInTheDocument();
-    // Still not an occupied slot: it holds a lock, not a run slot -- and the sentence
-    // says which.
-    expect(screen.getByTestId("capacity-sentence")).toHaveTextContent(
-      "0 of 3 slots busy · 1 merging",
-    );
-    expect(screen.queryByRole("heading", { name: "Also on this machine" })).toBeNull();
+  it("draws a finish in progress as Landing, with its step in words", () => {
+    render(<FinishBadge finish={holder({ detail: "gate" })} />);
+    expect(screen.getByText("Landing")).toHaveAttribute("data-finish-step", "gate");
+    expect(finishDetail("gate", undefined)).toBe("Running the gate");
+    expect(finishDetail("runway", "task-009")).toBe("Queued for the merge runway, behind task-009");
   });
 
   it("does not badge a finish against an already-closed task as Landing", () => {
     // task-514. The board renders from the lock, so it went on saying Finishing about a
-    // task whose page said Completed. The lock is real and stays listed; the word is not.
-    renderIn(
-      <LiveRunsPage
-        body={body({ holders: [holder({ detail: "overtaken", overtaken: true })] })}
-      />,
-    );
-
-    const row = screen.getByRole("link", { name: /task-002/ }).closest("tr");
-    expect(within(row as HTMLElement).queryByText("Landing")).toBeNull();
-    expect(within(row as HTMLElement).getByText("Overtaken")).toBeInTheDocument();
-    expect(within(row as HTMLElement).getByText("Task already closed")).toBeInTheDocument();
-    // ...and it is not counted as something merging, because it is not merging.
-    expect(screen.getByTestId("capacity-sentence")).toHaveTextContent("0 of 3 slots busy");
-    expect(screen.getByTestId("capacity-sentence")).not.toHaveTextContent("merging");
+    // task whose page said Completed. The lock is real and stays drawn; the word is not.
+    render(<FinishBadge finish={holder({ detail: "overtaken", overtaken: true })} />);
+    expect(screen.queryByText("Landing")).toBeNull();
+    expect(screen.getByText("Overtaken")).toBeInTheDocument();
+    expect(finishDetail("overtaken", undefined)).toBe("Task already closed");
   });
+});
 
-  it("says a finish queued for the runway is queued, in words", () => {
-    renderIn(<LiveRunsPage body={body({ holders: [holder({ detail: "runway" })] })} />);
-    expect(screen.getByText("Queued for the merge runway")).toBeInTheDocument();
-  });
-
-  it("does not list the runway a listed finish is holding", () => {
-    const holders = [
-      holder(),
-      holder({ kind: "runway", lock_name: "runway-abc", task_id: "", task_url: "" }),
-    ];
-    renderIn(<LiveRunsPage body={body({ holders })} />);
-    expect(screen.queryByText(/Merge runway/)).toBeNull();
-    expect(screen.getAllByRole("row")).toHaveLength(2); // the header and the finish
-  });
-
-  it("names the repository a merge runway is blocking when no finish explains it", () => {
-    renderIn(
-      <LiveRunsPage
-        body={body({
-          holders: [holder({ kind: "runway", lock_name: "runway-abc", task_id: "", task_url: "" })],
-        })}
-      />,
-    );
-    expect(screen.getByText(/Merge runway/)).toHaveTextContent("Alpha Project");
-  });
-
-  it("offers no way to cancel anything", () => {
-    // Read-only is a decision, not an omission (task-328 out_of_scope, task-312).
-    renderIn(<LiveRunsPage body={body({ occupied: 1, runs: [run()] })} />);
-    expect(screen.queryByRole("button", { name: /cancel/i })).toBeNull();
+describe("the capacity sentence, for a finish that merged nothing", () => {
+  it("does not count an overtaken finish as merging (task-514)", () => {
+    expect(
+      capacitySentence(body({ holders: [holder({ detail: "overtaken", overtaken: true })] })),
+    ).toBe("0 of 3 slots busy");
   });
 });
 

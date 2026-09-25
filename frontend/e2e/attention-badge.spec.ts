@@ -3,6 +3,10 @@ import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 /**
  * task-338: the header says work has stopped on you, wherever you are.
  *
+ * Since task-588 the red badge this spec was written for is the red dot inside the
+ * Dashboard link (`nav-status`), beside a green count of what is being worked. The
+ * properties below are the same ones, asserted on that link.
+ *
  * The reported defect was that only the Dashboard said so, which is the one place you
  * cannot be told something you did not already go looking for. What a jsdom test can
  * prove about the fix is the wiring; the two things it cannot are the two that matter,
@@ -11,8 +15,8 @@ import { expect, test, type APIRequestContext, type Page } from "./fixtures";
  * - **that the badge is visible on a phone**, where every destination in this bar is
  *   behind the burger and a badge hung on one of them would render into a hidden
  *   container. jsdom applies no stylesheet, so it would call that a pass.
- * - **that adding it did not break the one-row bar** task-292 measured. It sits
- *   outside the collapsible group, so unlike the Runs badge it costs width at every
+ * - **that adding it did not break the one-row bar** task-292 measured. Below the
+ *   breakpoint it sits outside the collapsible group, so it costs width at every
  *   viewport -- and only a browser lays out.
  */
 
@@ -21,13 +25,15 @@ const project = "/app/p/_local";
 /** iPhone 14/15 CSS pixels, which is where this app is read over Tailscale. */
 const PHONE = { width: 390, height: 844 };
 /** Exactly `NAV_INLINE_MIN_PX`: the narrowest width that still renders the row inline. */
-const NAV_INLINE_MIN_PX = 822;
+const NAV_INLINE_MIN_PX = 748;
 const INLINE_MIN = { width: NAV_INLINE_MIN_PX, height: 800 };
 
 /** One row is `min-h-16` plus a 1px bottom border; anything taller has wrapped. */
 const ONE_ROW_MAX_PX = 72;
 
-const badge = (page: Page) => page.getByTestId("attention-badge");
+/** The readout as a whole, and its red part: the waiting-on-you count. */
+const badge = (page: Page) => page.getByTestId("nav-status");
+const waiting = (page: Page) => page.getByTestId("nav-status-waiting");
 
 /** How many tasks the server says are stopped on a person right now. */
 async function blockingCount(request: APIRequestContext): Promise<number> {
@@ -128,20 +134,22 @@ test("the badge appears on a surface that is not the Dashboard, without a reload
     // Nothing here reloads the page. If this passes, the badge is refreshed by the
     // project revision the way every other task-derived query is -- which is the
     // difference between a badge and a screenshot of one.
-    await expect(badge(page)).toHaveText(String(before + 1), { timeout: 30_000 });
+    await expect(waiting(page)).toHaveAttribute("data-count", String(before + 1), {
+      timeout: 30_000,
+    });
     await expect(badge(page)).toHaveAttribute(
       "aria-label",
-      new RegExp(`^${before + 1} tasks? (is|are) waiting on you$`),
+      new RegExp(` · ${before + 1} waiting on you · `),
     );
   } finally {
     await fixture.release();
   }
 
-  // And it goes away again when the work does. Absence, not a zero: this one is an
-  // alarm rather than a readout, unlike the live-run count beside it.
-  if (before === 0) {
-    await expect(badge(page)).toHaveCount(0, { timeout: 30_000 });
-  }
+  // And it falls again when the work does. A zero, not an absence, since task-588: the
+  // readout draws every part, so "nothing waiting" cannot be mistaken for "not loaded".
+  await expect(waiting(page)).toHaveAttribute("data-count", String(before), {
+    timeout: 30_000,
+  });
 });
 
 test("the badge leads to the tasks it is counting", async ({ page, request }) => {

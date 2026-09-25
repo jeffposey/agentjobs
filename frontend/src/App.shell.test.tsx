@@ -189,9 +189,21 @@ describe("the Tasks surface at a landscape viewport", () => {
     // PrimaryNav.test.tsx; the claim here is only that the shell still renders it on
     // a surface that has no regions, so the labels are a sample rather than a list.
     const nav = screen.getByRole("navigation", { name: "Primary navigation" });
-    for (const label of ["Dashboard", "Tasks", "Runs"]) {
+    for (const label of ["Dashboard", "Tasks"]) {
       expect(within(nav).getByText(label, { exact: true })).toBeInTheDocument();
     }
+  });
+
+  it("sends a bookmark to the retired Runs tab to the Dashboard (task-588)", async () => {
+    renderApp("/p/inbox/runs");
+
+    const nav = await screen.findByRole("navigation", { name: "Primary navigation" });
+    // The Dashboard, rather than the not-found page the catch-all would have given.
+    expect(await within(nav).findByRole("link", { current: "page" })).toHaveTextContent(
+      "Dashboard",
+    );
+    expect(within(nav).queryByText("Runs", { exact: true })).toBeNull();
+    expect(screen.getByTestId("nav-status")).toHaveAttribute("href", "/p/inbox");
   });
 
   it("lands on the Tasks surface, list included, when a task is opened from the Dashboard", async () => {

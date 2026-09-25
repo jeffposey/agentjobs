@@ -389,7 +389,7 @@ describe("the degraded state", () => {
       const notice = screen.getByTestId("attention-delivery");
       expect(notice).toHaveAttribute("data-delivery", "denied");
       expect(notice).toHaveTextContent(/Site settings/);
-      expect(notice).toHaveTextContent(/red badge in the header still tracks/);
+      expect(notice).toHaveTextContent(/red count in the header still tracks/);
     } finally {
       restore();
     }

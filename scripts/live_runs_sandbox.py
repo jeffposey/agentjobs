@@ -1,27 +1,26 @@
 """Stand up the machine-wide live-run surfaces on their own port, with fake runs.
 
-task-328 adds two places to look at what is running: a Runs tab with a count badge, and
-a one-line capacity row at the foot of the Dashboard's statistics card. Both read
+task-328 added a Runs tab with a count badge; task-588 retired the tab and folded the
+badge into the Dashboard tab itself -- a red dot for what is waiting on you, a green dot
+for what is being worked. The runs half reads
 ``GET /api/runs/live``, which is machine-wide -- so the thing worth seeing is a run from
-one project appearing while you are looking at another, and that is what this seeds.
+one project counting while you are looking at another, and that is what this seeds.
 
 Two projects, and every state the surfaces can render:
 
-    sandbox-alpha     three tasks, one of them with a live session run
+    sandbox-alpha     three tasks, one of them with a live session run and two
+                      handed to a human for review, so the red dot reads 2
     sandbox-beta      two tasks, one with a live run and one being merged by a
                       scripted finish, plus that repository's merge runway
 
-So the Runs tab shows runs from **both** projects however you got to it, each row
-linking into its own project; the badge reads the machine's count from every page; and
-the "Also on this machine" section shows the finish and the runway that hold locks but
-no run slots.
+So the Dashboard tab says 2 waiting on you and 3 being worked (two runs and the finish)
+on every page of Alpha, and ``/app/p/sandbox-alpha/runs`` lands on the Dashboard.
 
     python scripts/live_runs_sandbox.py [port] [--idle]
 
-``--idle`` seeds no runs at all, which is the other half of the comparison: the badge
-must read **0** rather than disappear, and the Dashboard row must say the machine is
-quiet rather than vanish. Run one of each side by side on two ports to compare them
-without constructing either state by hand.
+``--idle`` seeds no runs and hands nothing to a human, which is the other half of the
+comparison: both counts must read **0** rather than disappear. Run one of each side by
+side on two ports to compare them without constructing either state by hand.
 
 Nothing here touches the live corpus or the 8876 dashboard. Everything lives under a
 temporary directory with its own ``AGENTJOBS_HOME`` registry, deleted when this process
@@ -48,10 +47,17 @@ def _ago(seconds: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(seconds=seconds)).isoformat()
 
 
-def build_project(root: Path, *, project_id: str, name: str, tasks: List[Tuple[str, str]]) -> Path:
-    """One throwaway project with the named tasks in it."""
+def build_project(
+    root: Path,
+    *,
+    project_id: str,
+    name: str,
+    tasks: List[Tuple[str, str]],
+    waiting: Tuple[str, ...] = (),
+) -> Path:
+    """One throwaway project with the named tasks in it, ``waiting`` handed to a human."""
     from agentjobs.manager import TaskManager
-    from agentjobs.models_v2 import Lifecycle
+    from agentjobs.models_v2 import Ball, BallReason, Lifecycle
     from agentjobs.project_setup import build_project_config
     from sandbox_store import sandbox_store  # type: ignore[import-not-found]
 
@@ -73,6 +79,16 @@ def build_project(root: Path, *, project_id: str, name: str, tasks: List[Tuple[s
             ),
             lifecycle=Lifecycle.READY,
             actor="claude",
+        )
+    for task_id in waiting:
+        # Through the verbs, the way a real handoff puts work on a person.
+        manager.claim_task(task_id, agent="claude")
+        manager.handoff(
+            task_id,
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Seeded so the header's red dot has something to count.",
         )
     return project_root
 
@@ -119,7 +135,13 @@ def main() -> None:
     from agentjobs.projects import ProjectRegistry
 
     registry = ProjectRegistry(home)
-    alpha = build_project(root, project_id="sandbox-alpha", name="Alpha", tasks=ALPHA_TASKS)
+    alpha = build_project(
+        root,
+        project_id="sandbox-alpha",
+        name="Alpha",
+        tasks=ALPHA_TASKS,
+        waiting=() if idle else ("task-102", "task-103"),
+    )
     beta = build_project(root, project_id="sandbox-beta", name="Beta", tasks=BETA_TASKS)
     registry.add(alpha, project_id="sandbox-alpha", name="Alpha")
     registry.add(beta, project_id="sandbox-beta", name="Beta")
@@ -177,8 +199,28 @@ def main() -> None:
         )
         print("[runs] seeded two live runs, a finish and a runway", flush=True)
 
+    def seed_once_serving() -> None:
+        """Seed once the server answers, rather than on a fixed delay.
+
+        A fixed two seconds was enough when this was written. Startup now does more
+        before it reconciles -- a second, tailnet listener among it -- so by 2026-09-24
+        the seeded runs landed *before* the sweep and were concluded as interrupted on
+        the first page load. Answering a request means the sweep is behind it.
+        """
+        import time
+        import urllib.request
+
+        for _ in range(120):
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/version", timeout=1):
+                    break
+            except OSError:
+                time.sleep(0.5)
+        time.sleep(1.0)
+        seed_activity()
+
     if not idle:
-        threading.Timer(2.0, seed_activity).start()
+        threading.Thread(target=seed_once_serving, daemon=True).start()
 
     from sandbox_serve import serve  # type: ignore[import-not-found]
 
@@ -187,7 +229,10 @@ def main() -> None:
     state = "idle -- nothing running" if idle else "busy -- runs in two projects"
     print(f"[runs] live-run sandbox ({state}) at http://127.0.0.1:{port}/app/", flush=True)
     print(f"[runs]   Dashboard  http://127.0.0.1:{port}/app/p/sandbox-alpha", flush=True)
-    print(f"[runs]   Runs tab   http://127.0.0.1:{port}/app/p/sandbox-alpha/runs", flush=True)
+    print(
+        f"[runs]   Old Runs   http://127.0.0.1:{port}/app/p/sandbox-alpha/runs (redirects)",
+        flush=True,
+    )
     print(f"[runs]   Beta side  http://127.0.0.1:{port}/app/p/sandbox-beta", flush=True)
     if not idle:
         print(

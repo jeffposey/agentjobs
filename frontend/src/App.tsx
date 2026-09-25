@@ -84,11 +84,12 @@ import { GlobalCapture } from "./components/CaptureControl";
 import { FiledNotice, type FiledOutcome } from "./components/DispatchOnCreate";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
-import { LiveRunCount, LiveRunsPage, useLiveRuns } from "./components/LiveRuns";
-import { RecentlyFinished, useRecentClosures } from "./components/RecentlyFinished";
+import { runningCount, useLiveRuns } from "./components/LiveRuns";
+import { NavCounts, navStatusLabel } from "./components/NavStatus";
 import { IdleSessionsSection } from "./components/IdleSessions";
+import { RecentlyFinished, useRecentClosures } from "./components/RecentlyFinished";
 import { Playbooks, type PlaybookRunRequest } from "./components/Playbooks";
-import { AttentionBadge, useAttention, useWaitingOnYou } from "./components/AttentionBadge";
+import { useAttention, useWaitingOnYou } from "./components/AttentionBadge";
 import {
   AttentionNotifier,
   NotificationDelivery,
@@ -367,15 +368,6 @@ function useDashboardDispatch(projectId: string) {
       }
     },
   };
-}
-
-function LiveRunsRoute() {
-  return (
-    <div className="space-y-6">
-      <LiveRunsPage body={useLiveRuns()} />
-      <IdleSessionsSection />
-    </div>
-  );
 }
 
 function TaskListPage({
@@ -788,58 +780,64 @@ function DispatchSettingsPage({ projectId }: { projectId: string }) {
   const disarmPull = useMutation(disarmPullModeApiProjectsProjectIdDispatchDisarmPostMutation());
   const after = async () => { await queryClient.invalidateQueries(); };
 
+  // The idle-session sweep sits under the dispatch settings since task-588 retired the
+  // Runs tab it used to share. It is a machine-level switch with its own record of what it
+  // stopped, and this is the one page already holding switches of that kind.
   return (
-    <DispatchSettings
-      state={stateQuery.data ?? null}
-      busy={enable.isPending || disable.isPending || armPull.isPending || disarmPull.isPending}
-      error={error}
-      onEnable={async (target) => {
-        setError(null);
-        try {
-          // The target is `{runner}` or `{group}`, never both -- the API refuses a body
-          // naming each, and the control is one <select> so it cannot produce one.
-          await enable.mutateAsync({ path: { project_id: projectId }, body: target });
-        } catch (caught) {
-          const refusal = readRefusal(caught);
-          setError(refusal ? refusal.message : "Dispatch could not be enabled. Reload and try again.");
-        }
-        await after();
-      }}
-      onDisable={async () => {
-        setError(null);
-        try {
-          await disable.mutateAsync({ path: { project_id: projectId } });
-        } catch (caught) {
-          const refusal = readRefusal(caught);
-          setError(refusal ? refusal.message : "Dispatch could not be disabled. Reload and try again.");
-        }
-        await after();
-      }}
-      onArm={async (choice) => {
-        setError(null);
-        try {
-          // `user` is left to the server, which resolves it from the principal this
-          // request arrived on. Sending a name read out of a listing is exactly the
-          // circular check task-332 removed, and arming is the last place to reintroduce
-          // it: this name goes on every run the mode starts.
-          await armPull.mutateAsync({ path: { project_id: projectId }, body: choice });
-        } catch (caught) {
-          const refusal = readRefusal(caught);
-          setError(refusal ? refusal.message : "The pull mode could not be armed. Reload and try again.");
-        }
-        await after();
-      }}
-      onDisarm={async () => {
-        setError(null);
-        try {
-          await disarmPull.mutateAsync({ path: { project_id: projectId } });
-        } catch (caught) {
-          const refusal = readRefusal(caught);
-          setError(refusal ? refusal.message : "The pull mode could not be disarmed. Reload and try again.");
-        }
-        await after();
-      }}
-    />
+    <div className="space-y-6">
+      <DispatchSettings
+        state={stateQuery.data ?? null}
+        busy={enable.isPending || disable.isPending || armPull.isPending || disarmPull.isPending}
+        error={error}
+        onEnable={async (target) => {
+          setError(null);
+          try {
+            // The target is `{runner}` or `{group}`, never both -- the API refuses a body
+            // naming each, and the control is one <select> so it cannot produce one.
+            await enable.mutateAsync({ path: { project_id: projectId }, body: target });
+          } catch (caught) {
+            const refusal = readRefusal(caught);
+            setError(refusal ? refusal.message : "Dispatch could not be enabled. Reload and try again.");
+          }
+          await after();
+        }}
+        onDisable={async () => {
+          setError(null);
+          try {
+            await disable.mutateAsync({ path: { project_id: projectId } });
+          } catch (caught) {
+            const refusal = readRefusal(caught);
+            setError(refusal ? refusal.message : "Dispatch could not be disabled. Reload and try again.");
+          }
+          await after();
+        }}
+        onArm={async (choice) => {
+          setError(null);
+          try {
+            // `user` is left to the server, which resolves it from the principal this
+            // request arrived on. Sending a name read out of a listing is exactly the
+            // circular check task-332 removed, and arming is the last place to reintroduce
+            // it: this name goes on every run the mode starts.
+            await armPull.mutateAsync({ path: { project_id: projectId }, body: choice });
+          } catch (caught) {
+            const refusal = readRefusal(caught);
+            setError(refusal ? refusal.message : "The pull mode could not be armed. Reload and try again.");
+          }
+          await after();
+        }}
+        onDisarm={async () => {
+          setError(null);
+          try {
+            await disarmPull.mutateAsync({ path: { project_id: projectId } });
+          } catch (caught) {
+            const refusal = readRefusal(caught);
+            setError(refusal ? refusal.message : "The pull mode could not be disarmed. Reload and try again.");
+          }
+          await after();
+        }}
+      />
+      <IdleSessionsSection />
+    </div>
   );
 }
 
@@ -1309,15 +1307,18 @@ function PlaybooksPage({ projectId }: { projectId: string }) {
 }
 
 /**
- * The header, with its two badges attached.
+ * The header, with its status counts on the Dashboard tab.
  *
- * A component of its own because each badge needs a hook and `PrimaryNav` must stay
- * prop-driven. The live-run query is shared with the Dashboard row and the Runs page
- * by react-query's cache, so a Dashboard costs one request rather than two.
+ * A component of its own because the counts need a hook and `PrimaryNav` must stay
+ * prop-driven. The live-run query is shared with the Dashboard's slot board by
+ * react-query's cache, so a Dashboard costs one request rather than two.
  *
- * The two badges answer different questions and are deliberately not merged: the
- * green one is machine-wide and says what is running, the red one is this project's
- * and says what has stopped on you (task-338).
+ * **Two dots on one tab, where there used to be two badges.** task-338 kept the green
+ * running count and the red waiting-on-you count apart on the argument that they answer
+ * different questions -- one machine-wide, one this project's. The owner decided on
+ * task-588 that they should be read together, as one glance at what the machine is doing
+ * for you. The scopes still differ, and the Dashboard link's accessible name says each
+ * in words rather than leaving a reader to infer it from a dot's colour.
  */
 function ProjectShellNav({
   projectId,
@@ -1334,19 +1335,16 @@ function ProjectShellNav({
   onAcknowledge: (episodeId: string) => void;
 }) {
   const episodeId = attention?.episode?.id;
+  const waiting = attention?.blocking ?? null;
+  const working = runningCount(useLiveRuns());
   return (
     <PrimaryNav
       projectId={projectId}
-      badge={<LiveRunCount body={useLiveRuns()} />}
-      attention={
-        <AttentionBadge
-          count={attention?.blocking ?? null}
-          projectId={projectId}
-          onAcknowledge={() => {
-            if (episodeId) onAcknowledge(episodeId);
-          }}
-        />
-      }
+      status={<NavCounts waiting={waiting} working={working} />}
+      statusLabel={navStatusLabel(waiting, working)}
+      onDashboardFollow={() => {
+        if (episodeId) onAcknowledge(episodeId);
+      }}
     />
   );
 }
@@ -1474,9 +1472,10 @@ function ProjectApp() {
           <Route path="analytics" element={<AnalyticsPage projectId={projectId} />} />
           <Route path="dispatch" element={<DispatchSettingsPage projectId={projectId} />} />
           <Route path="playbooks" element={<PlaybooksPage projectId={projectId} />} />
-          {/* Inside the project shell for its chrome, machine-wide in its content:
-              every row carries a server-built link into whichever project owns it. */}
-          <Route path="runs" element={<LiveRunsRoute />} />
+          {/* The Runs tab, retired by task-588. A bookmark to it lands on the Dashboard,
+              where the slot board shows what it did for this project, rather than on
+              the not-found page. */}
+          <Route path="runs" element={<Navigate to={projectPath(projectId)} replace />} />
           <Route path="*" element={<Navigate to="/not-found" replace />} />
         </Routes>
       </main>

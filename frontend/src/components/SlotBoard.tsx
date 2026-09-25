@@ -1058,17 +1058,10 @@ export function SlotBoard({
         <h2 className="text-sm font-medium text-dark-text">
           {layout.unconfigured ? "Next up" : "Run slots"}
         </h2>
-        <div className="flex items-baseline gap-3">
-          <span data-testid="slot-board-capacity" className="text-xs text-dark-muted">
-            {capacitySentence(body)}
-          </span>
-          <Link
-            to={projectPath(projectId, "/runs")}
-            className="touch-target text-xs text-blue-400 hover:text-blue-300"
-          >
-            Running now →
-          </Link>
-        </div>
+        {/* "Running now →" linked to the Runs tab here until task-588 retired it. */}
+        <span data-testid="slot-board-capacity" className="text-xs text-dark-muted">
+          {capacitySentence(body)}
+        </span>
       </div>
 
       <div className={`grid gap-2 ${boardColumns(layout.cells.length)}`}>
@@ -1153,14 +1146,7 @@ export function SlotBoard({
           {layout.hiddenBusy > 0 ? `, ${layout.hiddenBusy} of them busy` : ""}
           {". The board draws "}
           {BOARD_CELL_LIMIT}
-          {" so the page still fits a screen; "}
-          <Link
-            to={projectPath(projectId, "/runs")}
-            className="text-blue-400 underline hover:text-blue-300"
-          >
-            Running now
-          </Link>
-          {" is the long form."}
+          {" so the page still fits a screen."}
         </p>
       )}
       {/* Above the gate line and the runway strip, and drawn even under an alarm:

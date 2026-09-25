@@ -28,10 +28,10 @@ const ONE_ROW_MAX_PX = 72;
  * this row was additions nobody subtracted, and a test that looks for the survivors
  * would not have noticed.
  */
-const DESTINATIONS = ["Dashboard", "Tasks", "Runs"];
+const DESTINATIONS = ["Dashboard", "Tasks"];
 
 /** Mirrors `NAV_INLINE_MIN_PX`; below it the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 822;
+const NAV_INLINE_MIN_PX = 748;
 
 /**
  * One record, long enough that every viewport under test has somewhere to scroll to,
@@ -158,7 +158,6 @@ for (const [name, viewport] of [
       "/app/p/_local/tasks/new",
       "/app/p/_local/dispatch",
       "/app/p/_local/playbooks",
-      "/app/p/_local/runs",
     ];
 
     for (const surface of surfaces) {
@@ -221,11 +220,12 @@ test("above the breakpoint every destination is inline and there is no burger", 
   for (const label of DESTINATIONS) {
     await expect(nav.getByText(label, { exact: true })).toBeVisible();
   }
-  // And nothing else (task-345). A count rather than a text comparison, because the
-  // Runs entry carries the live-run badge inside its own link and its text is
-  // therefore not always just "Runs". The defect this guards is an entry somebody
-  // added and nobody subtracted, which a test looking only for the survivors misses.
+  // And nothing else (task-345). A count rather than a text comparison: the defect this
+  // guards is an entry somebody added and nobody subtracted, which a test looking only
+  // for the survivors misses. Since task-588 the Dashboard link also carries the status
+  // counts, inside it rather than as a link of its own, so the count is still two.
   await expect(nav.getByRole("link")).toHaveCount(DESTINATIONS.length);
+  await expect(nav.getByTestId("nav-status")).toHaveCount(1);
 });
 
 test("below the breakpoint the destinations are behind the burger, and all of them are there", async ({

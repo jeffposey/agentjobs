@@ -4,9 +4,10 @@ import { expect, test } from "./fixtures";
  * The machine-wide live-run surfaces, against a real run (task-328).
  *
  * The interesting assertions are the ones only a live server can make: that a run
- * started from a task page appears on the Runs tab and in the nav badge **without a
- * reload**, and that both go back to zero when it ends. A jsdom test renders a fixture,
- * which proves the markup and proves nothing about the freshness that is the whole
+ * started from a task page appears on the slot board and in the header's status readout
+ * **without a reload**, and that both go back to zero when it ends. The Runs tab this
+ * spec also drove was retired by task-588; the readout is on the Dashboard tab now. A
+ * jsdom test renders a fixture, which proves the markup and proves nothing about the freshness that is the whole
  * point of a "running now" screen -- ENGINEERING.md, Verification.
  *
  * It shares one server and one project with every other spec in this directory, so it
@@ -15,21 +16,10 @@ import { expect, test } from "./fixtures";
 
 const project = "/app/p/_local";
 
-/** Below `NAV_INLINE_MIN_PX` the destinations are behind the burger. */
-const NAV_INLINE_MIN_PX = 822;
+/** The green part of the header's readout: what is being worked right now. */
+const badge = (page: import("./fixtures").Page) => page.getByTestId("nav-status-working");
 
-async function openRunsTab(page: import("./fixtures").Page) {
-  if ((page.viewportSize()?.width ?? 0) < NAV_INLINE_MIN_PX) {
-    await page.getByRole("button", { name: "Navigation" }).click();
-  }
-  await page.getByRole("link", { name: /^Runs/ }).click();
-  await expect(page).toHaveURL(new RegExp(`${project}/runs$`));
-}
-
-const badge = (page: import("./fixtures").Page) =>
-  page.getByTestId("live-run-count").first();
-
-test("an idle machine says so, in the badge and on both surfaces", async ({ page }) => {
+test("an idle machine says so, in the readout and on the board", async ({ page }) => {
   await page.goto(project);
 
   // Zero, rendered. Not absent: a badge that disappears when idle cannot be told from
@@ -41,9 +31,6 @@ test("an idle machine says so, in the badge and on both surfaces", async ({ page
   await expect(page.getByTestId("slot-board-capacity")).toContainText("0 of 2 slots busy");
   await expect(page.getByTestId("slot-cell")).toHaveCount(2);
   await expect(page.locator("[data-slot-state='run']")).toHaveCount(0);
-
-  await openRunsTab(page);
-  await expect(page.getByTestId("no-live-runs")).toBeVisible();
 });
 
 test("a real run appears on both surfaces without a reload, and leaves when it ends", async ({
@@ -58,7 +45,7 @@ test("a real run appears on both surfaces without a reload, and leaves when it e
   // reach the form.
   await page.goto("/app/p/_local/tasks/new");
   await page.getByRole("textbox", { name: "Title", exact: true }).fill("Watch me run");
-  await page.getByRole("textbox", { name: /^Summary/ }).fill("Seen from the Runs tab.");
+  await page.getByRole("textbox", { name: /^Summary/ }).fill("Seen from the header and the board.");
   await page
     .getByRole("textbox", { name: /^What happened/ })
     .fill("Proves the machine-wide surfaces notice a run they did not start.");
@@ -88,25 +75,7 @@ test("a real run appears on both surfaces without a reload, and leaves when it e
   await expect(page.getByTestId("slot-cell")).toHaveCount(2);
   await expect(page.getByTestId("slot-board-capacity")).toContainText("1 of 2 slots busy");
 
-  await openRunsTab(page);
-  const row = page.getByRole("row").filter({ hasText: "Watch me run" });
-  await expect(row).toContainText("Working");
-  await expect(row).toContainText("End-to-end project");
-  // The task's *id*, taken from the path rather than from the end of the whole URL:
-  // since task-238 a row in the sidebar tree carries the reader's filters into the
-  // link it opens, so the last slash-separated piece of `taskUrl` is `task-014?status=all`
-  // and pasting that into a RegExp builds a pattern that matches nothing on purpose.
-  const taskId = new URL(taskUrl).pathname.split("/").pop();
-  await expect(row.getByRole("link").first()).toHaveAttribute(
-    "href",
-    new RegExp(`/p/_local/tasks/${taskId}$`),
-  );
-  await expect(page.getByTestId("capacity-sentence")).toContainText("1 of");
-
-  // Read-only: the surface shows the run and offers no way to act on it (task-312).
-  await expect(page.getByRole("button", { name: /cancel/i })).toHaveCount(0);
-
-  // End the run from the task page, then come back without reloading the Runs tab.
+  // End the run from the task page, and watch the readout there fall without a reload.
   await page.goto(taskUrl);
   await page
     .getByRole("region", { name: "Dispatch" })
@@ -116,9 +85,7 @@ test("a real run appears on both surfaces without a reload, and leaves when it e
     timeout: 15_000,
   });
 
-  await openRunsTab(page);
-  await expect(page.getByTestId("no-live-runs")).toBeVisible({ timeout: 15_000 });
-  await expect(badge(page)).toHaveText("0");
+  await expect(badge(page)).toHaveText("0", { timeout: 15_000 });
 
   // Put the shared project back: cancelling hands the ball to a human, and this task
   // would otherwise be every later spec's dashboard headline.

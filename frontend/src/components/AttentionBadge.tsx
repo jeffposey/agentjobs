@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 
 import { getAttentionApiProjectsProjectIdAttentionGetOptions } from "../api/generated/@tanstack/react-query.gen";
 import type { AttentionResponse } from "../api/types";
@@ -25,6 +24,10 @@ import type { AttentionResponse } from "../api/types";
  * notification and opening a task the episode names. Acknowledgment does not clear the
  * badge -- the badge tracks the waiting set, and work is still stopped after you have
  * looked at it -- it decides whether the *next* task to stop may interrupt again.
+ *
+ * **Since task-588 the badge is the red dot inside the Dashboard tab** (`NavCounts`).
+ * This module keeps the query and the cap; the rendering moved there, and following the
+ * Dashboard tab is now the click that acknowledges.
  */
 
 /**
@@ -80,44 +83,4 @@ export function useWaitingOnYou(projectId: string): ReadonlySet<string> {
 /** The badge number alone, for callers that want nothing else. */
 export function useHumanAttention(projectId: string): number | null {
   return useAttention(projectId)?.blocking ?? null;
-}
-
-/**
- * The badge itself, or nothing at all when nothing is waiting.
- *
- * Rendering a zero -- which is what the Runs badge beside it does -- would be the
- * wrong call here. That one is a readout, and zero running is information. This one is
- * an alarm, and an alarm that is always on the screen stops being read; it also spends
- * width in a bar that `NAV_INLINE_MIN_PX` says has none to spare.
- */
-export function AttentionBadge({
-  count,
-  projectId,
-  onAcknowledge,
-}: {
-  count: number | null;
-  projectId: string;
-  /**
-   * Called when the person clicks through, which is an acknowledgment.
-   *
-   * A prop rather than a mutation inside this component, so the badge stays renderable
-   * from a number in its tests and the navigation is never blocked on a request: the
-   * click follows the link whatever the acknowledgment does.
-   */
-  onAcknowledge?: () => void;
-}) {
-  if (!count || count <= 0) return null;
-  const label = `${count} ${count === 1 ? "task is" : "tasks are"} waiting on you`;
-  return (
-    <Link
-      to={`/p/${encodeURIComponent(projectId)}`}
-      data-testid="attention-badge"
-      aria-label={label}
-      title={label}
-      onClick={() => onAcknowledge?.()}
-      className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white hover:bg-red-400"
-    >
-      {count > ATTENTION_BADGE_MAX ? `${ATTENTION_BADGE_MAX}+` : count}
-    </Link>
-  );
 }

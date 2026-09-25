@@ -30,7 +30,7 @@ function renderMenu({ at = "/p/demo/tasks" } = {}) {
         {/* A destination to navigate to, so "closes on a route change" can be
             provoked by an actual route change rather than by re-rendering the
             component with a different prop. */}
-        <Link to="/p/demo/runs">Runs</Link>
+        <Link to="/p/demo/elsewhere">Elsewhere</Link>
         <Routes>
           <Route path="/p/demo/*" element={<ActionsMenu projectId="demo" />} />
         </Routes>
@@ -180,7 +180,7 @@ describe("ActionsMenu", () => {
     renderMenu();
     fireEvent.click(trigger());
     expect(menu()).not.toBeNull();
-    fireEvent.click(screen.getByRole("link", { name: "Runs" }));
+    fireEvent.click(screen.getByRole("link", { name: "Elsewhere" }));
     expect(menu()).toBeNull();
   });
 
