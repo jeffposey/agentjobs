@@ -961,6 +961,24 @@ A `kind: design` task's final review is still `human/review`: approving it merge
 design document, and says that it authorises no implementation work. What Approve
 writes at each gate is tabled in [task-schema.md](task-schema.md#the-change-everything-follows-from).
 
+**A design task files its own implementation tasks, before that review** (task-617).
+Approval is the last act anyone takes on it: with `finish=on` it merges the doc and
+closes the task with no agent involved, so a follow-up list that says "filed after
+review" is filed by nobody — task-603's eight were, until the owner asked. So, before you
+hand off to `human/review`:
+
+- File each task the design proposes `ready`, with a `needs` dependency on the design
+  task, under an epic — a new umbrella, or the design's own parent if it has one.
+  `needs` keeps them unclaimable until the design closes; the walk starts them after.
+- Name them in the design doc's follow-up section and in the `ball_prompt`, so the owner
+  reviews the design and its breakdown in one pass. A design they reshape means editing
+  or cancelling those tasks, which is cheap.
+- If the design concludes that nothing should be built, say so in the `ball_prompt`.
+
+The handoff result warns `unfiled_follow_ups` when a design goes to review with nothing
+needing it. Never write "filed after the owner approves" into a design task's spec: no
+step files them.
+
 #### Name your links, and write them on their own lines
 
 **An address in a `ball_prompt` goes on a line of its own, introduced by a name and a
@@ -1273,7 +1291,10 @@ Leave it out for everything else: absent means `implementation`, which is what a
 every task is. If you find a design pass filed without it, set it with
 `task_update_content`; any actor may, because the field grants nothing — it changes how
 the task is shown, never what an approval of it authorises. See
-[task-schema.md](task-schema.md#fields).
+[task-schema.md](task-schema.md#fields). Its spec should say the design files its own
+implementation tasks before review — see
+[Asking for a go-ahead](#asking-for-a-go-ahead-before-you-build-humanplan) — not that they
+are filed after it.
 
 ## Notifications and Future Extension
 

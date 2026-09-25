@@ -109,7 +109,7 @@ the title (it is data, not presentation, and would be edited away).
 | A plan gate that approves without merging (task-001's defect) | **In.** New human reason `plan`. | task-001 |
 | Review shows the design deliverable rendered, not a diff | **In.** For any task whose deliverables include Markdown, read at the branch head. | its own child |
 | Implementation links back to its design, visibly | **In**, folded into the GUI child: it is a line in the header derived from `needs`. | GUI child |
-| Closing a design prompts filing or promoting implementation children | **Rejected.** The graph already does it: a design task files its children `ready` with `needs` on itself, and an epic walk starts each the moment the design closes. A prompt would duplicate that and still start nothing outside a walk. | — |
+| Closing a design prompts filing or promoting implementation children | **Rejected.** The graph already does it: a design task files its children `ready` with `needs` on itself, and an epic walk starts each the moment the design closes. A prompt would duplicate that and still start nothing outside a walk. The convention was written nowhere an agent read until task-617 put it in the workflow guide. | — |
 | Dispatch defaults by kind (model, posture, worktree, gate) | **Deferred.** No evidence yet of what a design task should run differently, and the gate question is task-101's and `gate_scope`'s. Reopen once `kind` has been set on a few weeks of tasks and their gate time can be measured. | — |
 
 ### The approve payload (task-001 against task-231's shape)

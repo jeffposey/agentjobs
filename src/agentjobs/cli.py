@@ -1174,7 +1174,10 @@ def create(
     kind: Optional[TaskKind] = typer.Option(
         None,
         "--kind",
-        help="'design' for a design pass. Omit for an implementation task (the default).",
+        help=(
+            "'design' for a design pass, which files its own implementation tasks "
+            "before review. Omit for an implementation task (the default)."
+        ),
     ),
     ready: bool = typer.Option(
         False,
