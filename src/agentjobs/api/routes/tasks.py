@@ -43,7 +43,15 @@ from agentjobs.models_v2 import (
     TaskSummary,
 )
 
-from .status import acting_actor, classify_refusal, get_acting_project, serving_api_base
+from agentjobs.deliverable_text import DeliverableRefused, read_deliverable
+
+from .status import (
+    MutationError,
+    acting_actor,
+    classify_refusal,
+    get_acting_project,
+    serving_api_base,
+)
 from ..authorization import assert_actor_agrees
 from ..dependencies import (
     current_identity,
@@ -56,7 +64,9 @@ from ..dependencies import (
 from ..models import (
     AttachmentUpload,
     BrokenTaskFile,
+    DeliverableDocument,
     DependencyRelation,
+    ErrorBody,
     HumanActionResponse,
     NextExplanationResponse,
     ReviewIdentity,
@@ -485,6 +495,56 @@ async def get_attachment(
         media_type=record.media_type,
         # Content-addressed: the name is the hash, so these bytes can never change.
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@router.get("/{task_id}/deliverables/{index}", response_model=DeliverableDocument)
+def get_deliverable(
+    task_id: str,
+    index: int,
+    project: Project = Depends(get_project),
+    manager: TaskManager = Depends(get_task_manager),
+) -> DeliverableDocument:
+    """One Markdown deliverable as it stands at the head of the task's active branch.
+
+    Addressed by index into ``deliverables[]`` so no caller-supplied path ever reaches
+    git; every refusal is a structured body the review panel shows in place of the
+    document. The rules are in :mod:`agentjobs.deliverable_text`. A plain ``def`` so the
+    git calls run on the threadpool rather than the event loop.
+    """
+    task = manager.get_task(task_id)
+    if task is None:
+        message = f"Task {task_id} not found"
+        raise MutationError(
+            status.HTTP_404_NOT_FOUND,
+            ErrorBody(
+                code="task_not_found",
+                message=message,
+                detail=message,
+                retryable=False,
+                task_id=task_id,
+            ),
+        )
+    try:
+        document = read_deliverable(project.root, task, index)
+    except DeliverableRefused as exc:
+        raise MutationError(
+            exc.status_code,
+            ErrorBody(
+                code=exc.reason,
+                message=exc.message,
+                detail=exc.message,
+                retryable=False,
+                task_id=task_id,
+            ),
+        ) from exc
+    return DeliverableDocument(
+        index=document.index,
+        path=document.path,
+        branch=document.branch,
+        commit=document.commit,
+        size=document.size,
+        text=document.text,
     )
 
 

@@ -1945,6 +1945,51 @@
         "title": "Deliverable",
         "type": "object"
       },
+      "DeliverableDocument": {
+        "description": "One Markdown deliverable, read at the head of the task's active branch (task-594).",
+        "properties": {
+          "branch": {
+            "description": "The active branch it was read from.",
+            "title": "Branch",
+            "type": "string"
+          },
+          "commit": {
+            "description": "Short id of the commit the branch pointed at.",
+            "title": "Commit",
+            "type": "string"
+          },
+          "index": {
+            "description": "Position in the task's deliverables[].",
+            "title": "Index",
+            "type": "integer"
+          },
+          "path": {
+            "description": "Repository-relative path, as the record lists it.",
+            "title": "Path",
+            "type": "string"
+          },
+          "size": {
+            "description": "Size of the file in bytes.",
+            "title": "Size",
+            "type": "integer"
+          },
+          "text": {
+            "description": "The file's text, unrendered.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "path",
+          "branch",
+          "commit",
+          "size",
+          "text"
+        ],
+        "title": "DeliverableDocument",
+        "type": "object"
+      },
       "DeliverableStatus": {
         "description": "State of one deliverable.",
         "enum": [
@@ -16857,6 +16902,67 @@
         ]
       }
     },
+    "/api/projects/{project_id}/tasks/{task_id}/deliverables/{index}": {
+      "get": {
+        "description": "One Markdown deliverable as it stands at the head of the task's active branch.\n\nAddressed by index into ``deliverables[]`` so no caller-supplied path ever reaches\ngit; every refusal is a structured body the review panel shows in place of the\ndocument. The rules are in :mod:`agentjobs.deliverable_text`. A plain ``def`` so the\ngit calls run on the threadpool rather than the event loop.",
+        "operationId": "get_deliverable_api_projects__project_id__tasks__task_id__deliverables__index__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliverableDocument"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Deliverable",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/projects/{project_id}/tasks/{task_id}/detail": {
       "get": {
         "description": "Return the complete resumption and review contract for one task.",
@@ -20247,6 +20353,58 @@
           }
         },
         "summary": "Mark Deliverable",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}/deliverables/{index}": {
+      "get": {
+        "description": "One Markdown deliverable as it stands at the head of the task's active branch.\n\nAddressed by index into ``deliverables[]`` so no caller-supplied path ever reaches\ngit; every refusal is a structured body the review panel shows in place of the\ndocument. The rules are in :mod:`agentjobs.deliverable_text`. A plain ``def`` so the\ngit calls run on the threadpool rather than the event loop.",
+        "operationId": "get_deliverable_api_tasks__task_id__deliverables__index__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliverableDocument"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Deliverable",
         "tags": [
           "tasks"
         ]
