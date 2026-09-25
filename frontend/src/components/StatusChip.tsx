@@ -39,13 +39,16 @@ export function categoryStyle(category: StatusCategory): CSSProperties {
   };
 }
 
-type Entry = { label: string; category: StatusCategory };
+type Entry = { label: string; category: StatusCategory; icon?: string };
 
 /** A run's health word and category, where the health names a task status. */
 export const RUN_HEALTH = vocabulary.run_health as Record<string, Entry>;
 
 /** An epic walk's badge word and category. */
 export const WALK_STATES = vocabulary.walk as Record<"walking" | "waiting" | "grounded", Entry>;
+
+/** Every task status's word and category, for a surface naming one by key. */
+export const STATUSES = vocabulary.statuses as Record<string, Entry>;
 
 /** The shape every status chip has, so no surface draws a filled one beside an outlined one. */
 export const CHIP_SHAPE = "inline-flex whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium";

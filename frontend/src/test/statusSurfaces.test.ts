@@ -66,13 +66,15 @@ describe("the status surface inventory", () => {
 });
 
 describe("the agreed sources", () => {
-  it("spells Finishing only where the word is defined", () => {
-    // The server's `display_status` is the task's word, and HEALTH_LABELS / FinishBadge
-    // are the run's. A third spelling is a surface deciding the word for itself.
-    const allowed = new Set(["components/LiveRuns.tsx", "components/TaskList.tsx"]);
+  it("spells the landing word nowhere: the data file is where it is defined", () => {
+    // The server's `display_status` is the task's word, and RUN_HEALTH / STATUSES carry
+    // the run's and the filter's from the same file. Any spelling in a component is a
+    // surface deciding the word for itself. "Finishing" is the word task-578 retired, so
+    // a stale copy of it is caught too.
     for (const [path, text] of Object.entries(sources)) {
-      if (allowed.has(path)) continue;
-      expect(code(text), `${path} spells "Finishing" itself`).not.toMatch(/["'>]Finishing["'<]/);
+      for (const spelling of [/["'>`]Finishing\b/, /["'>`]Landing\b/]) {
+        expect(code(text), `${path} spells ${spelling.source} itself`).not.toMatch(spelling);
+      }
     }
   });
 
@@ -118,9 +120,9 @@ describe("the agreed sources", () => {
   });
 
   it("gives a finishing run the word the server gives a finishing task", () => {
-    // `derived_display_status` returns "Finishing"; tests/test_status_surfaces.py reads
+    // `derived_display_status` returns "Landing"; tests/test_status_surfaces.py reads
     // this same map from the Python side, so the two cannot drift apart silently.
-    expect(HEALTH_LABELS.finishing).toBe("Finishing");
+    expect(HEALTH_LABELS.finishing).toBe("Landing");
   });
 });
 

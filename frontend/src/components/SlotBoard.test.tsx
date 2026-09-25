@@ -430,7 +430,7 @@ describe("the board a person reads", () => {
     expect(cellStates()).toEqual(["finish", "queued", "queued", "queued"]);
     expect(screen.getAllByRole("button", { name: /^Dispatch/ })).toHaveLength(3);
     const card = screen.getAllByTestId("slot-cell")[0]!;
-    expect(within(card).getByText("Finishing")).toHaveAttribute("data-finish-step", "gate");
+    expect(within(card).getByText("Landing")).toHaveAttribute("data-finish-step", "gate");
     expect(within(card).getByText("Running the gate")).toBeVisible();
     expect(within(card).getByText("30s")).toBeVisible();
     expect(within(card).getByRole("link", { name: /task-002/ })).toHaveAttribute(
@@ -1396,13 +1396,13 @@ describe("a run whose task is being merged (task-533)", () => {
       runway_behind: "task-526",
     });
 
-  it("reads Finishing in the finishing violet, with the queue it is in", () => {
+  it("reads Landing in the finishing violet, with the queue it is in", () => {
     renderBoard(
       <SlotBoard body={body({ occupied: 1, runs: [finishing()] })} queue={[]} projectId="alpha" />,
     );
 
     const cell = screen.getAllByTestId("slot-cell")[0]!;
-    const badge = within(cell).getByText("Finishing");
+    const badge = within(cell).getByText("Landing");
     expect(badge).toHaveAttribute("data-status-category", "finishing");
     expect(cell).not.toHaveTextContent("Working");
     expect(cell).toHaveTextContent("Queued for the merge runway, behind task-526");
@@ -1417,7 +1417,7 @@ describe("a run whose task is being merged (task-533)", () => {
       />,
     );
 
-    const badges = screen.getAllByText("Finishing");
+    const badges = screen.getAllByText("Landing");
     expect(badges).toHaveLength(2);
     expect(new Set(badges.map((badge) => badge.className))).toHaveProperty("size", 1);
   });
@@ -1433,6 +1433,6 @@ describe("a run whose task is being merged (task-533)", () => {
 
     const cell = screen.getAllByTestId("slot-cell")[0]!;
     expect(within(cell).getByText("Working")).toBeVisible();
-    expect(cell).not.toHaveTextContent("Finishing");
+    expect(cell).not.toHaveTextContent("Landing");
   });
 });

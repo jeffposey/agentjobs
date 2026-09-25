@@ -82,5 +82,5 @@ class TestOneWord:
         # Since task-562 the run's word comes from the status data file, which LiveRuns.tsx
         # imports; the file is what this reads, and LiveRuns must still import it.
         run_word = STATUS_VOCABULARY["run_health"]["finishing"]["label"]
-        assert run_word == task_word == "Finishing"
+        assert run_word == task_word == "Landing"
         assert "RUN_HEALTH" in LIVE_RUNS_TSX.read_text(encoding="utf-8")

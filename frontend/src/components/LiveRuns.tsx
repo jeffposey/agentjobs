@@ -99,7 +99,7 @@ const PROCESS_HEALTH_LABELS: Record<string, string> = {
 
 /**
  * Every health word. The ones that name the same thing as a task status -- Working,
- * Starting, Waiting on you, Finishing, and Feedback (a human handed the ball back while
+ * Starting, Waiting on you, Landing, and Feedback (a human handed the ball back while
  * this run was still going, task-384) -- come with their category from the status data
  * file, so a run and its task are drawn in one word and one colour (task-562). The rest
  * describe the process rather than the task and are spelled here.

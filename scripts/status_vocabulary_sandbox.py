@@ -1,4 +1,4 @@
-"""Stand up every task status on its own port, with throwaway data (task-562).
+"""Stand up every task status on its own port, with throwaway data (task-562, task-578).
 
 task-562 gives every surface one status vocabulary and one colour per category. The
 thing to review is the whole table at once -- one task in every state -- and the same
@@ -10,24 +10,27 @@ Recently finished, the Runs tab, and the slot board's queued and epic-walk rails
 What to look at:
 
   * **The task list** (`?status=all`), sorted into the seven colours:
-    green Ready · brown Queued, Starting · blue Working · purple Finishing ·
+    green Ready · brown Queued, Starting · blue Working · purple Landing ·
     red Needs spec / review / decision / approval / input, Error ·
     pink Blocked, On hold, Quota · yellow Draft ·
     grey: Completed solid, and Superseded / Cancelled / Duplicate hollow.
     Every word and colour comes from src/agentjobs/status_vocabulary.json.
     Each task's title names the state it was seeded into.
+  * **No icons** (task-578): the data file names one per status, and no chip draws it.
   * **Any task page**: the header chip and the "Work state" card say the same word in the
     same colour as the list, and the reason line carries what left the chip (the
-    blocker, the quota reset time in your zone, the finish step).
+    blocker, the quota reset time in your zone, the finish step). task-005 is the
+    Landing task: its finish panel reads "Landing this task".
   * **The dashboard**: Recently finished shows the four closed tasks in grey, three
     hollow. The slot board's queued rail is headed "Queued". The "Epics being
     walked" rail has one walk each Walking (blue), Waiting (pink) and Grounded (red),
     with no violet on the cards.
-  * **The Runs tab**: Working blue, Starting brown, Waiting on you red, Finishing purple.
+  * **The Runs tab**: Working blue, Starting brown, Waiting on you red, Landing purple,
+    Feedback blue, and No output (orange, a process word).
 
 **Two things here are drawn, not real**, and both are machine state a review sandbox
 cannot arrange on demand: the three epic walks (a real walk dispatches real children)
-and the four run-health words (a real run's health comes from a live session). Both are
+and the run-health words (a real run's health comes from a live session). Both are
 served by patching one builder in the running app, so what a browser receives goes
 through the real response models and the real React components. Everything about the
 task chips is the real server: records written through the manager's verbs, a real
@@ -127,7 +130,7 @@ def seed(manager: Any) -> Dict[str, int]:
     task("task-004", "Working — blue, an agent is on it")
     manager.claim_task("task-004", agent="claude")
 
-    task("task-005", "Finishing — purple, a scripted finish is merging it")
+    task("task-005", "Landing — purple, a scripted finish is merging it")
     manager.claim_task("task-005", agent="claude")
 
     for number, reason in enumerate(("spec", "review", "decision", "approval", "input"), start=6):
@@ -297,11 +300,14 @@ RUN_HEALTH = {
     "run_starting": ("task-001", "starting"),
     "run_parked": ("task-007", "parked"),
     "run_finishing": ("task-005", "finishing"),
+    "run_handback": ("task-004", "handback"),
+    # A process word rather than a task status, which keeps a colour of its own.
+    "run_silent": ("task-014", "silent"),
 }
 
 
 def runs(home: Path) -> None:
-    """Four run records for the Runs tab, one per health word that names a task status."""
+    """Run records for the Runs tab: every health word that names a task status, and No output."""
     for run_id, (task_id, _health) in RUN_HEALTH.items():
         directory = home / "runs" / run_id
         directory.mkdir(parents=True, exist_ok=True)
@@ -319,7 +325,7 @@ def runs(home: Path) -> None:
 
 
 def patch_the_drawn_parts() -> None:
-    """Serve three walks and the four run-health words -- see the module docstring."""
+    """Serve three walks and the run-health words -- see the module docstring."""
     from agentjobs.api.routes import runs as runs_route
 
     original_run_view = runs_route._run_view
@@ -404,6 +410,7 @@ def main() -> None:
     print(f"[status]   the dashboard   {base}", flush=True)
     print(f"[status]   the Runs tab    {base}/runs", flush=True)
     print(f"[status]   a task page     {base}/tasks/task-017", flush=True)
+    print(f"[status]   Landing         {base}/tasks/task-005", flush=True)
     # Lifespan off, as the queued-status sandbox does: the poller would drain the queue
     # and reap the seeded runs and finish, and those sitting where they were put is the
     # exhibit. Everything a browser touches is served by the real application.

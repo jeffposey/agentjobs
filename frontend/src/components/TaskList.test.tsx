@@ -199,7 +199,7 @@ describe("TaskList filtering", () => {
         lifecycle: "active",
         ball: "agent",
         ball_reason: "work",
-        display_status: "Finishing",
+        display_status: "Landing",
         assignment: { owner: "claude", eligible: [] },
         live_finish: {
           finish_id: "fin_a1b2c3d4",
@@ -245,7 +245,7 @@ describe("TaskList filtering", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("status=finishing");
       const table = screen.getByRole("region", { name: "Tasks" });
       // The rendered label, not the presence of a row: the chip is the whole point.
-      expect(within(table).getByText("Finishing")).toBeVisible();
+      expect(within(table).getByText("Landing")).toBeVisible();
       expect(within(table).queryByText("task-being-worked")).not.toBeInTheDocument();
     });
   });

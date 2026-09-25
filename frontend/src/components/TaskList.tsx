@@ -9,7 +9,7 @@ import type {
 } from "../api/types";
 import { ArchivedTag, DependencyState, dependencyState } from "./DependencyState";
 import { PriorityMark, PRIORITY_COLOURS, priorityName } from "./PriorityMark";
-import { StatusChip } from "./StatusChip";
+import { STATUSES, StatusChip } from "./StatusChip";
 import { startDragAutoScroll } from "./dragAutoScroll";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 import {
@@ -1187,7 +1187,7 @@ export function TaskList({
               >
                 <label className="sr-only" htmlFor="status-filter">Status</label>
                 <select ref={firstFilterRef} id="status-filter" aria-label="Status" value={status} onChange={(event) => updateParam("status", event.target.value, "open")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
-                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="attention">Waiting on you</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Working</option><option value="finishing">Finishing</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="reset">Quota reset</option><option value="closed">Closed</option>
+                  <option value="open">Open (not closed)</option><option value="all">All Status</option><option value="attention">Waiting on you</option><option value="draft">Draft</option><option value="ready">Ready</option><option value="active">Working</option><option value="finishing">{STATUSES.finishing?.label}</option><option value="human">Needs Human</option><option value="external">Blocked</option><option value="reset">Quota reset</option><option value="closed">Closed</option>
                 </select>
                 <label className="sr-only" htmlFor="priority-filter">Priority</label>
                 <select id="priority-filter" aria-label="Priority" value={priority} onChange={(event) => updateParam("priority", event.target.value, "all")} className="touch-target w-full rounded-lg border border-dark-border bg-dark-bg px-3">
