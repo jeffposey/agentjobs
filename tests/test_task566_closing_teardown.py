@@ -186,6 +186,31 @@ class TestStopResidents:
         assert 10 not in ended
         assert "its command line changed" in result.sentence()
 
+    def test_a_launcher_that_exits_with_its_child_is_not_a_failure(self) -> None:
+        # A virtualenv's python.exe exits when the interpreter it started is stopped. It is
+        # still alive when re-read before its own stop, and gone by the time the terminate
+        # reaches it -- that is "exited by itself", not "could not be ended".
+        table = self.rows()
+        known = {proc.pid: fact for proc, fact in table}
+        reads: Dict[int, int] = {}
+
+        def facts(pid: int) -> Optional[Facts]:
+            reads[pid] = reads.get(pid, 0) + 1
+            return known[pid] if reads[pid] == 1 else None
+
+        result = stop_residents(
+            WORKTREE,
+            rows=lambda: table,
+            facts=facts,
+            end=lambda proc: proc.pid == 20,
+            self_pid=999,
+            sleep=lambda _: None,
+        )
+        assert [item.proc.pid for item in result.ended] == [20]
+        assert [item.proc.pid for item in result.gone] == [10]
+        assert result.declined == []
+        assert "1 exited by themselves (pid 10)" in result.sentence()
+
     def test_nothing_there_says_so(self) -> None:
         result = stop_residents(WORKTREE, rows=lambda: [], self_pid=999)
         assert result.sentence() == "nothing to stop"
@@ -264,8 +289,11 @@ def test_the_finish_stops_a_sandbox_and_leaves_no_root_behind(tmp_path: Path, mo
         # A virtualenv's python.exe is a launcher that starts the real interpreter as its
         # child, so each Python here is two processes: at least the sandbox and its sleeper.
         assert stopped.detail.startswith("stopped "), stopped.detail
-        assert f"python.exe {sandbox.pid} (working directory)" in stopped.detail
+        # The launcher may exit on its own once its interpreter is stopped, so the sandbox's
+        # own pid is either stopped or reported as having exited -- never left running.
+        assert str(sandbox.pid) in stopped.detail
         assert "(started by one of them)" in stopped.detail
+        assert "did not stop" not in stopped.detail
         assert sandbox.wait(timeout=10) is not None
         after = {proc.pid for proc in worktree_teardown.proctree.fast_process_table()}
         assert all(proc.pid not in after or proc.pid == 0 for proc in tree)

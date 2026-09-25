@@ -73,13 +73,17 @@ class Teardown:
 
     ended: List[Resident] = field(default_factory=list)
     declined: List[Tuple[Resident, str]] = field(default_factory=list)
+    gone: List[Resident] = field(default_factory=list)
+    """Matched, then exited before it was stopped: usually a launcher whose child was
+    stopped first -- a virtualenv's ``python.exe`` exits when the interpreter it started
+    does."""
     protected: List[Tuple[Proc, str]] = field(default_factory=list)
     error: str = ""
 
     def sentence(self) -> str:
         if self.error:
             return f"could not look for processes in the worktree: {self.error}"
-        if not self.ended and not self.declined:
+        if not self.ended and not self.declined and not self.gone:
             text = "nothing to stop"
         else:
             parts = []
@@ -90,6 +94,9 @@ class Teardown:
             if self.declined:
                 named = "; ".join(f"pid {item.proc.pid}: {why}" for item, why in self.declined[:4])
                 parts.append(f"did not stop {len(self.declined)}: {named}")
+            if self.gone:
+                pids = ", ".join(str(item.proc.pid) for item in self.gone[:6])
+                parts.append(f"{len(self.gone)} exited by themselves (pid {pids})")
             text = "; ".join(parts)
         if self.protected:
             kept = ", ".join(f"pid {proc.pid} ({why})" for proc, why in self.protected[:4])
@@ -378,13 +385,9 @@ def stop_residents(
             if item.why == "started by one of them":
                 # A child read without facts may simply be unreadable; terminate() still
                 # proves its identity through the handle before ending it.
-                (
-                    result.ended.append(item)
-                    if end(item.proc)
-                    else result.declined.append((item, "already gone"))
-                )
+                (result.ended if end(item.proc) else result.gone).append(item)
             else:
-                result.declined.append((item, "already gone"))
+                result.gone.append(item)
             continue
         if not proctree.same_creation(now.created, item.proc.created):
             result.declined.append((item, "the pid now belongs to a different process"))
@@ -395,6 +398,10 @@ def stop_residents(
             continue
         if end(item.proc):
             result.ended.append(item)
+            continue
+        after = facts(item.proc.pid)
+        if after is None or not proctree.same_creation(after.created, item.proc.created):
+            result.gone.append(item)
         else:
             result.declined.append((item, "could not be ended"))
     if result.ended and settle_seconds > 0:
