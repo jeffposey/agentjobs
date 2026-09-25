@@ -26,6 +26,9 @@ project fixture to make a point about a comparison.
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -36,7 +39,9 @@ from fastapi.testclient import TestClient
 
 from agentjobs.api.dependencies import TASKS_DIR_ENV, reset_dependency_cache
 from agentjobs.api.main import app
+from agentjobs.dispatch import pull as dispatch_pull
 from agentjobs.dispatch.config import load_dispatch_config
+from agentjobs.dispatch.journal import journal
 from agentjobs.models_v2 import (
     Assignment,
     Ball,
@@ -613,3 +618,144 @@ class TestItIsDerivedAndSelfClearing:
         assert after["blocking"] == 0
         assert after["stalled"] == []
         assert after["episode"] is None
+
+
+# ----- a walked epic (task-605) -------------------------------------------------------
+
+
+def open_walk(
+    home: Path,
+    parent_task_id: str = "task-555",
+    *,
+    project_id: str = "inbox",
+    host: str = "process",
+    holder_pid: Optional[int] = None,
+) -> None:
+    """A ``walking`` row in *home*'s journal, supervising *parent_task_id*.
+
+    The walk holds no run slot and writes to its parent's log only on a transition, which
+    is why the parent can sit quiet past the threshold for as long as a child runs.
+    """
+    journal(home).open_walk(
+        project_id=project_id,
+        parent_task_id=parent_task_id,
+        authority_entry=1,
+        authority_actor="Jeff Posey",
+        settings={"max_concurrent": 1},
+        host=host,
+        holder="a supervisor",
+        holder_pid=holder_pid,
+    )
+
+
+def dead_pid() -> int:
+    """A pid whose process has exited, for a walk whose attached holder died."""
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    return dead.pid
+
+
+def epic(**kwargs: Any) -> Task:
+    """task-555 as the owner's dashboard showed it: ``agent``/``work``, quiet for 2h."""
+    kwargs.setdefault("ball_reason", BallReason.WORK)
+    kwargs.setdefault("quiet_minutes", 2 * 60)
+    return task("task-555", **kwargs)
+
+
+class TestAWalkedEpic:
+    """task-605: a walk supervises its parent, though no run is ever keyed on it.
+
+    Seen 2026-09-25: task-555 was listed under "Blocked on You" as "No agent for 1h 5m"
+    while the same dashboard showed its walk live and a child working. The walk is not a
+    run and holds no slot, and the child's run is keyed on the child, so the parent's
+    quiet log read as nothing working it.
+    """
+
+    def test_a_server_hosted_walk_covers_its_parent(self, tmp_path: Path) -> None:
+        open_walk(tmp_path, host="server")
+
+        assert stalled_in([epic()], project_id="inbox", home=tmp_path, now=NOW) == []
+
+    def test_an_attached_walk_with_a_live_holder_covers_its_parent(self, tmp_path: Path) -> None:
+        open_walk(tmp_path, holder_pid=os.getpid())
+
+        assert stalled_in([epic()], project_id="inbox", home=tmp_path, now=NOW) == []
+
+    def test_however_long_the_parent_has_been_quiet(self, tmp_path: Path) -> None:
+        """Quiet on the parent says nothing about a walk: it logs only on transitions."""
+        open_walk(tmp_path, host="server")
+
+        long_quiet = epic(quiet_minutes=3 * 24 * 60)
+        assert stalled_in([long_quiet], project_id="inbox", home=tmp_path, now=NOW) == []
+
+    def test_a_walk_whose_attached_holder_died_does_not(self, tmp_path: Path) -> None:
+        """The task-499 incident one level up: a ``walking`` row nobody is advancing is
+        an epic with no supervisor, and that is exactly what this signal is for."""
+        open_walk(tmp_path, holder_pid=dead_pid())
+
+        found = stalled_in([epic()], project_id="inbox", home=tmp_path, now=NOW)
+
+        assert [(stall.task_id, stall.reason) for stall in found] == [("task-555", NO_AGENT)]
+
+    def test_it_covers_only_the_epic_it_walks(self, tmp_path: Path) -> None:
+        """Not every quiet task in the project, and not the same id in another project."""
+        open_walk(tmp_path, host="server")
+        open_walk(tmp_path, "task-421", project_id="elsewhere", host="server")
+
+        found = stalled_in(
+            [epic(), task("task-421", quiet_minutes=22 * 60)],
+            project_id="inbox",
+            home=tmp_path,
+            now=NOW,
+        )
+
+        assert [stall.task_id for stall in found] == ["task-421"]
+
+    def test_a_journal_that_cannot_be_read_degrades_to_the_old_answer(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Never raises: a failed read costs the exemption, not the page. And the failure
+        is safe in the direction that matters -- a report rather than a silence."""
+        open_walk(tmp_path, host="server")
+
+        def broken(home: Path) -> List[Any]:
+            raise RuntimeError("database is locked")
+
+        monkeypatch.setattr(dispatch_pull, "walking_now", broken)
+
+        found = stalled_in([epic()], project_id="inbox", home=tmp_path, now=NOW)
+
+        assert [(stall.task_id, stall.reason) for stall in found] == [("task-555", NO_AGENT)]
+
+    def test_the_journal_is_read_only_once_a_candidate_survives_the_threshold(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Behind both of ``stalled_in``'s short-circuits, like the ledger."""
+        reads: List[Path] = []
+
+        def counting(home: Path) -> List[Any]:
+            reads.append(home)
+            return []
+
+        monkeypatch.setattr(dispatch_pull, "walking_now", counting)
+
+        stalled_in([], project_id="inbox", home=tmp_path, now=NOW)
+        stalled_in([epic(lifecycle=Lifecycle.READY)], project_id="inbox", home=tmp_path, now=NOW)
+        stalled_in([epic(quiet_minutes=20)], project_id="inbox", home=tmp_path, now=NOW)
+        assert reads == []
+
+        stalled_in([epic()], project_id="inbox", home=tmp_path, now=NOW)
+        assert reads == [tmp_path]
+
+    def test_the_attention_api_and_the_dashboard_leave_it_out(self, client_for) -> None:
+        client, home = client_for([now_task("task-555", quiet_minutes=2 * 60)])
+        assert attention_of(client)["blocking"] == 1, "unwalked, it is a stall"
+
+        open_walk(home, host="server")
+
+        payload = attention_of(client)
+        dashboard = client.get("/api/projects/inbox/dashboard").json()
+        assert payload["blocking"] == 0
+        assert payload["stalled"] == []
+        assert dashboard["stalled"] == []
+        assert dashboard["waiting_tasks"] == []
