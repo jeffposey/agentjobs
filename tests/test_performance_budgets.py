@@ -665,6 +665,24 @@ class TestAResponseIsSizedByWhatItDraws:
             "draw a list. Send the fields the surface reads and fetch the rest on open."
         )
 
+    @pytest.mark.parametrize("path", sorted(PAYLOAD_BUDGETS))
+    def test_a_listing_is_compressed_on_the_wire(self, budget_client, path: str) -> None:
+        """The budgets above count decoded JSON, which is what a regression grows.
+
+        What a phone on the tailnet waits for is the wire, and that was the same number:
+        nothing compressed anything, so 580 rows went out as 540 KB (task-483).
+        """
+        response = budget_client.get(path, headers={"Accept-Encoding": "gzip"})
+        assert response.status_code == 200, response.text
+        wire, decoded = response.num_bytes_downloaded, len(response.content)
+        assert response.headers.get("content-encoding") == "gzip", (
+            f"{path} sent {decoded:,} bytes uncompressed to a client that asked for gzip."
+        )
+        assert wire * 3 < decoded, (
+            f"{path} sent {wire:,} bytes on the wire for {decoded:,} of JSON, which is "
+            "not what compressing a listing of near-identical rows looks like."
+        )
+
     @pytest.mark.parametrize("path", sorted(FIXED_PAYLOAD_BUDGETS))
     def test_a_single_record_response_stays_one_record(
         self, budget_client, count_sql: StatementLog, path: str
