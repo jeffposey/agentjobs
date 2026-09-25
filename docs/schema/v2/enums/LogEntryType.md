@@ -31,6 +31,8 @@ URI: [aj:enum/LogEntryType](https://github.com/jeffposey/agentjobs/schema/v2/enu
 | dispatch | None | A run was started against this task |
 | dispatch_result | None | How a run ended |
 | queue_move | None | Somebody decided where this task stands in its band (section 5 |
+| authorization | None | A human authorised a dispatch, relayed by the agent they said it to (task-506... |
+| check_result | None | One evaluation pass over the task's executable acceptance checks (task-147) |
 
 
 
@@ -114,6 +116,21 @@ permissible_values:
       Rebalances and compactions write none of these: nobody decided anything, and
       mechanical renumbering would bury the entries that mean something. Written by
       the manager, never trusted to callers.'
+  authorization:
+    text: authorization
+    description: 'A human authorised a dispatch, relayed by the agent they said it
+      to (task-506). The one type whose `actor` is not the party it is about: the
+      actor is the agent that typed it, and `data.authorized_by` names the human.
+      Written by the manager, never trusted to callers.'
+  check_result:
+    text: check_result
+    description: 'One evaluation pass over the task''s executable acceptance checks
+      (task-147). `data` carries a `results` vector -- one entry per criterion that
+      has a `check`, with its status, exit code, duration and output tail -- plus
+      the `unchecked` ids, and `chain_id`/`iteration`, which are null outside a loop.
+      One entry per pass, never one per criterion. Written by the manager, never trusted
+      to callers: it asserts that a command exited with a code, and a loop decides
+      whether it is done by reading it.'
 
 ```
 </details>

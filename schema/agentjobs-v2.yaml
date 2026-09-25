@@ -144,6 +144,16 @@ enums:
       high:
       critical:
 
+  TaskKind:
+    description: >-
+      What a task is. Absent means implementation. Changes how a task is shown and how
+      an approval is worded, never what an approval authorises (task-592).
+    permissible_values:
+      design:
+        description: A design pass -- its deliverable is a decision, a doc or a plan.
+      implementation:
+        description: Building something. The default when kind is absent.
+
   ActorKind:
     description: What kind of party acted.
     permissible_values:
@@ -347,6 +357,11 @@ classes:
           Validated against the project config vocabulary at save time, not
           enumerated in this schema -- taxonomy is project-local, semantics are not.
         required: true
+      kind:
+        description: >-
+          Design pass or implementation; absent means implementation. Any actor may
+          change it, because it grants nothing -- the handoff's gate does.
+        range: TaskKind
       tags:
         description: Also validated against the config vocabulary at save.
         multivalued: true

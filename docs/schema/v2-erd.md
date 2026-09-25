@@ -14,6 +14,7 @@ in your browser. Or click the diagram below to zoom it in place.
     erDiagram
     AcceptanceCriterion {
         string id  
+        stringList check  
         AcceptanceStatus status  
         string text  
         string verify  
@@ -82,6 +83,7 @@ in your browser. Or click the diagram below to zoom it in place.
         string category  
         datetime created  
         string effort  
+        TaskKind kind  
         Lifecycle lifecycle  
         Outcome outcome  
         string parent  

@@ -237,6 +237,20 @@ class Priority(str, Enum):
     critical = "critical"
 
 
+class TaskKind(str, Enum):
+    """
+    What a task is. Absent means implementation. Changes how a task is shown and how an approval is worded, never what an approval authorises (task-592).
+    """
+    design = "design"
+    """
+    A design pass -- its deliverable is a decision, a doc or a plan.
+    """
+    implementation = "implementation"
+    """
+    Building something. The default when kind is absent.
+    """
+
+
 class ActorKind(str, Enum):
     """
     What kind of party acted.
@@ -346,6 +360,14 @@ class LogEntryType(str, Enum):
     """
     Somebody decided where this task stands in its band (section 5.2). `data` carries band, from, to and the placement that was asked for, plus `moved_with` for a group move and `from_band` when a reprioritise changed the band as well. Rebalances and compactions write none of these: nobody decided anything, and mechanical renumbering would bury the entries that mean something. Written by the manager, never trusted to callers.
     """
+    authorization = "authorization"
+    """
+    A human authorised a dispatch, relayed by the agent they said it to (task-506). The one type whose `actor` is not the party it is about: the actor is the agent that typed it, and `data.authorized_by` names the human. Written by the manager, never trusted to callers.
+    """
+    check_result = "check_result"
+    """
+    One evaluation pass over the task's executable acceptance checks (task-147). `data` carries a `results` vector -- one entry per criterion that has a `check`, with its status, exit code, duration and output tail -- plus the `unchecked` ids, and `chain_id`/`iteration`, which are null outside a loop. One entry per pass, never one per criterion. Written by the manager, never trusted to callers: it asserts that a command exited with a code, and a loop decides whether it is done by reading it.
+    """
 
 
 
@@ -437,6 +459,7 @@ class Task(ConfiguredBaseModel):
     priority: Optional[Priority] = Field(default=Priority.medium, json_schema_extra = { "linkml_meta": {'domain_of': ['Task'], 'ifabsent': 'string(medium)'} })
     queue_position: Optional[int] = Field(default=None, description="""Explicit order within the priority band. Unique among open tasks of the same priority in one project. Present if and only if the task is open. Assigned in sparse steps of 100 so an insertion takes a midpoint and rewrites one file rather than a whole band.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['Task']} })
     category: str = Field(default=..., description="""Validated against the project config vocabulary at save time, not enumerated in this schema -- taxonomy is project-local, semantics are not.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task']} })
+    kind: Optional[TaskKind] = Field(default=None, description="""Design pass or implementation; absent means implementation. Any actor may change it, because it grants nothing -- the handoff's gate does.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task', 'Actor']} })
     tags: Optional[list[str]] = Field(default=None, description="""Also validated against the config vocabulary at save.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task']} })
     effort: Optional[str] = Field(default=None, description="""Free text; renamed from estimated_effort. It is an estimate, not a contract, so it is deliberately unstructured.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task']} })
     assignment: Optional[Assignment] = Field(default=None, description="""Live ownership plus authoring-time eligibility.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task']} })
@@ -458,7 +481,7 @@ class Actor(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://github.com/jeffposey/agentjobs/schema/v2'})
 
     id: str = Field(default=..., description="""Actor identifier, e.g. claude or jeff. Unique within the project.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task', 'Actor', 'AcceptanceCriterion', 'LogEntry']} })
-    kind: ActorKind = Field(default=..., description="""What kind of party this is. Lives in config only -- never copied into a task file, which is the whole point of D4.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Actor']} })
+    kind: ActorKind = Field(default=..., description="""What kind of party this is. Lives in config only -- never copied into a task file, which is the whole point of D4.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task', 'Actor']} })
 
 
 class Assignment(ConfiguredBaseModel):
@@ -497,13 +520,14 @@ class ContextPointer(ConfiguredBaseModel):
 
 class AcceptanceCriterion(ConfiguredBaseModel):
     """
-    One verifiable condition for done. Replaces SuccessCriterion; adds an optional machine-checkable hint.
+    One verifiable condition for done. Replaces SuccessCriterion, and carries two optional fields describing how it is verified -- which are not the same kind of thing. `verify` is prose for a person and nothing executes it; `check` is an argv list this machine runs, and its exit code decides the criterion.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://github.com/jeffposey/agentjobs/schema/v2'})
 
     id: str = Field(default=..., description="""Criterion identifier, scoped to the task (e.g. ac-1).""", json_schema_extra = { "linkml_meta": {'domain_of': ['Task', 'Actor', 'AcceptanceCriterion', 'LogEntry']} })
     text: str = Field(default=..., description="""The condition, stated so it can be judged true or false.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriterion']} })
-    verify: Optional[str] = Field(default=None, description="""Optional machine-checkable hint -- a command that demonstrates the criterion. Advisory, not executed automatically.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriterion']} })
+    verify: Optional[str] = Field(default=None, description="""Optional prose for a person: how somebody would satisfy themselves this criterion holds. Never executed -- an executable check is `check`.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriterion']} })
+    check: Optional[list[str]] = Field(default=None, description="""Optional argv list whose exit code decides this criterion: 0 is met, anything else is failed, including a timeout and a command that cannot be started (task-147). A list, never a string -- nothing splits it and no shell sees it. Changing it resets `status` to pending on every write path, because a status is a claim about a check having been run.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriterion']} })
     status: Optional[AcceptanceStatus] = Field(default=AcceptanceStatus.pending, json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriterion', 'Deliverable', 'Branch'],
          'ifabsent': 'string(pending)'} })
 
