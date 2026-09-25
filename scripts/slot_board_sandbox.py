@@ -39,7 +39,7 @@ Six things to look at, and the comparison is the point:
                        ``--idle``: same three free cells, plus the two finish cards.
     --self-finishing   task-533's report, every half of it on one board. task-101 has
                        an agent genuinely working it and reads *Working*. task-104's
-                       run is finishing itself under --posture-release, queued for the
+                       run is finishing itself under --automerge-release, queued for the
                        runway, and reads *Finishing* -- "behind task-102" -- where it
                        used to read *Working*. task-102's finish is in the gate holding
                        the runway, and the runway now names it. task-103's finish was
@@ -391,7 +391,7 @@ def main() -> None:
             task_id="task-101",
             project_id="sandbox-here",
             mode="session",
-            posture="auto",
+            merge_mode="review",
             status="running",
             session_id="here01",
         )
@@ -401,7 +401,7 @@ def main() -> None:
             task_id="task-102",
             project_id="sandbox-here",
             mode="session",
-            posture="autonomous",
+            merge_mode="automerge",
             status="running",
             session_id="merged01",
             started_at=_ago(3_000),
@@ -481,7 +481,7 @@ def main() -> None:
             task_id="task-101",
             project_id="sandbox-here",
             mode="session",
-            posture="auto",
+            merge_mode="review",
             status="running",
             session_id="working01",
         )
@@ -510,7 +510,7 @@ def main() -> None:
             task_id="task-104",
             project_id="sandbox-here",
             mode="session",
-            posture="autonomous",
+            merge_mode="automerge",
             status="running",
             session_id="selffin01",
             started_at=_ago(1_900),
@@ -553,7 +553,7 @@ def main() -> None:
             task_id="task-101",
             project_id="sandbox-here",
             mode="session",
-            posture="auto",
+            merge_mode="review",
             status="running",
             session_id="here01",
         )
@@ -566,7 +566,7 @@ def main() -> None:
             task_id="task-501",
             project_id="sandbox-elsewhere",
             mode="session",
-            posture="autonomous",
+            merge_mode="automerge",
             status="parked",
             session_id="elsewhere01",
             started_at=_ago(2_700),

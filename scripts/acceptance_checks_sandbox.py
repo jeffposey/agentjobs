@@ -328,10 +328,10 @@ def write_dispatch_config(home: Path) -> None:
             PASSING: {
                 "enabled": True,
                 "runner": RUNNER,
-                "posture": "auto",
+                "merge_mode": "review",
                 "require_clean_tree": False,
             },
-            REFUSING: {"enabled": False, "runner": RUNNER, "posture": "auto"},
+            REFUSING: {"enabled": False, "runner": RUNNER, "merge_mode": "review"},
         },
     }
     (home / "dispatch.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")

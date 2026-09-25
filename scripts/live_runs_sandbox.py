@@ -170,7 +170,7 @@ def main() -> None:
             task_id="task-101",
             project_id="sandbox-alpha",
             mode="session",
-            posture="auto",
+            merge_mode="review",
             status="running",
             session_id="alpha01",
         )
@@ -180,7 +180,7 @@ def main() -> None:
             task_id="task-501",
             project_id="sandbox-beta",
             mode="session",
-            posture="autonomous",
+            merge_mode="automerge",
             status="parked",
             session_id="beta01",
             started_at=_ago(1_500),

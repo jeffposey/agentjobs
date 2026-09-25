@@ -80,7 +80,7 @@ def dispatch_config(home: Path, runner_script: Path) -> None:
             PROJECT_ID: {
                 "enabled": True,
                 "runner": "fake",
-                "posture": "auto",
+                "merge_mode": "review",
                 "require_clean_tree": False,
                 "finish": {"enabled": True},
             }
@@ -316,7 +316,7 @@ def runs(home: Path) -> None:
             "task_id": task_id,
             "project_id": PROJECT_ID,
             "mode": "batch",
-            "posture": "auto",
+            "merge_mode": "review",
             "status": "running",
             "pid": os.getpid(),
             "started_at": _ago(4),

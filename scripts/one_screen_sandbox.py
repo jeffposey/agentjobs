@@ -232,7 +232,7 @@ def main() -> None:
                 task_id=task_id,
                 project_id="sandbox-crowded",
                 mode="session",
-                posture="auto",
+                merge_mode="review",
                 status="running",
                 session_id=f"busy{index}",
             )

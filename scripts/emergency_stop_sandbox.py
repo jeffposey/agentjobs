@@ -185,7 +185,7 @@ def seed_machine(home: Path, port: int, stopped: bool) -> None:
         parent_id=EPIC[0],
         home=home,
         settings=WalkSettings(max_concurrent=2),
-        posture=None,
+        merge_mode=None,
         actor="claude",
     )
     print(

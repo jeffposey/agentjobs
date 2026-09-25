@@ -85,7 +85,7 @@ def dispatch_config(home: Path, runner_script: Path) -> None:
             PROJECT_ID: {
                 "enabled": True,
                 "runner": "fake",
-                "posture": "auto",
+                "merge_mode": "review",
                 "require_clean_tree": False,
                 "finish": {"enabled": True},
             }
@@ -130,7 +130,7 @@ def write_run(
         "mode": "session",
         "agent": "claude",
         "runner": "fake",
-        "posture": "auto",
+        "merge_mode": "review",
         "status": status,
         "session_id": f"sess-{run_id}",
         "started_at": _ago(12),
