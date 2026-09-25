@@ -82,7 +82,7 @@ reconciliation). A row's `status` cell is what the epic's close condition reads.
 | 13 | `test_epic_supervision.py::TestTwoWalkersOfOneEpic::test_a_childs_run_started_by_another_process_on_this_authorisation_is_adopted[already-closed]` | `assert 1 == 0` -- the sibling-dispatch subprocess exited 1 with **empty stdout and empty stderr** | not named. Entry 3's signature exactly, on a test entry 3 does not cover; seen at four gates on this machine and green alone. Task-554 did not reproduce it in 19 instrumented runs, and no kill in the suite reached a sibling. It removed one producer of the signature: `_kill_tree` released its proof before `taskkill` ran | environment, or a producer not yet found | open, instrumented -- since task-561 every AgentJobs kill is journalled and the failing assertion quotes the lines naming the victim; read that message when it next fires (see below) |
 | 14 | `test_dispatch_poller.py::test_the_tick_takes_back_an_ask_whose_reason_has_been_resolved` | `AssertionError: []` -- the tick took nothing back | a skipping clock's stamp (up to 7190 fake seconds) left in the process-global sweep throttle read as the future against real uptime within two hours of a reboot, and the throttle skipped on a future stamp | production defect, surfaced by test state leaking between tests | **fixed** (task-546) |
 | 15 | `dispatch/test_durable_replay.py::TestRegressions::test_two_projects_with_one_task_id_share_nothing_but_the_machine_slots` | `exactly one remaining slot was awarded`, `assert 3 == 2` -- a second `task-001 recoverable` launch | a reconcile judged a live launcher's never-launched attempt abandoned by comparing the OS creation time of `holder_pid` with an `admitted_at` written through the installed clock; under the durable-replay suite's frozen clock that clock read earlier than the holder's own start, so a live holder looked like a recycled pid and a second dispatch took its slot | production defect | **fixed** (task-549, `faed64f2`: admission records the holder's `process_identity` and both holder checks compare receipts, with the timestamp kept only as a fallback for older rows) |
-| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix. **Recurred after that fix** in 4 of 12 finish gates on 2026-09-24, and 0 of 99 runs off a finish reproduce it; cause unknown | unknown | **open** -- reopened by task-571; recurred in `fin_4223dde1` with the new worker stuck in `waiting`, see below |
+| 16 | `frontend/e2e/capture-draft.spec.ts:223` › a rebuild still reloads a tab where nobody is typing | `page.waitForFunction: Timeout 20000ms exceeded` at line 233 -- the idle tab never reloaded | the test asked for the update once, and a browser update check already in flight absorbed that request and found the old `sw.js`. Reproduced 3 of 48 runs, 0 of 48 with the fix. **Recurred after that fix** in 4 of 12 finish gates on 2026-09-24, and 0 of 99 runs off a finish reproduce it. **Then (task-582)** the new worker was `waiting`, not `installing`: held by an `/api/` call the old worker was still answering (reproduced 5 of 5), or by a rebuild inside the page's first moments (3 of 20; browser-level cause unknown). `fin_4223dde1`'s red was the second: nothing in flight | test, and production for the `/api/` half | **fixed (task-582)**: the worker no longer answers `/api/`, and the test waits for `networkidle` before the rebuild -- see below |
 | 17 | `test_dispatch_atomic_yaml.py::TestTheDocumentIsNeverHalfWritten::test_a_reader_never_sees_a_partial_document` | `461 of 1153 reads saw a document without run_id` | a refusal to open the file that outlasted the reader's 40ms retry budget answered *absent*: `read_yaml_resiliently` returned `None`, and `read_meta` turned that into `{}`. Reproduced by holding the file exclusively, as a real-time scanner would; the organic load did not reproduce it | production defect | **fixed** (task-550) -- see below |
 | 18 | `test_dispatch_runner.py::TestProcessGroup::test_the_timeout_kills_the_grandchild_too` | `PermissionError: [Errno 13]` reading its own `grandchild.pid`, then `Cannot operate on a closed database` | the read landed after `os.replace` made the name visible but before `MoveFileExW` closed its DELETE-access handle; a plain `open` does not share delete, so it hit a sharing violation. One writer is enough | test premise | **fixed** (task-553) -- see below |
 | 19 | `dispatch/test_durable_replay.py::TestRegressions::test_grounding_outlives_two_real_supervisor_deaths` | `WalkStop.ALREADY_SUPERVISED ... already being walked by pid 224680` at line 1662 -- a fresh walk refused by a supervisor that had exited 9 | the walk lease judged its holder alive by `process_created_after(holder_pid, updated_at)`, which allows a second of slack. The supervisor writes its walk and dies inside a second; a pid reissued inside that second (0.35 s is this machine's measured minimum) left a stranger the check took for the holder. The opposite skew let a live holder be taken over. Seen 2 of 20 in task-553's probe (`-n 13`) | production defect | **fixed (task-558)**: `supervision.holder_identity` (revision 9) records the holder's `process_identity`, and `open_walk` and the pull pass's `flying_walks` compare receipts, with the timestamp kept only for older rows -- see below |
@@ -734,6 +734,68 @@ network log for an `/api/` request open across the wait before acting on it.
 leaves `frontend/test-results/` in the branch's worktree. Its own retry clears it, and
 so does the worktree's removal. Keeping a red attempt's `test-results/` beside
 `gate.log` would have given each of these reds a Playwright trace.
+
+**2026-09-25, later: two things hold the new worker in `waiting`, and the finish-gate
+reds are the second (task-582).** The `installing` guess above is wrong, as the entry
+before this one found. The diagnostic's first red was actually earlier, task-571's own
+finish `fin_3040b75d` at about 23:15Z on 2026-09-24, and read:
+
+```
+{"controller":"activated …/app/sw.js","installing":"none","waiting":"installed …/app/sw.js",
+ "active":"activated …/app/sw.js","takeovers":0,"survived":"yes",
+ "servedSwLastLine":"// rebuilt for idletab00000"}
+```
+
+The rebuilt `sw.js` was served, fetched and installed. Its `install` handler had called
+`skipWaiting()`, and it still never activated. The finish's `--from e2e` retry was
+green. Two causes give exactly that line, and that red cannot say which one it was: it
+predates the in-flight list below.
+
+- **A hung `/api/` call held it: reproduced and fixed.** Chromium does not activate a
+  waiting worker while the active one has an event unfinished, `skipWaiting()` or not.
+  The worker answered every `/api/` GET with `respondWith(fetch(request))`, so each API
+  call was such an event for as long as the call took. Reproduced standalone (Playwright's
+  Chromium, a small node server, the same worker shape): with one call hung, held in
+  `waiting` **5 of 5**, and taken over 8 ms after the call was answered. With no hung
+  call, 0 of 5. In the app, the new test *a rebuild reloads an idle tab even while one of
+  its API calls is hanging* holds a call open and went red **1 of 1** with the line above,
+  field for field. **The fix:** the worker returns without answering `/api/` at all, so
+  the browser fetches it and the worker holds no event. The data is network-only as
+  before. After it: standalone 0 of 5, the new test 0 of 101.
+- **A rebuild inside the page's first moments: avoided, cause not named.** With the fix
+  in, the idle test still went red **3 of 20** in a `--repeat-each 20` run of the whole
+  file, and 3 of 20 again with a wait for the first worker to be `activated` added.
+  That layout restarts the browser every repeat, because *collecting a finding…* files
+  the same title each time and fails. Every red had nothing in flight. The DevTools
+  protocol showed both workers `running`: the old one `activated` with one client, the
+  new one `installed`. Each red's trace put the rebuilt worker's `sw.js` fetch 110 to
+  185 ms after the first worker's, inside the page's startup burst of API calls.
+  Waiting for `networkidle` before the rebuild: **0 of 40**. A fixed 3 s wait: 0 of 20.
+  The `activated` wait's 3 of 20 means the first worker's own activation is not the
+  cause. The standalone harness did not reproduce it, even rebuilding during a burst of
+  short API calls (0 of 40). Why the browser never retries activation there is not
+  known. A real rebuild does not land in a tab's first second, so the test waits for
+  `networkidle` and nothing in the product changes for this half.
+
+**`fin_4223dde1`'s kept trace is the second holder, not the first.** The entry above asks
+whether an `/api/` request was open across the wait. None was. Every request in its
+network log completed, the slowest `/api/projects/_local/attention` at 124 ms. The only
+traffic in the 20 seconds was the 15-second polls, answered in about 11 ms. The rebuilt
+worker's `sw.js` was fetched at 00:08:44.697, 134 ms after the first worker's at .563,
+inside the startup burst: the pattern the reproductions above show. So the `/api/` fix
+alone would not have saved that finish, and the `networkidle` wait is what addresses
+the reds finish gates actually saw.
+
+**Why the finish gates saw it and 99 runs off a finish did not** is still unexplained.
+The browser restarts that this layout forces are one candidate. Finish-gate e2e workers
+start browsers fresh too, and task-571's off-finish runs mostly reused one browser. That
+has not been tested.
+
+**The diagnostic now says more.** `untilTakenOver` adds the requests still in flight,
+tracked on the browser **context**, because a request a worker answers is not a page
+event and tracking the page missed the hung call entirely. It also adds each worker
+version's status, running state and client count from the DevTools protocol. The next
+red will say which of the two it was, or show a third.
 
 ### 18. A marker that existed and could not be opened (fixed, task-553)
 

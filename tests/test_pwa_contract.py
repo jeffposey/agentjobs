@@ -39,7 +39,11 @@ def test_service_worker_keeps_task_api_network_only() -> None:
         "if (request.mode", 1
     )[0]
 
-    assert "fetch(request)" in api_branch
+    # Network-only by not answering at all: the browser fetches it, so the worker holds
+    # no event for the call's length and a hung call cannot keep a rebuilt worker in
+    # `waiting` (task-582).
+    assert api_branch.startswith(") return;")
+    assert "respondWith" not in api_branch
     assert "caches.match" not in api_branch
     assert 'caches.match("/app/")' in worker
     assert "self.skipWaiting()" in worker
