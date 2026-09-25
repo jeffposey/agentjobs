@@ -8,40 +8,26 @@
   "use strict";
   var KEY = "task-kind-audition";
 
-  function glyph(inner) {
-    var svg =
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" ' +
-      'stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">' + inner + "</svg>";
-    return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")';
-  }
-  var COMPASS = glyph(
-    '<path d="m12.99 6.74 1.93 3.44"/><path d="M19.136 12a10 10 0 0 1-14.271 0"/>' +
-      '<path d="m21 21-2.16-3.84"/><path d="m3 21 8.02-14.26"/><circle cx="12" cy="5" r="2"/>'
-  );
-  var CODE = glyph('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>');
-
+  // Round two: nothing dashed (too hard to read), every option at full text size.
   var AUDITIONS = {
-    a: { name: "A. Dashed pill, word (shipped)", css: "" },
+    a: { name: "A. Solid outline, faint tint (shipped)", css: "" },
     b: {
-      name: "B. Word only, no outline",
+      name: "B. Bold yellow word, no box",
       css:
-        '[data-kind]{border-color:transparent!important;padding-left:0!important;' +
-        'padding-right:0!important;font-weight:600!important}',
+        "[data-kind]{border-color:transparent!important;background:transparent!important;" +
+        "padding-left:0!important;padding-right:0!important;font-weight:700!important}",
     },
     c: {
-      name: "C. Icon only, in a dashed circle",
+      name: "C. Tint only, no outline",
       css:
-        "[data-kind]{font-size:0!important;width:1.5rem;height:1.5rem;padding:0!important;" +
-        "justify-content:center}" +
-        '[data-kind]::before{content:"";display:block;width:0.95rem;height:0.95rem;' +
-        "background-color:currentColor;-webkit-mask:var(--kind-glyph) center/contain no-repeat;" +
-        "mask:var(--kind-glyph) center/contain no-repeat}" +
-        '[data-kind="design"]{--kind-glyph:' + COMPASS + "}" +
-        '[data-kind="implementation"]{--kind-glyph:' + CODE + "}",
+        '[data-kind]{border-color:transparent!important}' +
+        '[data-kind="design"]{background:rgba(250,204,21,0.22)!important}',
     },
     d: {
-      name: "D. Dashed pill, word, yellow tint",
-      css: '[data-kind="design"]{background:rgba(250,204,21,0.14)!important;font-weight:600!important}',
+      name: "D. Solid yellow fill, dark text",
+      css:
+        '[data-kind="design"]{background:#facc15!important;color:#422006!important;' +
+        "border-color:#fde047!important}",
     },
   };
 
@@ -70,41 +56,46 @@
     var buttons = panel.querySelectorAll("button");
     for (var i = 0; i < buttons.length; i++) {
       var on = buttons[i].getAttribute("data-audition") === choice;
-      buttons[i].style.background = on ? "#facc15" : "transparent";
-      buttons[i].style.color = on ? "#422006" : "#e2e8f0";
+      buttons[i].style.background = on ? "#facc15" : "#1e293b";
+      buttons[i].style.color = on ? "#422006" : "#f8fafc";
+      buttons[i].style.borderColor = on ? "#fde047" : "#64748b";
     }
-    label.textContent = AUDITIONS[choice].name;
   }
 
+  // Round one's bar was a small box in a corner and the owner never saw it. This one is a
+  // full-width strip pinned to the bottom, with every option named on its own button, and
+  // the page is padded so the strip covers nothing.
   panel.setAttribute("aria-label", "Kind mark auditions");
   panel.style.cssText =
-    "position:fixed;left:8px;bottom:8px;z-index:9999;display:flex;align-items:center;gap:4px;" +
-    "flex-wrap:wrap;max-width:calc(100vw - 16px);padding:6px 8px;border:1px solid #475569;" +
-    "border-radius:8px;background:#0f172a;font:12px system-ui,sans-serif;color:#e2e8f0;" +
-    "box-shadow:0 4px 16px rgba(0,0,0,.5)";
-  var title = document.createElement("strong");
-  title.textContent = "Kind mark:";
+    "position:fixed;left:0;right:0;bottom:0;z-index:9999;padding:10px 12px;" +
+    "border-top:3px solid #facc15;background:#0b1120;font:14px system-ui,sans-serif;" +
+    "color:#f8fafc;box-shadow:0 -6px 24px rgba(0,0,0,.6)";
+  var title = document.createElement("div");
+  title.style.cssText = "font-weight:700;margin-bottom:8px;font-size:15px";
+  title.textContent = "AUDITION: pick a Design mark. Tap one; every screen restyles. Reply with the letter.";
   panel.appendChild(title);
+  var row = document.createElement("div");
+  row.style.cssText = "display:flex;flex-wrap:wrap;gap:8px";
+  panel.appendChild(row);
   Object.keys(AUDITIONS).forEach(function (key) {
     var button = document.createElement("button");
     button.type = "button";
     button.setAttribute("data-audition", key);
-    button.title = AUDITIONS[key].name;
-    button.textContent = key.toUpperCase();
+    button.textContent = AUDITIONS[key].name;
     button.style.cssText =
-      "min-width:28px;height:28px;border:1px solid #64748b;border-radius:6px;cursor:pointer;font-weight:700";
+      "min-height:40px;padding:6px 12px;border:2px solid #64748b;border-radius:8px;" +
+      "cursor:pointer;font:600 14px system-ui,sans-serif;text-align:left";
     button.addEventListener("click", function () {
       apply(key);
     });
-    panel.appendChild(button);
+    row.appendChild(button);
   });
-  var label = document.createElement("span");
-  label.style.cssText = "margin-left:4px;opacity:.85";
-  panel.appendChild(label);
 
   function mount() {
     document.head.appendChild(style);
     document.body.appendChild(panel);
+    // Room for the strip, so the last row of the page is never under it.
+    document.body.style.paddingBottom = panel.offsetHeight + 16 + "px";
     apply(read());
   }
   if (document.body) mount();
