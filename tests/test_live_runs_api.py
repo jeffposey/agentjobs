@@ -17,7 +17,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterator, Tuple
+from typing import Any, Dict, Iterator, List, Tuple
 
 import pytest
 import yaml
@@ -704,3 +704,105 @@ class TestEpicWalks:
         assert row["parent_task_id"] == "task-nope"
         assert row["children_total"] == 0
         assert row["parent_task_title"] == ""
+
+
+class TestAWalkedEpicReadsWalking:
+    """A walked epic's own status chip says "Walking", on every task read (task-591).
+
+    The epic is claimed and reads agent/work while its walk is open, so without the walk
+    folded into ``task_status`` every surface called it "Working". Asserted on the list,
+    the record and the dashboard card: three read models, one derivation.
+    """
+
+    def _claimed_epic(self, alpha: Path) -> TaskManager:
+        """A ready epic with one open child, claimed as the supervisor's seat."""
+        manager = TaskManager(task_store(alpha / "tasks"))
+        manager.create_task(
+            id="task-900",
+            title="Walk the epic",
+            summary="An epic with children.",
+            description="An epic with children, at length.",
+            actor="claude",
+            lifecycle=Lifecycle.READY,
+        )
+        manager.create_task(
+            id="task-910",
+            title="Child",
+            summary="Child.",
+            description="Child, at length.",
+            actor="claude",
+            lifecycle=Lifecycle.READY,
+            parent="task-900",
+        )
+        manager.claim_task("task-900", agent="claude")
+        return manager
+
+    def _row(self, client: TestClient, path: str) -> Dict[str, Any]:
+        response = client.get(path)
+        assert response.status_code == 200, response.text
+        parsed: Dict[str, Any] = response.json()
+        return parsed
+
+    def _walk(self, home: Path, parent: str = "task-900") -> Any:
+        return TestEpicWalks._walk(self, home, parent=parent)  # type: ignore[arg-type]
+
+    def _listed(self, client: TestClient) -> Dict[str, Any]:
+        response = client.get("/api/projects/alpha/tasks")
+        assert response.status_code == 200, response.text
+        rows: List[Dict[str, Any]] = response.json()
+        return next(row for row in rows if row["id"] == "task-900")
+
+    def test_an_open_walk_turns_working_into_walking_on_every_read(self, two_projects):
+        client, home, alpha, _ = two_projects
+        self._claimed_epic(alpha)
+        assert self._listed(client)["display_status"] == "Working"
+
+        walk = self._walk(home)
+
+        listed = self._listed(client)
+        # The task page's read. The bare `GET /tasks/{id}` is the record alone and
+        # carries no derived fact, a live finish's included.
+        record = self._row(client, "/api/projects/alpha/tasks/task-900/detail")["task"]
+        for row in (listed, record):
+            assert row["display_status"] == "Walking"
+            assert row["status_category"] == "working"
+            assert row["live_walk"] == {"walk_id": walk.walk_id, "grounded": False}
+
+    def test_a_grounded_walk_still_reads_walking_and_says_it_is_grounded(self, two_projects):
+        client, home, alpha, _ = two_projects
+        self._claimed_epic(alpha)
+        walk = self._walk(home)
+        journal(home).update_walk(
+            walk.walk_id,
+            epoch=walk.epoch,
+            grounding={"stop": "child_needs_a_human", "detail": "", "child": "task-910"},
+            detail="",
+        )
+
+        listed = self._listed(client)
+        assert listed["display_status"] == "Walking"
+        assert listed["live_walk"]["grounded"] is True
+
+    def test_another_tasks_walk_changes_nothing_here(self, two_projects):
+        client, home, alpha, _ = two_projects
+        self._claimed_epic(alpha)
+        self._walk(home, parent="task-001")
+
+        listed = self._listed(client)
+        assert listed["display_status"] == "Working"
+        assert listed["live_walk"] is None
+
+    def test_a_walked_epic_handed_to_a_person_says_what_the_person_does(self, two_projects):
+        """Walking replaces Working and nothing else."""
+        client, home, alpha, _ = two_projects
+        manager = self._claimed_epic(alpha)
+        manager.handoff(
+            "task-900",
+            actor="claude",
+            ball=Ball.HUMAN,
+            ball_reason=BallReason.REVIEW,
+            ball_prompt="Look at it.",
+        )
+        self._walk(home)
+
+        assert self._listed(client)["display_status"] == "Needs review"

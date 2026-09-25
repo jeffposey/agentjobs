@@ -25,6 +25,7 @@ from agentjobs.models_v2 import (
     Lifecycle,
     Link,
     LiveFinishState,
+    LiveWalkState,
     LogEntryType,
     Outcome,
     Priority,
@@ -45,6 +46,7 @@ from agentjobs.models_v2 import (
 
 from .live_finish import live_finish_for
 from .live_run import live_run_health_for
+from .live_walk import live_walk_for
 from .queued_dispatch import queued_dispatch_for
 
 
@@ -124,6 +126,22 @@ class TaskRead(Task):
     request.
     """
 
+    live_walk: Optional[LiveWalkState] = None
+    """Set when an open epic walk is supervising this task (task-591).
+
+    The fourth derived fact, for the reason the others are: a walk moves nothing on the
+    record, so without it a walked epic reads "Working". Structure rather than only the
+    word, because the chip animates only while the walk is taking off and the Dispatch
+    button withholds itself for as long as it is open. Filled by `api.live_walk`'s
+    request-scoped binding, one query per request.
+    """
+
+    @model_validator(mode="after")
+    def _fill_live_walk(self) -> "TaskRead":
+        """Ask this request's open walks about the task, overwriting what was passed."""
+        self.live_walk = live_walk_for(self.id, self.is_open)
+        return self
+
     @model_validator(mode="after")
     def _fill_live_run_health(self) -> "TaskRead":
         """Ask this request's live runs about the task, overwriting what was passed."""
@@ -172,7 +190,9 @@ class TaskRead(Task):
         `models_v2`, so the label, the category and the structures they are drawn from
         cannot disagree about what is happening.
         """
-        return task_status(self, self.queued_dispatch, self.live_finish, _facts_of(self))
+        return task_status(
+            self, self.queued_dispatch, self.live_finish, _facts_of(self), self.live_walk
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -258,6 +278,15 @@ class TaskSummaryRead(TaskSummary):
     request.
     """
 
+    live_walk: Optional[LiveWalkState] = None
+    """Set when an open epic walk is supervising this task -- see ``TaskRead``."""
+
+    @model_validator(mode="after")
+    def _fill_live_walk(self) -> "TaskSummaryRead":
+        """Ask this request's open walks about the task, overwriting what was passed."""
+        self.live_walk = live_walk_for(self.id, self.is_open)
+        return self
+
     @model_validator(mode="after")
     def _fill_live_run_health(self) -> "TaskSummaryRead":
         """Ask this request's live runs about the task, overwriting what was passed."""
@@ -278,7 +307,9 @@ class TaskSummaryRead(TaskSummary):
 
     def _status(self) -> TaskStatus:
         """This row's chip, from every fact the listing row carries -- see ``TaskRead``."""
-        return task_status(self, self.queued_dispatch, self.live_finish, _facts_of(self))
+        return task_status(
+            self, self.queued_dispatch, self.live_finish, _facts_of(self), self.live_walk
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

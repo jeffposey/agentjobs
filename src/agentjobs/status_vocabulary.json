@@ -62,6 +62,7 @@
     "queued": { "label": "Queued", "category": "queued", "icon": "hourglass" },
     "starting": { "label": "Starting", "category": "queued", "icon": "loader" },
     "working": { "label": "Working", "category": "working", "icon": "cog" },
+    "walking": { "label": "Walking", "category": "working", "icon": "footprints" },
     "finishing": { "label": "Landing", "category": "finishing", "icon": "plane-landing" },
     "needs_spec": { "label": "Needs spec", "category": "needs_you", "icon": "pencil-ruler" },
     "needs_review": { "label": "Needs review", "category": "needs_you", "icon": "eye" },

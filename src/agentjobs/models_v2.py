@@ -343,6 +343,28 @@ class LiveFinishState(BaseModel):
     """Progress and time remaining; see :class:`LandingEstimate`."""
 
 
+class LiveWalkState(BaseModel):
+    """An open epic walk supervising this task right now (task-591).
+
+    Derived on read from the machine's execution store and never stored on the task, for
+    the reason ``LiveFinishState`` is: a walk moves nothing on the record it supervises.
+    The epic is claimed and reads ``agent``/``work`` for as long as the walk is open, so
+    without this every surface drew a walked epic as "Working" -- a word that says an
+    agent is editing it, when nothing is and the server is starting its children.
+
+    Only what a row needs: whether to say "Walking", and whether to animate the chip.
+    The counts and the child being waited on are on ``GET /api/runs/live``'s ``walks``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    walk_id: str
+    grounded: bool = False
+    """The walk has stopped taking off -- waiting on a child, or stopped for good. Still
+    open, so the epic still reads "Walking"; the chip stops moving, because nothing is
+    being started."""
+
+
 class Outcome(ValueEnum):
     """How a task ended. Set if and only if lifecycle is closed."""
 
@@ -2271,6 +2293,7 @@ def task_status(
     queued: Optional[QueuedDispatchState] = None,
     finish: Optional[LiveFinishState] = None,
     facts: Optional[StatusFacts] = None,
+    walk: Optional[LiveWalkState] = None,
 ) -> TaskStatus:
     """``task``'s chip, with every fact the caller can see folded in.
 
@@ -2297,8 +2320,10 @@ def task_status(
     - **A draft** not waiting on a person is "Draft", yellow, whoever holds the ball: a
       draft cannot be claimed, so nothing is being done to it as work.
     - **An agent on it** is "Working". The owner is not in the chip (the one-word rule
-      from 2026-09-19); the task page names it. A walked epic is claimed, so it reads
-      "Working" too.
+      from 2026-09-19); the task page names it. **A walked epic** is claimed too, and
+      reads "Walking" instead (task-591): no agent is editing it, the server is starting
+      its children. Only where it would otherwise say "Working" -- a walked epic handed
+      to a person still says what the person has to do.
     - **A queued dispatch** is "Queued", or "Starting" while a tick puts it through the
       dispatch gates.
     - **Otherwise "Ready"** -- including an epic nobody holds, which since task-164 can
@@ -2333,7 +2358,7 @@ def task_status(
     if task.ball is Ball.AGENT and (
         task.ball_reason is not BallReason.AVAILABLE or task.lifecycle is Lifecycle.ACTIVE
     ):
-        return status_named("working")
+        return status_named("walking" if walk is not None else "working")
     if task.ball is not Ball.AGENT:
         # A ball this reader has never heard of (a tolerant client, task-024). It has no
         # word for it, so it says the lifecycle rather than inventing one -- and never
@@ -2374,13 +2399,14 @@ def derived_display_status(
     queued: Optional[QueuedDispatchState],
     finish: Optional[LiveFinishState],
     facts: Optional[StatusFacts] = None,
+    walk: Optional[LiveWalkState] = None,
 ) -> str:
     """``task``'s label with every fact a read surface can see folded in.
 
     The label half of :func:`task_status`; the read models carry the category half
     beside it as ``status_category``, from the same call.
     """
-    return task_status(task, queued, finish, facts).label
+    return task_status(task, queued, finish, facts, walk).label
 
 
 def self_clearing_wait(task: "Task") -> Optional[SelfClearingWait]:
