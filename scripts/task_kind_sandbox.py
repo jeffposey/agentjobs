@@ -17,8 +17,11 @@ What to look at -- one design and one implementation task at each state:
     task-006, task-007*; task-006 says *Implements: task-005 -- ...*. task-007 needs
     task-005 too, and also needs task-002, which is not a design and so is not named.
   * **The filter** -- `?kind=design` and `?kind=implementation`; the badge counts it.
-  * **Phone width** -- at 390px the mark wraps with the other chips, icon and word
-    together.
+  * **Phone width** -- at 390px the mark wraps with the other chips.
+  * **Auditions** -- a small bar at the bottom left switches the mark between four
+    treatments (A is what ships; B to D restyle the same element), so each is seen on
+    the real list, header and review panel. ``?audition=b`` picks one from a URL. The bar
+    is injected by this script and is in no part of the application.
 
 Nothing here touches the live corpus or the 8876 dashboard. Everything lives under a
 temporary directory with its own ``AGENTJOBS_HOME``, deleted when this process stops.
@@ -35,11 +38,42 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 
+AUDITIONS_SCRIPT = Path(__file__).resolve().parent / "task_kind_auditions.js"
 DEFAULT_PORT = 8993
 PROJECT_ID = "sandbox-kind"
 PROJECT_NAME = "Sandbox: task kind"
 USER = "Jeff Posey"
+
+
+class InjectAuditions(BaseHTTPMiddleware):
+    """Put the audition bar into the application shell, the way review_queue_sandbox does."""
+
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
+        # The app compresses its responses, and this runs outside that: ask it for plain
+        # bytes, or the shell arrives gzipped and cannot be rewritten.
+        request.scope["headers"] = [
+            (key, value) for key, value in request.scope["headers"] if key != b"accept-encoding"
+        ]
+        response = await call_next(request)
+        if "text/html" not in response.headers.get("content-type", ""):
+            return response
+        body = b"".join([chunk async for chunk in response.body_iterator])
+        text = body.decode("utf-8")
+        script = f"<script>\n{AUDITIONS_SCRIPT.read_text(encoding='utf-8')}\n</script>"
+        if "</head>" in text:
+            text = text.replace("</head>", script + "</head>", 1)
+        headers = dict(response.headers)
+        headers.pop("content-length", None)
+        headers["cache-control"] = "no-store"
+        return Response(
+            content=text,
+            status_code=response.status_code,
+            headers=headers,
+            media_type="text/html",
+        )
 
 
 def seed(manager: Any) -> None:
@@ -124,6 +158,7 @@ def main() -> None:
 
     from agentjobs.api.main import app
 
+    app.add_middleware(InjectAuditions)
     base = f"http://127.0.0.1:{port}/app/p/{PROJECT_ID}"
     print(f"[review] task-kind sandbox at {base}/tasks", flush=True)
     print(f"[review]   design only:     {base}/tasks?kind=design", flush=True)
