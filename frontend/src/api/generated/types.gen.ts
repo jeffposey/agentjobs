@@ -487,6 +487,18 @@ export type ArmedProjectView = {
      */
     bound: string;
     /**
+     * Merge Mode
+     *
+     * The merge mode pulled runs get, or null for the project default.
+     */
+    merge_mode?: string | null;
+    /**
+     * Merge Mode Phrase
+     *
+     * `merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.
+     */
+    merge_mode_phrase?: string;
+    /**
      * Next Task Id
      *
      * What `task_next` says it would start next. Sent so a person can see it *before* it happens and move something else to the top if they would rather. Empty when nothing in that backlog is claimable right now.
@@ -508,12 +520,6 @@ export type ArmedProjectView = {
      * The incident id holding this arming's starts off (task-463), or empty. The arming keeps its bound and its authority while this is set and starts again on the first tick after the incident closes; `next_task_id` still says what it will start then.
      */
     paused_by?: string;
-    /**
-     * Posture
-     *
-     * The envelope pulled runs get, or null for the project default.
-     */
-    posture?: string | null;
     /**
      * Project Id
      */
@@ -1665,17 +1671,6 @@ export type DispatchEnableRequest = {
 };
 
 /**
- * DispatchPosture
- *
- * What the run was permitted to do (design doc section 4, task-076).
- *
- * Mirrors ``dispatch.config.Posture``, and must keep mirroring it: this is the value
- * written into the task's dispatch log entry, so a posture missing here cannot be
- * recorded even though a run was started under it. ``auto`` was added by task-020.
- */
-export type DispatchPosture = 'read_only' | 'auto' | 'supervised' | 'autonomous';
-
-/**
  * DispatchRefusalView
  *
  * The gate that currently refuses this project, in the API's own vocabulary.
@@ -1741,6 +1736,10 @@ export type DispatchRequestBody = {
      */
     if_full?: 'refuse' | 'queue';
     /**
+     * `review` or `automerge` for this one run, overriding both the project default and the task record's own. Refused with 'automerge_not_allowed' when the project's machine-local dispatch.yaml does not allow automerge -- populate a chooser from the dispatch state view's 'offerable_merge_modes' so the refusal is never reachable by clicking (task-308).
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Note
      *
      * What the human typed, when the record could not brief an agent on its own. Becomes the body of the authorising entry. Only meaningful alongside 'user'.
@@ -1752,10 +1751,6 @@ export type DispatchRequestBody = {
      * Start this run although every machine slot is taken (task-461). A deliberate overage of limits.max_concurrent_runs for this one dispatch, and nothing else: every other gate binds as it always did, including the hourly cap, because an overage is a dispatch. Honoured only for a human principal -- a run credential sending it is refused 403 'capability_denied' under 'dispatch.over_ceiling'. Mutually exclusive with if_full=queue: asking to wait for a slot and asking to start without one are opposite answers to the same question.
      */
     over_ceiling?: boolean;
-    /**
-     * What this one run may do, overriding both the project default and any posture on the task record. Refused with 'posture_above_ceiling' when it exceeds the project's machine-local max_posture -- populate a chooser from the dispatch state view's 'offerable_postures' so the refusal is never reachable by clicking (task-308).
-     */
-    posture?: DispatchPosture | null;
     /**
      * Runner
      *
@@ -1897,6 +1892,16 @@ export type DispatchRunView = {
      */
     live: boolean;
     /**
+     * Merge Mode
+     */
+    merge_mode: string;
+    /**
+     * Merge Mode Phrase
+     *
+     * `merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.
+     */
+    merge_mode_phrase?: string;
+    /**
      * Mode
      */
     mode: string;
@@ -1910,10 +1915,6 @@ export type DispatchRunView = {
      * Where this run's captured output is readable.
      */
     output_url: string;
-    /**
-     * Posture
-     */
-    posture: string;
     /**
      * Project Id
      */
@@ -1964,6 +1965,18 @@ export type DispatchStarted = {
      */
     group?: string | null;
     /**
+     * Merge Mode
+     *
+     * `review` or `automerge`. Empty while a dispatch is queued: the merge mode is resolved by the gates when it starts, not when it was queued.
+     */
+    merge_mode: string;
+    /**
+     * Merge Mode Phrase
+     *
+     * `merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.
+     */
+    merge_mode_phrase?: string;
+    /**
      * Mode
      *
      * session or batch. Empty while a dispatch is queued.
@@ -1975,12 +1988,6 @@ export type DispatchStarted = {
      * True when this run was started above limits.max_concurrent_runs because a person chose to (task-461). The machine is over its ceiling until it ends, and the slot board says so rather than clipping the count.
      */
     over_ceiling?: boolean;
-    /**
-     * Posture
-     *
-     * What the run is permitted to do. Empty while a dispatch is queued: the posture is resolved by the gates when it starts, not when it was queued.
-     */
-    posture: string;
     /**
      * Queue Position
      *
@@ -2032,6 +2039,12 @@ export type DispatchStarted = {
  */
 export type DispatchStateView = {
     /**
+     * Allow Automerge
+     *
+     * Whether any run here may merge itself, whatever asks for it (task-308, task-602). Off on a project whose default is `review` and that has not turned it on, because that is the only default that cannot silently widen an existing machine.
+     */
+    allow_automerge?: boolean;
+    /**
      * Auto Dispatch
      *
      * Auto-dispatch on approval (task-074).
@@ -2076,7 +2089,7 @@ export type DispatchStateView = {
     /**
      * Finish Enabled
      *
-     * Whether the scripted finish (task-241) is on for this project, which is what an autonomous merge runs through. task-021 accepted the consequence that without it there is no sanctioned mechanism for one -- so a chooser offers `autonomous` disabled here rather than granting an envelope whose merge cannot be performed.
+     * Whether the scripted finish (task-241) is on for this project, which is what an autonomous merge runs through. task-021 accepted the consequence that without it there is no sanctioned mechanism for one -- so a chooser offers `automerge` disabled here rather than granting an envelope whose merge cannot be performed.
      */
     finish_enabled?: boolean;
     /**
@@ -2110,31 +2123,25 @@ export type DispatchStateView = {
      */
     master_enabled: boolean;
     /**
-     * Max Posture
+     * Merge Mode
      *
-     * The widest posture any run here may get, whatever asks for it (task-308). Equal to `posture` on a project that has not set a ceiling of its own, because that is the only default that cannot silently widen an existing machine.
+     * `review` or `automerge`: what a run here gets when nothing else names one.
      */
-    max_posture?: string | null;
+    merge_mode?: string | null;
     /**
-     * Offerable Postures
+     * Merge Mode Phrases
      *
-     * Every posture at or below `max_posture`, narrowest first. Sent rather than derived, for the same reason `resolved_from` is: a browser that re-implements the ceiling is the one place in the system that could offer a choice the dispatch API will refuse.
+     * What each merge mode does, in the words every surface shows, keyed by mode. Sent rather than hardcoded in the client (task-309, task-602): this is the difference between 'Hands off for your review' and 'Merges itself on a green gate', so a browser carrying its own copy could tell an operator the opposite of what the mode they picked will do.
      */
-    offerable_postures?: Array<string>;
-    /**
-     * Posture
-     *
-     * What a run here gets when nothing else names a posture.
-     */
-    posture?: string | null;
-    /**
-     * Posture Merge Policies
-     *
-     * What each posture does to the *branch*, keyed by posture value (task-021: `read_only` -> none, `auto`/`supervised` -> review, `autonomous` -> automatic). Sent rather than hardcoded in the client for the same reason `offerable_postures` is, and the stake is higher: this is the difference between 'stops for your review' and 'merges without you', so a browser that carried its own copy could tell an operator the opposite of what the posture they picked will actually do.
-     */
-    posture_merge_policies?: {
+    merge_mode_phrases?: {
         [key: string]: string;
     };
+    /**
+     * Offerable Merge Modes
+     *
+     * Every merge mode this project allows, `review` first. Sent rather than derived, for the same reason `resolved_from` is: a browser that re-implements the ceiling is the one place in the system that could offer a choice the dispatch API will refuse.
+     */
+    offerable_merge_modes?: Array<string>;
     /**
      * Project Enabled
      *
@@ -2152,7 +2159,7 @@ export type DispatchStateView = {
     /**
      * Push
      *
-     * Whether this project permits pushing. Per project and never a posture property (task-021), and false everywhere today. Surfaced because 'this project will merge my work without asking me, and publish it' is the one thing worth knowing beside a Dispatch button.
+     * Whether this project permits pushing. Per project and never a merge mode property (task-021), and false everywhere today. Surfaced because 'this project will merge my work without asking me, and publish it' is the one thing worth knowing beside a Dispatch button.
      */
     push?: boolean;
     /**
@@ -3658,6 +3665,16 @@ export type LiveRunView = {
      */
     holds_slot: boolean;
     /**
+     * Merge Mode
+     */
+    merge_mode: string;
+    /**
+     * Merge Mode Phrase
+     *
+     * `merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.
+     */
+    merge_mode_phrase?: string;
+    /**
      * Mode
      */
     mode: string;
@@ -3673,10 +3690,6 @@ export type LiveRunView = {
      * This run was started above `max_concurrent_runs` because a person chose to (task-461). While it lives, `occupied` exceeds the ceiling -- and a board that could not say which run explains that would be showing a count nobody can reconcile.
      */
     over_ceiling?: boolean;
-    /**
-     * Posture
-     */
-    posture: string;
     /**
      * Project Id
      */
@@ -4086,6 +4099,23 @@ export type MachinePoint = {
      */
     start_latency_p90_s?: number | null;
 };
+
+/**
+ * MergeMode
+ *
+ * Whether a dispatched run stops for human review or merges itself (task-602).
+ *
+ * The one choice a person makes at dispatch. What a run may execute is derived from
+ * it: ``review`` runs classifier-gated and hands off to human/review; ``automerge``
+ * runs with every execution gate removed and merges its own work through
+ * ``agentjobs finish`` on a green unqualified gate. Pushing is never part of it -- see
+ * ``ProjectDispatchSettings.push``.
+ *
+ * It replaced four postures, two of which nobody dispatched with. The old spellings
+ * still *read* -- see ``LEGACY_MERGE_MODES`` -- so a record, run directory or config
+ * written before the change loads rather than failing; nothing writes them.
+ */
+export type MergeMode = 'review' | 'automerge';
 
 /**
  * ModelStatusResponse
@@ -4535,6 +4565,18 @@ export type PlaybookRunStarted = {
      */
     group?: string | null;
     /**
+     * Merge Mode
+     *
+     * `review` or `automerge`. Empty while a dispatch is queued: the merge mode is resolved by the gates when it starts, not when it was queued.
+     */
+    merge_mode: string;
+    /**
+     * Merge Mode Phrase
+     *
+     * `merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.
+     */
+    merge_mode_phrase?: string;
+    /**
      * Mode
      *
      * session or batch. Empty while a dispatch is queued.
@@ -4564,12 +4606,6 @@ export type PlaybookRunStarted = {
      * Where it was read from, project-relative.
      */
     playbook_path: string;
-    /**
-     * Posture
-     *
-     * What the run is permitted to do. Empty while a dispatch is queued: the posture is resolved by the gates when it starts, not when it was queued.
-     */
-    posture: string;
     /**
      * Queue Position
      *
@@ -4904,11 +4940,11 @@ export type PullArmRequest = {
      */
     bound_kind?: string;
     /**
-     * Posture
+     * Merge Mode
      *
-     * The envelope pulled runs get. Omitted, they get the project's own default. Refused here, where a person is waiting for the answer, when it exceeds this project's machine-local ceiling.
+     * `review` or `automerge` for the runs it pulls. Omitted, they get the project's own default. Refused here, where a person is waiting for the answer, when it asks for automerge on a project that does not allow it.
      */
-    posture?: string | null;
+    merge_mode?: string | null;
     /**
      * Starts
      *
@@ -4989,6 +5025,18 @@ export type PullModeView = {
      */
     last_state?: string;
     /**
+     * Merge Mode
+     *
+     * The merge mode pulled runs get, or null for the project's own default.
+     */
+    merge_mode?: string | null;
+    /**
+     * Merge Mode Phrase
+     *
+     * `merge_mode` as a person reads it -- 'Hands off for your review' or 'Merges itself on a green gate'. Composed on the server so no client keeps its own copy (task-602). Empty when `merge_mode` is.
+     */
+    merge_mode_phrase?: string;
+    /**
      * Next Task Id
      *
      * What `task_next` says it would start next, so a person can reorder the queue before it happens. Empty when nothing is claimable, and empty when the project is not armed -- this field is about an arming, not a backlog.
@@ -4998,12 +5046,6 @@ export type PullModeView = {
      * Next Task Title
      */
     next_task_title?: string;
-    /**
-     * Posture
-     *
-     * The envelope pulled runs get, or null for the project's own default.
-     */
-    posture?: string | null;
     /**
      * Starts Left
      *
@@ -6963,6 +7005,10 @@ export type Task = {
      */
     log?: Array<LogEntry>;
     /**
+     * Whether a run dispatched at this task stops for review or merges itself, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: `automerge` on a project that does not allow it is clamped to `review`, never honoured (task-308, task-602).
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * How it ended. Set only when closed.
      */
     outcome?: Outcome | null;
@@ -6972,10 +7018,6 @@ export type Task = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308).
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -7097,6 +7139,10 @@ export type TaskCardReadInput = {
     live_run_health?: string | null;
     live_walk?: LiveWalkState | null;
     /**
+     * This task's request for a merge mode. A request, not a grant.
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -7114,10 +7160,6 @@ export type TaskCardReadInput = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * This task's request for a dispatch envelope. A request, not a grant.
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -7258,6 +7300,10 @@ export type TaskCardReadOutput = {
     live_run_health?: string | null;
     live_walk?: LiveWalkState | null;
     /**
+     * This task's request for a merge mode. A request, not a grant.
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -7275,10 +7321,6 @@ export type TaskCardReadOutput = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * This task's request for a dispatch envelope. A request, not a grant.
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -7730,6 +7772,10 @@ export type TaskReadInput = {
      */
     log?: Array<LogEntry>;
     /**
+     * Whether a run dispatched at this task stops for review or merges itself, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: `automerge` on a project that does not allow it is clamped to `review`, never honoured (task-308, task-602).
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -7747,10 +7793,6 @@ export type TaskReadInput = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308).
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -7886,6 +7928,10 @@ export type TaskReadOutput = {
      */
     log?: Array<LogEntry>;
     /**
+     * Whether a run dispatched at this task stops for review or merges itself, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: `automerge` on a project that does not allow it is clamped to `review`, never honoured (task-308, task-602).
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -7903,10 +7949,6 @@ export type TaskReadOutput = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308).
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -8027,6 +8069,10 @@ export type TaskSummaryReadInput = {
     live_run_health?: string | null;
     live_walk?: LiveWalkState | null;
     /**
+     * This task's request for a merge mode. A request, not a grant.
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -8044,10 +8090,6 @@ export type TaskSummaryReadInput = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * This task's request for a dispatch envelope. A request, not a grant.
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -8169,6 +8211,10 @@ export type TaskSummaryReadOutput = {
     live_run_health?: string | null;
     live_walk?: LiveWalkState | null;
     /**
+     * This task's request for a merge mode. A request, not a grant.
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -8186,10 +8232,6 @@ export type TaskSummaryReadOutput = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * This task's request for a dispatch envelope. A request, not a grant.
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -8281,6 +8323,10 @@ export type TaskUpdateRequest = {
      */
     links?: Array<Link> | null;
     /**
+     * `review` or `automerge` for a run dispatched at this task. Content, not a state axis: it is a request bounded by the project's machine-local `allow_automerge`, never a grant, so it needs no verb of its own (task-308). Send null to clear it.
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Operation Id
      *
      * Caller-generated UUID. Resending the same request with the same id replays the original result instead of writing again; reusing it for a different request is a conflict and writes nothing.
@@ -8290,10 +8336,6 @@ export type TaskUpdateRequest = {
      * Parent
      */
     parent?: string | null;
-    /**
-     * What a run dispatched at this task may do. Content, not a state axis: it is a request bounded by the project's machine-local ceiling, never a grant, so it needs no verb of its own (task-308). Send null to clear it.
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority | null;
     spec?: Spec | null;
     /**
@@ -8932,6 +8974,10 @@ export type TaskWritable = {
      */
     log?: Array<LogEntry>;
     /**
+     * Whether a run dispatched at this task stops for review or merges itself, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: `automerge` on a project that does not allow it is clamped to `review`, never honoured (task-308, task-602).
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * How it ended. Set only when closed.
      */
     outcome?: Outcome | null;
@@ -8941,10 +8987,6 @@ export type TaskWritable = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308).
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -9066,6 +9108,10 @@ export type TaskCardReadOutputWritable = {
     live_run_health?: string | null;
     live_walk?: LiveWalkState | null;
     /**
+     * This task's request for a merge mode. A request, not a grant.
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -9083,10 +9129,6 @@ export type TaskCardReadOutputWritable = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * This task's request for a dispatch envelope. A request, not a grant.
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -9250,6 +9292,10 @@ export type TaskReadOutputWritable = {
      */
     log?: Array<LogEntry>;
     /**
+     * Whether a run dispatched at this task stops for review or merges itself, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: `automerge` on a project that does not allow it is clamped to `review`, never honoured (task-308, task-602).
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -9267,10 +9313,6 @@ export type TaskReadOutputWritable = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * What a run dispatched at this task may do, when this task wants something other than its project's default. Bounded by the project's machine-local ceiling: a value above it is clamped, never honoured (task-308).
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
@@ -9387,6 +9429,10 @@ export type TaskSummaryReadOutputWritable = {
     live_run_health?: string | null;
     live_walk?: LiveWalkState | null;
     /**
+     * This task's request for a merge mode. A request, not a grant.
+     */
+    merge_mode?: MergeMode | null;
+    /**
      * Needs Cycles
      */
     needs_cycles?: Array<Array<string>>;
@@ -9404,10 +9450,6 @@ export type TaskSummaryReadOutputWritable = {
      * Task id of the umbrella task, if any.
      */
     parent?: string | null;
-    /**
-     * This task's request for a dispatch envelope. A request, not a grant.
-     */
-    posture?: DispatchPosture | null;
     priority?: Priority;
     /**
      * Queue Position
