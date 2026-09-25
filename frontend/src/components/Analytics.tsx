@@ -6,6 +6,7 @@ import { AgingChart, BacklogChart, HolderChart, ThroughputChart } from "./Analyt
 import {
   CostPerTaskPanel,
   DurationChart,
+  EstimateAccuracyChart,
   FinishChart,
   ReviewChart,
   RunOutcomeChart,
@@ -234,6 +235,8 @@ export function Analytics({
   projectId,
   rangeKey,
   onRangeChange,
+  onResetEstimator,
+  resettingEstimator = false,
   now = new Date(),
 }: {
   /** Null while the one request for the whole page is still in flight. */
@@ -241,6 +244,9 @@ export function Analytics({
   projectId: string;
   rangeKey: string;
   onRangeChange: (key: string) => void;
+  /** Forget the landing estimate's learned correction (task-586). Absent: no button. */
+  onResetEstimator?: () => void;
+  resettingEstimator?: boolean;
   /** Injected so the three states of §9 are testable against a fixed instant. */
   now?: Date;
 }) {
@@ -250,6 +256,7 @@ export function Analytics({
   const segments = data?.segments ?? [];
   const finishes = data?.finishes ?? [];
   const gates = data?.gates ?? [];
+  const estimates = data?.estimates ?? [];
   const runs = data?.runs ?? [];
   const machine = data?.machine ?? [];
   const review = data?.review ?? [];
@@ -260,6 +267,7 @@ export function Analytics({
   const [segmentBucket, selectSegment] = useBucket(segments.length);
   const [finishBucket, selectFinish] = useBucket(finishes.length);
   const [durationBucket, selectDuration] = useBucket(Math.max(finishes.length, gates.length));
+  const [estimateBucket, selectEstimate] = useBucket(estimates.length);
   const [runBucket, selectRun] = useBucket(runs.length);
   const [outcomeBucket, selectOutcome] = useBucket(runs.length);
   const [reviewBucket, selectReview] = useBucket(review.length);
@@ -469,6 +477,22 @@ export function Analytics({
                   selected={durationBucket}
                   onSelect={selectDuration}
                 />
+                <h3 className="mt-4 text-sm font-semibold text-dark-text">
+                  How good the landing estimate was
+                </h3>
+                {estimates.length === 0 ? (
+                  <NoSeries caption={seriesCaption(data.estimates_coverage)} />
+                ) : (
+                  <EstimateAccuracyChart
+                    points={estimates}
+                    state={data.estimator}
+                    bucket={grainOf(data.estimates_coverage)}
+                    selected={estimateBucket}
+                    onSelect={selectEstimate}
+                    onReset={onResetEstimator}
+                    resetting={resettingEstimator}
+                  />
+                )}
               </>
             )}
           </Panel>

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { DashboardResponse } from "../api/types";
 import { stallBadge, stallExplanation, stallsByTask } from "./attention/stalled";
 import { BrokenFiles } from "./BrokenFiles";
+import { LandingProgress } from "./LandingProgress";
 import { StatusChip, taskMotion } from "./StatusChip";
 import { QueueBroken } from "./QueueBroken";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
@@ -167,6 +168,7 @@ function NextAction({ dashboard, projectId }: DashboardProps) {
                             ? stallExplanation(stall)
                             : truncate(task.ball_prompt ?? task.summary, 160)}
                         </p>
+                        <LandingProgress estimate={task.live_finish?.estimate} className="mt-1" />
                       </div>
                       {stall ? (
                         <Badge className="bg-red-900 text-red-200">{stallBadge(stall)}</Badge>

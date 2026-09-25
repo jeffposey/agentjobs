@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { FinishStepView, TaskFinishView } from "../api/types";
+import { LandingBar, landingSentence } from "./LandingProgress";
 import { RUN_HEALTH, categoryStyle, chipClasses, runMotion } from "./StatusChip";
 
 /**
@@ -244,6 +245,30 @@ function Step({ step, gate }: { step: FinishStepView; gate: string }) {
   );
 }
 
+/**
+ * The bar above the step table, and the sentence under it (task-586).
+ *
+ * The server's estimate, drawn; see `LandingProgress.tsx` for why nothing here is
+ * computed. The basis -- what the estimate rests on, and the correction it carries -- is
+ * the tooltip, so the reader who wants to know how much to trust it can.
+ */
+function LandingEstimateLine({ finish }: { finish: TaskFinishView }) {
+  // No countdown for the sentence: this panel re-reads the finish every two seconds,
+  // which is already finer than "about 4 min" can show.
+  const estimate = finish.estimate;
+  if (!estimate) return null;
+  return (
+    <div className="space-y-1" data-landing-estimate={estimate.kind} title={estimate.basis}>
+      {estimate.kind !== "no_history" && (
+        <LandingBar estimate={estimate} size="wide" label="Landing progress, an estimate" />
+      )}
+      <p className="text-sm text-indigo-100" data-landing-sentence="">
+        {landingSentence(estimate)}
+      </p>
+    </div>
+  );
+}
+
 export type FinishPanelProps = {
   /** Null when no finish has ever run for this task, which is almost every task. */
   finish: TaskFinishView | null;
@@ -310,6 +335,8 @@ export function FinishPanel({ finish }: FinishPanelProps) {
             )}
         </p>
       )}
+
+      {finish.live && finish.estimate && <LandingEstimateLine finish={finish} />}
 
       {steps.length > 0 && (
         <ol className="divide-y divide-dark-border rounded-lg border border-dark-border bg-dark-surface px-3 py-1">

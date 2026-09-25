@@ -1,8 +1,10 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 
 import type {
   AnalyticsRange,
   CostPerTaskPoint,
+  EstimatePoint,
+  EstimatorState,
   FinishPoint,
   GatePoint,
   MachinePoint,
@@ -45,6 +47,8 @@ import {
   blankUnderSample,
   costReadout,
   counted,
+  estimateReadout,
+  estimatorWords,
   finishReadout,
   gateReadout,
   hours,
@@ -519,6 +523,190 @@ export function DurationChart({
     </figure>
   );
 }
+
+// ---------------------------------------------------------------------------
+// F6 -- how good the landing estimate was, and the correction it learned
+// ---------------------------------------------------------------------------
+
+/** Percentages and factors as the series table prints them; a dash where there is none. */
+function percentCell(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : `${Math.round(value)}%`;
+}
+
+/**
+ * F6 (task-586): the landing estimate grading itself.
+ *
+ * The error chart draws two lines on one percentage axis: the error of the estimate a
+ * Landing row actually showed, and the error the uncorrected medians would have had. The
+ * distance between them is what the learned correction is worth, so a correction that
+ * is working reads as the solid line below the dashed one, and one making things worse
+ * reads the other way round -- which is the whole point of drawing both.
+ *
+ * The factor chart beneath is the correction itself, week by week, on its own axis with
+ * the clamp as its ceiling and a rule at ×1.00, so a reader watches it settle rather
+ * than being told it has. The sentence above both says what is applied right now, and
+ * the reset is there because a loop nobody can stop is worse than none.
+ */
+export function EstimateAccuracyChart({
+  points,
+  state,
+  bucket,
+  selected,
+  onSelect,
+  onReset,
+  resetting = false,
+}: {
+  points: readonly EstimatePoint[];
+  state: EstimatorState | null | undefined;
+  bucket: AnalyticsRange["bucket"];
+  onReset?: () => void;
+  resetting?: boolean;
+} & Selectable) {
+  const [confirming, setConfirming] = useState(false);
+  const count = points.length;
+  const index = Math.min(selected, Math.max(count - 1, 0));
+  const sampleOf = (point: EstimatePoint) => point.sample ?? 0;
+  const shown = blankUnderSample(points, (point) => point.error_p50_pct, sampleOf, 1);
+  const raw = blankUnderSample(points, (point) => point.raw_error_p50_pct, sampleOf, 1);
+  const factors = blankUnderSample(points, (point) => point.bias_p50, sampleOf, 1);
+  const max = axisMax([...shown, ...raw], 10);
+  const ceiling = state?.ceiling ?? 2;
+  const unity = VALUE_PLOT.y + VALUE_PLOT.height * (1 - 1 / ceiling);
+  const labels = points.map((point) => formatDay(point.bucket));
+  const readout = (at: number) => estimateReadout(points[at], bucket);
+
+  return (
+    <figure className="mt-1">
+      <p className="mb-2 text-sm text-dark-text" data-testid="estimator-state">
+        {estimatorWords(state)}
+      </p>
+      <Readout testId="estimates-readout">{readout(index)}</Readout>
+      <svg
+        {...svgProps("estimates-chart", "Median error of the landing estimate, as shown and uncorrected.")}
+        onKeyDown={(event) => keyboardSelect(event, selected, count, onSelect)}
+      >
+        <YAxis box={VALUE_PLOT} max={max} format={(value) => `${Math.round(value)}%`} />
+        <BlankBuckets
+          box={VALUE_PLOT}
+          unknown={unknownBuckets(shown)}
+          reason="No landing with a recorded estimate in this bucket."
+        />
+        <path
+          d={linePath(raw, max, VALUE_PLOT)}
+          className="stroke-slate-400"
+          fill="none"
+          strokeWidth={2}
+          strokeDasharray="5 3"
+          data-testid="estimate-raw-line"
+        />
+        <path
+          d={linePath(shown, max, VALUE_PLOT)}
+          className="stroke-violet-400"
+          fill="none"
+          strokeWidth={2}
+          data-testid="estimate-error-line"
+        />
+        <SeriesName box={VALUE_PLOT} label="error: shown (solid) · uncorrected (dashed)" className="fill-dark-muted" />
+        <SelectionRule box={VALUE_PLOT} count={count} selected={selected} />
+        <HitTargets box={VALUE_PLOT} count={count} selected={selected} onSelect={onSelect} labelFor={readout} />
+        <XTicks box={VALUE_PLOT} labels={labels} />
+      </svg>
+      <Legend>
+        <LegendKey label="the estimate shown" swatch={<rect y={5} width={12} height={2} className="fill-violet-400" />} />
+        <LegendKey
+          label="the medians alone, dashed"
+          swatch={
+            <>
+              <rect y={5} width={5} height={2} className="fill-slate-400" />
+              <rect x={8} y={5} width={4} height={2} className="fill-slate-400" />
+            </>
+          }
+        />
+      </Legend>
+      <svg
+        {...svgProps("estimates-bias-chart", "The correction factor in force each week, below its clamp.")}
+        onKeyDown={(event) => keyboardSelect(event, selected, count, onSelect)}
+      >
+        <YAxis box={VALUE_PLOT} max={ceiling} format={(value) => `×${value.toFixed(1)}`} />
+        <line
+          x1={VALUE_PLOT.x}
+          x2={VALUE_PLOT.x + VALUE_PLOT.width}
+          y1={unity}
+          y2={unity}
+          className="stroke-dark-muted"
+          strokeWidth={1}
+          strokeDasharray="2 3"
+        />
+        <path
+          d={linePath(factors, ceiling, VALUE_PLOT)}
+          className="stroke-amber-300"
+          fill="none"
+          strokeWidth={2}
+          data-testid="estimate-bias-line"
+        />
+        <SeriesName box={VALUE_PLOT} label="correction factor (dotted: ×1.00, none)" className="fill-dark-muted" />
+        <SelectionRule box={VALUE_PLOT} count={count} selected={selected} />
+        <HitTargets box={VALUE_PLOT} count={count} selected={selected} onSelect={onSelect} labelFor={readout} />
+        <XTicks box={VALUE_PLOT} labels={labels} />
+      </svg>
+      <SeriesTable
+        testId="estimates-series"
+        caption="How far off the landing estimate was, per bucket"
+        columns={["Bucket", "Landings", "Error shown", "Within ±20%", "Uncorrected", "Correction", "Outliers"]}
+        rows={points.map((point) => [
+          formatBucket(point.bucket, bucket),
+          String(point.sample ?? 0),
+          percentCell(point.error_p50_pct),
+          point.within_20 === null || point.within_20 === undefined ? "—" : percentCell(point.within_20 * 100),
+          percentCell(point.raw_error_p50_pct),
+          point.bias_p50 === null || point.bias_p50 === undefined ? "—" : `×${point.bias_p50.toFixed(2)}`,
+          String(point.outliers ?? 0),
+        ])}
+      />
+      {onReset && state?.active && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          {confirming ? (
+            <>
+              <span className="text-dark-muted">
+                Forget the learned correction? Nothing is deleted; estimates go back to the medians
+                until three new landings are measured.
+              </span>
+              <button
+                type="button"
+                disabled={resetting}
+                data-testid="estimator-reset-confirm"
+                onClick={() => {
+                  onReset();
+                  setConfirming(false);
+                }}
+                className="touch-target rounded-lg border border-amber-700 px-3 text-amber-200 hover:bg-amber-900/40"
+              >
+                Reset it
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="touch-target rounded-lg border border-dark-border px-3 text-dark-muted hover:bg-dark-border"
+              >
+                Keep it
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              data-testid="estimator-reset"
+              onClick={() => setConfirming(true)}
+              className="touch-target rounded-lg border border-dark-border px-3 text-blue-300 hover:bg-dark-border"
+            >
+              Reset the learned correction
+            </button>
+          )}
+        </div>
+      )}
+    </figure>
+  );
+}
+
 
 // ---------------------------------------------------------------------------
 // R-1, R-2, R-6 -- runs, the hours they took, and the hours a quota stopped
