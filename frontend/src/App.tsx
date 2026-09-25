@@ -344,7 +344,7 @@ function useDashboardDispatch(projectId: string) {
       try {
         // `user` names who is clicking and the server writes their authorising entry
         // before it starts anything -- the same one-click contract task-188 established
-        // for the task page. Nothing else is sent: a group, a posture or a brief is a
+        // for the task page. Nothing else is sent: a group, a merge mode or a brief is a
         // choice, and choosing happens on the task's own page.
         await start.mutateAsync({
           path: { project_id: projectId, task_id: taskId },
@@ -674,7 +674,7 @@ function useTaskDispatch(projectId: string, taskId: string, user: string | null)
           // `options` is spread rather than picked apart: its keys are absent unless
           // the human chose something, so a dispatch with nothing picked posts the
           // same body it posted before the group pulldown existed, and task-307's
-          // posture arrives here without touching this call.
+          // merge mode arrives here without touching this call.
           body: { ...(user ? { user } : {}), ...(options ?? {}) },
         });
         // Both answers are 202 and only `queued` tells them apart (task-459). Reporting

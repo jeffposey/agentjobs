@@ -30,7 +30,11 @@ function state(overrides: Partial<DispatchStateView> = {}): DispatchStateView {
     sentinel_active: false,
     project_enabled: true,
     runner: "claude-session",
-    posture: "supervised",
+    merge_mode: "review",
+    merge_mode_phrases: {
+      review: "Hands off for your review",
+      automerge: "Merges itself on a green gate",
+    },
     auto_dispatch: false,
     available_runners: ["claude-session", "claude-batch"],
     can_dispatch: true,
@@ -47,7 +51,8 @@ function run(overrides: Partial<DispatchRunView> = {}): DispatchRunView {
     task_id: "task-073",
     project_id: "sandbox",
     mode: "batch",
-    posture: "supervised",
+    merge_mode: "review",
+    merge_mode_phrase: "Hands off for your review",
     status: "running",
     outcome: null,
     session_id: null,
@@ -99,12 +104,12 @@ describe("the Dispatch action", () => {
     expect(screen.queryByRole("button", { name: /approve/i })).toBeNull();
   });
 
-  it("names the runner and posture the click would use", () => {
+  it("names the runner and merge mode the click would use", () => {
     renderPanel();
 
     const panel = screen.getByRole("region", { name: "Dispatch" });
     expect(panel).toHaveTextContent("claude-session");
-    expect(panel).toHaveTextContent("supervised");
+    expect(panel).toHaveTextContent(/merge mode\s*review:\s*hands off for your review/);
   });
 
   it("starts a run when clicked", async () => {
@@ -735,7 +740,7 @@ describe("choosing a runner group for one dispatch", () => {
     expect(screen.getByLabelText("Run with")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Automatic groups" })).toBeNull();
     expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(
-      /Agent\s*claude-session, posture\s*supervised, authorised by\s*Jeff Posey/,
+      /Agent\s*claude-session, merge mode\s*review: hands off for your review, authorised by\s*Jeff Posey/,
     );
   });
 });
@@ -804,84 +809,86 @@ describe("choosing a specific runner for one dispatch", () => {
 });
 
 /**
- * A project whose ceiling has been raised, so there is genuinely a choice to make.
+ * A project that allows automerge, so there is genuinely a choice to make.
  *
- * `posture_merge_policies` is present because the server always sends it -- it is the
- * fixed task-021 mapping, not configuration. A fixture that omitted it would be testing
- * a state the API cannot produce.
+ * `merge_mode_phrases` is present because the server always sends it -- it is the one
+ * table of display copy, not configuration. A fixture that omitted it would be testing a
+ * state the API cannot produce.
  */
-function withPostures(overrides: Partial<DispatchStateView> = {}): DispatchStateView {
+function withMergeModes(overrides: Partial<DispatchStateView> = {}): DispatchStateView {
   return state({
-    posture: "auto",
-    max_posture: "autonomous",
-    offerable_postures: ["read_only", "supervised", "auto", "autonomous"],
-    posture_merge_policies: {
-      read_only: "none",
-      supervised: "review",
-      auto: "review",
-      autonomous: "automatic",
-    },
+    merge_mode: "review",
+    allow_automerge: true,
+    offerable_merge_modes: ["review", "automerge"],
     finish_enabled: true,
     ...overrides,
   });
 }
 
-describe("choosing a posture for one dispatch (task-307)", () => {
-  it("offers what the server permits, each saying what it does to the branch", () => {
-    renderPanel({ state: withPostures() });
+describe("choosing a merge mode for one dispatch (task-307, task-602)", () => {
+  it("offers what the server permits, each saying what it does in the server's words", () => {
+    renderPanel({ state: withMergeModes() });
 
-    const select = screen.getByLabelText("Envelope");
+    const select = screen.getByLabelText("Merge mode");
     expect([...select.querySelectorAll("option")].map((option) => option.textContent)).toEqual([
-      "Project default",
-      "read_only — no shell, nothing to merge",
-      "supervised — stops for your review before merging",
-      "auto — stops for your review before merging",
-      "autonomous — merges its own work when the gate passes, no review",
+      "Project default (review)",
+      "Review — hands off for your review",
+      "Automerge — merges itself on a green gate",
     ]);
-    // Nothing pre-picked, so a posture the human did not choose is never sent as one.
+    // Nothing pre-picked, so a mode the human did not choose is never sent as one.
     expect(select).toHaveValue("");
   });
 
-  it("offers only what is at or below the ceiling, because the API refuses the rest", () => {
-    // The refusal exists server-side either way (`posture_above_ceiling`). Populating
-    // from `offerable_postures` is what makes it unreachable by clicking, which is the
-    // difference between a control that is bounded and one that lies.
+  it("renders whatever phrase the server sends rather than a copy of its own", () => {
+    // task-309's constraint: the browser keeps no table of this copy.
     renderPanel({
-      state: withPostures({
-        max_posture: "auto",
-        offerable_postures: ["read_only", "supervised", "auto"],
+      state: withMergeModes({
+        merge_mode_phrases: { review: "Waits for you", automerge: "Lands on green" },
       }),
     });
 
-    const options = [...screen.getByLabelText("Envelope").querySelectorAll("option")].map(
+    const options = [...screen.getByLabelText("Merge mode").querySelectorAll("option")].map(
       (option) => option.textContent,
     );
-    expect(options).not.toContain(
-      "autonomous — merges its own work when the gate passes, no review",
-    );
-    expect(options).toHaveLength(4);
+    expect(options).toContain("Review — waits for you");
+    expect(options).toContain("Automerge — lands on green");
   });
 
-  it("sends the posture the human picked, and only then", async () => {
-    const { onDispatch } = renderPanel({ state: withPostures() });
+  it("offers no chooser where the project does not allow automerge", () => {
+    // The refusal exists server-side either way (`automerge_not_allowed`). With only
+    // `review` offered there is nothing to choose, and a pulldown saying so is furniture.
+    renderPanel({
+      state: withMergeModes({ allow_automerge: false, offerable_merge_modes: ["review"] }),
+    });
+
+    expect(screen.queryByLabelText("Merge mode")).toBeNull();
+    expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(
+      /merge mode\s*review:\s*hands off for your review/,
+    );
+  });
+
+  it("sends the merge mode the human picked, and only then", async () => {
+    const { onDispatch } = renderPanel({ state: withMergeModes() });
 
     fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
     await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({}));
 
-    fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "autonomous" } });
+    fireEvent.change(screen.getByLabelText("Merge mode"), { target: { value: "automerge" } });
     fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
 
-    await waitFor(() => expect(onDispatch).toHaveBeenLastCalledWith({ posture: "autonomous" }));
+    await waitFor(() =>
+      expect(onDispatch).toHaveBeenLastCalledWith({ merge_mode: "automerge" }),
+    );
   });
 
-  it("carries the posture alongside a group and a brief", async () => {
+  it("carries the merge mode alongside a group and a brief", async () => {
     const { onDispatch } = renderPanel({
-      state: withPostures({ available_groups: ["big", "default"] }),
+      state: withMergeModes({ available_groups: ["big", "default"] }),
       recordCanBrief: false,
     });
 
     fireEvent.change(screen.getByLabelText("Run with"), { target: { value: "group:big" } });
-    fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "autonomous" } });
+    fireEvent.change(screen.getByLabelText("Merge mode"), { target: { value: "automerge" } });
     fireEvent.change(screen.getByRole("textbox", { name: /say what the agent should do/i }), {
       target: { value: "Audit the guard chain." },
     });
@@ -890,72 +897,51 @@ describe("choosing a posture for one dispatch (task-307)", () => {
     await waitFor(() =>
       expect(onDispatch).toHaveBeenCalledWith({
         group: "big",
-        posture: "autonomous",
+        merge_mode: "automerge",
         note: "Audit the guard chain.",
       }),
     );
   });
 
-  it("says what the chosen posture will do, not what the project's default would have", () => {
-    renderPanel({ state: withPostures() });
+  it("says what the chosen mode will do, not what the project's default would have", () => {
+    renderPanel({ state: withMergeModes() });
 
     const panel = screen.getByRole("region", { name: "Dispatch" });
-    expect(panel).toHaveTextContent(/posture\s*auto\s*—\s*stops for your review before merging/);
+    expect(panel).toHaveTextContent(/merge mode\s*review:\s*hands off for your review/);
 
-    fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "autonomous" } });
+    fireEvent.change(screen.getByLabelText("Merge mode"), { target: { value: "automerge" } });
 
-    expect(panel).toHaveTextContent(
-      /posture\s*autonomous\s*—\s*merges its own work when the gate passes, no review/,
-    );
+    expect(panel).toHaveTextContent(/merge mode\s*automerge:\s*merges itself on a green gate/);
   });
 
-  it("offers autonomous disabled, and says why, where the project has no scripted finish", () => {
-    // task-021: an autonomous merge runs through `agentjobs finish --posture-release`,
-    // and a machine without it has no sanctioned mechanism for one. Granting the
-    // envelope anyway produces a run told it may merge with no way to do it.
-    renderPanel({ state: withPostures({ finish_enabled: false }) });
+  it("offers automerge disabled, and says why, where the project has no scripted finish", () => {
+    // An automerge runs through `agentjobs finish --automerge-release`, and a machine
+    // without it has no sanctioned mechanism for one.
+    renderPanel({ state: withMergeModes({ finish_enabled: false }) });
 
-    const autonomous = [...screen.getByLabelText("Envelope").querySelectorAll("option")].find(
-      (option) => (option as HTMLOptionElement).value === "autonomous",
+    const automerge = [...screen.getByLabelText("Merge mode").querySelectorAll("option")].find(
+      (option) => (option as HTMLOptionElement).value === "automerge",
     );
-    expect(autonomous?.textContent).toBe("autonomous — needs finish.enabled on this project");
-    expect(autonomous).toBeDisabled();
+    expect(automerge?.textContent).toBe("Automerge — needs finish.enabled on this project");
+    expect(automerge).toBeDisabled();
   });
 
-  it("leaves the other postures alone when the finish is off", () => {
-    renderPanel({ state: withPostures({ finish_enabled: false }) });
+  it("leaves review alone when the finish is off", () => {
+    renderPanel({ state: withMergeModes({ finish_enabled: false }) });
 
-    const options = [...screen.getByLabelText("Envelope").querySelectorAll("option")];
+    const options = [...screen.getByLabelText("Merge mode").querySelectorAll("option")];
     expect(options.filter((option) => option.hasAttribute("disabled"))).toHaveLength(1);
   });
 
-  it("offers no posture control at all when the ceiling leaves nothing to choose", () => {
-    // A project capped at its own default. A pulldown whose single option means "the
-    // only thing that can happen" is furniture, and the panel must read exactly as it
-    // did before this control existed.
-    renderPanel({
-      state: withPostures({
-        posture: "read_only",
-        max_posture: "read_only",
-        offerable_postures: ["read_only"],
-      }),
-    });
-
-    expect(screen.queryByLabelText("Envelope")).toBeNull();
-    expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(
-      /posture\s*read_only\s*—\s*no shell, nothing to merge/,
-    );
-  });
-
   it("names pushing only where the project permits it", () => {
-    // Per project and never the posture's (task-021), and false everywhere today -- so
-    // a sentence repeating the universal default on every task would be noise.
-    renderPanel({ state: withPostures() });
+    // Per project and never the merge mode's (task-021), and false everywhere today --
+    // so a sentence repeating the universal default on every task would be noise.
+    renderPanel({ state: withMergeModes() });
     expect(screen.getByRole("region", { name: "Dispatch" })).not.toHaveTextContent(/and pushes/);
   });
 
   it("says so where pushing is permitted, because that is the unrecoverable half", () => {
-    renderPanel({ state: withPostures({ push: true }) });
+    renderPanel({ state: withMergeModes({ push: true }) });
 
     expect(screen.getByRole("region", { name: "Dispatch" })).toHaveTextContent(/, and pushes,/);
   });
@@ -1349,7 +1335,8 @@ function pull(overrides: Partial<NonNullable<DispatchStateView["pull"]>> = {}) {
     bound: "",
     starts_used: 0,
     starts_left: null,
-    posture: null,
+    merge_mode: null,
+    merge_mode_phrase: "",
     next_task_id: "",
     next_task_title: "",
     last_state: "",
@@ -1369,7 +1356,7 @@ describe("arming the pull mode (task-462)", () => {
       bound_kind: "starts",
       starts: 5,
       until: null,
-      posture: null,
+      merge_mode: null,
     });
   });
 
@@ -1401,25 +1388,43 @@ describe("arming the pull mode (task-462)", () => {
     expect(screen.getByTestId("pull-mode-arm")).toBeDisabled();
   });
 
-  it("says what the chosen envelope will do to every branch it produces", () => {
+  it("says what the chosen merge mode will do to every branch it produces", () => {
     // ac-5's second half. The sentence is outside the pulldown as well as in it: an
     // <option> is read once, and this is the sentence the decision turns on.
-    renderPull(withPostures({ pull: pull() }));
+    renderPull(withMergeModes({ pull: pull() }));
 
-    fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "autonomous" } });
+    fireEvent.change(screen.getByLabelText("Merge mode"), { target: { value: "automerge" } });
 
     expect(screen.getByTestId("pull-mode-consequence")).toHaveTextContent(
-      "merges its own work when the gate passes, no review",
+      "Each pulled run merges itself on a green gate",
     );
   });
 
-  it("says a review posture stops for you, so the two read differently", () => {
-    renderPull(withPostures({ pull: pull() }));
+  it("says review hands off to you, so the two read differently", () => {
+    renderPull(withMergeModes({ pull: pull() }));
 
-    fireEvent.change(screen.getByLabelText("Envelope"), { target: { value: "supervised" } });
+    fireEvent.change(screen.getByLabelText("Merge mode"), { target: { value: "review" } });
 
     expect(screen.getByTestId("pull-mode-consequence")).toHaveTextContent(
-      "stops for your review before merging",
+      "Each pulled run hands off for your review",
+    );
+  });
+
+  it("names what an armed pull mode does, in the server's words", () => {
+    renderPull(
+      state({
+        pull: pull({
+          armed: true,
+          armed_by: "Jeff Posey",
+          bound: "1 of 3 starts used",
+          merge_mode: "automerge",
+          merge_mode_phrase: "Merges itself on a green gate",
+        }),
+      }),
+    );
+
+    expect(screen.getByTestId("pull-mode-bound")).toHaveTextContent(
+      "Armed by Jeff Posey · 1 of 3 starts used · Merges itself on a green gate",
     );
   });
 

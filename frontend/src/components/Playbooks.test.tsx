@@ -25,7 +25,7 @@ function state(overrides: Partial<DispatchStateView> = {}): DispatchStateView {
     sentinel_active: false,
     project_enabled: true,
     runner: "claude-session",
-    posture: "supervised",
+    merge_mode: "review",
     auto_dispatch: false,
     available_runners: ["claude-session"],
     can_dispatch: true,

@@ -11,7 +11,7 @@ import type { DispatchRefusal } from "./DispatchPanel";
  * button lives. This is that button, brought to where the question is asked.
  *
  * **It is deliberately the one-click form and nothing more.** The task page's
- * {@link DispatchPanel} carries a group pulldown, a posture chooser, a brief textarea,
+ * {@link DispatchPanel} carries a group pulldown, a merge mode chooser, a brief textarea,
  * the run list and every refusal a run can produce. None of that belongs on a panel
  * whose whole point is that it fits above the fold and offers three tasks: a reader who
  * wants to choose a runner or write a brief is choosing, and choosing happens on the

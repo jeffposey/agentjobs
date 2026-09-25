@@ -119,20 +119,23 @@ const HEALTH_CLASSES: Record<string, string> = {
 };
 
 /**
- * What kind of run this is, in one word, where a dispatched run shows its posture.
+ * What kind of run this is, where a dispatched run shows what it will do with its branch.
  *
- * An interactive run has no posture -- AgentJobs did not choose that session's
- * permission envelope and cannot read it (task-354) -- so printing the field would print
- * an empty cell. "You, in a chat window" is what the reader needs instead.
+ * That is the server's phrase for the run's merge mode -- "Hands off for your review" or
+ * "Merges itself on a green gate" (task-602) -- never the bare value, and never a copy of
+ * the phrase kept here. An interactive run has no merge mode -- AgentJobs did not choose
+ * that session's permissions and cannot read them (task-354) -- so "your session" is what
+ * the reader needs instead.
  *
- * A walk run has a posture and no agent: it handed an epic's children to the server and
- * ended (task-458). Printing its posture would say what its *children* run at, over a row
+ * A walk run has a merge mode and no agent: it handed an epic's children to the server
+ * and ended (task-458). Printing its mode would say what its *children* do, over a row
  * that is not running anything, so it is named for what it is instead.
  */
 export function runKindLabel(run: LiveRunView): string {
   if (run.mode === "interactive") return "your session";
   if (run.mode === "walk") return "epic walk · no agent";
-  return `${run.posture}${run.session ? "" : " · batch"}`;
+  const does = run.merge_mode_phrase || run.merge_mode;
+  return `${does}${run.session ? "" : " · batch"}`;
 }
 
 export function healthLabel(health: string): string {

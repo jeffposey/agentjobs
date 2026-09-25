@@ -305,7 +305,7 @@ function RunCell({ run, projectId }: { run: LiveRunView; projectId: string }) {
   // dashboard is a line of noise on a card with four lines of room.
   const elsewhere = Boolean(run.project_id) && run.project_id !== projectId;
   // A run finishing itself is drawn as the finish it now is (task-533): the violet edge
-  // a finish card has, and the step where the posture would go. It keeps its own lock
+  // a finish card has, and the step where the merge mode would go. It keeps its own lock
   // rather than taking a finish one, so this tile is the only cell its merge gets.
   const finishing = run.health === "finishing";
   return (
@@ -363,7 +363,7 @@ function RunCell({ run, projectId }: { run: LiveRunView; projectId: string }) {
  *
  * Same shape as a run cell: state and elapsed on the first line, the task linked
  * beneath, and the foot saying what it is -- the finish step, in words, where a run
- * shows its posture. The step is the one thing a person watching a merge wants to know
+ * shows its merge mode. The step is the one thing a person watching a merge wants to know
  * and the one thing the footnote this replaced did not say.
  */
 function FinishCell({ finish, projectId }: { finish: MachineHolderView; projectId: string }) {
@@ -888,7 +888,7 @@ function ArmedRail({
                 <span className="ml-2 text-xs text-dark-muted" data-testid="armed-bound">
                   {entry.armed_by ? `armed by ${entry.armed_by} · ` : ""}
                   {entry.bound}
-                  {entry.posture ? ` · ${entry.posture}` : ""}
+                  {entry.merge_mode_phrase ? ` · ${entry.merge_mode_phrase}` : ""}
                 </span>
                 {/* On the row as well as in the notice, because the bound beside it is
                     the thing a person would otherwise assume was being spent. It is
