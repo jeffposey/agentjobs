@@ -12,6 +12,7 @@ import { PriorityMark, PRIORITY_COLOURS, priorityName } from "./PriorityMark";
 import { LandingProgress } from "./LandingProgress";
 import { STATUSES, StatusChip } from "./StatusChip";
 import { nearestScroller, startDragAutoScroll } from "./dragAutoScroll";
+import { startDragGhost, type DragGhost } from "./dragGhost";
 import { ResponsiveCell, ResponsiveTable, ResponsiveTableRow } from "./ResponsiveTable";
 import {
   applyMove,
@@ -315,6 +316,8 @@ type FingerDrag = {
   x: number;
   y: number;
   started: boolean;
+  /** The picture of the row under the finger, once the drag has started. */
+  ghost: DragGhost | null;
 };
 /** How far a finger has to travel on a grip before it is a drag and not a tap. */
 const TOUCH_DRAG_SLOP_PX = 4;
@@ -404,6 +407,9 @@ export function TaskList({
   // Re-reads what is under a finger that has stopped moving while the list scrolls
   // under it. Replaced every render, so the scroll listener always sees current rows.
   const retargetRef = useRef<() => void>(() => undefined);
+  // A ghost lives on `document.body`, outside anything React unmounts, so leaving the
+  // page mid-drag has to take it down explicitly.
+  useEffect(() => () => fingerRef.current?.ghost?.remove(), []);
   // What should hold focus after the next render.
   const restoreFocus = useRef<FocusTarget | null>(null);
   // The selection whose ancestors have already been unfolded, so a reader who folds the
@@ -899,6 +905,7 @@ export function TaskList({
   };
 
   const endFingerDrag = () => {
+    fingerRef.current?.ghost?.remove();
     fingerRef.current = null;
     setPointerDrag(false);
     setDragging(null);
@@ -955,6 +962,7 @@ export function TaskList({
           x: event.clientX,
           y: event.clientY,
           started: false,
+          ghost: null,
         };
       }}
       onPointerMove={(event) => {
@@ -966,6 +974,11 @@ export function TaskList({
           const travelled = Math.hypot(finger.x - finger.startX, finger.y - finger.startY);
           if (travelled < TOUCH_DRAG_SLOP_PX) return;
           finger.started = true;
+          // The row that follows the finger, as the mouse's drag image does. Taken now,
+          // synchronously, before the re-render below fades the source row.
+          const row = event.currentTarget.closest<HTMLElement>("[data-task]");
+          if (row) finger.ghost = startDragGhost(row, finger.startX, finger.startY);
+          finger.ghost?.moveTo(finger.x, finger.y);
           setPointerDrag(true);
           setDragging(finger.taskId);
           // `dropSide` reads `dragging`, which is not set until the next render, so the
@@ -973,6 +986,7 @@ export function TaskList({
           // before a frame without one could be noticed.
           return;
         }
+        finger.ghost?.moveTo(finger.x, finger.y);
         aimAt(taskAt(finger.x, finger.y));
       }}
       onPointerUp={(event) => {
@@ -983,6 +997,7 @@ export function TaskList({
           return;
         }
         const target = taskAt(event.clientX, event.clientY);
+        finger.ghost?.remove();
         fingerRef.current = null;
         setPointerDrag(false);
         // `onRowDrop` clears `dragging` and the line itself, and runs exactly the move

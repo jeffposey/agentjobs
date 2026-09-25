@@ -118,6 +118,8 @@ test("drags a task by its grip with a finger, and the server keeps the order", a
 
   const from = await centre(page, `[id="queue-grip-${third}"]`);
   const onto = await centre(page, `[data-task="${first}"] [data-field="status"]`);
+  const sourceBox = await page.locator(`[data-task="${third}"]`).boundingBox();
+  if (!sourceBox) throw new Error("No source row box.");
 
   const finger = await Finger.on(page);
   await finger.down(from.x, from.y);
@@ -128,7 +130,19 @@ test("drags a task by its grip with a finger, and the server keeps the order", a
   await expect(page.locator(`[data-task="${third}"]`)).toHaveAttribute("data-dragging", "true");
   await expect(page.locator(`[data-task="${first}"]`)).toHaveAttribute("data-drop-side", "before");
 
+  // And a picture of the row travels under the finger, as the browser's drag image does
+  // under a mouse. Held where it was taken: the finger went down on the grip, so the
+  // grip's place in the ghost is still under the finger.
+  const ghost = page.locator("[data-drag-ghost]");
+  await expect(ghost).toHaveCount(1);
+  await expect(ghost).toContainText(`${TOKEN} third`);
+  const ghostBox = await ghost.boundingBox();
+  if (!ghostBox) throw new Error("No ghost box.");
+  expect(Math.abs(ghostBox.y - (onto.y - (from.y - sourceBox.y)))).toBeLessThan(3);
+  expect(Math.abs(ghostBox.x - (onto.x - (from.x - sourceBox.x)))).toBeLessThan(3);
+
   await finger.up();
+  await expect(ghost).toHaveCount(0);
   await expect.poll(() => order(page, seeded)).toEqual([third, first, second]);
   await expect(page.locator("[data-dragging]")).toHaveCount(0);
   await expect(page.locator("[data-drop-side]")).toHaveCount(0);
