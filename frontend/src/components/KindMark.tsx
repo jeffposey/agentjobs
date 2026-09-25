@@ -4,16 +4,17 @@
  * A row already carries two marks, and a third must not be mistaken for either. Each has
  * its own *form*, so none of them depends on colour (the rule `PriorityMark` states):
  *
- * * **status** -- a filled, bordered box, sentence case.
+ * * **status** -- a solid-filled, squared box, sentence case.
  * * **priority** -- rising bars with no box, UPPERCASE.
- * * **kind** -- a **dashed-outline pill** holding the word, sentence case. The dashed
- *   border is the one thing no other mark draws, and the word is always present.
+ * * **kind** -- a **fully rounded, outlined pill** with only a faint tint, holding the
+ *   word in semibold sentence case. The word is always present.
  *
- * **Yellow, and no icon** (owner's review of task-593). Violet is the landing's colour
- * (`LandingProgress`), so a violet mark read as part of a finish. Yellow is the colour of
- * work that is not yet code -- the Draft chip is filled with it -- so a design mark sits
- * in that family, told apart from Draft by being an outline rather than a fill. An icon
- * beside the word added nothing the word did not already say.
+ * **Yellow, a word, and legible** (owner's reviews of task-593). Violet is the landing's
+ * colour (`LandingProgress`). Yellow is the colour of work that is not yet code -- the
+ * Draft chip is filled with it -- so a design mark sits in that family, told apart from
+ * Draft by being an outline over a faint tint rather than a solid fill. No icon: beside
+ * the word it said nothing the word did not. And no dashed border, and no shrinking in
+ * a list row: both made the mark too hard to read at the size it is drawn.
  *
  * Where it appears is the caller's choice, and deliberately differs: the list marks only
  * `design` (implementation is most rows, and a mark on all of them is noise), while the
@@ -36,17 +37,17 @@ export function kindName(value: string | null | undefined): KindName {
 
 const LABEL: Record<KindName, string> = { design: "Design", implementation: "Implementation" };
 
-/** The Draft chip's yellow (status_vocabulary.json), as an outline rather than a fill. */
-const COLOURS: Record<KindName, { border: string; text: string }> = {
-  design: { border: "#fde047", text: "#facc15" },
-  implementation: { border: "#64748b", text: "#94a3b8" },
+/** The Draft chip's yellow (status_vocabulary.json), as an outline over a faint tint. */
+const COLOURS: Record<KindName, { border: string; text: string; fill: string }> = {
+  design: { border: "#facc15", text: "#fde047", fill: "rgba(250, 204, 21, 0.12)" },
+  implementation: { border: "#64748b", text: "#cbd5e1", fill: "rgba(100, 116, 139, 0.12)" },
 };
 
 export function kindLabel(value: string | null | undefined): string {
   return LABEL[kindName(value)];
 }
 
-/** The kind mark: a dashed pill holding the word. */
+/** The kind mark: a rounded, outlined pill holding the word. */
 export function KindMark({
   kind,
   className = "",
@@ -55,12 +56,13 @@ export function KindMark({
   className?: string;
 }) {
   const name = kindName(kind);
+  const colours = COLOURS[name];
   return (
     <span
       data-kind={name}
       title={`Kind: ${LABEL[name].toLowerCase()}`}
-      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-dashed px-1.5 text-xs font-medium ${className}`}
-      style={{ borderColor: COLOURS[name].border, color: COLOURS[name].text }}
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2 text-xs font-semibold leading-5 ${className}`}
+      style={{ borderColor: colours.border, color: colours.text, backgroundColor: colours.fill }}
     >
       {LABEL[name]}
     </span>

@@ -1202,7 +1202,7 @@ export function TaskList({
                   </span>
                   {/* Only design is marked in a list (task-556): implementation is most
                       rows, and a mark on every one of them trains the eye to skip it. */}
-                  {kindName(task.kind) === "design" && <KindMark kind="design" className="text-[0.65rem]" />}
+                  {kindName(task.kind) === "design" && <KindMark kind="design" />}
                   {/* A fold must not hide work silently. The count is on the row
                       itself, not only inside the control's accessible name, so a reader
                       scanning a folded backlog can see that nine open tasks are under

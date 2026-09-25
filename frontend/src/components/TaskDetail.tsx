@@ -561,7 +561,7 @@ function ReviewPanel({
   return (
     <section className={`space-y-4 rounded-xl border-2 border-yellow-600/50 bg-yellow-950/30 p-4 @min-[768px]:p-6 ${MEASURE}`} aria-label={label}>
       <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-yellow-300">
-        {!held && verbs.design && <KindMark kind="design" className="text-sm font-normal" />}
+        {!held && verbs.design && <KindMark kind="design" className="text-sm" />}
         <span>{held ? "On hold — nothing will run until you release it" : verbs.heading}</span>
       </h2>
       {/* The prompt with its link lines taken out, and them, below it. The prose no
