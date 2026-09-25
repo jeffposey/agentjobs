@@ -48,6 +48,10 @@ export const PROJECT_TASK_QUERY_IDS = new Set([
   "getQueueApiProjectsProjectIdQueueGet",
   "getTaskApiProjectsProjectIdTasksTaskIdGet",
   "getTaskDetailApiProjectsProjectIdTasksTaskIdDetailGet",
+  // A document under review, read off the task's branch (task-594). Which file and which
+  // branch are task data, and so is the handoff that follows a new commit; a commit on
+  // its own moves no revision, and reopening the section is what refetches after one.
+  "getDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGet",
   // A dispatch and its result are log entries, so starting and finishing a run both
   // move the revision. The runs list additionally polls on its own clock while
   // something is live, because progress within a run is not a task write at all.

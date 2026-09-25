@@ -31,6 +31,7 @@ import { identityHeadline } from "./identityProblem";
 import { linkSegments } from "./linkify";
 import { NoteComposer } from "./NoteComposer";
 import { ReviewLinks, cardUrls, reviewPromptFor } from "./ReviewLinks";
+import { ReviewDocuments } from "./ReviewDocuments";
 import { TaskFields, type TaskFieldsPatch } from "./TaskFields";
 import { TaskWalkPanel } from "./TaskWalk";
 import { useWideShell } from "./shellLayout";
@@ -505,6 +506,7 @@ function AnswerSection({
  */
 function ReviewPanel({
   detail,
+  projectId,
   busy,
   error,
   promoteBusy,
@@ -555,6 +557,9 @@ function ReviewPanel({
           where to look. */}
       {prompt.prose && <SpecText plain={cardUrls(prompt)}>{prompt.prose}</SpecText>}
       <ReviewLinks links={prompt.links} />
+      {/* The documents come right after the links for the same reason: reading the
+          thing is the first act, and neither needs a resolved identity (task-594). */}
+      <ReviewDocuments task={detail.task} projectId={projectId} />
       {detail.identity.ok && detail.identity.user ? (
         <>
           <p className="text-sm text-dark-muted">Acting as <strong className="text-dark-text">{detail.identity.user}</strong>. {held ? "Releasing puts the task back to work; nothing here runs git." : verbs.guidance}</p>
