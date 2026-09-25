@@ -74,6 +74,15 @@ export type DragAutoScrollDeps = {
   viewportHeight?: () => number;
   requestFrame?: (callback: (time: number) => void) => number;
   cancelFrame?: (handle: number) => void;
+  /**
+   * Which gesture is driving. `drag` (the default) is an HTML5 drag, read from
+   * `dragover` and ended by `drop` or `dragend`. `pointer` is the touch drag of
+   * task-589, which is not an HTML5 drag at all: it is read from `pointermove` and ended
+   * by `pointerup` or `pointercancel`. They are not merged, because a mouse's HTML5
+   * drag fires `pointercancel` as it starts, and listening for that would end the
+   * mouse's loop before it began.
+   */
+  source?: "drag" | "pointer";
 };
 
 /**
@@ -146,25 +155,29 @@ export function startDragAutoScroll(deps: DragAutoScrollDeps = {}): () => void {
     if (velocity !== 0) scrollBy((velocity * elapsed) / 1000);
   };
 
-  const onDragOver = (event: Event) => {
+  const onMove = (event: Event) => {
     // `clientY` is what the browser reports for the pointer during a drag; there is no
-    // pointermove to read while an HTML5 drag is in flight.
-    pointerY = (event as DragEvent).clientY;
+    // pointermove to read while an HTML5 drag is in flight, and no dragover in a touch
+    // drag, so each source reads its own.
+    pointerY = (event as MouseEvent).clientY;
   };
+
+  const [moveEvent, endEvents] =
+    deps.source === "pointer"
+      ? ["pointermove", ["pointerup", "pointercancel"]]
+      : ["dragover", ["drop", "dragend"]];
 
   const stop = () => {
     if (stopped) return;
     stopped = true;
     if (frame !== null) cancelFrame(frame);
     frame = null;
-    events.removeEventListener("dragover", onDragOver, true);
-    events.removeEventListener("drop", stop, true);
-    events.removeEventListener("dragend", stop, true);
+    events.removeEventListener(moveEvent, onMove, true);
+    for (const end of endEvents) events.removeEventListener(end, stop, true);
   };
 
-  events.addEventListener("dragover", onDragOver, true);
-  events.addEventListener("drop", stop, true);
-  events.addEventListener("dragend", stop, true);
+  events.addEventListener(moveEvent, onMove, true);
+  for (const end of endEvents) events.addEventListener(end, stop, true);
   frame = requestFrame(step);
   return stop;
 }
