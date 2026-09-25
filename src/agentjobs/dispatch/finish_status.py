@@ -117,6 +117,7 @@ STEP_ORDER = (
     "restart",
     "verify",
     "close",
+    "teardown",
     "worktree",
     "branch",
 )
@@ -138,6 +139,7 @@ STEP_MEANING = {
     "restart": "Restarting the server",
     "verify": "Checking the merge is live",
     "close": "Closing the task",
+    "teardown": "Stopping what runs out of the worktree",
     "worktree": "Removing the worktree",
     "branch": "Deleting the branch",
 }
