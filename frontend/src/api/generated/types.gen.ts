@@ -6868,6 +6868,10 @@ export type Task = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Whether this is a design pass or an implementation task. Absent means implementation. Grants nothing: what an approval authorises is the gate's business, not this field's (task-592).
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     /**
      * Links
@@ -7000,6 +7004,10 @@ export type TaskCardReadInput = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Design pass or implementation. Absent means implementation.
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
     /**
@@ -7157,6 +7165,10 @@ export type TaskCardReadOutput = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Design pass or implementation. Absent means implementation.
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
     /**
@@ -7323,6 +7335,10 @@ export type TaskCreateRequest = {
      * Why the task exists (spec.intent).
      */
     intent?: string | null;
+    /**
+     * 'design' for a design pass. Omit it for an implementation task: absent means implementation (task-592).
+     */
+    kind?: TaskKind | null;
     /**
      * Initial lifecycle: draft (ball human/spec) or ready (agent/available).
      */
@@ -7534,6 +7550,17 @@ export type TaskFinishView = {
 };
 
 /**
+ * TaskKind
+ *
+ * What a task *is*: a design pass or the building of something (task-592).
+ *
+ * Absent means ``implementation``. It changes how a task is shown and how an approval
+ * is worded, and never what an approval authorises -- the handoff's gate does that --
+ * which is why any actor may edit it. See docs/task-kind-design.md section 1.
+ */
+export type TaskKind = 'design' | 'implementation';
+
+/**
  * TaskRead
  *
  * Task plus server-computed dependency state for read surfaces.
@@ -7602,6 +7629,10 @@ export type TaskReadInput = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Whether this is a design pass or an implementation task. Absent means implementation. Grants nothing: what an approval authorises is the gate's business, not this field's (task-592).
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     /**
      * Links
@@ -7754,6 +7785,10 @@ export type TaskReadOutput = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Whether this is a design pass or an implementation task. Absent means implementation. Grants nothing: what an approval authorises is the gate's business, not this field's (task-592).
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     /**
      * Links
@@ -7899,6 +7934,10 @@ export type TaskSummaryReadInput = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Design pass or implementation. Absent means implementation.
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
     /**
@@ -8037,6 +8076,10 @@ export type TaskSummaryReadOutput = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Design pass or implementation. Absent means implementation.
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
     /**
@@ -8148,6 +8191,10 @@ export type TaskUpdateRequest = {
      * The `updated` value from a prior read. When supplied, the request is refused if the task changed in the meantime, and the current task is returned so the caller can decide again.
      */
     expected_revision?: string | null;
+    /**
+     * Design pass or implementation. Any actor may change it: it grants nothing, because what an approval authorises is the gate's business (task-592). Send null to clear it back to implementation.
+     */
+    kind?: TaskKind | null;
     /**
      * Links
      */
@@ -8790,6 +8837,10 @@ export type TaskWritable = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Whether this is a design pass or an implementation task. Absent means implementation. Grants nothing: what an approval authorises is the gate's business, not this field's (task-592).
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     /**
      * Links
@@ -8922,6 +8973,10 @@ export type TaskCardReadOutputWritable = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Design pass or implementation. Absent means implementation.
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
     /**
@@ -9094,6 +9149,10 @@ export type TaskReadOutputWritable = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Whether this is a design pass or an implementation task. Absent means implementation. Grants nothing: what an approval authorises is the gate's business, not this field's (task-592).
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     /**
      * Links
@@ -9235,6 +9294,10 @@ export type TaskSummaryReadOutputWritable = {
      * Unique task identifier.
      */
     id: string;
+    /**
+     * Design pass or implementation. Absent means implementation.
+     */
+    kind?: TaskKind | null;
     lifecycle?: Lifecycle;
     live_finish?: LiveFinishState | null;
     /**
@@ -11208,6 +11271,12 @@ export type ListTasksApiProjectsProjectIdTasksGetData = {
          * Return only the children of this umbrella task.
          */
         parent?: string | null;
+        /**
+         * Kind
+         *
+         * Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.
+         */
+        kind?: TaskKind | null;
     };
     url: '/api/projects/{project_id}/tasks';
 };
@@ -11366,6 +11435,12 @@ export type ListFullTasksApiProjectsProjectIdTasksFullGetData = {
          * Return only the children of this umbrella task.
          */
         parent?: string | null;
+        /**
+         * Kind
+         *
+         * Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.
+         */
+        kind?: TaskKind | null;
     };
     url: '/api/projects/{project_id}/tasks/full';
 };
@@ -13225,6 +13300,12 @@ export type ListTasksApiTasksGetData = {
          * Return only the children of this umbrella task.
          */
         parent?: string | null;
+        /**
+         * Kind
+         *
+         * Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.
+         */
+        kind?: TaskKind | null;
     };
     url: '/api/tasks';
 };
@@ -13354,6 +13435,12 @@ export type ListFullTasksApiTasksFullGetData = {
          * Return only the children of this umbrella task.
          */
         parent?: string | null;
+        /**
+         * Kind
+         *
+         * Return only tasks of this kind. 'implementation' includes tasks with no kind set, because absent means implementation.
+         */
+        kind?: TaskKind | null;
     };
     url: '/api/tasks/full';
 };

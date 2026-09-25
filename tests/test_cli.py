@@ -408,6 +408,27 @@ def _created_id(result) -> str:
     return str(found[0])
 
 
+def test_create_kind_is_shown_and_listed(tmp_path: Path, monkeypatch) -> None:
+    """`create --kind design` stores it, `show` prints it, and a task created without
+    it reads as absent -- which `list --kind implementation` counts (task-592)."""
+    monkeypatch.chdir(tmp_path)
+    _init_project(tmp_path)
+
+    design = _created_id(
+        runner.invoke(app, ["create", "--title", "Design pass", "--kind", "design"], input="\n")
+    )
+    plain = _created_id(runner.invoke(app, ["create", "--title", "Build it"], input="\n"))
+
+    shown = json.loads(runner.invoke(app, ["show", design], catch_exceptions=False).stdout)
+    assert shown["kind"] == "design"
+    assert json.loads(runner.invoke(app, ["show", plain]).stdout)["kind"] is None
+
+    designs = runner.invoke(app, ["list", "--kind", "design"], catch_exceptions=False).stdout
+    assert design in designs and plain not in designs
+    builds = runner.invoke(app, ["list", "--kind", "implementation"]).stdout
+    assert plain in builds and design not in builds
+
+
 def test_promote_moves_draft_to_ready(tmp_path: Path, monkeypatch) -> None:
     """A draft promoted from the CLI becomes claimable, and the log says who did it."""
     monkeypatch.chdir(tmp_path)

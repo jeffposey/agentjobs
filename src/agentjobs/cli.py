@@ -62,6 +62,8 @@ from .models_v2 import (
     Outcome,
     Priority,
     QueuedDispatchState,
+    TaskKind,
+    kind_of,
     queued_display_status,
 )
 from .playbooks import (
@@ -1051,6 +1053,11 @@ def create(
         help="Task priority label.",
     ),
     category: str = typer.Option("general", help="Categorisation label for filtering."),
+    kind: Optional[TaskKind] = typer.Option(
+        None,
+        "--kind",
+        help="'design' for a design pass. Omit for an implementation task (the default).",
+    ),
     ready: bool = typer.Option(
         False,
         "--ready",
@@ -1091,6 +1098,7 @@ def create(
         description=description,
         priority=priority,
         category=category,
+        kind=kind,
     )
     # Named as a file only where the record *is* a file. On the database it is rows,
     # and a fresh install's very first line of output telling somebody a YAML file was
@@ -1146,6 +1154,9 @@ def list_tasks(
     lifecycle: Optional[Lifecycle] = typer.Option(None),
     ball: Optional[Ball] = typer.Option(None),
     priority: Optional[Priority] = typer.Option(None),
+    kind: Optional[TaskKind] = typer.Option(
+        None, "--kind", help="Only this kind; 'implementation' includes tasks with none set."
+    ),
 ) -> None:
     """List tasks."""
     base_dir = Path.cwd()
@@ -1170,6 +1181,8 @@ def list_tasks(
         tasks = [task for task in tasks if task.ball == ball]
     if priority is not None:
         tasks = [task for task in tasks if task.priority == priority]
+    if kind is not None:
+        tasks = [task for task in tasks if kind_of(task) is kind]
 
     if not tasks:
         typer.echo("No tasks found.")

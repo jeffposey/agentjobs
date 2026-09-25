@@ -35,6 +35,7 @@ from agentjobs.models_v2 import (
     Spec,
     Task,
     TaskCard,
+    TaskKind,
     TaskSummary,
     StatusCategory,
     StatusFacts,
@@ -913,6 +914,13 @@ class TaskCreateRequest(SafeMutationRequest):
         default="general",
         description="Classification category used for filtering in the UI.",
     )
+    kind: Optional[TaskKind] = Field(
+        default=None,
+        description=(
+            "'design' for a design pass. Omit it for an implementation task: absent "
+            "means implementation (task-592)."
+        ),
+    )
     lifecycle: Lifecycle = Field(
         default=Lifecycle.DRAFT,
         description="Initial lifecycle: draft (ball human/spec) or ready (agent/available).",
@@ -976,6 +984,14 @@ class TaskUpdateRequest(RevisionedRequest):
     title: Optional[str] = None
     priority: Optional[Priority] = None
     category: Optional[str] = None
+    kind: Optional[TaskKind] = Field(
+        default=None,
+        description=(
+            "Design pass or implementation. Any actor may change it: it grants nothing, "
+            "because what an approval authorises is the gate's business (task-592). Send "
+            "null to clear it back to implementation."
+        ),
+    )
     effort: Optional[str] = None
     tags: Optional[List[str]] = None
     parent: Optional[str] = None
