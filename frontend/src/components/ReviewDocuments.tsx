@@ -1,9 +1,10 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useCallback, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetOptions } from "../api/generated/@tanstack/react-query.gen";
 import type { TaskRead } from "../api/types";
 import { readRefusal } from "../api/mutation-error";
+import { FullscreenView, MaximizeButton } from "./FullscreenView";
 import { useWideShell } from "./shellLayout";
 
 const MarkdownDocument = lazy(() => import("./MarkdownDocument"));
@@ -90,22 +91,57 @@ function DocumentItem({
   defaultOpen: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [maximized, setMaximized] = useState(false);
+  const opener = useRef<HTMLButtonElement>(null);
+  const restore = useCallback(() => setMaximized(false), []);
   return (
     <details
       open={open}
       onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
       className="rounded-lg border border-dark-border bg-dark-bg"
     >
-      <summary className="touch-target flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
-        <code className="min-w-0 break-all font-mono text-dark-text">{path}</code>
-        {note && <span className="min-w-0 text-dark-muted">— {note}</span>}
+      <summary className="flex cursor-pointer items-center gap-2 py-1 pl-3 pr-1 text-sm">
+        <span className="min-w-0 flex-1">
+          <code className="break-all font-mono text-dark-text">{path}</code>
+          {note && <span className="text-dark-muted"> — {note}</span>}
+        </span>
+        {/* Inside the summary so it sits on the document's own line, which is why the
+            click must not also toggle the <details>. Works collapsed too: on a phone,
+            maximizing is the likely way to read it at all. */}
+        <MaximizeButton
+          ref={opener}
+          label={`Read ${path} full screen`}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setMaximized(true);
+          }}
+        />
       </summary>
       {open && <DocumentBody projectId={projectId} taskId={taskId} index={index} />}
+      {maximized && (
+        <FullscreenView title={path} subtitle={note ?? undefined} onClose={restore} returnFocus={opener}>
+          <DocumentBody projectId={projectId} taskId={taskId} index={index} bare />
+        </FullscreenView>
+      )}
     </details>
   );
 }
 
-function DocumentBody({ projectId, taskId, index }: { projectId: string; taskId: string; index: number }) {
+/** `bare` drops the card's rule and padding, for the full-screen view that has its own. */
+function DocumentBody({
+  projectId,
+  taskId,
+  index,
+  bare = false,
+}: {
+  projectId: string;
+  taskId: string;
+  index: number;
+  bare?: boolean;
+}) {
+  const edge = bare ? "" : "border-t border-dark-border";
+  const inset = bare ? "" : "px-3";
   const query = useQuery({
     ...getDeliverableApiProjectsProjectIdTasksTaskIdDeliverablesIndexGetOptions({
       path: { project_id: projectId, task_id: taskId, index },
@@ -117,12 +153,12 @@ function DocumentBody({ projectId, taskId, index }: { projectId: string; taskId:
   });
 
   if (query.isPending) {
-    return <p className="border-t border-dark-border px-3 py-2 text-sm text-dark-muted">Reading the branch…</p>;
+    return <p className={`${edge} ${inset} py-2 text-sm text-dark-muted`}>Reading the branch…</p>;
   }
   if (query.isError) {
     const refusal = readRefusal(query.error);
     return (
-      <p role="alert" className="border-t border-dark-border px-3 py-2 text-sm text-red-300">
+      <p role="alert" className={`${edge} ${inset} py-2 text-sm text-red-300`}>
         {refusal ? refusal.message : "The document could not be read. Reload and try again."}
         {refusal && <> <span className="font-mono text-xs text-dark-muted">({refusal.code})</span></>}
       </p>
@@ -130,12 +166,12 @@ function DocumentBody({ projectId, taskId, index }: { projectId: string; taskId:
   }
   const document = query.data;
   return (
-    <div className="border-t border-dark-border">
-      <p className="px-3 pt-2 text-xs text-dark-muted">
+    <div className={edge}>
+      <p className={`${inset} pt-2 text-xs text-dark-muted`}>
         Read from <code className="break-all font-mono">{document.branch}</code> at{" "}
         <code className="font-mono">{document.commit}</code>
       </p>
-      <div className="px-3 pb-3">
+      <div className={`${inset} pb-3`}>
         <Suspense fallback={<p className="py-2 text-sm text-dark-muted">Rendering…</p>}>
           <MarkdownDocument text={document.text} />
         </Suspense>

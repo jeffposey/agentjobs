@@ -161,6 +161,48 @@ describe("ReviewDocuments", () => {
     expect(screen.queryByRole("region", { name: "Documents under review" })).toBeNull();
   });
 
+  it("opens a document full screen, and the X puts the page back as it was", async () => {
+    setViewport(390, 844);
+    serveDocument(DOCUMENT);
+    renderDocuments(reviewTask());
+    const maximize = screen.getByRole("button", { name: "Read docs/design.md full screen" });
+
+    fireEvent.click(maximize);
+    const view = screen.getByRole("dialog", { name: "docs/design.md" });
+    expect(await within(view).findByRole("heading", { name: "The design" })).toBeInTheDocument();
+    expect(view).toHaveTextContent("Read from feat/task-594-design at ab12cd34");
+    const close = within(view).getByRole("button", { name: "Close full screen" });
+    expect(close).toHaveFocus();
+    expect(document.body.style.overflow).toBe("hidden");
+    // Maximizing is not also a tap on the collapsed row: it stays collapsed underneath.
+    const section = screen.getByRole("region", { name: "Documents under review" });
+    expect(within(section).queryByRole("heading", { name: "The design" })).toBeNull();
+
+    fireEvent.click(close);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.body.style.overflow).toBe("");
+    expect(maximize).toHaveFocus();
+  });
+
+  it("closes the full-screen view on Escape", async () => {
+    serveDocument(DOCUMENT);
+    renderDocuments(reviewTask());
+
+    fireEvent.click(screen.getByRole("button", { name: "Read docs/design.md full screen" }));
+    await within(screen.getByRole("dialog")).findByRole("heading", { name: "The design" });
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // The inline copy, open on a wide screen, is still there.
+    expect(screen.getByRole("heading", { name: "The design" })).toBeInTheDocument();
+  });
+
+  it("offers no full screen for a deliverable that is not Markdown", () => {
+    serveDocument(DOCUMENT);
+    renderDocuments(reviewTask());
+    expect(screen.queryByRole("button", { name: "Read src/app.py full screen" })).toBeNull();
+  });
+
   it.each(["approval", "plan"])("appears at the %s gate", async (reason) => {
     serveDocument(DOCUMENT);
     renderDocuments(reviewTask({ ball_reason: reason } as Partial<TaskRead>));
