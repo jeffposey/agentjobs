@@ -32,10 +32,16 @@ from agentjobs.mcp.errors import AUTHORIZATION_CODES, ERROR_SCHEMA, ErrorCode, T
 from agentjobs.mcp.inventory import build_registry
 from agentjobs.mcp.server import validate_arguments
 from agentjobs.mcp.tools import ToolRegistry
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, TaskKind
 from agentjobs.principals import RUN_CREDENTIAL_HEADER, Problem
 from agentjobs.projects import ProjectRegistry
-from agentjobs.record_check import DEFAULT_BALL_PROMPT, LONG_SUMMARY, SUMMARY_WORD_CEILING
+from agentjobs.record_check import (
+    BLOCKED_HANDOFF,
+    DEFAULT_BALL_PROMPT,
+    LONG_SUMMARY,
+    SUMMARY_WORD_CEILING,
+    UNFILED_FOLLOW_UPS,
+)
 from support import task_store
 
 ACTORS = [
@@ -1374,6 +1380,92 @@ class TestRecordWarnings:
         )
 
         assert payload["record_warnings"] == []
+
+    def hand_design_to_review(self, registry, manager) -> Dict[str, Any]:
+        """Claim the design task ``task-001-work`` and hand it to ``human/review``."""
+        call(registry, "task_claim", base())
+        current = manager.get_task("task-001-work").updated.isoformat()
+        return call(
+            registry,
+            "task_handoff",
+            base(
+                expected_revision=current,
+                target={"ball": "human", "reason": "review", "prompt": "Review the design."},
+            ),
+        )
+
+    def test_a_design_handed_to_review_with_nothing_filed_behind_it_warns(self, service):
+        """task-617: task-603 reached approval with its eight follow-ups unfiled."""
+        registry, manager, _ = service
+        manager.create_task(
+            id="task-001-work",
+            title="Design",
+            description="Propose the rules.",
+            category="general",
+            lifecycle=Lifecycle.READY,
+            kind=TaskKind.DESIGN,
+        )
+
+        payload = self.hand_design_to_review(registry, manager)
+
+        assert [item["kind"] for item in payload["record_warnings"]] == [UNFILED_FOLLOW_UPS]
+
+    def test_a_design_whose_implementation_needs_it_is_silent(self, service):
+        registry, manager, _ = service
+        manager.create_task(
+            id="task-001-work",
+            title="Design",
+            description="Propose the rules.",
+            category="general",
+            lifecycle=Lifecycle.READY,
+            kind=TaskKind.DESIGN,
+        )
+        manager.create_task(
+            id="task-002-build",
+            title="Build it",
+            description="Implement the rules.",
+            category="general",
+            lifecycle=Lifecycle.READY,
+            dependencies=[{"task": "task-001-work", "type": "needs"}],
+        )
+
+        payload = self.hand_design_to_review(registry, manager)
+
+        assert payload["record_warnings"] == []
+
+    def test_an_implementation_task_handed_to_review_is_silent(self, service):
+        registry, manager, _ = service
+        ready_task(manager)
+
+        payload = self.hand_design_to_review(registry, manager)
+
+        assert payload["record_warnings"] == []
+
+    def test_a_blocked_handoff_warning_passes_the_output_schema(self, service):
+        """``blocked_handoff`` was missing from the schema's enum, so the result failed it."""
+        registry, manager, _ = service
+        manager.create_task(
+            id="task-002-first", title="First", description="D", lifecycle=Lifecycle.READY
+        )
+        manager.create_task(
+            id="task-001-work",
+            title="Second",
+            description="D",
+            lifecycle=Lifecycle.READY,
+            dependencies=[{"task": "task-002-first", "type": "needs"}],
+        )
+        current = manager.get_task("task-001-work").updated.isoformat()
+
+        payload = call(
+            registry,
+            "task_handoff",
+            base(
+                expected_revision=current,
+                target={"ball": "human", "reason": "decision", "prompt": "Drop the dependency?"},
+            ),
+        )
+
+        assert [item["kind"] for item in payload["record_warnings"]] == [BLOCKED_HANDOFF]
 
     def test_only_the_authoring_tools_carry_the_key_at_all(self, service):
         """Every other tool omits it, rather than sending an always-empty list.

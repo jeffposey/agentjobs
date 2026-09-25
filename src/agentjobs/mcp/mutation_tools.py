@@ -521,6 +521,7 @@ def _add_record_warnings(
     task: Task,
     verb: str,
     unmet_needs: Sequence[str] = (),
+    dependents: Optional[int] = None,
 ) -> Tuple[Dict[str, Any], str]:
     """Attach the record-quality check's findings to one tool result.
 
@@ -539,8 +540,9 @@ def _add_record_warnings(
     (task-150). Whether a dependency is open is *not* a pure function of one record, so
     it cannot be derived here -- it comes off the `TaskRead` the service already sent,
     which the client lifts onto the mutation result. Nothing new goes over the wire.
+    ``dependents`` is the same case (task-617), lifted from ``unblocks_count``.
     """
-    warnings = check_record(task, verb=verb, unmet_needs=unmet_needs)
+    warnings = check_record(task, verb=verb, unmet_needs=unmet_needs, dependents=dependents)
     payload["record_warnings"] = warning_dicts(warnings)
     if warnings:
         summary = " ".join([summary, *(warning.message for warning in warnings)])
@@ -742,6 +744,7 @@ def _build_handoff(client: TaskClient) -> Any:
             result.task,
             "handoff",
             unmet_needs=result.unmet_needs,
+            dependents=result.dependents,
         )
         return success(payload, summary)
 

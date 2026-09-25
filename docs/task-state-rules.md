@@ -3,8 +3,8 @@
 This is the design pass for task-603, written on 2026-09-25. Nothing in it is built yet.
 It covers two things: what each task state means, and which rules keep a task from being
 written into a state that contradicts facts the server already holds. The follow-up tasks
-at the end are proposed here and will be filed only after the owner has reviewed this
-page.
+at the end were proposed here to be filed after the owner's review; no step did that, and
+they were filed by hand as epic task-609 on 2026-09-25 (task-617 is why).
 
 ## The finding that shapes everything else
 
@@ -342,7 +342,7 @@ reports them first, and the migration names each one in a `decision` entry.
 
 ## 10. Proposed follow-ups, in order
 
-None of these is filed. They are filed after the owner approves this page (ac-5).
+None of these was filed with the design. They were filed by hand as epic task-609 after the approval, because nothing else would have filed them; task-617 makes a design file its own before review.
 
 1. **task-254**, the existing task: the content allowlist (V10). This comes first.
 2. **Model rules S7 to S11 and S4′**, with the migration in §9 and the property test in

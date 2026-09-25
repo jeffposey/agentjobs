@@ -107,7 +107,7 @@ is how this project has lost the most time, so the status word comes first.
 | [Analytics page design](analytics-design.md) | §6's history contract shipped (task-371); the API, the page and its entry point (task-372 to task-374) are open and unstarted. |
 | [Model access](model-access-design.md) | How AgentJobs may call a model at all — **accepted 2026-09-19 (task-174), nothing built**. The latency that ruled out reusing the dispatch runner is measured by `scripts/model_access_probe.py`; task-175 builds on it. |
 | [Design and implementation tasks](task-kind-design.md) | A `kind` field for what a task is, and a `human/plan` gate for what an approval authorises (task-556). Built by task-555's children; nothing shipped when this merged. |
-| [Task state rules](task-state-rules.md) | What each task state means, which are stored and which derived, and the rules that refuse a broken one (task-603). **Proposed 2026-09-25, nothing built**; the follow-ups are filed after review. |
+| [Task state rules](task-state-rules.md) | What each task state means, which are stored and which derived, and the rules that refuse a broken one (task-603). **Proposed 2026-09-25, nothing built**; the follow-ups are epic task-609. |
 
 **Historical.** True when written, kept for the reasoning, not maintained.
 

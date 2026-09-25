@@ -23,12 +23,13 @@ import pytest
 
 from agentjobs import record_check
 from agentjobs.manager import WORK_PROMPT, TaskManager
-from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Task
+from agentjobs.models_v2 import Ball, BallReason, Lifecycle, LogEntryType, Task, TaskKind
 from agentjobs.record_check import (
     DEFAULT_BALL_PROMPT,
     DEFAULT_BALL_PROMPTS,
     LONG_SUMMARY,
     SUMMARY_WORD_CEILING,
+    UNFILED_FOLLOW_UPS,
     UNNAMED_REVIEW_LINK,
     WARNING_KINDS,
     check_record,
@@ -243,8 +244,71 @@ class TestVerbScoping:
         kinds |= {warning.kind for warning in check_record(handed)}
         kinds |= {warning.kind for warning in check_record(quoted)}
         kinds |= {warning.kind for warning in check_record(invited)}
+        kinds |= {warning.kind for warning in check_record(invited, unmet_needs=["task-001"])}
+        kinds |= {warning.kind for warning in check_record(design_at_review(manager), dependents=0)}
 
         assert kinds == set(WARNING_KINDS)
+
+
+def design_at_review(
+    manager: TaskManager, *, reason: BallReason = BallReason.REVIEW, kind=TaskKind.DESIGN
+) -> Task:
+    """A task of ``kind`` claimed and handed to ``human``/``reason``."""
+    task = manager.create_task(
+        id="task-005",
+        title="Design the rules",
+        description="Propose them.",
+        summary="Short enough.",
+        lifecycle=Lifecycle.READY,
+        kind=kind,
+    )
+    manager.claim_task(task.id, agent="bot")
+    return manager.handoff(
+        task.id,
+        actor="bot",
+        ball=Ball.HUMAN,
+        ball_reason=reason,
+        ball_prompt="Review the design.",
+    )
+
+
+class TestUnfiledFollowUps:
+    """A design at its final review with nothing needing it (task-617).
+
+    task-603's eight follow-ups were written into its doc as "filed after review", and
+    approval merged and closed it with no agent in the loop. The convention the guide now
+    states is that a design files them before review, with ``needs`` on itself; this is
+    the warning that reaches the design's own session while it can still do that.
+    """
+
+    def test_a_design_at_review_with_no_dependents_warns(self, manager):
+        warnings = check_record(design_at_review(manager), verb="handoff", dependents=0)
+
+        assert [warning.kind for warning in warnings] == [UNFILED_FOLLOW_UPS]
+        assert "needs" in warnings[0].message
+
+    def test_a_design_something_needs_is_silent(self, manager):
+        assert check_record(design_at_review(manager), verb="handoff", dependents=2) == []
+
+    def test_an_unknown_count_is_silent_rather_than_a_guess(self, manager):
+        assert check_record(design_at_review(manager), verb="handoff") == []
+
+    def test_a_plan_gate_is_silent(self, manager):
+        """``human/plan`` comes back to the agent on approval, so nothing is lost there."""
+        task = design_at_review(manager, reason=BallReason.PLAN)
+
+        assert check_record(task, verb="handoff", dependents=0) == []
+
+    def test_an_implementation_task_is_silent(self, manager):
+        task = design_at_review(manager, kind=None)
+
+        assert check_record(task, verb="handoff", dependents=0) == []
+
+    def test_only_the_handoff_raises_it(self, manager):
+        task = design_at_review(manager)
+
+        for verb in ("create", "update_content", "log_append", "claim", "close"):
+            assert check_record(task, verb=verb, dependents=0) == [], verb
 
 
 class TestStandingInvitations:
