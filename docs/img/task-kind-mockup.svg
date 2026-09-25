@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="760" viewBox="0 0 960 760" font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+  <title>Design and implementation tasks: list, header, review panel, phone width (task-556 mockup)</title>
+  <defs>
+    <!-- The kind mark's icon: a drafting compass for design. Stroke only, so it survives greyscale. -->
+    <symbol id="compass" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="5" r="2"/>
+        <path d="M11 7 5 21"/><path d="M13 7l6 14"/><path d="M7.5 15.5c3 1.3 6 1.3 9 0"/>
+      </g>
+    </symbol>
+    <symbol id="code" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>
+      </g>
+    </symbol>
+  </defs>
+
+  <rect width="960" height="760" fill="#0f1115"/>
+
+  <!-- ============ A. The list ============ -->
+  <text x="24" y="34" fill="#e5e7eb" font-size="15" font-weight="700">A. List rows (desktop)</text>
+  <text x="24" y="52" fill="#9ca3af" font-size="12">Only design is marked: implementation is ~95% of rows, and a mark on every row is noise. The mark is a dashed outline + icon + word.</text>
+
+  <rect x="24" y="64" width="912" height="96" rx="8" fill="#171a21" stroke="#2a2f3a"/>
+  <!-- row 1: design -->
+  <rect x="40" y="78" width="104" height="24" rx="5" fill="#7c2d12" stroke="#fb923c"/>
+  <text x="92" y="95" fill="#fed7aa" font-size="12" text-anchor="middle">Needs review</text>
+  <g fill="#fb923c"><rect x="156" y="94" width="3" height="4"/><rect x="161" y="90" width="3" height="8"/><rect x="166" y="86" width="3" height="12"/><rect x="171" y="82" width="3" height="16" fill="#3a3f4a"/></g>
+  <text x="180" y="95" fill="#fb923c" font-size="10" letter-spacing="1.5">HIGH</text>
+  <rect x="220" y="78" width="78" height="24" rx="12" fill="none" stroke="#a5b4fc" stroke-dasharray="4 3"/>
+  <use href="#compass" x="228" y="83" width="14" height="14" color="#a5b4fc"/>
+  <text x="246" y="95" fill="#c7d2fe" font-size="12">Design</text>
+  <text x="310" y="95" fill="#e5e7eb" font-size="13">Design pass: how a task is known to be a design task</text>
+  <text x="920" y="95" fill="#6b7280" font-size="11" text-anchor="end" font-family="ui-monospace, monospace">task-556</text>
+  <line x1="40" y1="112" x2="920" y2="112" stroke="#2a2f3a"/>
+  <!-- row 2: implementation -->
+  <rect x="40" y="122" width="104" height="24" rx="5" fill="#1e3a2a" stroke="#4ade80"/>
+  <text x="92" y="139" fill="#bbf7d0" font-size="12" text-anchor="middle">Will start</text>
+  <g fill="#fb923c"><rect x="156" y="138" width="3" height="4"/><rect x="161" y="134" width="3" height="8"/><rect x="166" y="130" width="3" height="12"/><rect x="171" y="126" width="3" height="16" fill="#3a3f4a"/></g>
+  <text x="180" y="139" fill="#fb923c" font-size="10" letter-spacing="1.5">HIGH</text>
+  <text x="220" y="139" fill="#e5e7eb" font-size="13">Add a kind field to the task schema, end to end</text>
+  <text x="920" y="139" fill="#6b7280" font-size="11" text-anchor="end" font-family="ui-monospace, monospace">task-5xx</text>
+
+  <!-- Filter -->
+  <text x="24" y="186" fill="#9ca3af" font-size="12">Filter popover gains a fourth control, in the URL as ?kind=:</text>
+  <rect x="380" y="172" width="250" height="24" rx="5" fill="#171a21" stroke="#2a2f3a"/>
+  <text x="392" y="189" fill="#9ca3af" font-size="12">Kind</text>
+  <rect x="424" y="176" width="36" height="16" rx="3" fill="#2a2f3a"/><text x="442" y="188" fill="#e5e7eb" font-size="11" text-anchor="middle">All</text>
+  <text x="494" y="188" fill="#c7d2fe" font-size="11" text-anchor="middle">Design</text>
+  <text x="578" y="188" fill="#9ca3af" font-size="11" text-anchor="middle">Implementation</text>
+
+  <!-- ============ B. Record header ============ -->
+  <text x="24" y="232" fill="#e5e7eb" font-size="15" font-weight="700">B. Record header</text>
+  <text x="24" y="250" fill="#9ca3af" font-size="12">Both kinds are named here, so an unmarked record is never ambiguous. An implementation that needs a design says which.</text>
+
+  <rect x="24" y="262" width="450" height="118" rx="8" fill="#171a21" stroke="#2a2f3a"/>
+  <text x="40" y="284" fill="#93c5fd" font-size="12" font-family="ui-monospace, monospace">task-556</text>
+  <text x="40" y="308" fill="#f9fafb" font-size="18" font-weight="700">Design pass: how a task is known…</text>
+  <rect x="40" y="320" width="104" height="24" rx="5" fill="#7c2d12" stroke="#fb923c"/>
+  <text x="92" y="337" fill="#fed7aa" font-size="12" text-anchor="middle">Needs review</text>
+  <rect x="152" y="320" width="78" height="24" rx="12" fill="none" stroke="#a5b4fc" stroke-dasharray="4 3"/>
+  <use href="#compass" x="160" y="325" width="14" height="14" color="#a5b4fc"/>
+  <text x="178" y="337" fill="#c7d2fe" font-size="12">Design</text>
+  <text x="240" y="337" fill="#fb923c" font-size="10" letter-spacing="1.5">HIGH</text>
+  <text x="280" y="337" fill="#9ca3af" font-size="12">ux</text>
+  <text x="40" y="366" fill="#9ca3af" font-size="12">Implemented by: task-5xx, task-5xy, task-001 (3 waiting on this)</text>
+
+  <rect x="486" y="262" width="450" height="118" rx="8" fill="#171a21" stroke="#2a2f3a"/>
+  <text x="502" y="284" fill="#93c5fd" font-size="12" font-family="ui-monospace, monospace">task-5xx</text>
+  <text x="502" y="308" fill="#f9fafb" font-size="18" font-weight="700">Add a kind field to the task schema…</text>
+  <rect x="502" y="320" width="104" height="24" rx="5" fill="#1e3a2a" stroke="#4ade80"/>
+  <text x="554" y="337" fill="#bbf7d0" font-size="12" text-anchor="middle">Will start</text>
+  <rect x="614" y="320" width="122" height="24" rx="12" fill="none" stroke="#6b7280" stroke-dasharray="4 3"/>
+  <use href="#code" x="622" y="325" width="14" height="14" color="#9ca3af"/>
+  <text x="640" y="337" fill="#d1d5db" font-size="12">Implementation</text>
+  <text x="746" y="337" fill="#fb923c" font-size="10" letter-spacing="1.5">HIGH</text>
+  <text x="786" y="337" fill="#9ca3af" font-size="12">architecture</text>
+  <text x="502" y="366" fill="#9ca3af" font-size="12">Implements:</text>
+  <use href="#compass" x="574" y="355" width="13" height="13" color="#a5b4fc"/>
+  <text x="590" y="366" fill="#93c5fd" font-size="12">task-556 — Design pass: how a task is known…</text>
+
+  <!-- ============ C. Review panel ============ -->
+  <text x="24" y="416" fill="#e5e7eb" font-size="15" font-weight="700">C. Review panel — what Approve says depends on the gate; the wording on the kind</text>
+
+  <!-- implementation, human/review -->
+  <rect x="24" y="430" width="296" height="150" rx="8" fill="#1a1708" stroke="#a16207"/>
+  <text x="40" y="452" fill="#9ca3af" font-size="11">implementation · human/review</text>
+  <text x="40" y="474" fill="#fde047" font-size="14" font-weight="600">Needs review — the ball is with you</text>
+  <rect x="40" y="488" width="264" height="30" rx="6" fill="#166534"/>
+  <text x="172" y="508" fill="#f0fdf4" font-size="13" text-anchor="middle">✓ Approve — agent may merge</text>
+  <rect x="40" y="526" width="264" height="26" rx="6" fill="none" stroke="#4b5563"/>
+  <text x="172" y="543" fill="#e5e7eb" font-size="12" text-anchor="middle">✎ Request Changes</text>
+  <text x="40" y="570" fill="#6b7280" font-size="11">Unchanged. Merge clearance, finish runs.</text>
+
+  <!-- design, human/review -->
+  <rect x="332" y="430" width="296" height="150" rx="8" fill="#1a1708" stroke="#a16207"/>
+  <text x="348" y="452" fill="#9ca3af" font-size="11">design · human/review</text>
+  <use href="#compass" x="348" y="461" width="15" height="15" color="#a5b4fc"/>
+  <text x="368" y="474" fill="#fde047" font-size="14" font-weight="600">Design review — the ball is with you</text>
+  <rect x="348" y="488" width="264" height="30" rx="6" fill="#166534"/>
+  <text x="480" y="508" fill="#f0fdf4" font-size="13" text-anchor="middle">✓ Approve design — merge the doc</text>
+  <rect x="348" y="526" width="264" height="26" rx="6" fill="none" stroke="#4b5563"/>
+  <text x="480" y="543" fill="#e5e7eb" font-size="12" text-anchor="middle">✎ Request Changes</text>
+  <text x="348" y="570" fill="#6b7280" font-size="11">Merges the doc only. Authorises no build.</text>
+
+  <!-- any kind, human/plan -->
+  <rect x="640" y="430" width="296" height="150" rx="8" fill="#1a1708" stroke="#a16207"/>
+  <text x="656" y="452" fill="#9ca3af" font-size="11">any kind · human/plan (new)</text>
+  <text x="656" y="474" fill="#fde047" font-size="14" font-weight="600">Plan to approve — nothing is built yet</text>
+  <rect x="656" y="488" width="264" height="30" rx="6" fill="#1e3a8a"/>
+  <text x="788" y="508" fill="#eff6ff" font-size="13" text-anchor="middle">✓ Approve plan — agent proceeds</text>
+  <rect x="656" y="526" width="264" height="26" rx="6" fill="none" stroke="#4b5563"/>
+  <text x="788" y="543" fill="#e5e7eb" font-size="12" text-anchor="middle">✎ Request Changes</text>
+  <text x="656" y="570" fill="#6b7280" font-size="11">No merge clearance. The finish never runs.</text>
+
+  <!-- ============ D. Phone width ============ -->
+  <text x="24" y="616" fill="#e5e7eb" font-size="15" font-weight="700">D. Phone width (360 px)</text>
+  <text x="24" y="634" fill="#9ca3af" font-size="12">The mark wraps with the chips; the icon + word stay together.</text>
+  <rect x="24" y="646" width="360" height="100" rx="8" fill="#171a21" stroke="#2a2f3a"/>
+  <text x="38" y="668" fill="#e5e7eb" font-size="13">Design pass: how a task is known to be a</text>
+  <text x="38" y="684" fill="#e5e7eb" font-size="13">design task, and what that changes</text>
+  <rect x="38" y="696" width="104" height="24" rx="5" fill="#7c2d12" stroke="#fb923c"/>
+  <text x="90" y="713" fill="#fed7aa" font-size="12" text-anchor="middle">Needs review</text>
+  <text x="152" y="713" fill="#fb923c" font-size="10" letter-spacing="1.5">HIGH</text>
+  <rect x="192" y="696" width="78" height="24" rx="12" fill="none" stroke="#a5b4fc" stroke-dasharray="4 3"/>
+  <use href="#compass" x="200" y="701" width="14" height="14" color="#a5b4fc"/>
+  <text x="218" y="713" fill="#c7d2fe" font-size="12">Design</text>
+  <text x="38" y="736" fill="#6b7280" font-size="11" font-family="ui-monospace, monospace">task-556</text>
+
+  <text x="404" y="670" fill="#9ca3af" font-size="12">Three forms, three vocabularies — none relies on colour:</text>
+  <text x="404" y="692" fill="#d1d5db" font-size="12">• status — filled, bordered box, sentence case</text>
+  <text x="404" y="712" fill="#d1d5db" font-size="12">• priority — rising bars, no box, UPPERCASE</text>
+  <text x="404" y="732" fill="#d1d5db" font-size="12">• kind — dashed outline, pill, icon + word</text>
+</svg>
