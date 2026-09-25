@@ -277,6 +277,15 @@ export type DispatchPanelProps = {
    * thing they themselves started thirty seconds ago by pressing Approve.
    */
   finishLive?: boolean;
+  /**
+   * An epic walk is supervising this task (task-591).
+   *
+   * Disables the button and says so, the way `finishLive` does. The server would take the
+   * click as a second walk and `_Supervision.open` would turn it away as
+   * `already_supervised`: a no-op run on the record, and nothing started. The walk card
+   * directly above says what it is doing instead.
+   */
+  walkOpen?: boolean;
   cancellingRunId?: string | null;
   /**
    * What happened to the last click when it did not start a run but was not refused
@@ -343,6 +352,7 @@ export function DispatchPanel({
   recordCanBrief,
   busy = false,
   finishLive = false,
+  walkOpen = false,
   cancellingRunId = null,
   dispatchRefusal = null,
   queuedNotice = null,
@@ -407,7 +417,10 @@ export function DispatchPanel({
   // *finished* run for this task is AgentJobs saying it started an agent here and
   // watched it end, which accounts for a claim left behind by a process that is gone.
   // With no run ever, nothing accounts for the claim and the claim is all there is.
-  const unseenAgent = heldByAgent && runs.length === 0 ? heldByAgent : null;
+  //
+  // Not while a walk is open: the walk's own claim is what `heldByAgent` would be reading,
+  // and the walk note below accounts for it.
+  const unseenAgent = !walkOpen && heldByAgent && runs.length === 0 ? heldByAgent : null;
   const offerButton =
     taskIsDispatchable &&
     Boolean(state?.can_dispatch) &&
@@ -421,7 +434,7 @@ export function DispatchPanel({
   const askForBrief = !recordCanBrief || dispatchRefusal?.reason === "insufficient_record";
   // One name for "the button must not be pressable", so the plain button and the
   // brief form cannot drift apart on what disables them.
-  const blocked = busy || finishLive;
+  const blocked = busy || finishLive || walkOpen;
   // What the state endpoint says about the machine, which is a different question from
   // `can_dispatch` (the four configuration gates). Full is a question to ask, not a
   // reason to withhold the button — see `FullMachinePrompt`.
@@ -524,6 +537,23 @@ export function DispatchPanel({
           busy={cancellingRunId === queuedDispatch.queue_id}
           onCancel={() => onCancel(queuedDispatch.queue_id)}
         />
+      )}
+
+      {offerButton && walkOpen && (
+        // Status rather than alert, for the reason the finish note below gives.
+        <div
+          role="status"
+          data-refusal-reason="already_supervised"
+          className="rounded-lg border border-sky-600/50 bg-sky-950/40 p-3 text-sm text-sky-100"
+        >
+          <p>
+            An epic walk is supervising this task and starts its children itself, so there
+            is nothing to dispatch.
+          </p>
+          <p className="mt-2 text-sky-200">
+            Follow it above. This button comes back when the walk ends.
+          </p>
+        </div>
       )}
 
       {offerButton && finishLive && (
