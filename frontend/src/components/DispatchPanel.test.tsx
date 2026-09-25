@@ -142,6 +142,34 @@ describe("the Dispatch action", () => {
     );
   });
 
+  it("is unavailable while an epic walk supervises this task, and says so", () => {
+    // task-591: the click would start a second walk that the first turns away as
+    // `already_supervised`. The walk's own claim must not read as an unseen agent.
+    const { onDispatch } = renderPanel({
+      walkOpen: true,
+      heldByAgent: { owner: "claude", since: "2026-09-25T15:40:56Z" },
+    });
+
+    expect(screen.getByRole("button", { name: /dispatch/i })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveAttribute(
+      "data-refusal-reason",
+      "already_supervised",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "An epic walk is supervising this task and starts its children itself, so there is nothing to dispatch.",
+    );
+    expect(document.querySelector('[data-refusal-reason="task_being_worked"]')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /dispatch/i }));
+    expect(onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("is offered as before when no walk is open", () => {
+    renderPanel({ walkOpen: false });
+
+    expect(screen.getByRole("button", { name: /dispatch/i })).toBeEnabled();
+    expect(document.querySelector('[data-refusal-reason="already_supervised"]')).toBeNull();
+  });
+
   it("is not offered at all when the task's ball is not with an agent", () => {
     renderPanel({ taskIsDispatchable: false });
 

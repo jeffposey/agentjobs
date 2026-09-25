@@ -120,6 +120,7 @@ type MotionFacts = {
   live_finish?: unknown;
   queued_dispatch?: { status?: string | null } | null;
   live_run_health?: string | null;
+  live_walk?: { grounded?: boolean | null } | null;
 };
 
 /**
@@ -132,7 +133,11 @@ export function taskMotion(task: MotionFacts): ChipMotion | null {
     (task.status_category === "finishing" && Boolean(task.live_finish)) ||
     (task.status_category === "queued" && task.queued_dispatch?.status === "starting") ||
     (task.status_category === "working" &&
-      (task.live_run_health === "working" || task.live_run_health === "starting"));
+      (task.live_run_health === "working" ||
+        task.live_run_health === "starting" ||
+        // A walked epic has no run of its own; its walk taking off is the activity
+        // (task-591). A grounded walk is still "Walking" and stands still.
+        (Boolean(task.live_walk) && !task.live_walk?.grounded)));
   return live ? "orbit" : categoryMotion(task.status_category);
 }
 

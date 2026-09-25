@@ -3736,6 +3736,31 @@ export type LiveRunsView = {
 };
 
 /**
+ * LiveWalkState
+ *
+ * An open epic walk supervising this task right now (task-591).
+ *
+ * Derived on read from the machine's execution store and never stored on the task, for
+ * the reason ``LiveFinishState`` is: a walk moves nothing on the record it supervises.
+ * The epic is claimed and reads ``agent``/``work`` for as long as the walk is open, so
+ * without this every surface drew a walked epic as "Working" -- a word that says an
+ * agent is editing it, when nothing is and the server is starting its children.
+ *
+ * Only what a row needs: whether to say "Walking", and whether to animate the chip.
+ * The counts and the child being waited on are on ``GET /api/runs/live``'s ``walks``.
+ */
+export type LiveWalkState = {
+    /**
+     * Grounded
+     */
+    grounded?: boolean;
+    /**
+     * Walk Id
+     */
+    walk_id: string;
+};
+
+/**
  * LogAppendRequest
  *
  * Append one entry to the unified log.
@@ -6981,6 +7006,7 @@ export type TaskCardReadInput = {
      * Live Run Health
      */
     live_run_health?: string | null;
+    live_walk?: LiveWalkState | null;
     /**
      * Needs Cycles
      */
@@ -7137,6 +7163,7 @@ export type TaskCardReadOutput = {
      * Live Run Health
      */
     live_run_health?: string | null;
+    live_walk?: LiveWalkState | null;
     /**
      * Needs Cycles
      */
@@ -7585,6 +7612,7 @@ export type TaskReadInput = {
      * Live Run Health
      */
     live_run_health?: string | null;
+    live_walk?: LiveWalkState | null;
     /**
      * Log
      */
@@ -7736,6 +7764,7 @@ export type TaskReadOutput = {
      * Live Run Health
      */
     live_run_health?: string | null;
+    live_walk?: LiveWalkState | null;
     /**
      * Log
      */
@@ -7876,6 +7905,7 @@ export type TaskSummaryReadInput = {
      * Live Run Health
      */
     live_run_health?: string | null;
+    live_walk?: LiveWalkState | null;
     /**
      * Needs Cycles
      */
@@ -8013,6 +8043,7 @@ export type TaskSummaryReadOutput = {
      * Live Run Health
      */
     live_run_health?: string | null;
+    live_walk?: LiveWalkState | null;
     /**
      * Needs Cycles
      */
@@ -8897,6 +8928,7 @@ export type TaskCardReadOutputWritable = {
      * Live Run Health
      */
     live_run_health?: string | null;
+    live_walk?: LiveWalkState | null;
     /**
      * Needs Cycles
      */
@@ -9072,6 +9104,7 @@ export type TaskReadOutputWritable = {
      * Live Run Health
      */
     live_run_health?: string | null;
+    live_walk?: LiveWalkState | null;
     /**
      * Log
      */
@@ -9208,6 +9241,7 @@ export type TaskSummaryReadOutputWritable = {
      * Live Run Health
      */
     live_run_health?: string | null;
+    live_walk?: LiveWalkState | null;
     /**
      * Needs Cycles
      */

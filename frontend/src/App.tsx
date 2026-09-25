@@ -86,6 +86,7 @@ import { FiledNotice, type FiledOutcome } from "./components/DispatchOnCreate";
 import { NextExplanation } from "./components/NextExplanation";
 import { invalidateProjectTaskQueries, LiveUpdateStatus } from "./components/LiveUpdates";
 import { runningCount, useLiveRuns } from "./components/LiveRuns";
+import { walkForTask } from "./components/TaskWalk";
 import { NavCounts, navStatusLabel } from "./components/NavStatus";
 import { IdleSessionsSection } from "./components/IdleSessions";
 import { RecentlyFinished, useRecentClosures } from "./components/RecentlyFinished";
@@ -899,6 +900,9 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
   const dispatch = useTaskDispatch(projectId, taskId, detailQuery.data?.identity.user ?? null);
   const finish = useTaskFinish(projectId, taskId);
   const chains = useTaskChains(projectId, taskId);
+  // The shell already polls this for its nav badge, so this reads the shared cache and
+  // adds no loop of its own (task-591).
+  const walk = walkForTask(useLiveRuns()?.walks, projectId, taskId);
   const revokeChain = useMutation(
     revokeTaskChainApiProjectsProjectIdTasksTaskIdChainRevokePostMutation(),
   );
@@ -931,6 +935,7 @@ function TaskDetailPage({ projectId }: { projectId: string }) {
       dispatch={{ ...dispatch, queuedDispatch: detailQuery.data.task.queued_dispatch ?? null }}
       finish={finish}
       chains={chains}
+      walk={walk}
       onRevokeChain={async (chainId) => {
         if (!user) return;
         try {

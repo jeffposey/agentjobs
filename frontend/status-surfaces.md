@@ -54,6 +54,7 @@ map, and when a word the chip used to be rewritten to ("Actionable now", "In fli
 | `components/Dashboard.tsx` | The waiting-on-you cards and the active task chips | `display_status` |
 | `components/TaskDetail.tsx` | The task page's header chip, work state and children | `display_status` |
 | `components/FinishPanel.tsx` | The task page's finish panel and its state badge | the finish read |
+| `components/TaskWalk.tsx` | The task page's walk panel and its Running badge | the walk read |
 | `App.tsx` | Tells the queue's dispatch card (`QueueDispatch`) a task is finishing | `live_finish` |
 | `components/LiveRuns.tsx` | The Runs tab, health words and the finish badge | `health` |
 | `components/SlotBoard.tsx` | The dashboard slot board's run tiles and finish cards | `health` |

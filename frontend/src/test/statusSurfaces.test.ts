@@ -56,7 +56,14 @@ describe("the status surface inventory", () => {
   });
 
   it("says where each surface's word comes from", () => {
-    const allowed = ["display_status", "dependencyState", "health", "live_finish", "the finish read"];
+    const allowed = [
+      "display_status",
+      "dependencyState",
+      "health",
+      "live_finish",
+      "the finish read",
+      "the walk read",
+    ];
     for (const row of rows) {
       expect(allowed, `${row.file} draws its state from "${row.source}"`).toContain(
         row.source.replace(/`/g, ""),
@@ -182,6 +189,10 @@ describe("the chips that move (task-570)", () => {
     for (const health of ["parked", "silent", "orphaned", "handback", "idle"]) {
       expect(taskMotion({ ...working, live_run_health: health }), health).toBeNull();
     }
+
+    // "Walking" (task-591): a walk taking off moves the chip; a grounded one stands still.
+    expect(taskMotion({ ...working, live_walk: { grounded: false } })).toBe(runMotion("working"));
+    expect(taskMotion({ ...working, live_walk: { grounded: true } })).toBeNull();
 
     const finish = { current_step: "gate" };
     expect(taskMotion({ status_category: "finishing", live_finish: finish })).toBe(runMotion("finishing"));
